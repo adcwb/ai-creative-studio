@@ -26,14 +26,20 @@ func main() {
 	}
 }
 func run() error {
-	store, err := studio.OpenStore(env("DATA_DIR", "./data"))
+	providerName := env("IMAGE_PROVIDER", "mock-svg")
+	key := ""
+	if providerName == "openai-images" {
+		key = os.Getenv("OPENAI_API_KEY")
+	}
+	provider, capabilities := studio.ConfigureProvider(providerName, key)
+	store, err := studio.OpenStore(env("DATA_DIR", "./data"), capabilities)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	pipeline, err := studio.NewPipeline(ctx, studio.MockProvider{Delay: 900 * time.Millisecond})
+	pipeline, err := studio.NewPipeline(ctx, provider, capabilities)
 	if err != nil {
 		return err
 	}
@@ -42,7 +48,7 @@ func run() error {
 	workerDone := make(chan struct{})
 	go func() { defer close(workerDone); errs <- studio.RunWorker(ctx, store, pipeline) }()
 	go func() {
-		slog.Info("demo API listening", "address", srv.Addr, "provider", "mock-svg")
+		slog.Info("demo API listening", "address", srv.Addr, "provider", capabilities.Provider, "provider_ready", capabilities.Ready)
 		errs <- srv.ListenAndServe()
 	}()
 	select {

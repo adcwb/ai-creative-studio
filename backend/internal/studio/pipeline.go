@@ -13,22 +13,24 @@ import (
 
 // ImageProvider can later adapt a real model without changing the HTTP layer.
 type ImageProvider interface {
-	Generate(context.Context, Input) (string, error)
+	Generate(context.Context, Input) (GenerationResult, error)
 }
 type MockProvider struct{ Delay time.Duration }
 
-func (p MockProvider) Generate(ctx context.Context, in Input) (string, error) {
+func (p MockProvider) Generate(ctx context.Context, in Input) (GenerationResult, error) {
 	timer := time.NewTimer(p.Delay)
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
-		return "", ctx.Err()
+		return GenerationResult{}, ctx.Err()
 	case <-timer.C:
 	}
 	if strings.Contains(in.Prompt, "[mock-fail]") {
-		return "", fmt.Errorf("requested mock failure")
+		return GenerationResult{}, providerFailure("mock_failed")
 	}
-	return renderMockSVG(withDefaults(in)), nil
+	in = withDefaults(in)
+	width, height := mockDimensions(in.Ratio)
+	return GenerationResult{Data: []byte(renderMockSVG(in)), MIMEType: "image/svg+xml", Width: width, Height: height}, nil
 }
 
 type mockPalette struct {
@@ -39,14 +41,19 @@ type mockPalette struct {
 	label      string
 }
 
-func renderMockSVG(in Input) string {
+func mockDimensions(ratio string) (int, int) {
 	width, height := 800, 1000
-	switch in.Ratio {
+	switch ratio {
 	case "1:1":
 		height = 800
 	case "16:9":
 		width, height = 1600, 900
 	}
+	return width, height
+}
+
+func renderMockSVG(in Input) string {
+	width, height := mockDimensions(in.Ratio)
 	palette := mockPalette{"#eeeadd", "#293d36", "#71917d", "#cfad77", "自然"}
 	switch in.Style {
 	case "studio":
@@ -90,18 +97,26 @@ func renderMockSVG(in Input) string {
 }
 
 type Pipeline struct {
-	run compose.Runnable[Input, string]
+	run          compose.Runnable[Input, GenerationResult]
+	capabilities Capabilities
 }
 
-func NewPipeline(ctx context.Context, provider ImageProvider) (*Pipeline, error) {
-	chain := compose.NewChain[Input, string]().AppendLambda(compose.InvokableLambda(func(_ context.Context, in Input) (Input, error) { return Normalize(in) })).AppendLambda(compose.InvokableLambda(provider.Generate))
+func NewPipeline(ctx context.Context, provider ImageProvider, options ...Capabilities) (*Pipeline, error) {
+	caps := mockCapabilities()
+	if _, ok := provider.(*OpenAIProvider); ok {
+		caps = Capabilities{Provider: "openai-images", Mode: "real", Ready: true, Model: OpenAIModel, Message: "本地配置已就绪，未验证密钥或额度。"}
+	}
+	if len(options) > 0 {
+		caps = options[0]
+	}
+	chain := compose.NewChain[Input, GenerationResult]().AppendLambda(compose.InvokableLambda(func(_ context.Context, in Input) (Input, error) { return Normalize(in) })).AppendLambda(compose.InvokableLambda(provider.Generate))
 	run, err := chain.Compile(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &Pipeline{run: run}, nil
+	return &Pipeline{run: run, capabilities: caps}, nil
 }
-func (p *Pipeline) Invoke(ctx context.Context, in Input) (string, error) {
+func (p *Pipeline) Invoke(ctx context.Context, in Input) (GenerationResult, error) {
 	return p.run.Invoke(ctx, in)
 }
 
@@ -122,11 +137,17 @@ func RunWorker(ctx context.Context, repo Repository, p *Pipeline) error {
 		if !ok {
 			continue
 		}
-		svg, runErr := p.Invoke(ctx, t.Input)
+		var result GenerationResult
+		var runErr error
+		if !p.capabilities.Ready || t.Provider != p.capabilities.Provider || t.Model != p.capabilities.Model {
+			runErr = providerFailure("provider_unavailable")
+		} else {
+			result, runErr = p.Invoke(ctx, t.Input)
+		}
 		if ctx.Err() != nil {
 			return nil
 		}
-		if err = repo.Finish(t, svg, runErr); err != nil {
+		if err = repo.Finish(t, result, runErr); err != nil {
 			return err
 		}
 	}

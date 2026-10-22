@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { errorMessage, request, type Asset, type Catalog, type Task, type TaskInput } from '../api'
+import { ApiError, errorMessage, request, type Asset, type Capabilities, type Catalog, type Task, type TaskInput } from '../api'
 
 export function useWorkspace(space: string) {
   const [catalog, setCatalog] = useState<Catalog | null>(null)
@@ -64,11 +64,16 @@ export function useWorkspace(space: string) {
     if (active.current) setTasks(previous => previous.map(item => item.id === task.id ? task : item))
   }, [])
 
-  async function create(input: TaskInput, retryOf?: string) {
-    if (inFlight.current) return false
+  function submission(input: TaskInput, retryOf?: string) {
     const body = JSON.stringify({...input, prompt: input.prompt.trim()})
     const path = retryOf ? `/tasks/${encodeURIComponent(retryOf)}/retry${query}` : `/tasks${query}`
     const fingerprint = `${path}:${body}`
+    return {body, path, fingerprint}
+  }
+
+  async function create(input: TaskInput, capability: Capabilities, retryOf?: string): Promise<'created' | 'provider_changed' | 'failed'> {
+    if (inFlight.current || !capability.ready || capability.provider === 'unavailable' || capability.mode === 'unavailable') return 'failed'
+    const {body, path, fingerprint} = submission(input, retryOf)
     if (attempt.current?.fingerprint !== fingerprint) attempt.current = {fingerprint, key: crypto.randomUUID()}
     const controller = new AbortController()
     pending.current.add(controller)
@@ -76,16 +81,21 @@ export function useWorkspace(space: string) {
     try {
       const task = await request<Task>(path, {
         method: 'POST', signal: controller.signal,
-        headers: {'Content-Type': 'application/json', 'Idempotency-Key': attempt.current.key}, body,
+        headers: {'Content-Type': 'application/json', 'Idempotency-Key': attempt.current.key},
+        body: JSON.stringify({...JSON.parse(body), expected_provider: capability.provider, expected_model: capability.mode === 'mock' ? '' : capability.model ?? ''}),
       })
-      if (!active.current || controller.signal.aborted) return false
+      if (!active.current || controller.signal.aborted) return 'failed'
       mutation.current += 1
       setTasks(previous => [task, ...previous.filter(item => item.id !== task.id)])
       setNotice(retryOf ? '重试任务已提交，原任务保留。相同提交不会重复创建。' : '任务已提交。相同设定重复点击会返回同一任务；可点击“开始新创作”另建任务。')
-      return true
+      return 'created'
     } catch (error) {
+      if (active.current && !controller.signal.aborted && error instanceof ApiError && error.code === 'provider_changed') {
+        setActionError('图像服务配置已变化。本次未创建任务；请查看更新后的服务与费用提示，再次点击提交。')
+        return 'provider_changed'
+      }
       if (active.current && !controller.signal.aborted) setActionError(errorMessage(error, '提交失败，请重试'))
-      return false
+      return 'failed'
     } finally {
       pending.current.delete(controller)
       inFlight.current = false

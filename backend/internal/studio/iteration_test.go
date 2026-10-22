@@ -56,9 +56,9 @@ type recordingProvider struct {
 	inputs []Input
 }
 
-func (p *recordingProvider) Generate(_ context.Context, in Input) (string, error) {
+func (p *recordingProvider) Generate(_ context.Context, in Input) (GenerationResult, error) {
 	p.inputs = append(p.inputs, in)
-	return "provider-observed-output", nil
+	return svgResult("provider-observed-output"), nil
 }
 
 func TestEinoPassesNormalizedParametersAndRejectsBeforeProvider(t *testing.T) {
@@ -72,7 +72,7 @@ func TestEinoPassesNormalizedParametersAndRejectsBeforeProvider(t *testing.T) {
 		{Prompt: "  selected parameters  ", Kind: "general", Ratio: "16:9", Style: "illustration"},
 	} {
 		got, err := pipeline.Invoke(context.Background(), in)
-		if err != nil || got != "provider-observed-output" {
+		if err != nil || string(got.Data) != "provider-observed-output" {
 			t.Fatalf("Eino did not return provider result: %q, %v", got, err)
 		}
 		want, _ := Normalize(in)
@@ -103,10 +103,11 @@ func TestMockSVGUsesSelectedCanvasAndVisualParameters(t *testing.T) {
 	for _, kind := range []string{"poster", "portrait", "general"} {
 		for _, ratio := range []string{"1:1", "4:5", "16:9"} {
 			for _, style := range []string{"natural", "studio", "illustration"} {
-				svg, err := pipeline.Invoke(context.Background(), Input{Prompt: "<script>synthetic</script>", Kind: kind, Ratio: ratio, Style: style})
+				result, err := pipeline.Invoke(context.Background(), Input{Prompt: "<script>synthetic</script>", Kind: kind, Ratio: ratio, Style: style})
 				if err != nil {
 					t.Fatal(err)
 				}
+				svg := string(result.Data)
 				var root struct {
 					XMLName xml.Name
 					Width   float64 `xml:"width,attr"`
@@ -261,7 +262,7 @@ func TestHTTPParametersAndExplicitRetryPreserveFailedTask(t *testing.T) {
 		t.Fatal("task response lost parameters")
 	}
 	stored, _ := s.Get("personal-demo", failed.ID)
-	if err := s.Finish(stored, "", errors.New("synthetic failure")); err != nil {
+	if err := s.Finish(stored, GenerationResult{}, errors.New("synthetic failure")); err != nil {
 		t.Fatal(err)
 	}
 	response = call("POST", path, body, "original-failure-key")
@@ -300,7 +301,7 @@ func TestHTTPParametersAndExplicitRetryPreserveFailedTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Finish(other, "", errors.New("synthetic failure")); err != nil {
+	if err := s.Finish(other, GenerationResult{}, errors.New("synthetic failure")); err != nil {
 		t.Fatal(err)
 	}
 	if replay := call("POST", "/api/v1/tasks/"+other.ID+"/retry?space_id=personal-demo", retryBody, "explicit-retry-new-key"); replay.Code != 409 {
@@ -388,7 +389,7 @@ func TestRetryConcurrencyAndRestartPersistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Finish(parent, "", errors.New("synthetic failure")); err != nil {
+	if err := s.Finish(parent, GenerationResult{}, errors.New("synthetic failure")); err != nil {
 		t.Fatal(err)
 	}
 	input := Input{Prompt: " retry synthetic image ", Kind: "general", Ratio: "1:1", Style: "illustration"}
@@ -410,7 +411,7 @@ func TestRetryConcurrencyAndRestartPersistence(t *testing.T) {
 	if err != nil || created || child.RetryOf != parent.ID {
 		t.Fatalf("retry replay: %#v, %v", child, err)
 	}
-	if err := s.Finish(child, "<svg>persisted retry image</svg>", nil); err != nil {
+	if err := s.Finish(child, svgResult("<svg>persisted retry image</svg>", child.Ratio), nil); err != nil {
 		t.Fatal(err)
 	}
 	asset, err := s.SaveAsset("personal-demo", child.ID)
@@ -444,7 +445,7 @@ func TestHTTPEmptyAndOmittedParametersShareDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Finish(parent, "", errors.New("synthetic failure")); err != nil {
+	if err := s.Finish(parent, GenerationResult{}, errors.New("synthetic failure")); err != nil {
 		t.Fatal(err)
 	}
 	h := Handler(s, "http://localhost:5173")
@@ -540,7 +541,7 @@ func TestTemplateCatalogAndServerSideAssetSearch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := s.Finish(task, "<svg/>", nil); err != nil {
+		if err := s.Finish(task, svgResult("<svg/>", task.Ratio), nil); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := s.SaveAsset(fixture.space, task.ID); err != nil {

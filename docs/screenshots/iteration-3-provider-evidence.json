@@ -1,0 +1,37 @@
+{
+  "upstream": "loopback fake HTTP; synthetic PNG; no official API invocation",
+  "calls": 5,
+  "requests": [
+    {
+      "model": "gpt-image-2-2026-04-21",
+      "size": "1024x1024"
+    },
+    {
+      "model": "gpt-image-2-2026-04-21",
+      "size": "1024x1280"
+    },
+    {
+      "model": "gpt-image-2-2026-04-21",
+      "size": "1024x1024"
+    },
+    {
+      "model": "gpt-image-2-2026-04-21",
+      "size": "1024x1024"
+    },
+    {
+      "model": "gpt-image-2-2026-04-21",
+      "size": "1024x1024"
+    }
+  ],
+  "checks": [
+    "cached mock to real guard",
+    "browser Eino PNG save and restart",
+    "lost-response same-key replay",
+    "unknown capability blocks POST",
+    "sanitized upstream error",
+    "SIGKILL interruption no replay",
+    "explicit retry association",
+    "unavailable accepted-key replay",
+    "secret exclusion"
+  ]
+}

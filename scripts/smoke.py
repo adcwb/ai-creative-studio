@@ -45,7 +45,7 @@ def await_value(fn, predicate):
 
 
 with tempfile.TemporaryDirectory(prefix="studio-process-smoke-") as directory:
-    env = dict(os.environ, DATA_DIR=directory, HTTP_ADDR=f"127.0.0.1:{PORT}")
+    env = dict(os.environ, DATA_DIR=directory, HTTP_ADDR=f"127.0.0.1:{PORT}", IMAGE_PROVIDER="mock-svg", OPENAI_API_KEY="")
     process = None
 
     def start():

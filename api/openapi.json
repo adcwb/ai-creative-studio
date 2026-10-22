@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "映创 · Iteration 2 Demo API",
-    "version": "0.2.0",
-    "description": "真实运行并持久化业务任务的本地演示 API；模板目录、参数校验、失败任务重试及素材查询均由后端提供。图像 provider 仍为经 Eino Chain 调用的 mock-svg，所有结果是程序 SVG，不代表真实 AI 模型能力。无认证、无生产企业隔离，不可直接暴露到公网。"
+    "title": "映创 · Iteration 3 Image Provider API",
+    "version": "0.3.0",
+    "description": "真实运行并持久化业务任务的本地工作室 API。默认使用 mock-svg；可由服务端显式配置 OpenAI Images generations 的 gpt-image-2-2026-04-21 固定协议适配器。能力就绪仅表示本地配置可提交，不代表已验证上游凭据或完成真实付费调用。任务和素材保留自身 provider；公开演示空间仍无生产认证或企业隔离，不可直接暴露公网。"
   },
   "servers": [
     {
@@ -148,7 +148,7 @@
       },
       "post": {
         "operationId": "createTask",
-        "summary": "持久化创建模拟图像任务；同键同内容返回已有任务",
+        "summary": "持久化创建当前 provider 的图像任务；同键精确重放返回原记录",
         "parameters": [
           {
             "name": "space_id",
@@ -171,12 +171,12 @@
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{8,128}$"
             },
-            "description": "当前空间中唯一的提交键，持久保存到数据清理；网络失败重发必须沿用原键。普通创建与失败重试共享键命名空间；新一次用户提交应使用新键。"
+            "description": "按空间持久化的业务提交键，普通创建与重试共享命名空间。网络重发同一提交沿用原键；该键不表示上游图像生成具备 exactly-once 或不会重复计费。"
           }
         ],
         "responses": {
           "200": {
-            "description": "同空间、同键、同归一化输入的幂等重放，返回原任务的当前状态；不会调度新任务。",
+            "description": "同空间、同键、同归一化输入和同直接父任务的幂等重放；返回原任务及原 provider/model 的当前状态，不创建新任务或重新调用上游，即使当前配置已改变或不可用。",
             "content": {
               "application/json": {
                 "schema": {
@@ -200,7 +200,7 @@
             }
           },
           "202": {
-            "description": "首次创建成功，已持久化 queued 任务；不代表图像生成已成功。",
+            "description": "新任务及当前 provider/model 绑定已持久化并入队；后续由 Eino 执行，不代表图像生成成功。",
             "content": {
               "application/json": {
                 "schema": {
@@ -223,7 +223,7 @@
             }
           },
           "400": {
-            "description": "space_id、Idempotency-Key、输入枚举/长度、JSON 无效，或 ratio/style 显式为 null/非字符串。",
+            "description": "space_id、Idempotency-Key、输入枚举/长度、JSON 无效，或 ratio/style 显式为 null/非字符串。 expected_provider/expected_model 必须同时省略或构成有效字符串对。",
             "content": {
               "application/json": {
                 "schema": {
@@ -249,16 +249,29 @@
             }
           },
           "409": {
-            "description": "键已用于不同输入或重试来源；不要用同一键提交编辑后的内容。",
+            "description": "键已用于不同输入或重试来源；不要用同一键提交编辑后的内容。 新提交的预期 provider/model 与当前可用配置不符时返回 provider_changed。",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 },
-                "example": {
-                  "error": {
-                    "code": "conflict",
-                    "message": "请求与已有任务冲突，或任务尚未完成"
+                "examples": {
+                  "idempotencyOrParentConflict": {
+                    "value": {
+                      "error": {
+                        "code": "conflict",
+                        "message": "请求与已有任务冲突，或任务尚未完成"
+                      }
+                    }
+                  },
+                  "providerChanged": {
+                    "summary": "界面看到的模式已经变化，不创建任务",
+                    "value": {
+                      "error": {
+                        "code": "provider_changed",
+                        "message": "生成服务配置已变化，请刷新模式后重新确认提交"
+                      }
+                    }
                   }
                 }
               }
@@ -280,6 +293,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "新的有效提交无法被接受，因为当前 provider 本地配置不可用；不创建任务、不调用上游、不静默回退。已接受请求的精确幂等重放不受此检查阻挡。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "provider_not_ready",
+                    "message": "图像服务尚未就绪，请检查服务端配置后重试"
+                  }
                 }
               }
             }
@@ -317,13 +346,35 @@
                     "ratio": "4:5",
                     "style": "illustration"
                   }
+                },
+                "guardedMock": {
+                  "summary": "浏览器按已读取的模拟模式提交，防止服务切换后意外创建外部任务",
+                  "value": {
+                    "prompt": "春日新品海报",
+                    "kind": "poster",
+                    "ratio": "4:5",
+                    "style": "illustration",
+                    "expected_provider": "mock-svg",
+                    "expected_model": ""
+                  }
+                },
+                "guardedOpenAI": {
+                  "summary": "显式预期固定 OpenAI 模型；本例不是付费调用证据",
+                  "value": {
+                    "prompt": "宁静山野中的小屋",
+                    "kind": "general",
+                    "ratio": "1:1",
+                    "style": "natural",
+                    "expected_provider": "openai-images",
+                    "expected_model": "gpt-image-2-2026-04-21"
+                  }
                 }
               }
             }
           },
           "description": "Content-Type 必须为 application/json；请求体最大 16 KiB，且仅允许一个 JSON 对象。"
         },
-        "description": "校验并持久化 queued 任务，随后由 worker 调用真实 Eino Chain 执行模拟 provider。prompt 去首尾空白，ratio/style 补默认值。相同空间、键和归一化输入返回原任务；不同输入或原键属于失败重试返回 409。202 只表示任务已入持久队列，后续成功或失败由任务详情查询。"
+        "description": "验证并规范化输入，优先匹配已有幂等记录；新提交再检查本地 provider 就绪状态，绑定 provider/model 并持久化 queued 任务。worker 经真实 Eino Chain 调用已绑定 provider；默认 mock-svg，显式配置后可使用固定 OpenAI Images 协议。不得从客户端指定 provider/endpoint/key。未就绪的新请求返回 503，精确重放仍返回 200 原记录。 对新提交，在仓库锁内核对 expected_provider/expected_model 与当前配置；不一致返回 409 provider_changed，无新任务或上游请求。前端刷新能力后需用户重新明确提交，不自动重发。已有同键/input/父任务的重放优先，不受 expected 前置条件变化影响。"
       }
     },
     "/api/v1/tasks/{id}": {
@@ -410,6 +461,46 @@
                       "retry_of": "11111111111111111111111111111111",
                       "error": "模拟流程失败；请移除 [mock-fail] 后创建新任务"
                     }
+                  },
+                  "pngResult": {
+                    "summary": "固定协议 adapter 已持久化的 PNG 结果结构示例；不是本轮真实付费调用证据",
+                    "value": {
+                      "id": "33333333333333333333333333333333",
+                      "space_id": "personal-demo",
+                      "prompt": "春日新品海报",
+                      "kind": "poster",
+                      "ratio": "4:5",
+                      "style": "natural",
+                      "status": "succeeded",
+                      "progress": 100,
+                      "provider": "openai-images",
+                      "created_at": "2026-10-22T10:00:00Z",
+                      "updated_at": "2026-10-22T10:00:00Z",
+                      "model": "gpt-image-2-2026-04-21",
+                      "result_mime": "image/png",
+                      "result_width": 1024,
+                      "result_height": 1280,
+                      "result_url": "/api/v1/tasks/33333333333333333333333333333333/result?space_id=personal-demo"
+                    }
+                  },
+                  "interruptedExternal": {
+                    "summary": "外部执行重启后不自动重新发送",
+                    "value": {
+                      "id": "33333333333333333333333333333333",
+                      "space_id": "personal-demo",
+                      "prompt": "春日新品海报",
+                      "kind": "poster",
+                      "ratio": "4:5",
+                      "style": "natural",
+                      "status": "failed",
+                      "progress": 100,
+                      "provider": "openai-images",
+                      "created_at": "2026-10-22T10:00:00Z",
+                      "updated_at": "2026-10-22T10:00:00Z",
+                      "model": "gpt-image-2-2026-04-21",
+                      "error_code": "execution_interrupted",
+                      "error": "任务执行中断，远端结果和费用状态未确认；请确认后显式重试。"
+                    }
                   }
                 }
               }
@@ -446,13 +537,13 @@
             }
           }
         },
-        "description": "只有当前空间任务可见；缺失记录与跨空间 ID 均返回 404。当前没有任务编辑或取消 API。"
+        "description": "读取实际持久化任务输入、provider/model、状态及安全结果元数据；缺失与跨空间 ID 均 404。当前 provider 配置不可用时历史仍可读。没有任务编辑或取消 API。"
       }
     },
     "/api/v1/tasks/{id}/result": {
       "get": {
         "operationId": "getResult",
-        "summary": "返回明确标记为模拟的程序 SVG",
+        "summary": "按任务空间读取已成功保存的 SVG 或 PNG 结果",
         "parameters": [
           {
             "name": "space_id",
@@ -478,11 +569,17 @@
         ],
         "responses": {
           "200": {
-            "description": "仅任务 succeeded 可读取；SVG 带有非 AI 生成水印",
+            "description": "已成功结果；Content-Type 与实际 SVG/PNG 类型一致。",
             "content": {
               "image/svg+xml": {
                 "schema": {
                   "type": "string"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
                 }
               }
             }
@@ -526,9 +623,19 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "已成功任务的结果文件无法安全读取；不会回显路径或自动重新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
-        "description": "仅 succeeded 任务可读取。返回转义安全、带“非 AI 生成”水印的 SVG；Content-Security-Policy: default-src 'none'; sandbox。新任务按 ratio 设置真实画布比例，style 影响可见模拟结果。旧数据恢复不会重绘已经成功的 SVG。"
+        "description": "仅 succeeded 可读。先按空间读取任务，再读取受限结果目录内与内部任务 ID 对应的文件或旧内联 SVG；不接受上游/客户端路径，不下载上游 URL。SVG 带模拟标识并保留 sandbox CSP；PNG 是经大小/尺寸/完整解码校验后安全落盘的 adapter 返回。两类结果均使用 nosniff 和 no-store。历史图像不会因当前 provider 配置变化被重绘或替换。"
       }
     },
     "/api/v1/assets": {
@@ -845,7 +952,7 @@
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{8,128}$"
             },
-            "description": "当前空间中唯一的提交键，持久保存到数据清理；网络失败重发必须沿用原键。普通创建与失败重试共享键命名空间；新一次用户提交应使用新键。"
+            "description": "按空间持久化的业务提交键，普通创建与重试共享命名空间。网络重发同一提交沿用原键；该键不表示上游图像生成具备 exactly-once 或不会重复计费。"
           },
           {
             "name": "id",
@@ -859,7 +966,7 @@
         ],
         "responses": {
           "200": {
-            "description": "同键、同父、同归一化输入的幂等重放；返回已有子任务当前状态，不产生新尝试。",
+            "description": "同空间、同键、同归一化输入和同直接父任务的幂等重放；返回原任务及原 provider/model 的当前状态，不创建新任务或重新调用上游，即使当前配置已改变或不可用。",
             "content": {
               "application/json": {
                 "schema": {
@@ -869,7 +976,7 @@
             }
           },
           "202": {
-            "description": "新执行尝试已持久化并入队；返回新 ID、queued 状态和 retry_of。",
+            "description": "新任务及当前 provider/model 绑定已持久化并入队；后续由 Eino 执行，不代表图像生成成功。",
             "content": {
               "application/json": {
                 "schema": {
@@ -893,7 +1000,7 @@
             }
           },
           "400": {
-            "description": "space_id、Idempotency-Key、输入枚举/长度、JSON 无效，或 ratio/style 显式为 null/非字符串。",
+            "description": "space_id、Idempotency-Key、输入枚举/长度、JSON 无效，或 ratio/style 显式为 null/非字符串。 expected_provider/expected_model 必须同时省略或构成有效字符串对。",
             "content": {
               "application/json": {
                 "schema": {
@@ -919,16 +1026,29 @@
             }
           },
           "409": {
-            "description": "父任务不是 failed，或幂等键关联的输入/父任务/操作来源不同。",
+            "description": "父任务不是 failed，或幂等键关联的输入/父任务/操作来源不同。 新提交的预期 provider/model 与当前可用配置不符时返回 provider_changed。",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 },
-                "example": {
-                  "error": {
-                    "code": "conflict",
-                    "message": "请求与已有任务冲突，或任务尚未完成"
+                "examples": {
+                  "idempotencyOrParentConflict": {
+                    "value": {
+                      "error": {
+                        "code": "conflict",
+                        "message": "请求与已有任务冲突，或任务尚未完成"
+                      }
+                    }
+                  },
+                  "providerChanged": {
+                    "summary": "界面看到的模式已经变化，不创建任务",
+                    "value": {
+                      "error": {
+                        "code": "provider_changed",
+                        "message": "生成服务配置已变化，请刷新模式后重新确认提交"
+                      }
+                    }
                   }
                 }
               }
@@ -969,6 +1089,22 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "新的有效提交无法被接受，因为当前 provider 本地配置不可用；不创建任务、不调用上游、不静默回退。已接受请求的精确幂等重放不受此检查阻挡。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "provider_not_ready",
+                    "message": "图像服务尚未就绪，请检查服务端配置后重试"
+                  }
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -987,13 +1123,103 @@
                     "ratio": "4:5",
                     "style": "illustration"
                   }
+                },
+                "guardedMock": {
+                  "summary": "浏览器按已读取的模拟模式提交，防止服务切换后意外创建外部任务",
+                  "value": {
+                    "prompt": "春日新品海报",
+                    "kind": "poster",
+                    "ratio": "4:5",
+                    "style": "illustration",
+                    "expected_provider": "mock-svg",
+                    "expected_model": ""
+                  }
+                },
+                "guardedOpenAI": {
+                  "summary": "显式预期固定 OpenAI 模型；本例不是付费调用证据",
+                  "value": {
+                    "prompt": "宁静山野中的小屋",
+                    "kind": "general",
+                    "ratio": "1:1",
+                    "style": "natural",
+                    "expected_provider": "openai-images",
+                    "expected_model": "gpt-image-2-2026-04-21"
+                  }
                 }
               }
             }
           },
           "description": "Content-Type 必须为 application/json；请求体最大 16 KiB，且仅允许一个 JSON 对象。"
         },
-        "description": "仅接受当前空间 failed 父任务；完整请求输入可由原任务编辑而来。每次用户明确重试使用新键，创建新任务并持久化 retry_of 为直接父任务 ID。worker 独立领取并经 Eino 执行新尝试，不修改或重置父任务。相同空间、键、父 ID 和归一化输入重放返回同一子任务；同键跨父、改变输入或与普通创建互用返回 409。无父或跨空间父返回 404；父为 queued/running/succeeded 返回 409。仅客户端网络重发复用原键。"
+        "description": "仅当前空间 failed 父任务可创建新尝试，完整输入可由父任务编辑而来。先判断同键、同父与同归一化输入的幂等重放，再为新的提交检查 provider 就绪状态；新任务绑定当前 provider/model 并持久化 retry_of，父任务不变。现有子任务重放不随当前模式变化。外部 provider 重试可能再次计费，超时/中断后原远端结果可能不确定；没有自动重试或费用 exactly-once 保证。无父/跨空间 404，父非 failed 或键冲突 409，新的请求未就绪 503。 对新提交，在仓库锁内核对 expected_provider/expected_model 与当前配置；不一致返回 409 provider_changed，无新任务或上游请求。前端刷新能力后需用户重新明确提交，不自动重发。已有同键/input/父任务的重放优先，不受 expected 前置条件变化影响。"
+      }
+    },
+    "/api/v1/capabilities": {
+      "get": {
+        "operationId": "getCapabilities",
+        "summary": "读取当前服务端 provider 与本地配置就绪状态",
+        "description": "全局只读状态，无需 space_id，不会发送上游验证或生成请求。默认 mock；未知 provider 或缺失/无效凭据使 ready=false，历史查询仍可用。创建参数选项仍由 templates 接口提供。服务配置只在进程启动时读取。",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "成功读取本地能力状态；ready=false 也是正常 200 响应。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                },
+                "examples": {
+                  "mock": {
+                    "value": {
+                      "provider": "mock-svg",
+                      "mode": "mock",
+                      "ready": true,
+                      "message": "当前使用模拟 SVG；不会调用外部图像服务。"
+                    }
+                  },
+                  "configured": {
+                    "value": {
+                      "provider": "openai-images",
+                      "mode": "real",
+                      "ready": true,
+                      "model": "gpt-image-2-2026-04-21",
+                      "message": "本地配置就绪；未验证远端凭据、配额或生成能力。"
+                    }
+                  },
+                  "missingKey": {
+                    "value": {
+                      "provider": "openai-images",
+                      "mode": "real",
+                      "ready": false,
+                      "model": "gpt-image-2-2026-04-21",
+                      "reason_code": "missing_api_key",
+                      "message": "外部图像服务未配置，暂不能创建任务；历史记录仍可查看。"
+                    }
+                  },
+                  "invalidProvider": {
+                    "value": {
+                      "provider": "unavailable",
+                      "mode": "unavailable",
+                      "ready": false,
+                      "reason_code": "invalid_provider",
+                      "message": "图像服务配置无效，暂不能创建任务；历史记录仍可查看。"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -1055,16 +1281,18 @@
           "provider": {
             "type": "string",
             "enum": [
-              "mock-svg"
-            ]
+              "mock-svg",
+              "openai-images"
+            ],
+            "description": "首次接受任务时绑定并持久化的实际 provider。历史记录不随当前配置重新标记。"
           },
           "result_url": {
             "type": "string",
-            "description": "仅 succeeded 任务返回的同源相对 SVG 地址，包含 space_id；不等同于公开分享链接。"
+            "description": "仅 succeeded 返回的同源相对结果地址，包含 space_id；实际类型为 SVG 或 PNG，不是上游下载 URL 或公开分享链接。"
           },
           "error": {
             "type": "string",
-            "description": "仅 failed 任务返回面向用户的模拟失败说明。"
+            "description": "仅 failed 任务返回的安全静态说明，不含原始上游响应、凭据或内部路径。超时、中断等情形可能无法确认上游结果或计费。"
           },
           "created_at": {
             "type": "string",
@@ -1081,7 +1309,7 @@
               "4:5",
               "16:9"
             ],
-            "description": "SVG 画布宽高比。 旧 version=1 数据缺少本字段时补为 4:5，既有 SVG 保持原样。"
+            "description": "请求画布宽高比。mock 使用对应 SVG 画布；固定 OpenAI 模型精确映射 1:1→1024x1024、4:5→1024x1280、16:9→1536x864。旧 version=1 数据缺少时补为 4:5，不重绘既有结果。"
           },
           "style": {
             "type": "string",
@@ -1090,16 +1318,56 @@
               "studio",
               "illustration"
             ],
-            "description": "模拟 SVG 的视觉风格；不表示真实 AI 模型能力。 旧 version=1 数据缺少本字段时补为 natural，既有 SVG 保持原样。"
+            "description": "mock 的可见 SVG 风格，或 OpenAI 生成请求中明确写入 prompt 的风格说明；不作为不受支持的上游 style 参数。旧数据缺少时补为 natural。"
           },
           "retry_of": {
             "type": "string",
             "description": "仅失败重试创建的任务返回；当前空间内直接父任务的 ID，随任务持久化，重启后保留。普通创建及旧记录省略本字段。",
             "minLength": 1
+          },
+          "model": {
+            "type": "string",
+            "enum": [
+              "gpt-image-2-2026-04-21"
+            ],
+            "description": "openai-images 任务创建时固定的模型版本；mock 记录省略。"
+          },
+          "result_mime": {
+            "type": "string",
+            "enum": [
+              "image/svg+xml",
+              "image/png"
+            ],
+            "description": "已成功结果的实际媒体类型。旧成功 SVG 数据恢复为 image/svg+xml。"
+          },
+          "result_width": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "成功结果的实际像素宽度；旧 SVG 记录可省略，不猜测历史尺寸。"
+          },
+          "result_height": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "成功结果的实际像素高度；旧 SVG 记录可省略，不猜测历史尺寸。"
+          },
+          "error_code": {
+            "type": "string",
+            "enum": [
+              "mock_failed",
+              "provider_auth_failed",
+              "provider_rate_limited",
+              "provider_rejected",
+              "provider_error",
+              "provider_timeout",
+              "invalid_provider_response",
+              "execution_interrupted",
+              "provider_unavailable"
+            ],
+            "description": "失败分类。execution_interrupted 表示真实 provider 执行中断、远端结果可能不确定；provider_unavailable 表示已绑定 provider/model 当前不可执行而未发起上游请求。旧失败记录可省略。"
           }
         },
         "additionalProperties": false,
-        "description": "任务详情和列表共用完整结构。输入提交后不可变；状态按 queued → running → succeeded 或 failed 转移。失败重试创建另一条任务，原任务保留。内部 result_svg 与 idempotency_key 不向 API 输出。",
+        "description": "任务列表和详情共用完整结构。输入、provider/model 与重试关系提交后固定；同键重放返回原记录，即使当前配置不可用或模式改变。mock running 重启后恢复 queued；openai-images running 重启后变为 failed/execution_interrupted，绝不自动重发。内部密钥、路径、result_svg 和 idempotency_key 不公开。",
         "example": {
           "id": "11111111111111111111111111111111",
           "space_id": "personal-demo",
@@ -1154,8 +1422,10 @@
           "provider": {
             "type": "string",
             "enum": [
-              "mock-svg"
-            ]
+              "mock-svg",
+              "openai-images"
+            ],
+            "description": "首次接受任务时绑定并持久化的实际 provider。历史记录不随当前配置重新标记。"
           },
           "result_url": {
             "type": "string"
@@ -1174,7 +1444,7 @@
               "4:5",
               "16:9"
             ],
-            "description": "SVG 画布宽高比。 旧 version=1 数据缺少本字段时补为 4:5，既有 SVG 保持原样。"
+            "description": "请求画布宽高比。mock 使用对应 SVG 画布；固定 OpenAI 模型精确映射 1:1→1024x1024、4:5→1024x1280、16:9→1536x864。旧 version=1 数据缺少时补为 4:5，不重绘既有结果。"
           },
           "style": {
             "type": "string",
@@ -1183,11 +1453,36 @@
               "studio",
               "illustration"
             ],
-            "description": "模拟 SVG 的视觉风格；不表示真实 AI 模型能力。 旧 version=1 数据缺少本字段时补为 natural，既有 SVG 保持原样。"
+            "description": "mock 的可见 SVG 风格，或 OpenAI 生成请求中明确写入 prompt 的风格说明；不作为不受支持的上游 style 参数。旧数据缺少时补为 natural。"
+          },
+          "model": {
+            "type": "string",
+            "enum": [
+              "gpt-image-2-2026-04-21"
+            ],
+            "description": "openai-images 任务创建时固定的模型版本；mock 记录省略。"
+          },
+          "result_mime": {
+            "type": "string",
+            "enum": [
+              "image/svg+xml",
+              "image/png"
+            ],
+            "description": "已成功结果的实际媒体类型。旧成功 SVG 数据恢复为 image/svg+xml。"
+          },
+          "result_width": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "成功结果的实际像素宽度；旧 SVG 记录可省略，不猜测历史尺寸。"
+          },
+          "result_height": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "成功结果的实际像素高度；旧 SVG 记录可省略，不猜测历史尺寸。"
           }
         },
         "additionalProperties": false,
-        "description": "已成功任务的持久化素材快照，保留 prompt/kind/ratio/style。重复保存相同任务返回相同素材 ID 和创建时间。",
+        "description": "成功任务的持久化素材快照，包含原始输入、实际 provider/model 和结果元数据。保存请求不能伪造这些字段；同任务重复保存返回原记录。",
         "example": {
           "id": "11111111111111111111111111111111",
           "space_id": "personal-demo",
@@ -1213,7 +1508,7 @@
             "type": "string",
             "minLength": 3,
             "maxLength": 1000,
-            "description": "去除两端空白后按 Unicode 字符计数；包含 [mock-fail] 可触发可复现的模拟失败。"
+            "description": "去除首尾空白后 3–1000 个 Unicode 字符。仅 mock-svg 将 [mock-fail] 识别为模拟失败标记；OpenAI adapter 将输入作为请求描述的一部分，不在本地模拟外部结果。"
           },
           "kind": {
             "type": "string",
@@ -1232,7 +1527,7 @@
               "16:9",
               ""
             ],
-            "description": "SVG 画布宽高比。 省略或空字符串时采用 4:5；后端在持久化和幂等比较前补足。 显式 null 或其他非字符串值返回 400 invalid_input。",
+            "description": "请求画布比例；省略或空字符串默认 4:5。固定 OpenAI 模型映射为 1024x1024、1024x1280、1536x864。显式 null/非字符串或未知值返回 400。",
             "default": "4:5"
           },
           "style": {
@@ -1243,11 +1538,81 @@
               "illustration",
               ""
             ],
-            "description": "模拟 SVG 的视觉风格；不表示真实 AI 模型能力。 省略或空字符串时采用 natural；后端在持久化和幂等比较前补足。 显式 null 或其他非字符串值返回 400 invalid_input。",
+            "description": "风格选项；省略或空字符串默认 natural。OpenAI adapter 将明确风格说明写入 prompt。显式 null/非字符串或未知值返回 400。",
             "default": "natural"
+          },
+          "expected_provider": {
+            "type": "string",
+            "enum": [
+              "mock-svg",
+              "openai-images"
+            ],
+            "description": "与 expected_model 成对可选的提交前置条件。浏览器始终使用当前能力状态；不修改 provider，不写入业务 Input 或幂等身份。"
+          },
+          "expected_model": {
+            "type": "string",
+            "enum": [
+              "",
+              "gpt-image-2-2026-04-21"
+            ],
+            "description": "必须和 expected_provider 同时给出：mock-svg 对应空字符串，openai-images 对应固定 snapshot。null、缺一项或无效组合返回 400。"
           }
         },
-        "description": "任务创建和失败重试共用输入。prompt 去除首尾空白；ratio/style 补默认值后参与幂等比较。kind 必填，无隐式模板选择。未知 JSON 字段返回 400。"
+        "description": "创建和失败重试共用输入。prompt/kind/ratio/style 为业务输入；expected_provider/expected_model 是成对可选的 HTTP 提交前置条件，不进入持久化 Input 或幂等比较。浏览器必须提供；旧 API 客户端两项都省略时兼容原行为。后端绑定实际当前配置，不接受 endpoint、凭据或直接选择 provider/model。",
+        "oneOf": [
+          {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "expected_provider"
+                  ]
+                },
+                {
+                  "required": [
+                    "expected_model"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "required": [
+              "expected_provider",
+              "expected_model"
+            ],
+            "properties": {
+              "expected_provider": {
+                "enum": [
+                  "mock-svg"
+                ]
+              },
+              "expected_model": {
+                "enum": [
+                  ""
+                ]
+              }
+            }
+          },
+          {
+            "required": [
+              "expected_provider",
+              "expected_model"
+            ],
+            "properties": {
+              "expected_provider": {
+                "enum": [
+                  "openai-images"
+                ]
+              },
+              "expected_model": {
+                "enum": [
+                  "gpt-image-2-2026-04-21"
+                ]
+              }
+            }
+          }
+        ]
       },
       "Space": {
         "type": "object",
@@ -1438,6 +1803,61 @@
             },
             "minItems": 3,
             "maxItems": 3
+          }
+        }
+      },
+      "Capabilities": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider",
+          "mode",
+          "ready",
+          "message"
+        ],
+        "description": "当前服务端配置的安全公开状态。ready 仅表示本地校验通过且可以接受新任务，不表示上游凭据、余额、配额或联网可用性已验证；此接口不会调用上游。",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "mock-svg",
+              "openai-images",
+              "unavailable"
+            ],
+            "description": "当前选中的 provider；未知配置返回 unavailable，绝不回退 mock，也不回显原配置字符串。"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "mock",
+              "real",
+              "unavailable"
+            ],
+            "description": "当前服务模式，供界面说明；历史任务和素材以各自 provider 为准。"
+          },
+          "ready": {
+            "type": "boolean",
+            "description": "是否允许接受新的创建/重试。false 时已有数据仍可读，已接受请求的精确幂等重放仍可返回原记录。"
+          },
+          "model": {
+            "type": "string",
+            "enum": [
+              "gpt-image-2-2026-04-21"
+            ],
+            "description": "仅 openai-images 返回固定模型版本，不支持调用者任意选择模型。"
+          },
+          "reason_code": {
+            "type": "string",
+            "enum": [
+              "missing_api_key",
+              "invalid_provider",
+              "invalid_configuration"
+            ],
+            "description": "未就绪的安全分类；就绪时省略。"
+          },
+          "message": {
+            "type": "string",
+            "description": "安全静态解释，不含密钥、环境变量原值、服务端路径或上游响应。"
           }
         }
       }

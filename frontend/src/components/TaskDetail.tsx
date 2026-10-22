@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { baseURL, errorMessage, request, statusLabels, type Catalog, type Task } from '../api'
+import { baseURL, errorMessage, request, type Catalog, type Task } from '../api'
+import { resultImageAlt, resultOriginLabel, resultProviderLabel, taskStatusLabel } from '../providerPresentation'
 import { Icon } from './Icon'
 import { TaskMetadata } from './TaskList'
 
@@ -45,14 +46,14 @@ export function TaskDetail({id, space, catalog, saved, saving, busy, actionError
     {error && <div className="error" role="alert">无法读取任务详情：{error} <button onClick={() => setRevision(value => value + 1)}>重新加载详情</button></div>}
     {!task && !error && <div className="loading-block" role="status">正在加载任务详情…</div>}
     {task && <>
-      <div className="detail-grid"><div className="detail-preview">{task.result_url ? <img src={`${baseURL}${task.result_url}`} alt="程序绘制的模拟图像，非真实 AI 生成" /> : <div className="empty"><Icon name={task.status === 'failed' ? 'image' : 'spark'} /><p>{task.status === 'failed' ? '本次未生成图像' : '画面正在准备中'}</p></div>}<span>模拟图像 · 非 AI 生成</span></div>
-      <div className="detail-information"><span className={`status ${task.status}`}><span />{statusLabels[task.status]}</span><h3>画面描述</h3><p className="detail-prompt">{task.prompt}</p><TaskMetadata task={task} catalog={catalog} />
+      <div className="detail-grid"><div className="detail-preview">{task.result_url ? <img src={`${baseURL}${task.result_url}`} alt={resultImageAlt(task)} /> : <div className="empty"><Icon name={task.status === 'failed' ? 'image' : 'spark'} /><p>{task.status === 'failed' ? '本地暂无可用结果' : '画面正在准备中'}</p></div>}<span>{task.result_url ? resultOriginLabel(task) : resultProviderLabel(task)}</span></div>
+      <div className="detail-information" data-provider={task.provider}><span className={`status ${task.status}`}><span />{taskStatusLabel(task)}</span><h3>画面描述</h3><p className="detail-prompt">{task.prompt}</p><TaskMetadata task={task} catalog={catalog} />
         {(task.status === 'queued' || task.status === 'running') && <div className="progress-block"><progress aria-label="详情任务进度" value={task.progress} max="100" /><span>任务进度 {task.progress}% · 自动更新</span></div>}
         {task.error && <p className="error task-error">{task.error}</p>}
-        <dl><div><dt>任务编号</dt><dd><code>{task.id}</code></dd></div><div><dt>创建时间</dt><dd>{new Date(task.created_at).toLocaleString('zh-CN')}</dd></div><div><dt>图像提供方</dt><dd>mock-svg · 程序绘图</dd></div>{task.retry_of && <div><dt>原任务编号</dt><dd><code>{task.retry_of}</code></dd></div>}</dl>
+        <dl><div><dt>任务编号</dt><dd><code>{task.id}</code></dd></div><div><dt>创建时间</dt><dd>{new Date(task.created_at).toLocaleString('zh-CN')}</dd></div><div><dt>图像提供方</dt><dd>{resultProviderLabel(task)}</dd></div>{task.model && <div><dt>模型</dt><dd>{task.model}</dd></div>}{task.result_mime && <div><dt>结果格式</dt><dd>{task.result_mime}</dd></div>}{task.result_width && task.result_height && <div><dt>实际尺寸</dt><dd>{task.result_width} × {task.result_height} px</dd></div>}{task.error_code && <div><dt>失败代码</dt><dd><code>{task.error_code}</code></dd></div>}{task.retry_of && <div><dt>原任务编号</dt><dd><code>{task.retry_of}</code></dd></div>}</dl>
       </div></div>
       {actionError && <div className="error" role="alert">{actionError}</div>}{notice && <p className="notice" role="status">{notice}</p>}
-      <div className="dialog-actions"><span>仅供流程演示 · 结果持久化保存</span>{task.status === 'succeeded' && <button type="button" className="primary" disabled={saved || saving !== null} onClick={() => onSave(task)}>{saved ? <><Icon name="check" />已保存</> : saving === task.id ? '保存中…' : '保存到素材库'}</button>}{task.status === 'failed' && <button type="button" className="primary" disabled={busy} onClick={() => onEdit(task)}><Icon name="refresh" />编辑后重试</button>}</div>
+      <div className="dialog-actions"><span>{task.provider === 'mock-svg' ? '模拟流程演示' : '来源按任务记录保留'} · 结果持久化保存</span>{task.status === 'succeeded' && <button type="button" className="primary" disabled={saved || saving !== null} onClick={() => onSave(task)}>{saved ? <><Icon name="check" />已保存</> : saving === task.id ? '保存中…' : '保存到素材库'}</button>}{task.status === 'failed' && <button type="button" className="primary" disabled={busy} onClick={() => onEdit(task)}><Icon name="refresh" />编辑后重试</button>}</div>
     </>}
   </dialog>
 }

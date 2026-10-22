@@ -22,6 +22,19 @@ func testStore(t *testing.T) *FileStore {
 	t.Cleanup(func() { s.Close() })
 	return s
 }
+
+func svgResult(svg string, ratio ...string) GenerationResult {
+	width, height := 800, 1000
+	if len(ratio) > 0 {
+		switch ratio[0] {
+		case "1:1":
+			height = 800
+		case "16:9":
+			width, height = 1600, 900
+		}
+	}
+	return GenerationResult{Data: []byte(svg), MIMEType: "image/svg+xml", Width: width, Height: height}
+}
 func TestPipeline(t *testing.T) {
 	p, err := NewPipeline(context.Background(), MockProvider{})
 	if err != nil {
@@ -31,7 +44,7 @@ func TestPipeline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(svg, "<script>") || !strings.Contains(svg, "非 AI 生成") {
+	if strings.Contains(string(svg.Data), "<script>") || !strings.Contains(string(svg.Data), "非 AI 生成") {
 		t.Fatal("unescaped or unlabeled SVG")
 	}
 	if _, err = p.Invoke(context.Background(), Input{Prompt: "x", Kind: "poster"}); err == nil {
@@ -80,7 +93,7 @@ func TestRecoveryAndOwnership(t *testing.T) {
 	if err != nil || recovered.Status != "queued" {
 		t.Fatal("not recovered", err)
 	}
-	if err = s.Finish(recovered, "<svg/>", nil); err != nil {
+	if err = s.Finish(recovered, svgResult("<svg/>"), nil); err != nil {
 		t.Fatal(err)
 	}
 	a, err := s.SaveAsset("personal-demo", task.ID)

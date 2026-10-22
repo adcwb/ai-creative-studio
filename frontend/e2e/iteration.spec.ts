@@ -262,7 +262,7 @@ test('library combines server search and type filtering and recovers from query 
   await search.fill(marker)
   await expect(page.getByRole('alert')).toBeVisible()
   await page.unroute('**/api/v1/assets?*')
-  await page.getByRole('button', { name: /重新|重试/ }).first().click()
+  await page.getByRole('button', { name: '重新查询', exact: true }).click()
   await expect(page.locator('.asset-grid article')).toHaveCount(2)
   await page.getByLabel('选择演示空间').selectOption('team-demo')
   await page.getByRole('button', { name: /素材库/ }).first().click()

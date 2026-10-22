@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { baseURL, errorMessage, kindLabels, request, type Asset, type Catalog } from '../api'
+import { resultImageAlt, resultOriginLabel } from '../providerPresentation'
 import { Icon } from './Icon'
 import { TaskMetadata } from './TaskList'
 
@@ -40,7 +41,7 @@ export function AssetLibrary({space, catalog, total, onCreate, onDetail}: {space
     </form>
     {invalid ? <p id="search-error" className="error" role="alert">搜索关键词最多 100 个字符。</p> : error ? <div className="error" role="alert">无法查询素材：{error} <button onClick={() => setRevision(value => value + 1)}>重新查询</button></div> : !loaded ? <div className="loading-block" role="status">正在查询素材…</div> : result.assets.length === 0 ? <div className="empty"><div className="empty-art" aria-hidden="true"><Icon name={hasFilter ? 'search' : 'grid'} /></div><h3>{hasFilter ? '没有找到匹配素材' : '为灵感留个位置'}</h3><p>{hasFilter ? '试试其他关键词或类型，已保存的素材仍在库中。' : '完成任务后保存到素材库，让每一次灵感都有迹可循。'}</p><button onClick={hasFilter ? () => {setSearch(''); setKind('')} : onCreate}>{hasFilter ? '清除条件' : '去创作第一张图像'}<Icon name="arrow" /></button></div> : <>
       <p className="query-summary" role="status">找到 {result.assets.length} 件素材{hasFilter ? ' · 当前筛选结果' : ''}</p>
-      <div className="asset-grid">{result.assets.map(asset => <article key={asset.id} className="asset-card"><button type="button" className="asset-preview" aria-label="查看素材任务详情" onClick={() => onDetail(asset.task_id)}><img src={`${baseURL}${asset.result_url}`} alt="已保存的模拟 SVG，非真实 AI 图像" /><span>查看详情<Icon name="arrow" /></span></button><div className="asset-information"><span className="mock-label">模拟素材 · MOCK SVG</span><p>{asset.prompt}</p><TaskMetadata task={asset} catalog={catalog} /></div></article>)}</div>
+      <div className="asset-grid">{result.assets.map(asset => <article key={asset.id} className="asset-card" data-provider={asset.provider}><button type="button" className="asset-preview" aria-label="查看素材任务详情" onClick={() => onDetail(asset.task_id)}><img src={`${baseURL}${asset.result_url}`} alt={resultImageAlt(asset)} /><span>查看详情<Icon name="arrow" /></span></button><div className="asset-information"><span className="origin-label">{resultOriginLabel(asset)}</span><p>{asset.prompt}</p><TaskMetadata task={asset} catalog={catalog} /></div></article>)}</div>
     </>}
   </section>
 }

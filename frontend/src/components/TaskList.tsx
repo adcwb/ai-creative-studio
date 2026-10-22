@@ -1,4 +1,5 @@
-import { baseURL, kindLabels, statusLabels, type Catalog, type Task } from '../api'
+import { baseURL, kindLabels, type Catalog, type Task } from '../api'
+import { resultImageAlt, resultOriginLabel, taskStatusLabel } from '../providerPresentation'
 import { Icon } from './Icon'
 
 export function TaskMetadata({task, catalog}: {task: Pick<Task, 'kind' | 'ratio' | 'style'>; catalog: Catalog | null}) {
@@ -11,10 +12,10 @@ export function TaskList({tasks, catalog, loading, error, savedIds, saving, busy
 }) {
   return <section className="panel results" aria-labelledby="results-title">
     <div className="section-heading"><div><span className="eyebrow">YOUR CREATIVE JOURNEY</span><h2 id="results-title">创作记录 <span className="count">{tasks.length}</span></h2></div><span className="live-label"><span />自动更新</span></div>
-    {loading ? <div className="loading-block" role="status"><Icon name="refresh" className="spinning" />正在加载任务…</div> : !tasks.length && !error ? <div className="empty"><div className="empty-art" aria-hidden="true"><Icon name="spark" /><span /></div><h3>给你的灵感，一张画布</h3><p>选用上方模板，或写下自己的描述。<br />第一张模拟图像将在这里出现。</p><span className="empty-caption">A LITTLE IDEA. A NEW POSSIBILITY.</span></div> : !tasks.length && error ? <div className="empty"><Icon name="refresh" /><h3>暂时无法读取创作记录</h3><p>连接恢复后，你的任务会出现在这里。</p></div> : <div className="task-list">{tasks.map(task => <article className="task" key={task.id}>
-      <div className="task-top"><span className={`status ${task.status}`}><span />{statusLabels[task.status]}</span><time dateTime={task.created_at}>{new Date(task.created_at).toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'})}</time></div>
+    {loading ? <div className="loading-block" role="status"><Icon name="refresh" className="spinning" />正在加载任务…</div> : !tasks.length && !error ? <div className="empty"><div className="empty-art" aria-hidden="true"><Icon name="spark" /><span /></div><h3>给你的灵感，一张画布</h3><p>选用上方模板，或写下自己的描述。<br />任务进度与图像结果将在这里出现。</p><span className="empty-caption">A LITTLE IDEA. A NEW POSSIBILITY.</span></div> : !tasks.length && error ? <div className="empty"><Icon name="refresh" /><h3>暂时无法读取创作记录</h3><p>连接恢复后，你的任务会出现在这里。</p></div> : <div className="task-list">{tasks.map(task => <article className="task" key={task.id} data-provider={task.provider}>
+      <div className="task-top"><span className={`status ${task.status}`}><span />{taskStatusLabel(task)}</span><time dateTime={task.created_at}>{new Date(task.created_at).toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'})}</time></div>
       <p className="task-prompt">{task.prompt}</p><TaskMetadata task={task} catalog={catalog} />
-      {task.result_url && <button type="button" className="result-preview" aria-label="打开模拟图像详情" onClick={() => onDetail(task)}><img src={`${baseURL}${task.result_url}`} alt="程序绘制的模拟图像，非真实 AI 生成" /><span>模拟 SVG · 非 AI 生成<Icon name="arrow" /></span></button>}
+      {task.result_url && <button type="button" className="result-preview" aria-label={task.provider === 'mock-svg' ? '打开模拟图像详情' : '打开图像详情'} onClick={() => onDetail(task)}><img src={`${baseURL}${task.result_url}`} alt={resultImageAlt(task)} /><span>{resultOriginLabel(task)}<Icon name="arrow" /></span></button>}
       {(task.status === 'queued' || task.status === 'running') && <div className="progress-block"><progress aria-label="任务进度" max="100" value={task.progress} /><span>任务进度 {task.progress}% · 请稍候</span></div>}
       {task.error && <p className="error task-error">{task.error}</p>}
       {task.retry_of && <p className="retry-reference">重试自 <code>{task.retry_of}</code></p>}

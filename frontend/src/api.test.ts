@@ -10,8 +10,8 @@ describe('input and API errors', () => {
     expect(promptError('  😀😀😀  ')).toBeNull()
   })
   it('surfaces structured API failures', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({error: {message: '任务尚未完成'}}), {status: 409})))
-    await expect(request('/assets')).rejects.toThrow('任务尚未完成')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({error: {message: '任务尚未完成', code: 'provider_changed'}}), {status: 409})))
+    await expect(request('/assets')).rejects.toMatchObject({ message: '任务尚未完成', status: 409, code: 'provider_changed' })
   })
   it('handles a non-JSON server failure', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('unavailable', {status: 503})))

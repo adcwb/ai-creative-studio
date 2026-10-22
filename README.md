@@ -1,8 +1,17 @@
 # 映创 · AI Creative Studio
 
-面向个人与团队的 AI 视觉内容工作室。React / TypeScript / Vite 前端与 Go / Eino 后端独立启动。第二轮在第一版基线 `7284fab` 上完成，经仓库所有者单次授权公开发布源码；应用尚未部署。
+面向个人与团队的 AI 视觉内容工作室。React / TypeScript / Vite 前端与 Go / Eino 后端独立启动。第三轮在已发布基线 `6e30ff6` 上本地迭代，本轮尚未推送或部署。
 
-**当前仅提供无凭据、无付费调用的 mock 图像任务。所有结果是程序绘制 SVG，带有“模拟图像 · 非 AI 生成”标识；没有验证任何真实模型质量。** 肖像仅为概念任务分类，不上传或编辑照片。短剧与漫剧工作台尚未实现。
+**默认仍为无凭据、无付费调用的 mock 模式。模拟结果是程序绘制 SVG，带有“模拟图像 · 非 AI 生成”标识。第三轮增加一种明确的真实图像协议适配器，但仅以本地 HTTP 假服务验证，未进行真实付费生成或验证任何模型质量。** 肖像仅为概念任务分类，不上传或编辑照片。短剧与漫剧工作台尚未实现。
+
+## 第三轮增量
+
+- 修复桌面创作面板底边不齐及长页面侧栏背景提前结束，保留自然内容高度与移动单列布局。
+- 增加固定官方 OpenAI Images 协议适配，保留默认 mock；能力接口区分模拟、真实协议配置就绪和配置不可用。配置就绪不代表远端认证或生成已成功。
+- 真实 PNG 校验后保存到本地结果目录，任务与素材记录来源、模型及图片元信息；历史 mock 不会因当前模式变化而被标为真实生成。
+- 真实请求不自动重试，执行中断不自动重新发送。显式重试可能再次计费，不能承诺上游 exactly-once。
+
+详细范围、协议与最终验证分别见 [产品](docs/iteration-3-product.md)、[架构](docs/iteration-3-architecture.md)、[界面证据](docs/iteration-3-ui.md)、[独立验证](docs/iteration-3-verification.md)和[协作记录](docs/iteration-3-collaboration.md)。
 
 ## 第二轮业务增量
 
@@ -12,19 +21,21 @@
 - **后端素材检索**：关键词与类型组合查询真实持久化素材；查询失败、无匹配和空库分开显示。
 - **统一映创品牌**：原创 SVG 标记、深浅背景字标与 favicon，统一设计 tokens、可访问组件及响应式工作台。
 
-图像 provider 仍是 mock；业务 API、任务执行、重试关联和持久化均真实运行。三种比例为 `1:1 / 4:5 / 16:9`，三种风格为自然 / 棚拍 / 插画。旧数据缺失参数时补 `4:5 / natural`，保留原 SVG。没有执行中任务取消功能；“取消编辑”和关闭详情不会取消后端任务。
+第二轮时图像 provider 仅为 mock；业务 API、任务执行、重试关联和持久化均真实运行。三种比例为 `1:1 / 4:5 / 16:9`，三种风格为自然 / 棚拍 / 插画。旧数据缺失参数时补 `4:5 / natural`，保留原 SVG。没有执行中任务取消功能；“取消编辑”和关闭详情不会取消后端任务。
 
 产品、架构、前端、后端、测试五个实际子代理的职责和文件边界见 [协作记录](docs/iteration-2-collaboration.md)。验收范围见 [产品文档](docs/iteration-2-product.md)，接口与兼容设计见 [第二轮架构](docs/iteration-2-architecture.md)，最终验证见 [第二轮测试记录](docs/iteration-2-verification.md)，视觉规则见 [品牌与组件规范](docs/brand.md)。
 
 ## 实际运行截图
 
-以下第二轮截图来自云开发环境中实际运行的前后端，仅包含合成演示数据。它们是静态截图，**不是可交互网页或已部署服务**；图像结果仍为带标识的模拟 SVG。
+以下第三轮工作台截图来自云开发环境中实际运行的前后端，仅包含合成演示数据。它们是静态截图，**不是可交互网页或已部署服务**；图像结果仍为带标识的模拟 SVG。
 
-### 桌面：创建模拟图像并保存素材
+### 桌面：创建模拟图像与底边对齐
 
 [打开桌面原图](docs/screenshots/desktop.png)
 
-![桌面工作台：模拟任务完成并保存到素材库](docs/screenshots/desktop.png)
+![桌面工作台：模拟任务完成，两列底边对齐](docs/screenshots/desktop.png)
+
+[修复前桌面截图](docs/screenshots/iteration-3-before-desktop.png) · [24 个状态的几何证据](docs/screenshots/iteration-3-geometry.json)
 
 ### 移动端：模板、参数与创作记录
 
@@ -32,9 +43,9 @@
 
 <img src="docs/screenshots/mobile.png" alt="移动端工作台：模板、创作设定与模拟结果" width="390" />
 
-素材检索：[桌面](docs/screenshots/library-desktop.png) · [手机](docs/screenshots/library-mobile.png)
+第二轮留档 — 素材检索：[桌面](docs/screenshots/library-desktop.png) · [手机](docs/screenshots/library-mobile.png)
 
-任务详情：[桌面](docs/screenshots/detail-desktop.png) · [手机](docs/screenshots/detail-mobile.png)
+第二轮留档 — 任务详情：[桌面](docs/screenshots/detail-desktop.png) · [手机](docs/screenshots/detail-mobile.png)
 
 ## 目录
 
@@ -82,6 +93,18 @@ export GOPATH=/tmp/studio-gopath
 export GOCACHE=/tmp/studio-gocache
 ```
 
+## 服务模式与安全配置
+
+默认 `IMAGE_PROVIDER=mock-svg`，无需模型密钥。`GET /api/v1/capabilities` 返回模式和本地配置状态，前端据此展示生成入口；缺少密钥或配置无效时仍可查看历史记录，但不能创建新任务。已有请求的幂等重放保留原任务。
+
+后续若要实际调用，需由操作者在后端受保护的运行环境配置 `IMAGE_PROVIDER=openai-images` 和 `OPENAI_API_KEY`，并自行确认供应商账号权限、预算和数据发送授权。不要在聊天、前端变量、源码或 Git 中填写密钥。示例配置不包含真实密钥；本轮没有执行真实生成。
+
+该适配器只支持固定官方 `https://api.openai.com/v1/images/generations` 和模型 `gpt-image-2-2026-04-21`，不是通用兼容网关。请求为单张、low质量、PNG，比例精确映射为1024×1024、1024×1280、1536×864；类型和风格写入提示词。它不接受任意 base URL、不跟随重定向、不使用环境代理、不下载供应商图片 URL。
+
+真实请求最多等待120秒，不自动重试。超时、中断或响应无效并不证明供应商未计费；执行中的真实任务重启后标记失败并保留不确定性，显式重试可能再次计费。默认 mock 则继续原有安全重放恢复方式。模式切换不会改写历史素材来源。
+
+这仍是无生产认证的本地演示服务；配置真实 provider 不会补齐鉴权、用量限制或企业隔离，不能据此直接暴露到公网。
+
 ## 检查
 
 ```bash
@@ -108,6 +131,17 @@ E2E 自动启动独立 API（8081）与前端（5174），使用新建临时数�
 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e
 ```
 
+布局几何回归（从仓库根目录执行，自动使用隔离数据与随机端口）：
+
+```bash
+node scripts/layout_check.mjs
+node scripts/provider_check.mjs
+```
+
+系统 Chromium 可通过同一个 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` 指定。该检查覆盖多个桌面宽度、短屏、单列断点、手机、空库及长文本，不使用开发数据。
+
+Provider 联调使用本地 HTTP 假服务及合成 PNG，验证 Eino、落盘、重启、显式重试和过期模式保护，不调用外部模型或使用真实凭据。
+
 OpenAPI 检查（建议在独立 Python 虚拟环境执行）：
 
 ```bash
@@ -120,9 +154,9 @@ python scripts/contract_check.py
 
 ## 数据和恢复
 
-`backend/data/state.json` 保存任务、SVG 和素材元数据；已加入 Git 忽略。`DATA_DIR` 可覆盖路径。任务先持久化再返回接受响应；执行中任务在重启时重新排队。写文件采用临时文件、文件 fsync、原子 rename，第二个进程无法锁定同一目录。状态损坏时启动失败，**不会清空重建**。停服后备份整个数据目录；要重置演示，请先备份，再显式移走该目录。
+`backend/data/state.json` 保存任务、历史及模拟 SVG 和素材元数据，真实 PNG 保存在同目录下的 `results/`；整个运行数据目录已加入 Git 忽略。`DATA_DIR` 可覆盖路径。任务先持久化再返回接受响应；mock 执行中任务在重启时重新排队，真实执行中任务转为结果不确定的失败，避免自动重复调用。写文件采用临时文件、文件 fsync、原子 rename，第二个进程无法锁定同一目录。状态损坏时启动失败，**不会清空重建**。停服后备份整个数据目录；要重置演示，请先备份，再显式移走该目录。
 
-当前不支持多实例、高可用、分页、删除、容量管理或整机断电级事务保证。详情见架构文档。未来接入真实 provider 前须完成认证授权、内容安全、成本控制、可观测性和存储迁移。
+当前不支持多实例、高可用、分页、删除、容量管理或整机断电级事务保证。详情见架构文档。在真实 provider 用于实际用户前，须完成认证授权、内容安全、成本控制、可观测性和生产存储迁移。本轮只验证适配协议与业务流程，不补齐这些生产能力。
 
 ## GitHub 协作
 

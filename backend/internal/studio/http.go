@@ -24,6 +24,9 @@ func Handler(repo Repository, origin string) http.Handler {
 	mux.HandleFunc("GET /api/v1/templates", func(w http.ResponseWriter, r *http.Request) {
 		respond(w, 200, Catalog())
 	})
+	mux.HandleFunc("GET /api/v1/capabilities", func(w http.ResponseWriter, r *http.Request) {
+		respond(w, 200, repo.Capabilities())
+	})
 	mux.HandleFunc("GET /api/v1/tasks", func(w http.ResponseWriter, r *http.Request) {
 		space, ok := spaceID(w, r)
 		if !ok {
@@ -54,19 +57,19 @@ func Handler(repo Repository, origin string) http.Handler {
 		if !ok {
 			return
 		}
-		t, err := repo.Get(space, r.PathValue("id"))
+		result, err := repo.ReadResult(space, r.PathValue("id"))
 		if err != nil {
 			storeError(w, err)
 			return
 		}
-		if t.Status != "succeeded" {
-			storeError(w, ErrConflict)
-			return
+		mime := result.MIMEType
+		if mime == "image/svg+xml" {
+			mime += "; charset=utf-8"
 		}
-		w.Header().Set("Content-Type", "image/svg+xml; charset=utf-8")
+		w.Header().Set("Content-Type", mime)
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
 		w.WriteHeader(200)
-		_, _ = io.WriteString(w, t.SVG)
+		_, _ = w.Write(result.Data)
 	})
 	mux.HandleFunc("GET /api/v1/assets", func(w http.ResponseWriter, r *http.Request) {
 		space, ok := spaceID(w, r)
@@ -142,10 +145,12 @@ func createTask(w http.ResponseWriter, r *http.Request, repo Repository, parentI
 		return
 	}
 	var body struct {
-		Prompt string          `json:"prompt"`
-		Kind   string          `json:"kind"`
-		Ratio  json.RawMessage `json:"ratio"`
-		Style  json.RawMessage `json:"style"`
+		Prompt           string          `json:"prompt"`
+		Kind             string          `json:"kind"`
+		Ratio            json.RawMessage `json:"ratio"`
+		Style            json.RawMessage `json:"style"`
+		ExpectedProvider json.RawMessage `json:"expected_provider"`
+		ExpectedModel    json.RawMessage `json:"expected_model"`
 	}
 	if !decode(w, r, &body) {
 		return
@@ -153,6 +158,22 @@ func createTask(w http.ResponseWriter, r *http.Request, repo Repository, parentI
 	in := Input{Prompt: body.Prompt, Kind: body.Kind}
 	if !inputOption(w, "ratio", body.Ratio, &in.Ratio) || !inputOption(w, "style", body.Style, &in.Style) {
 		return
+	}
+	var expectation []Expectation
+	if len(body.ExpectedProvider) > 0 || len(body.ExpectedModel) > 0 {
+		if len(body.ExpectedProvider) == 0 || len(body.ExpectedModel) == 0 {
+			problem(w, 400, "invalid_input", "expected_provider 和 expected_model 必须成对提供")
+			return
+		}
+		var expected Expectation
+		if !inputOption(w, "expected_provider", body.ExpectedProvider, &expected.Provider) || !inputOption(w, "expected_model", body.ExpectedModel, &expected.Model) {
+			return
+		}
+		if !((expected.Provider == "mock-svg" && expected.Model == "") || (expected.Provider == "openai-images" && expected.Model == OpenAIModel)) {
+			problem(w, 400, "invalid_input", "生成模式确认参数无效")
+			return
+		}
+		expectation = []Expectation{expected}
 	}
 	in, err := Normalize(in)
 	if err != nil {
@@ -162,9 +183,9 @@ func createTask(w http.ResponseWriter, r *http.Request, repo Repository, parentI
 	var t Task
 	var created bool
 	if parentID == "" {
-		t, created, err = repo.Create(space, key, in)
+		t, created, err = repo.Create(space, key, in, expectation...)
 	} else {
-		t, created, err = repo.Retry(space, parentID, key, in)
+		t, created, err = repo.Retry(space, parentID, key, in, expectation...)
 	}
 	if err != nil {
 		storeError(w, err)
@@ -231,6 +252,10 @@ func storeError(w http.ResponseWriter, err error) {
 		problem(w, 404, "not_found", err.Error())
 	case errors.Is(err, ErrConflict):
 		problem(w, 409, "conflict", err.Error())
+	case errors.Is(err, ErrProviderNotReady):
+		problem(w, 503, "provider_not_ready", ErrProviderNotReady.Error())
+	case errors.Is(err, ErrProviderChanged):
+		problem(w, 409, "provider_changed", ErrProviderChanged.Error())
 	default:
 		slog.Error("storage operation failed", "error", err)
 		problem(w, 500, "storage_error", "存储暂不可用，请稍后重试")
