@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check actual local demo API responses and provider guards against OpenAPI.
+"""Check actual local image/project API responses and guards against OpenAPI.
 Never enables a ready external provider; all configuration cases are local only.
 
 Dependencies: Python jsonschema; Go toolchain on PATH.
@@ -9,6 +9,7 @@ Example:
   python3 scripts/contract_check.py
 """
 import argparse
+import copy
 import json
 import os
 from pathlib import Path
@@ -117,6 +118,125 @@ def main():
                     time.sleep(.05)
                 raise RuntimeError("Task did not reach a terminal state")
 
+            def project_call(method, suffix="", body=None, key=None, expected=200, space="personal-demo"):
+                path = "/api/v1/projects" + suffix
+                route = "/api/v1/projects"
+                if suffix:
+                    route += "/{id}"
+                    if suffix.endswith("/script"):
+                        route += "/script"
+                    elif suffix.endswith("/generations"):
+                        route += "/generations"
+                return call(method, path + "?space_id=" + space, route, body, key, expected)
+
+            def wait_script(project_id):
+                deadline = time.monotonic() + 8
+                while time.monotonic() < deadline:
+                    project = project_call("GET", "/" + project_id)
+                    if project.get("latest_generation", {}).get("status") in ["succeeded", "failed"]:
+                        return project
+                    time.sleep(.05)
+                raise RuntimeError("Script generation did not reach a terminal state")
+
+            def check_projects():
+                assert project_call("GET") == []
+                project_call("GET", space="invalid", expected=400)
+                initial = {"title": "  Contract 雨夜来信  ", "brief": "  两名旧友因一封旧信在雨夜车站重逢，决定重新合作。  "}
+                # The project domain intentionally does not consume image keys.
+                created = project_call("POST", body=initial, key="contract-original", expected=201)
+                project_id = created["id"]
+                suffix = "/" + project_id
+                assert created["version"] == 1 and created["title"] == initial["title"].strip()
+                assert "script" not in created and "script_brief" not in created and "latest_generation" not in created
+                assert project_call("GET", suffix) == created
+                assert project_call("GET", suffix + "/generations") == []
+                assert project_call("POST", body={k: v.strip() for k, v in initial.items()}, key="contract-original") == created
+                conflict = project_call("POST", body=dict(initial, title="不同名称"), key="contract-original", expected=409)
+                assert conflict["error"]["code"] == "idempotency_conflict"
+                for index, invalid in enumerate([
+                    {"title": "", "brief": "有效的创意需求"},
+                    {"title": None, "brief": "有效的创意需求"},
+                    {"title": "有效名称", "brief": None},
+                    {"title": "有效名称", "brief": "短"},
+                    {"title": "有效名称", "brief": "长" * 2001},
+                    {"title": "有效名称"},
+                    {"title": "有效名称", "brief": "有效的创意需求", "provider": "openai-images"},
+                ]):
+                    project_call("POST", body=invalid, key=f"project-invalid-{index}", expected=400)
+                project_call("POST", body=initial, expected=400)
+                project_call("POST", body=initial, key="bad", expected=400)
+                project_call("GET", "/" + "0" * 32, expected=404)
+                sample = copy.deepcopy(spec["components"]["schemas"]["Script"]["example"])
+                for method, tail, body in [
+                    ("GET", "", None), ("GET", "/generations", None),
+                    ("PUT", "", dict(initial, expected_version=1)),
+                    ("POST", "/generations", {"expected_version": 1}),
+                    ("PUT", "/script", {"expected_version": 1, "script": sample}),
+                ]:
+                    project_call(method, suffix + tail, body, "project-cross-space", 404, "team-demo")
+                missing = project_call("PUT", suffix + "/script", {"expected_version": 1, "script": sample}, "project-no-script", 409)
+                assert missing["error"]["code"] == "script_missing"
+                for index, invalid in enumerate([{}, {"expected_version": 0}, {"expected_version": None}, {"expected_version": "1"}, {"expected_version": 1, "brief": "不能绕过已保存需求"}]):
+                    project_call("POST", suffix + "/generations", invalid, f"project-invalid-gen-{index}", 400)
+                generation_body = {"expected_version": 1}
+                attempt = project_call("POST", suffix + "/generations", generation_body, "project-generate-first", 202)
+                assert attempt["provider"] == "mock-script" and attempt["source_brief"] == created["brief"]
+                assert attempt["base_version"] == 1 and attempt["project_id"] == project_id
+                assert project_call("POST", suffix + "/generations", generation_body, "project-generate-first")["id"] == attempt["id"]
+                ready = wait_script(project_id)
+                assert ready["version"] == 2 and ready["latest_generation"]["status"] == "succeeded"
+                assert ready["script_brief"] == created["brief"]
+                assert len(ready["script"]["characters"]) == 2 and len(ready["script"]["scenes"]) == 3
+                assert project_call("POST", suffix + "/generations", generation_body, "project-generate-first")["status"] == "succeeded"
+                for method, tail, body in [
+                    ("PUT", "", dict(initial, expected_version=1)),
+                    ("POST", "/generations", {"expected_version": 1}),
+                    ("PUT", "/script", {"expected_version": 1, "script": ready["script"]}),
+                ]:
+                    rejected = project_call(method, suffix + tail, body, "project-stale-version", 409)
+                    assert rejected["error"]["code"] == "version_conflict"
+                invalid_script = copy.deepcopy(ready["script"])
+                invalid_script["scenes"][0]["dialogue"][0]["character"] = "不存在的角色"
+                project_call("PUT", suffix + "/script", {"expected_version": 2, "script": invalid_script}, "project-invalid-ref", 400)
+                project_call("PUT", suffix + "/script", {"expected_version": 2, "script": None}, "project-null-script", 400)
+                project_call("PUT", suffix + "/script", {"expected_version": 2, "script": ready["script"], "script_brief": "伪造来源"}, "project-false-source", 400)
+                edited = copy.deepcopy(ready["script"])
+                edited["scenes"][0]["action"] = "手工保存的动作内容，刷新和重启后仍应保留。"
+                save_body = {"expected_version": 2, "script": edited}
+                saved = project_call("PUT", suffix + "/script", save_body, "project-save-draft")
+                assert saved["version"] == 3 and saved["script"] == edited and saved["script_brief"] == created["brief"]
+                assert project_call("PUT", suffix + "/script", save_body, "project-save-draft") == saved
+                assert project_call("POST", body=initial, key="contract-original") == saved
+                changed_save = copy.deepcopy(save_body)
+                changed_save["script"]["title"] = "同键不能偷偷修改"
+                assert project_call("PUT", suffix + "/script", changed_save, "project-save-draft", 409)["error"]["code"] == "idempotency_conflict"
+                failure_update = {"title": created["title"], "brief": "[mock-fail] 故障路径必须保留已经编辑的旧稿", "expected_version": 3}
+                updated = project_call("PUT", suffix, failure_update, "project-update-failure")
+                assert updated["version"] == 4 and updated["script"] == edited and updated["script_brief"] == created["brief"]
+                assert project_call("PUT", suffix, failure_update, "project-update-failure") == updated
+                failed_attempt = project_call("POST", suffix + "/generations", {"expected_version": 4}, "project-generate-failure", 202)
+                failed = wait_script(project_id)
+                assert failed["version"] == 4 and failed["script"] == edited and failed["script_brief"] == created["brief"]
+                assert failed["latest_generation"]["id"] == failed_attempt["id"]
+                assert failed["latest_generation"]["error_code"] == "mock_script_failed"
+                assert project_call("POST", suffix + "/generations", {"expected_version": 4}, "project-generate-failure")["status"] == "failed"
+                recovery = {"title": created["title"], "brief": "旧友决定在清晨车站共同举办摄影展。", "expected_version": 4}
+                assert project_call("PUT", suffix, recovery, "project-update-recovery")["version"] == 5
+                project_call("POST", suffix + "/generations", {"expected_version": 5}, "project-generate-recovery", 202)
+                final_project = wait_script(project_id)
+                assert final_project["version"] == 6 and final_project["script_brief"] == recovery["brief"]
+                # Old accepted receipts return current projection, never roll back.
+                assert project_call("PUT", suffix + "/script", save_body, "project-save-draft") == final_project
+                assert project_call("POST", body=initial, key="contract-original") == final_project
+                assert project_call("POST", suffix + "/generations", generation_body, "project-generate-first")["id"] == attempt["id"]
+                attempts = project_call("GET", suffix + "/generations")
+                assert len(attempts) == 3 and len({a["id"] for a in attempts}) == 3
+                assert project_call("GET", space="team-demo") == []
+                other = project_call("POST", body={"title": "另一个项目", "brief": "另一个项目的完整创意需求"}, key="project-second-create", expected=201)
+                crossed = project_call("PUT", "/" + other["id"], {"title": "目标错位", "brief": "另一个项目的新需求", "expected_version": 1}, "project-save-draft", 409)
+                assert crossed["error"]["code"] == "idempotency_conflict"
+                return {"id": project_id, "final": final_project, "initial": initial, "save": save_body, "attempt": attempt}
+
             try:
                 start()
                 call("GET", "/healthz", "/healthz")
@@ -197,6 +317,7 @@ def main():
                 assert restored["id"] == child["id"] and restored["retry_of"] == parent["id"] and restored["status"] == "succeeded"
                 final = call("GET", "/api/v1/assets?space_id=personal-demo&q=recovery&kind=general", "/api/v1/assets")
                 assert final == listed
+                project_case = check_projects()
                 stop()
                 configurations = [
                     ("openai-images", "", "missing_api_key"),
@@ -221,6 +342,15 @@ def main():
                     assert call("GET", "/api/v1/assets?space_id=personal-demo&q=recovery&kind=general", "/api/v1/assets") == listed
                     tasks = call("GET", "/api/v1/tasks?space_id=personal-demo", "/api/v1/tasks")
                     assert len(tasks) == 2, "Rejected guarded/unavailable requests must not create tasks"
+                    project_suffix = "/" + project_case["id"]
+                    assert project_call("GET", project_suffix) == project_case["final"]
+                    assert project_call("POST", body=project_case["initial"], key="contract-original") == project_case["final"]
+                    assert project_call("PUT", project_suffix + "/script", project_case["save"], "project-save-draft") == project_case["final"]
+                    assert project_call("POST", project_suffix + "/generations", {"expected_version": 1}, "project-generate-first")["id"] == project_case["attempt"]["id"]
+                    if reason == "missing_api_key":
+                        independent = project_call("POST", body={"title": "独立模拟剧本", "brief": "图像配置不可用时仍能生成结构化模拟剧本"}, key="project-image-independent", expected=201)
+                        project_call("POST", "/" + independent["id"] + "/generations", {"expected_version": 1}, "project-independent-run", 202)
+                        assert wait_script(independent["id"])["latest_generation"]["status"] == "succeeded"
                     stop()
                 log.flush()
                 log.seek(0)
@@ -230,6 +360,7 @@ def main():
                     assert sensitive not in recorded_log and sensitive not in snapshot
                 print(f"PASS: {count} actual HTTP responses conform to OpenAPI schemas (including polling).")
                 print("Verified: catalog/defaults, capability states, atomic provider guards, invalid expectation pairs, accepted-key replay before readiness/expectations, 503 without queueing, task/asset metadata, persistent search and historical results across restarts.")
+                print("Verified: real project create/detail/edit, Eino structured mock script, 400/404/409 paths, version/source preservation, failed generation keeps draft, all-write accepted-key replay across restarts, and script execution independent of unavailable image configuration.")
                 print("No real credential was read and no external provider was enabled; all runtime data and processes were temporary.")
             finally:
                 stop()

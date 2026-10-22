@@ -1,4 +1,4 @@
-type IconName = 'spark' | 'grid' | 'image' | 'arrow' | 'close' | 'search' | 'check' | 'refresh' | 'poster' | 'portrait' | 'general'
+type IconName = 'spark' | 'grid' | 'image' | 'arrow' | 'close' | 'search' | 'check' | 'refresh' | 'poster' | 'portrait' | 'general' | 'script'
 
 const paths: Record<IconName, string> = {
   spark: 'm12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3Z',
@@ -12,6 +12,7 @@ const paths: Record<IconName, string> = {
   poster: 'M5 3h14v18H5zM8 16l4-5 4 5M8 7h8M8 19h5',
   portrait: 'M4 4h16v16H4zM15 9a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM7 20v-2a5 5 0 0 1 10 0v2',
   general: 'M4 4h16v16H4zM4 15l5-5 5 5 3-3 3 3M14 8h.01',
+  script: 'M6 3h12v18H6zM9 7h6M9 11h6M9 15h4',
 }
 
 export function Icon({name, className = ''}: {name: IconName; className?: string}) {

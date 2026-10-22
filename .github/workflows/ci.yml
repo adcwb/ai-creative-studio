@@ -10,12 +10,12 @@ jobs:
     # Pin the OS to match the locked Playwright browser dependencies.
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1; Node 24 action runtime
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0; Node 24 action runtime
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0; Node 24 action runtime
         with:
           node-version: '24'
           cache: npm
@@ -44,9 +44,11 @@ jobs:
           npm run test:e2e
       - name: Local image provider integration
         run: node scripts/provider_check.mjs
+      - name: Script workspace integration and layout
+        run: node scripts/project_check.mjs
       - name: Responsive layout regression
         run: node scripts/layout_check.mjs
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0; Node 24 action runtime
         with:
           python-version: '3.12'
       - name: Validate OpenAPI

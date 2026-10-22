@@ -16,13 +16,17 @@ import (
 )
 
 type snapshot struct {
-	Version int              `json:"version"`
-	Tasks   map[string]Task  `json:"tasks"`
-	Assets  map[string]Asset `json:"assets"`
+	Version           int                         `json:"version"`
+	Tasks             map[string]Task             `json:"tasks"`
+	Assets            map[string]Asset            `json:"assets"`
+	Projects          map[string]Project          `json:"projects"`
+	ScriptGenerations map[string]ScriptGeneration `json:"script_generations"`
+	ProjectReceipts   map[string]projectReceipt   `json:"project_receipts"`
 }
 
 // Repository is the boundary for a future transactional PostgreSQL implementation.
 type Repository interface {
+	ProjectRepository
 	Create(string, string, Input, ...Expectation) (Task, bool, error)
 	Retry(string, string, string, Input, ...Expectation) (Task, bool, error)
 	Get(string, string) (Task, error)
@@ -55,7 +59,7 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 		lock.Close()
 		return nil, fmt.Errorf("data directory already in use: %w", err)
 	}
-	s := &FileStore{path: filepath.Join(dir, "state.json"), lock: lock, data: snapshot{Version: 1, Tasks: map[string]Task{}, Assets: map[string]Asset{}}}
+	s := &FileStore{path: filepath.Join(dir, "state.json"), lock: lock, data: emptySnapshot()}
 	s.capabilities = mockCapabilities()
 	if len(options) > 0 {
 		s.capabilities = options[0]
@@ -88,9 +92,25 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 		s.Close()
 		return nil, fmt.Errorf("read state (refusing to reset): %w", err)
 	}
-	if s.data.Version != 1 || s.data.Tasks == nil || s.data.Assets == nil {
+	if (s.data.Version != 1 && s.data.Version != 2) || s.data.Tasks == nil || s.data.Assets == nil {
 		s.Close()
 		return nil, fmt.Errorf("unsupported or invalid state")
+	}
+	if s.data.Version == 1 {
+		// Only a complete legacy image snapshot can be upgraded. A v1 file
+		// carrying newer records must not have those records silently reset.
+		if s.data.Projects != nil || s.data.ScriptGenerations != nil || s.data.ProjectReceipts != nil {
+			s.Close()
+			return nil, fmt.Errorf("invalid legacy state with project records")
+		}
+		s.data.Version = 2
+		s.data.Projects = map[string]Project{}
+		s.data.ScriptGenerations = map[string]ScriptGeneration{}
+		s.data.ProjectReceipts = map[string]projectReceipt{}
+	}
+	if s.data.Projects == nil || s.data.ScriptGenerations == nil || s.data.ProjectReceipts == nil {
+		s.Close()
+		return nil, fmt.Errorf("incomplete project state")
 	}
 	for id, t := range s.data.Tasks {
 		t.Input = withDefaults(t.Input)
@@ -134,6 +154,17 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 		a.Ratio, a.Style = defaults.Ratio, defaults.Style
 		s.data.Assets[id] = a
 	}
+	for id, generation := range s.data.ScriptGenerations {
+		if generation.Status == "running" {
+			generation.Status, generation.Progress = "queued", 0
+			generation.UpdatedAt = time.Now().UTC()
+			s.data.ScriptGenerations[id] = generation
+			if project, ok := s.data.Projects[generation.ProjectID]; ok && project.SpaceID == generation.SpaceID && project.LatestGenerationID == id {
+				project.UpdatedAt = generation.UpdatedAt
+				s.data.Projects[project.ID] = project
+			}
+		}
+	}
 	if err = s.commit(s.data); err != nil {
 		s.Close()
 		return nil, err
@@ -149,13 +180,25 @@ func (s *FileStore) Close() error {
 }
 
 func (s *FileStore) Capabilities() Capabilities { return s.capabilities }
+func emptySnapshot() snapshot {
+	return snapshot{Version: 2, Tasks: map[string]Task{}, Assets: map[string]Asset{}, Projects: map[string]Project{}, ScriptGenerations: map[string]ScriptGeneration{}, ProjectReceipts: map[string]projectReceipt{}}
+}
 func (s *FileStore) clone() snapshot {
-	d := snapshot{Version: 1, Tasks: map[string]Task{}, Assets: map[string]Asset{}}
+	d := emptySnapshot()
 	for k, v := range s.data.Tasks {
 		d.Tasks[k] = v
 	}
 	for k, v := range s.data.Assets {
 		d.Assets[k] = v
+	}
+	for k, v := range s.data.Projects {
+		d.Projects[k] = cloneProject(v)
+	}
+	for k, v := range s.data.ScriptGenerations {
+		d.ScriptGenerations[k] = v
+	}
+	for k, v := range s.data.ProjectReceipts {
+		d.ProjectReceipts[k] = v
 	}
 	return d
 }

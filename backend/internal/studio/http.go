@@ -27,6 +27,7 @@ func Handler(repo Repository, origin string) http.Handler {
 	mux.HandleFunc("GET /api/v1/capabilities", func(w http.ResponseWriter, r *http.Request) {
 		respond(w, 200, repo.Capabilities())
 	})
+	registerProjectRoutes(mux, repo)
 	mux.HandleFunc("GET /api/v1/tasks", func(w http.ResponseWriter, r *http.Request) {
 		space, ok := spaceID(w, r)
 		if !ok {
@@ -124,7 +125,7 @@ func Handler(repo Repository, origin string) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
 		}
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(204)
@@ -221,11 +222,14 @@ func spaceID(w http.ResponseWriter, r *http.Request) (string, bool) {
 	return s, true
 }
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {
+	return decodeLimited(w, r, v, 16<<10)
+}
+func decodeLimited(w http.ResponseWriter, r *http.Request, v any, limit int64) bool {
 	if r.Header.Get("Content-Type") != "application/json" {
 		problem(w, 415, "invalid_content_type", "请使用 application/json")
 		return false
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	d := json.NewDecoder(r.Body)
 	d.DisallowUnknownFields()
 	if err := d.Decode(v); err != nil {
@@ -248,6 +252,16 @@ func problem(w http.ResponseWriter, status int, code, message string) {
 }
 func storeError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, ErrInvalidProjectInput):
+		problem(w, 400, "invalid_input", err.Error())
+	case errors.Is(err, ErrIdempotencyConflict):
+		problem(w, 409, "idempotency_conflict", ErrIdempotencyConflict.Error())
+	case errors.Is(err, ErrVersionConflict):
+		problem(w, 409, "version_conflict", ErrVersionConflict.Error())
+	case errors.Is(err, ErrGenerationActive):
+		problem(w, 409, "generation_active", ErrGenerationActive.Error())
+	case errors.Is(err, ErrScriptMissing):
+		problem(w, 409, "script_missing", ErrScriptMissing.Error())
 	case errors.Is(err, ErrNotFound):
 		problem(w, 404, "not_found", err.Error())
 	case errors.Is(err, ErrConflict):

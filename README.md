@@ -1,8 +1,18 @@
 # 映创 · AI Creative Studio
 
-面向个人与团队的 AI 视觉内容工作室。React / TypeScript / Vite 前端与 Go / Eino 后端独立启动。第三轮基于 `6e30ff6` 实现，已获仓库所有者本轮授权发布源码与合成演示截图；应用未部署。
+面向个人与团队的 AI 视觉内容工作室。React / TypeScript / Vite 前端与 Go / Eino 后端独立启动。第三轮已发布。第四轮基于 `7dab4ea` 在同一云工作区实现，本轮未推送或部署。
 
-**默认仍为无凭据、无付费调用的 mock 模式。模拟结果是程序绘制 SVG，带有“模拟图像 · 非 AI 生成”标识。第三轮增加一种明确的真实图像协议适配器，但仅以本地 HTTP 假服务验证，未进行真实付费生成或验证任何模型质量。** 肖像仅为概念任务分类，不上传或编辑照片。短剧与漫剧工作台尚未实现。
+**默认仍为无凭据、无付费调用的 mock 模式。模拟结果是程序绘制 SVG，带有“模拟图像 · 非 AI 生成”标识。第三轮增加一种明确的真实图像协议适配器，但仅以本地 HTTP 假服务验证，未进行真实付费生成或验证任何模型质量。** 肖像仅为概念任务分类，不上传或编辑照片。第四轮新增短剧项目与结构化模拟剧本草稿；文本由程序生成并明确标记，未生成分镜、音频或视频。
+
+## 第四轮增量
+
+- 短剧项目按演示空间创建、浏览和编辑，名称与创作需求真实保存至后端。
+- 独立 `mock-script` 经 Eino 校验输入、生成两个角色和三个场景的结构化草稿、校验输出；状态与结果持久化。
+- 编辑剧本标题、梗概和场景文本后显式保存；版本检查防止并发覆盖，所有写操作使用持久幂等记录。
+- 生成失败保留旧稿；修改创作需求后展示旧稿来源提示，重新生成需明确确认覆盖。
+- 不提供真实文本模型、分镜、音视频、成片导出、删除或剧本多版本浏览。
+
+本轮范围及验收见 [产品](docs/iteration-4-product.md)、[架构](docs/iteration-4-architecture.md)、[界面](docs/iteration-4-ui.md)、[验证](docs/iteration-4-verification.md)、[角色协作](docs/iteration-4-collaboration.md)。完整阶段边界见 [路线图](docs/roadmap.md)；Actions Node 24 运行时维护依据见 [CI 说明](docs/iteration-4-ci.md)。
 
 ## 第三轮增量
 
@@ -27,7 +37,17 @@
 
 ## 实际运行截图
 
-以下第三轮工作台截图来自云开发环境中实际运行的前后端，仅包含合成演示数据。它们是静态截图，**不是可交互网页或已部署服务**；图像结果仍为带标识的模拟 SVG。
+### 第四轮：短剧项目与结构化模拟剧本
+
+以下来自真实运行的前后端，仅使用合成创作需求，剧本文本由程序模拟生成，非真实 AI 创作，也不是视频。图片是静态截图，不是已部署的交互网页。
+
+[桌面原图](docs/screenshots/script-desktop.png) · [手机原图](docs/screenshots/script-mobile.png) · [30 状态布局证据](docs/screenshots/iteration-4-project-geometry.json)
+
+![短剧项目与当前模拟剧本](docs/screenshots/script-desktop.png)
+
+### 图像工作台
+
+以下第四轮图像工作台回归截图来自云开发环境中实际运行的前后端，仅包含合成演示数据。它们是静态截图，**不是可交互网页或已部署服务**；图像结果仍为带标识的模拟 SVG。
 
 ### 桌面：创建模拟图像与底边对齐
 
@@ -35,7 +55,7 @@
 
 ![桌面工作台：模拟任务完成，两列底边对齐](docs/screenshots/desktop.png)
 
-[修复前桌面截图](docs/screenshots/iteration-3-before-desktop.png) · [24 个状态的几何证据](docs/screenshots/iteration-3-geometry.json)
+[修复前桌面截图](docs/screenshots/iteration-3-before-desktop.png) · [本轮 24 个状态的几何证据](docs/screenshots/iteration-4-image-geometry.json)
 
 ### 移动端：模板、参数与创作记录
 
@@ -50,7 +70,7 @@
 ## 目录
 
 - `frontend/`：中文响应式界面、任务轮询、素材库、单元与 Playwright 测试。
-- `backend/`：HTTP API、Eino 双节点流程、单进程 worker、持久化和恢复。
+- `backend/`：HTTP API、图像双节点与剧本三节点 Eino 流程、进程内 workers、持久化和恢复。
 - `api/openapi.json`：OpenAPI 3.0.3 契约。
 - `docs/architecture.md`：数据归属、扩展边界和生产能力缺口。
 - `docs/iteration-2-verification.md`：第二轮实际验证结果；`docs/verification.md` 保留第一轮记录。
@@ -136,6 +156,7 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e
 ```bash
 node scripts/layout_check.mjs
 node scripts/provider_check.mjs
+node scripts/project_check.mjs
 ```
 
 系统 Chromium 可通过同一个 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` 指定。该检查覆盖多个桌面宽度、短屏、单列断点、手机、空库及长文本，不使用开发数据。
@@ -154,7 +175,11 @@ python scripts/contract_check.py
 
 ## 数据和恢复
 
-`backend/data/state.json` 保存任务、历史及模拟 SVG 和素材元数据，真实 PNG 保存在同目录下的 `results/`；整个运行数据目录已加入 Git 忽略。`DATA_DIR` 可覆盖路径。任务先持久化再返回接受响应；mock 执行中任务在重启时重新排队，真实执行中任务转为结果不确定的失败，避免自动重复调用。写文件采用临时文件、文件 fsync、原子 rename，第二个进程无法锁定同一目录。状态损坏时启动失败，**不会清空重建**。停服后备份整个数据目录；要重置演示，请先备份，再显式移走该目录。
+`backend/data/state.json` 保存图像任务、历史模拟 SVG、素材元数据，以及短剧项目、当前剧本、生成记录和写操作幂等记录；真实 PNG 保存在同目录下的 `results/`；整个运行数据目录已加入 Git 忽略。`DATA_DIR` 可覆盖路径。任务先持久化再返回接受响应；mock 执行中任务在重启时重新排队，真实执行中任务转为结果不确定的失败，避免自动重复调用。写文件采用临时文件、文件 fsync、原子 rename，第二个进程无法锁定同一目录。状态损坏时启动失败，**不会清空重建**。停服后备份整个数据目录；要重置演示，请先备份，再显式移走该目录。
+
+第四轮首次启动会将完整 v1 文件快照升级为 v2，保留旧图像数据；v2 缺失必需字段仍拒绝启动。升级前停服备份整个 `DATA_DIR`；旧版本程序不能直接读取 v2，回退须恢复对应备份，不要手改版本号。此升级不涉及数据库或外部服务。
+
+短剧 `running` 在重启后重新排队，仅用于无外部调用的 mock；图像真实模式仍遵守中断不自动重发规则。
 
 当前不支持多实例、高可用、分页、删除、容量管理或整机断电级事务保证。详情见架构文档。在真实 provider 用于实际用户前，须完成认证授权、内容安全、成本控制、可观测性和生产存储迁移。本轮只验证适配协议与业务流程，不补齐这些生产能力。
 

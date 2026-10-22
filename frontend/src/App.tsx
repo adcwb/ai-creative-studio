@@ -10,6 +10,9 @@ import { TemplateGallery } from './components/TemplateGallery'
 import { ProviderBanner } from './components/ProviderBanner'
 import { useCapabilities } from './hooks/useCapabilities'
 import { useWorkspace } from './hooks/useWorkspace'
+import { DramaWorkspace } from './components/DramaWorkspace'
+import { ConfirmDialog } from './components/ConfirmDialog'
+import './drama.css'
 
 const blankDraft: TaskInput = {prompt: '', kind: 'poster', ratio: '4:5', style: 'natural'}
 
@@ -19,6 +22,13 @@ export default function App() {
   const [spaces, setSpaces] = useState<Space[]>([])
   const [error, setError] = useState('')
   const [revision, setRevision] = useState(0)
+  const [workbench, setWorkbench] = useState<'image' | 'drama'>('image')
+  const [dramaDirty, setDramaDirty] = useState(false)
+  const [pendingLeave, setPendingLeave] = useState<{action: () => void} | null>(null)
+  function requestLeave(action: () => void) {
+    if (dramaDirty) setPendingLeave({action})
+    else action()
+  }
   useEffect(() => {
     const controller = new AbortController()
     void request<Space[]>('/spaces', {signal: controller.signal})
@@ -30,8 +40,9 @@ export default function App() {
       .catch(reason => {if (!controller.signal.aborted) setError(errorMessage(reason, '空间加载失败'))})
     return () => controller.abort()
   }, [revision])
-  return <StudioShell spaces={spaces} space={space} capability={provider.capability} capabilityError={provider.error} onSpaceChange={setSpace}>
-    {error ? <div className="error space-error" role="alert">无法加载演示空间：{error} <button onClick={() => setRevision(value => value + 1)}>重新加载空间</button></div> : space ? <Workspace key={space} space={space} capability={provider.capability} capabilityError={provider.error} onCapabilityRefresh={provider.refresh} /> : <div className="loading-block" role="status">正在加载演示空间…</div>}
+  return <StudioShell spaces={spaces} space={space} workbench={workbench} onWorkbenchChange={next => {if (next !== workbench) requestLeave(() => setWorkbench(next))}} capability={provider.capability} capabilityError={provider.error} onSpaceChange={next => {if (next !== space) requestLeave(() => setSpace(next))}}>
+    {error ? <div className="error space-error" role="alert">无法加载演示空间：{error} <button onClick={() => setRevision(value => value + 1)}>重新加载空间</button></div> : space ? <><div hidden={workbench !== 'image'}><Workspace key={space} space={space} capability={provider.capability} capabilityError={provider.error} onCapabilityRefresh={provider.refresh} /></div>{workbench === 'drama' && <DramaWorkspace key={space} space={space} onDirtyChange={setDramaDirty} requestLeave={requestLeave} />}</> : <div className="loading-block" role="status">正在加载演示空间…</div>}
+    {pendingLeave && <ConfirmDialog title="离开当前编辑？" message="未保存的本地草稿将丢失。如果有请求正在提交或结果尚未确认，服务端可能已保存，离开不会撤销请求。" confirmLabel="放弃本地草稿并继续" onCancel={() => setPendingLeave(null)} onConfirm={() => {const action = pendingLeave.action; setPendingLeave(null); action()}} />}
   </StudioShell>
 }
 

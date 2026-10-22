@@ -43,10 +43,16 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	scriptPipeline, err := studio.NewScriptPipeline(ctx, studio.MockScriptProvider{Delay: 900 * time.Millisecond})
+	if err != nil {
+		return err
+	}
 	srv := &http.Server{Addr: env("HTTP_ADDR", "127.0.0.1:8080"), Handler: studio.Handler(store, env("FRONTEND_ORIGIN", "http://localhost:5173")), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
-	errs := make(chan error, 2)
+	errs := make(chan error, 3)
 	workerDone := make(chan struct{})
+	scriptWorkerDone := make(chan struct{})
 	go func() { defer close(workerDone); errs <- studio.RunWorker(ctx, store, pipeline) }()
+	go func() { defer close(scriptWorkerDone); errs <- studio.RunScriptWorker(ctx, store, scriptPipeline) }()
 	go func() {
 		slog.Info("demo API listening", "address", srv.Addr, "provider", capabilities.Provider, "provider_ready", capabilities.Ready)
 		errs <- srv.ListenAndServe()
@@ -60,6 +66,7 @@ func run() error {
 	defer cancel()
 	shutdownErr := srv.Shutdown(shutdown)
 	<-workerDone
+	<-scriptWorkerDone
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
