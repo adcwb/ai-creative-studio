@@ -117,7 +117,12 @@ try {
         await page.locator('.task').filter({ hasText: '[mock-fail] 失败状态与按钮布局验收' }).getByRole('button', { name: '编辑后重试' }).click()
         await expect(page.getByRole('button', { name: '取消编辑' })).toBeVisible()
       }
-      await page.evaluate(() => {
+      await page.evaluate(async () => {
+        // Template/retry selection schedules focus on the next animation frame.
+        // Flush that focus before resetting scroll for stable geometry/screenshots.
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        await document.fonts.ready
+        await Promise.all([...document.images].map(image => image.decode().catch(() => {})))
         if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
         window.scrollTo(0, 0)
       })
