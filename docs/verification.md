@@ -44,3 +44,9 @@
 ## 首次本地交付时的 Git 状态
 
 `master` 为未产生首个提交的本地分支，所有项目源文件均为新建、未暂存。`origin` 仍是 `https://github.com/adcwb/ai-creative-studio.git`。没有提交、远程分支创建、推送、PR、部署、许可证添加或仓库可见性修改。该记录之后，用户已明确授权将第一版普通推送到公开仓库；不包含部署、可见性修改或许可证变更。
+
+## 公开推送后的首次 GitHub CI
+
+初始提交 `8587f23ca3b1008a8d965d0d120af2141f3493d0` 的 [Checks 运行](https://github.com/adcwb/ai-creative-studio/actions/runs/39743297856) 中，Go 检查、进程恢复和前端检查均通过。浏览器依赖安装失败：`ubuntu-latest` 当时映射为 Ubuntu 26.04，而锁定的 Playwright 1.56.1 不支持该系统。CI 现固定为 Playwright 支持的 `ubuntu-24.04`，保留全部检查及原有只读权限；修复后的结果以对应新提交的 Actions 为准。
+
+首次 CI 的 npm 安装审计同时报告 12 项漏洞（1 moderate、10 high、1 critical）。这不是浏览器安装失败的原因，但属于尚需依赖审计和升级处理的已知风险；不要将测试通过解读为生产安全认证。
