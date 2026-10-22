@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "映创 · Phase 1 Demo API",
-    "version": "0.1.0",
-    "description": "本地、无认证、无付费依赖的模拟演示 API。所有结果均为程序 SVG，不代表真实 AI 模型能力。不可直接暴露到公网。"
+    "title": "映创 · Iteration 2 Demo API",
+    "version": "0.2.0",
+    "description": "真实运行并持久化业务任务的本地演示 API；模板目录、参数校验、失败任务重试及素材查询均由后端提供。图像 provider 仍为经 Eino Chain 调用的 mock-svg，所有结果是程序 SVG，不代表真实 AI 模型能力。无认证、无生产企业隔离，不可直接暴露到公网。"
   },
   "servers": [
     {
@@ -45,58 +45,8 @@
               }
             }
           },
-          "400": {
-            "description": "请求参数无效",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "403": {
             "description": "浏览器来源不允许",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "当前空间中无此记录",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "幂等键冲突或结果尚未完成",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Content-Type 不支持",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "持久化失败",
             "content": {
               "application/json": {
                 "schema": {
@@ -127,58 +77,8 @@
               }
             }
           },
-          "400": {
-            "description": "请求参数无效",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "403": {
             "description": "浏览器来源不允许",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "当前空间中无此记录",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "幂等键冲突或结果尚未完成",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Content-Type 不支持",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "持久化失败",
             "content": {
               "application/json": {
                 "schema": {
@@ -242,48 +142,9 @@
                 }
               }
             }
-          },
-          "404": {
-            "description": "当前空间中无此记录",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "幂等键冲突或结果尚未完成",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Content-Type 不支持",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "持久化失败",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
           }
-        }
+        },
+        "description": "返回当前演示空间的持久化任务，按创建时间倒序，无分页；终态任务和失败重试历史都保留。任务仍在运行时由客户端轮询。"
       },
       "post": {
         "operationId": "createTask",
@@ -309,26 +170,70 @@
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{8,128}$"
-            }
+            },
+            "description": "当前空间中唯一的提交键，持久保存到数据清理；网络失败重发必须沿用原键。普通创建与失败重试共享键命名空间；新一次用户提交应使用新键。"
           }
         ],
         "responses": {
-          "202": {
-            "description": "成功",
+          "200": {
+            "description": "同空间、同键、同归一化输入的幂等重放，返回原任务的当前状态；不会调度新任务。",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Task"
+                },
+                "example": {
+                  "id": "11111111111111111111111111111111",
+                  "space_id": "personal-demo",
+                  "prompt": "春日新品海报",
+                  "kind": "poster",
+                  "ratio": "4:5",
+                  "style": "natural",
+                  "status": "succeeded",
+                  "progress": 100,
+                  "provider": "mock-svg",
+                  "created_at": "2026-10-22T10:00:00Z",
+                  "updated_at": "2026-10-22T10:00:00Z",
+                  "result_url": "/api/v1/tasks/11111111111111111111111111111111/result?space_id=personal-demo"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "首次创建成功，已持久化 queued 任务；不代表图像生成已成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                },
+                "example": {
+                  "id": "11111111111111111111111111111111",
+                  "space_id": "personal-demo",
+                  "prompt": "春日新品海报",
+                  "kind": "poster",
+                  "ratio": "4:5",
+                  "style": "natural",
+                  "status": "queued",
+                  "progress": 0,
+                  "provider": "mock-svg",
+                  "created_at": "2026-10-22T10:00:00Z",
+                  "updated_at": "2026-10-22T10:00:00Z"
                 }
               }
             }
           },
           "400": {
-            "description": "请求参数无效",
+            "description": "space_id、Idempotency-Key、输入枚举/长度、JSON 无效，或 ratio/style 显式为 null/非字符串。",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "invalid_input",
+                    "message": "比例必须为 1:1、4:5 或 16:9"
+                  }
                 }
               }
             }
@@ -343,22 +248,18 @@
               }
             }
           },
-          "404": {
-            "description": "当前空间中无此记录",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "409": {
-            "description": "幂等键冲突或结果尚未完成",
+            "description": "键已用于不同输入或重试来源；不要用同一键提交编辑后的内容。",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "conflict",
+                    "message": "请求与已有任务冲突，或任务尚未完成"
+                  }
                 }
               }
             }
@@ -374,21 +275,11 @@
             }
           },
           "500": {
-            "description": "持久化失败",
+            "description": "持久化失败；客户端保留同一幂等键重发，以避免请求结果不确定时重复创建。",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "幂等重放；同键不同内容返回 409。幂等键保存到数据清理为止。",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Task"
                 }
               }
             }
@@ -400,16 +291,45 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateTask"
+              },
+              "examples": {
+                "legacy": {
+                  "summary": "旧调用仍可省略新增参数",
+                  "value": {
+                    "prompt": "春日新品海报",
+                    "kind": "poster"
+                  }
+                },
+                "general": {
+                  "summary": "显式选择通用模板参数",
+                  "value": {
+                    "prompt": "宁静山野中的小屋",
+                    "kind": "general",
+                    "ratio": "16:9",
+                    "style": "natural"
+                  }
+                },
+                "mockFailure": {
+                  "summary": "合法入队后由 provider 产生可复现失败",
+                  "value": {
+                    "prompt": "[mock-fail] 春日海报",
+                    "kind": "poster",
+                    "ratio": "4:5",
+                    "style": "illustration"
+                  }
+                }
               }
             }
-          }
-        }
+          },
+          "description": "Content-Type 必须为 application/json；请求体最大 16 KiB，且仅允许一个 JSON 对象。"
+        },
+        "description": "校验并持久化 queued 任务，随后由 worker 调用真实 Eino Chain 执行模拟 provider。prompt 去首尾空白，ratio/style 补默认值。相同空间、键和归一化输入返回原任务；不同输入或原键属于失败重试返回 409。202 只表示任务已入持久队列，后续成功或失败由任务详情查询。"
       }
     },
     "/api/v1/tasks/{id}": {
       "get": {
         "operationId": "getTask",
-        "summary": "查询任务进度和模拟结果地址",
+        "summary": "读取当前空间任务完整参数、状态、时间、重试来源和结果或错误",
         "parameters": [
           {
             "name": "space_id",
@@ -440,6 +360,57 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Task"
+                },
+                "examples": {
+                  "queued": {
+                    "value": {
+                      "id": "11111111111111111111111111111111",
+                      "space_id": "personal-demo",
+                      "prompt": "春日新品海报",
+                      "kind": "poster",
+                      "ratio": "4:5",
+                      "style": "natural",
+                      "status": "queued",
+                      "progress": 0,
+                      "provider": "mock-svg",
+                      "created_at": "2026-10-22T10:00:00Z",
+                      "updated_at": "2026-10-22T10:00:00Z"
+                    }
+                  },
+                  "succeeded": {
+                    "value": {
+                      "id": "11111111111111111111111111111111",
+                      "space_id": "personal-demo",
+                      "prompt": "春日新品海报",
+                      "kind": "poster",
+                      "ratio": "4:5",
+                      "style": "natural",
+                      "status": "succeeded",
+                      "progress": 100,
+                      "provider": "mock-svg",
+                      "created_at": "2026-10-22T10:00:00Z",
+                      "updated_at": "2026-10-22T10:00:00Z",
+                      "result_url": "/api/v1/tasks/11111111111111111111111111111111/result?space_id=personal-demo"
+                    }
+                  },
+                  "failedAttempt": {
+                    "summary": "失败重试历史保留直接父任务关系",
+                    "value": {
+                      "id": "22222222222222222222222222222222",
+                      "space_id": "personal-demo",
+                      "prompt": "[mock-fail] 春日海报",
+                      "kind": "poster",
+                      "ratio": "4:5",
+                      "style": "illustration",
+                      "status": "failed",
+                      "progress": 100,
+                      "provider": "mock-svg",
+                      "created_at": "2026-10-22T10:00:00Z",
+                      "updated_at": "2026-10-22T10:00:00Z",
+                      "retry_of": "11111111111111111111111111111111",
+                      "error": "模拟流程失败；请移除 [mock-fail] 后创建新任务"
+                    }
+                  }
                 }
               }
             }
@@ -473,38 +444,9 @@
                 }
               }
             }
-          },
-          "409": {
-            "description": "幂等键冲突或结果尚未完成",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Content-Type 不支持",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "持久化失败",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
           }
-        }
+        },
+        "description": "只有当前空间任务可见；缺失记录与跨空间 ID 均返回 404。当前没有任务编辑或取消 API。"
       }
     },
     "/api/v1/tasks/{id}/result": {
@@ -584,34 +526,15 @@
                 }
               }
             }
-          },
-          "415": {
-            "description": "Content-Type 不支持",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "持久化失败",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
           }
-        }
+        },
+        "description": "仅 succeeded 任务可读取。返回转义安全、带“非 AI 生成”水印的 SVG；Content-Security-Policy: default-src 'none'; sandbox。新任务按 ratio 设置真实画布比例，style 影响可见模拟结果。旧数据恢复不会重绘已经成功的 SVG。"
       }
     },
     "/api/v1/assets": {
       "get": {
         "operationId": "listAssets",
-        "summary": "按保存时间倒序列出当前空间素材",
+        "summary": "服务端搜索和筛选当前空间持久化素材，按保存时间倒序",
         "parameters": [
           {
             "name": "space_id",
@@ -625,6 +548,30 @@
               ]
             },
             "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "去除首尾空白后最多 100 个 Unicode 字符；为空或省略时不过滤，否则对 prompt 做大小写无关的子串匹配。长度校验发生在 trim 后。"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "poster",
+                "portrait",
+                "general",
+                ""
+              ]
+            },
+            "description": "省略或空字符串返回全部类型；否则仅返回匹配的 poster、portrait 或 general 素材。"
           }
         ],
         "responses": {
@@ -642,11 +589,17 @@
             }
           },
           "400": {
-            "description": "请求参数无效",
+            "description": "空间无效、q 去除两端空白后超过 100 个 Unicode 字符，或 kind 不在枚举中。",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "invalid_input",
+                    "message": "素材搜索词不能超过 100 个字符"
+                  }
                 }
               }
             }
@@ -660,48 +613,9 @@
                 }
               }
             }
-          },
-          "404": {
-            "description": "当前空间中无此记录",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "幂等键冲突或结果尚未完成",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Content-Type 不支持",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "持久化失败",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
           }
-        }
+        },
+        "description": "先按 space_id 限定已保存素材，再对 q 和 kind 进行 AND 组合过滤。搜索对象为素材的 prompt；不会搜索尚未保存的任务。无分页，适合小规模本地演示。空查询保留原有列举语义。"
       },
       "post": {
         "operationId": "saveAsset",
@@ -812,7 +726,274 @@
               }
             }
           }
+        },
+        "description": "仅保存当前空间 succeeded 任务。业务字段来自持久化任务，调用者不能伪造素材参数。task_id 同时作为素材 ID，重复保存返回原记录。未成功任务返回 409，缺失或跨空间任务返回 404。"
+      }
+    },
+    "/api/v1/templates": {
+      "get": {
+        "operationId": "getTemplateCatalog",
+        "summary": "获取后端模板目录和合法比例、风格选项",
+        "description": "后端全局只读内置目录，无需 space_id。前端从该接口生成模板和参数选项；加载失败应展示错误及重试，不能以本地列表冒充服务端结果。模板默认 poster=4:5/illustration，portrait=4:5/studio，general=1:1/natural。名称、描述、初始 prompt 和选项标签以实际响应为准。",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "后端目录读取成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateCatalog"
+                },
+                "example": {
+                  "templates": [
+                    {
+                      "id": "poster",
+                      "name": "创意海报",
+                      "description": "为活动或品牌构思一张海报",
+                      "kind": "poster",
+                      "prompt": "一张春日新品海报，清爽配色，突出主题文字",
+                      "ratio": "4:5",
+                      "style": "illustration"
+                    },
+                    {
+                      "id": "portrait",
+                      "name": "肖像创作",
+                      "description": "构思人物肖像的构图与气质",
+                      "kind": "portrait",
+                      "prompt": "一幅自然微笑的人物肖像，柔和光线，简洁背景",
+                      "ratio": "4:5",
+                      "style": "studio"
+                    },
+                    {
+                      "id": "general",
+                      "name": "通用图像",
+                      "description": "从一段描述开始自由创作",
+                      "kind": "general",
+                      "prompt": "宁静山野中的小屋，温暖阳光，清晰构图",
+                      "ratio": "1:1",
+                      "style": "natural"
+                    }
+                  ],
+                  "ratios": [
+                    {
+                      "value": "1:1",
+                      "label": "方形 1:1"
+                    },
+                    {
+                      "value": "4:5",
+                      "label": "竖版 4:5"
+                    },
+                    {
+                      "value": "16:9",
+                      "label": "横版 16:9"
+                    }
+                  ],
+                  "styles": [
+                    {
+                      "value": "natural",
+                      "label": "自然"
+                    },
+                    {
+                      "value": "studio",
+                      "label": "影棚"
+                    },
+                    {
+                      "value": "illustration",
+                      "label": "插画"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
+      }
+    },
+    "/api/v1/tasks/{id}/retry": {
+      "post": {
+        "operationId": "retryTask",
+        "summary": "基于失败任务持久化并排队新的执行尝试，保留原任务",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "当前空间中唯一的提交键，持久保存到数据清理；网络失败重发必须沿用原键。普通创建与失败重试共享键命名空间；新一次用户提交应使用新键。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间内状态为 failed 的直接父任务 ID。"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "同键、同父、同归一化输入的幂等重放；返回已有子任务当前状态，不产生新尝试。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "新执行尝试已持久化并入队；返回新 ID、queued 状态和 retry_of。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                },
+                "example": {
+                  "id": "22222222222222222222222222222222",
+                  "space_id": "personal-demo",
+                  "prompt": "春日新品海报，暖色花朵",
+                  "kind": "poster",
+                  "ratio": "4:5",
+                  "style": "illustration",
+                  "status": "queued",
+                  "progress": 0,
+                  "provider": "mock-svg",
+                  "created_at": "2026-10-22T10:00:00Z",
+                  "updated_at": "2026-10-22T10:00:00Z",
+                  "retry_of": "11111111111111111111111111111111"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "space_id、Idempotency-Key、输入枚举/长度、JSON 无效，或 ratio/style 显式为 null/非字符串。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "invalid_input",
+                    "message": "比例必须为 1:1、4:5 或 16:9"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "父任务不是 failed，或幂等键关联的输入/父任务/操作来源不同。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "conflict",
+                    "message": "请求与已有任务冲突，或任务尚未完成"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 不支持",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；客户端保留同一幂等键重发，以避免请求结果不确定时重复创建。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "父任务不存在或不属于当前空间。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "not_found",
+                    "message": "记录不存在"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTask"
+              },
+              "examples": {
+                "editedRetry": {
+                  "summary": "从失败描述移除触发词并显式提交新尝试",
+                  "value": {
+                    "prompt": "春日新品海报，暖色花朵",
+                    "kind": "poster",
+                    "ratio": "4:5",
+                    "style": "illustration"
+                  }
+                }
+              }
+            }
+          },
+          "description": "Content-Type 必须为 application/json；请求体最大 16 KiB，且仅允许一个 JSON 对象。"
+        },
+        "description": "仅接受当前空间 failed 父任务；完整请求输入可由原任务编辑而来。每次用户明确重试使用新键，创建新任务并持久化 retry_of 为直接父任务 ID。worker 独立领取并经 Eino 执行新尝试，不修改或重置父任务。相同空间、键、父 ID 和归一化输入重放返回同一子任务；同键跨父、改变输入或与普通创建互用返回 409。无父或跨空间父返回 404；父为 queued/running/succeeded 返回 409。仅客户端网络重发复用原键。"
       }
     }
   },
@@ -827,6 +1008,8 @@
           "kind",
           "status",
           "progress",
+          "ratio",
+          "style",
           "provider",
           "created_at",
           "updated_at"
@@ -849,8 +1032,10 @@
             "type": "string",
             "enum": [
               "poster",
-              "portrait"
-            ]
+              "portrait",
+              "general"
+            ],
+            "description": "poster 海报、portrait 肖像、general 通用图像。"
           },
           "status": {
             "type": "string",
@@ -864,7 +1049,8 @@
           "progress": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 100
+            "maximum": 100,
+            "description": "阶段标记：queued=0，running=35，succeeded/failed=100。不是模型生成百分比。"
           },
           "provider": {
             "type": "string",
@@ -873,10 +1059,12 @@
             ]
           },
           "result_url": {
-            "type": "string"
+            "type": "string",
+            "description": "仅 succeeded 任务返回的同源相对 SVG 地址，包含 space_id；不等同于公开分享链接。"
           },
           "error": {
-            "type": "string"
+            "type": "string",
+            "description": "仅 failed 任务返回面向用户的模拟失败说明。"
           },
           "created_at": {
             "type": "string",
@@ -885,7 +1073,45 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "ratio": {
+            "type": "string",
+            "enum": [
+              "1:1",
+              "4:5",
+              "16:9"
+            ],
+            "description": "SVG 画布宽高比。 旧 version=1 数据缺少本字段时补为 4:5，既有 SVG 保持原样。"
+          },
+          "style": {
+            "type": "string",
+            "enum": [
+              "natural",
+              "studio",
+              "illustration"
+            ],
+            "description": "模拟 SVG 的视觉风格；不表示真实 AI 模型能力。 旧 version=1 数据缺少本字段时补为 natural，既有 SVG 保持原样。"
+          },
+          "retry_of": {
+            "type": "string",
+            "description": "仅失败重试创建的任务返回；当前空间内直接父任务的 ID，随任务持久化，重启后保留。普通创建及旧记录省略本字段。",
+            "minLength": 1
           }
+        },
+        "additionalProperties": false,
+        "description": "任务详情和列表共用完整结构。输入提交后不可变；状态按 queued → running → succeeded 或 failed 转移。失败重试创建另一条任务，原任务保留。内部 result_svg 与 idempotency_key 不向 API 输出。",
+        "example": {
+          "id": "11111111111111111111111111111111",
+          "space_id": "personal-demo",
+          "prompt": "春日新品海报",
+          "kind": "poster",
+          "ratio": "4:5",
+          "style": "natural",
+          "status": "queued",
+          "progress": 0,
+          "provider": "mock-svg",
+          "created_at": "2026-10-22T10:00:00Z",
+          "updated_at": "2026-10-22T10:00:00Z"
         }
       },
       "Asset": {
@@ -896,6 +1122,8 @@
           "task_id",
           "prompt",
           "kind",
+          "ratio",
+          "style",
           "provider",
           "result_url",
           "created_at"
@@ -918,8 +1146,10 @@
             "type": "string",
             "enum": [
               "poster",
-              "portrait"
-            ]
+              "portrait",
+              "general"
+            ],
+            "description": "poster 海报、portrait 肖像、general 通用图像。"
           },
           "provider": {
             "type": "string",
@@ -936,7 +1166,39 @@
           },
           "task_id": {
             "type": "string"
+          },
+          "ratio": {
+            "type": "string",
+            "enum": [
+              "1:1",
+              "4:5",
+              "16:9"
+            ],
+            "description": "SVG 画布宽高比。 旧 version=1 数据缺少本字段时补为 4:5，既有 SVG 保持原样。"
+          },
+          "style": {
+            "type": "string",
+            "enum": [
+              "natural",
+              "studio",
+              "illustration"
+            ],
+            "description": "模拟 SVG 的视觉风格；不表示真实 AI 模型能力。 旧 version=1 数据缺少本字段时补为 natural，既有 SVG 保持原样。"
           }
+        },
+        "additionalProperties": false,
+        "description": "已成功任务的持久化素材快照，保留 prompt/kind/ratio/style。重复保存相同任务返回相同素材 ID 和创建时间。",
+        "example": {
+          "id": "11111111111111111111111111111111",
+          "space_id": "personal-demo",
+          "prompt": "春日新品海报",
+          "kind": "poster",
+          "ratio": "4:5",
+          "style": "natural",
+          "provider": "mock-svg",
+          "created_at": "2026-10-22T10:00:00Z",
+          "task_id": "11111111111111111111111111111111",
+          "result_url": "/api/v1/tasks/11111111111111111111111111111111/result?space_id=personal-demo"
         }
       },
       "CreateTask": {
@@ -957,10 +1219,35 @@
             "type": "string",
             "enum": [
               "poster",
-              "portrait"
-            ]
+              "portrait",
+              "general"
+            ],
+            "description": "poster 海报、portrait 肖像、general 通用图像。"
+          },
+          "ratio": {
+            "type": "string",
+            "enum": [
+              "1:1",
+              "4:5",
+              "16:9",
+              ""
+            ],
+            "description": "SVG 画布宽高比。 省略或空字符串时采用 4:5；后端在持久化和幂等比较前补足。 显式 null 或其他非字符串值返回 400 invalid_input。",
+            "default": "4:5"
+          },
+          "style": {
+            "type": "string",
+            "enum": [
+              "natural",
+              "studio",
+              "illustration",
+              ""
+            ],
+            "description": "模拟 SVG 的视觉风格；不表示真实 AI 模型能力。 省略或空字符串时采用 natural；后端在持久化和幂等比较前补足。 显式 null 或其他非字符串值返回 400 invalid_input。",
+            "default": "natural"
           }
-        }
+        },
+        "description": "任务创建和失败重试共用输入。prompt 去除首尾空白；ratio/style 补默认值后参与幂等比较。kind 必填，无隐式模板选择。未知 JSON 字段返回 400。"
       },
       "Space": {
         "type": "object",
@@ -1011,7 +1298,150 @@
             }
           }
         }
+      },
+      "Template": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "description",
+          "kind",
+          "prompt",
+          "ratio",
+          "style"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "poster",
+              "portrait",
+              "general"
+            ],
+            "description": "内置模板标识，与 kind 一致。"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "poster",
+              "portrait",
+              "general"
+            ]
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 1000,
+            "description": "可编辑的起始描述，不会替代用户最终提交的描述。"
+          },
+          "ratio": {
+            "type": "string",
+            "enum": [
+              "1:1",
+              "4:5",
+              "16:9"
+            ]
+          },
+          "style": {
+            "type": "string",
+            "enum": [
+              "natural",
+              "studio",
+              "illustration"
+            ]
+          }
+        }
+      },
+      "RatioOption": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "value",
+          "label"
+        ],
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": [
+              "1:1",
+              "4:5",
+              "16:9"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "StyleOption": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "value",
+          "label"
+        ],
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": [
+              "natural",
+              "studio",
+              "illustration"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "TemplateCatalog": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "templates",
+          "ratios",
+          "styles"
+        ],
+        "description": "后端只读内置目录，无空间归属；前端据此展示模板及参数选项。模板只提供创建草稿的默认值，提交时后端仍校验完整输入。",
+        "properties": {
+          "templates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Template"
+            },
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "ratios": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RatioOption"
+            },
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "styles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StyleOption"
+            },
+            "minItems": 3,
+            "maxItems": 3
+          }
+        }
       }
     }
-  }
+  },
+  "security": []
 }

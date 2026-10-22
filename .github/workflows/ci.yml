@@ -49,3 +49,4 @@ jobs:
         run: |
           pip install openapi-spec-validator==0.7.2
           python -m openapi_spec_validator api/openapi.json
+          python scripts/contract_check.py

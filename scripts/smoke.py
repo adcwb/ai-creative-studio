@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import time
 import urllib.request
+import urllib.parse
 
 BINARY = Path(__file__).resolve().parents[1] / "backend/bin/server"
 with socket.socket() as sock:
@@ -58,13 +59,24 @@ with tempfile.TemporaryDirectory(prefix="studio-process-smoke-") as directory:
 
     try:
         start()
-        payload = {"prompt": "进程恢复测试海报", "kind": "poster"}
-        task = request("/api/v1/tasks" + SPACE, payload, "process-smoke-key")
+        catalog = request("/api/v1/templates")
+        assert len(catalog["templates"]) == 3
+        original_payload = {"prompt": "[mock-fail] 进程恢复测试海报", "kind": "poster"}
+        original = request("/api/v1/tasks" + SPACE, original_payload, "process-smoke-original")
+        original_path = "/api/v1/tasks/" + original["id"] + SPACE
+        failed = await_value(lambda: request(original_path), lambda value: value["status"] == "failed")
+        assert failed["ratio"] == "4:5" and failed["style"] == "natural"
+        payload = {"prompt": "进程恢复测试海报", "kind": "poster", "ratio": "16:9", "style": "studio"}
+        retry_path = "/api/v1/tasks/" + original["id"] + "/retry" + SPACE
+        task = request(retry_path, payload, "process-smoke-retry")
+        assert task["retry_of"] == original["id"]
         task_path = "/api/v1/tasks/" + task["id"] + SPACE
         await_value(lambda: request(task_path), lambda value: value["status"] == "running")
         crash()
         start()
         completed = await_value(lambda: request(task_path), lambda value: value["status"] == "succeeded")
+        assert completed["retry_of"] == original["id"]
+        assert completed["ratio"] == "16:9" and completed["style"] == "studio"
         svg = request(completed["result_url"])
         assert "非 AI 生成".encode() in svg
         asset = request("/api/v1/assets" + SPACE, {"task_id": task["id"]})
@@ -72,9 +84,18 @@ with tempfile.TemporaryDirectory(prefix="studio-process-smoke-") as directory:
         start()
         assert request("/api/v1/assets" + SPACE)[0]["id"] == asset["id"]
         assert request(completed["result_url"]) == svg
-        assert request("/api/v1/tasks" + SPACE, payload, "process-smoke-key")["id"] == task["id"]
-        assert len(request("/api/v1/tasks" + SPACE)) == 1
-        print("PASS: SIGKILL recovery, persisted SVG/assets, restart-safe idempotency")
+        assert request(retry_path, payload, "process-smoke-retry")["id"] == task["id"]
+        assert request(original_path)["status"] == "failed"
+        assert request(original_path)["prompt"] == original_payload["prompt"]
+        assert request("/api/v1/tasks" + SPACE, original_payload, "process-smoke-original")["id"] == original["id"]
+        assert len(request("/api/v1/tasks" + SPACE)) == 2
+        search = "&" + urllib.parse.urlencode({"q": "恢复测试", "kind": "poster"})
+        results = request("/api/v1/assets" + SPACE + search)
+        assert len(results) == 1 and results[0]["id"] == asset["id"]
+        assert results[0]["ratio"] == "16:9" and results[0]["style"] == "studio"
+        assert request("/api/v1/assets" + SPACE + "&kind=portrait") == []
+        assert request("/api/v1/assets?space_id=team-demo" + search) == []
+        print("PASS: backend catalog, failed-parent retry execution, SIGKILL recovery, persisted retry lineage/SVG/assets, restart-safe idempotency, server-side search and space filtering")
     finally:
         if process is not None and process.poll() is None:
             process.terminate()

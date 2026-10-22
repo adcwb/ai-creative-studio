@@ -22,6 +22,7 @@ type snapshot struct {
 // Repository is the boundary for a future transactional PostgreSQL implementation.
 type Repository interface {
 	Create(string, string, Input) (Task, bool, error)
+	Retry(string, string, string, Input) (Task, bool, error)
 	Get(string, string) (Task, error)
 	List(string) []Task
 	Assets(string) []Asset
@@ -64,12 +65,28 @@ func OpenStore(dir string) (*FileStore, error) {
 		return nil, fmt.Errorf("unsupported or invalid state")
 	}
 	for id, t := range s.data.Tasks {
+		t.Input = withDefaults(t.Input)
 		if t.Status == "running" {
 			t.Status = "queued"
 			t.Progress = 0
 			t.UpdatedAt = time.Now().UTC()
-			s.data.Tasks[id] = t
 		}
+		s.data.Tasks[id] = t
+	}
+	for id, a := range s.data.Assets {
+		// Only use a linked task from the asset's space; old snapshots need no
+		// rewrite of the rendered SVG or their existing task identifiers.
+		if t, ok := s.data.Tasks[a.TaskID]; ok && t.SpaceID == a.SpaceID {
+			if a.Ratio == "" {
+				a.Ratio = t.Ratio
+			}
+			if a.Style == "" {
+				a.Style = t.Style
+			}
+		}
+		defaults := withDefaults(Input{Ratio: a.Ratio, Style: a.Style})
+		a.Ratio, a.Style = defaults.Ratio, defaults.Style
+		s.data.Assets[id] = a
 	}
 	if err = s.commit(s.data); err != nil {
 		s.Close()
@@ -117,11 +134,41 @@ func (s *FileStore) commit(d snapshot) error {
 	return nil
 }
 func (s *FileStore) Create(space, key string, in Input) (Task, bool, error) {
+	var err error
+	in, err = Normalize(in)
+	if err != nil {
+		return Task{}, false, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.createLocked(space, key, in, "")
+}
+
+func (s *FileStore) Retry(space, parentID, key string, in Input) (Task, bool, error) {
+	var err error
+	in, err = Normalize(in)
+	if err != nil {
+		return Task{}, false, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	parent, ok := s.data.Tasks[parentID]
+	if !ok || parent.SpaceID != space {
+		return Task{}, false, ErrNotFound
+	}
+	if parent.Status != "failed" {
+		return Task{}, false, ErrConflict
+	}
+	return s.createLocked(space, key, in, parentID)
+}
+
+// createLocked keeps a retry's parent check and idempotency decision in the
+// same critical section as the durable write. The original task is unchanged.
+func (s *FileStore) createLocked(space, key string, in Input, retryOf string) (Task, bool, error) {
 	for _, t := range s.data.Tasks {
 		if t.SpaceID == space && t.Key == key {
-			if t.Input != in {
+			storedInput, err := Normalize(t.Input)
+			if err != nil || storedInput != in || t.RetryOf != retryOf {
 				return Task{}, false, ErrConflict
 			}
 			return t, false, nil
@@ -133,7 +180,7 @@ func (s *FileStore) Create(space, key string, in Input) (Task, bool, error) {
 	}
 	id := hex.EncodeToString(raw)
 	now := time.Now().UTC()
-	t := Task{ID: id, SpaceID: space, Input: in, Status: "queued", Provider: "mock-svg", CreatedAt: now, UpdatedAt: now, Key: key}
+	t := Task{ID: id, SpaceID: space, Input: in, Status: "queued", Provider: "mock-svg", RetryOf: retryOf, CreatedAt: now, UpdatedAt: now, Key: key}
 	d := s.clone()
 	d.Tasks[id] = t
 	return t, true, s.commit(d)
@@ -184,7 +231,7 @@ func (s *FileStore) SaveAsset(space, id string) (Asset, error) {
 	if a, ok := s.data.Assets[id]; ok {
 		return a, nil
 	}
-	a := Asset{ID: id, SpaceID: space, TaskID: id, Prompt: t.Prompt, Kind: t.Kind, Provider: t.Provider, ResultURL: t.ResultURL, CreatedAt: time.Now().UTC()}
+	a := Asset{ID: id, SpaceID: space, TaskID: id, Prompt: t.Prompt, Kind: t.Kind, Ratio: t.Ratio, Style: t.Style, Provider: t.Provider, ResultURL: t.ResultURL, CreatedAt: time.Now().UTC()}
 	d := s.clone()
 	d.Assets[id] = a
 	return a, s.commit(d)

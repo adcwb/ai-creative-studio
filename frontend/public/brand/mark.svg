@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
+  <title>映创 · 映窗标记</title>
+  <rect width="40" height="40" rx="11" fill="#244B3B"/>
+  <path d="M10 11h8v18h-8z" fill="#EEF1D3"/>
+  <path d="M22 11h8v18h-8" stroke="#EEF1D3" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="m14 15 11 5-11 5z" fill="#244B3B"/>
+</svg>

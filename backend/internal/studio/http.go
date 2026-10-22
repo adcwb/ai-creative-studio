@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"strings"
+	"unicode/utf8"
 )
 
 var keyPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{8,128}$`)
@@ -19,6 +21,9 @@ func Handler(repo Repository, origin string) http.Handler {
 	mux.HandleFunc("GET /api/v1/spaces", func(w http.ResponseWriter, r *http.Request) {
 		respond(w, 200, []map[string]string{{"id": "personal-demo", "name": "个人演示空间", "type": "personal", "owner_id": "demo-user"}, {"id": "team-demo", "name": "团队演示空间", "type": "team", "owner_id": "demo-team"}})
 	})
+	mux.HandleFunc("GET /api/v1/templates", func(w http.ResponseWriter, r *http.Request) {
+		respond(w, 200, Catalog())
+	})
 	mux.HandleFunc("GET /api/v1/tasks", func(w http.ResponseWriter, r *http.Request) {
 		space, ok := spaceID(w, r)
 		if !ok {
@@ -27,34 +32,10 @@ func Handler(repo Repository, origin string) http.Handler {
 		respond(w, 200, repo.List(space))
 	})
 	mux.HandleFunc("POST /api/v1/tasks", func(w http.ResponseWriter, r *http.Request) {
-		space, ok := spaceID(w, r)
-		if !ok {
-			return
-		}
-		key := r.Header.Get("Idempotency-Key")
-		if !keyPattern.MatchString(key) {
-			problem(w, 400, "invalid_key", "Idempotency-Key 需为 8–128 位字母、数字、下划线或连字符")
-			return
-		}
-		var in Input
-		if !decode(w, r, &in) {
-			return
-		}
-		in, err := Normalize(in)
-		if err != nil {
-			problem(w, 400, "invalid_input", err.Error())
-			return
-		}
-		t, created, err := repo.Create(space, key, in)
-		if err != nil {
-			storeError(w, err)
-			return
-		}
-		status := 200
-		if created {
-			status = 202
-		}
-		respond(w, status, t.Public())
+		createTask(w, r, repo, "")
+	})
+	mux.HandleFunc("POST /api/v1/tasks/{id}/retry", func(w http.ResponseWriter, r *http.Request) {
+		createTask(w, r, repo, r.PathValue("id"))
 	})
 	mux.HandleFunc("GET /api/v1/tasks/{id}", func(w http.ResponseWriter, r *http.Request) {
 		space, ok := spaceID(w, r)
@@ -92,7 +73,24 @@ func Handler(repo Repository, origin string) http.Handler {
 		if !ok {
 			return
 		}
-		respond(w, 200, repo.Assets(space))
+		query := strings.TrimSpace(r.URL.Query().Get("q"))
+		kind := r.URL.Query().Get("kind")
+		if utf8.RuneCountInString(query) > 100 {
+			problem(w, 400, "invalid_input", "素材搜索词不能超过 100 个字符")
+			return
+		}
+		if kind != "" && kind != "poster" && kind != "portrait" && kind != "general" {
+			problem(w, 400, "invalid_input", "素材类型必须为 poster、portrait 或 general")
+			return
+		}
+		query = strings.ToLower(query)
+		assets := []Asset{}
+		for _, asset := range repo.Assets(space) {
+			if (kind == "" || asset.Kind == kind) && strings.Contains(strings.ToLower(asset.Prompt), query) {
+				assets = append(assets, asset)
+			}
+		}
+		respond(w, 200, assets)
 	})
 	mux.HandleFunc("POST /api/v1/assets", func(w http.ResponseWriter, r *http.Request) {
 		space, ok := spaceID(w, r)
@@ -132,6 +130,67 @@ func Handler(repo Repository, origin string) http.Handler {
 		mux.ServeHTTP(w, r)
 	})
 }
+
+func createTask(w http.ResponseWriter, r *http.Request, repo Repository, parentID string) {
+	space, ok := spaceID(w, r)
+	if !ok {
+		return
+	}
+	key := r.Header.Get("Idempotency-Key")
+	if !keyPattern.MatchString(key) {
+		problem(w, 400, "invalid_key", "Idempotency-Key 需为 8–128 位字母、数字、下划线或连字符")
+		return
+	}
+	var body struct {
+		Prompt string          `json:"prompt"`
+		Kind   string          `json:"kind"`
+		Ratio  json.RawMessage `json:"ratio"`
+		Style  json.RawMessage `json:"style"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	in := Input{Prompt: body.Prompt, Kind: body.Kind}
+	if !inputOption(w, "ratio", body.Ratio, &in.Ratio) || !inputOption(w, "style", body.Style, &in.Style) {
+		return
+	}
+	in, err := Normalize(in)
+	if err != nil {
+		problem(w, 400, "invalid_input", err.Error())
+		return
+	}
+	var t Task
+	var created bool
+	if parentID == "" {
+		t, created, err = repo.Create(space, key, in)
+	} else {
+		t, created, err = repo.Retry(space, parentID, key, in)
+	}
+	if err != nil {
+		storeError(w, err)
+		return
+	}
+	status := 200
+	if created {
+		status = 202
+	}
+	respond(w, status, t.Public())
+}
+
+// Decode optional parameters only at the request boundary. Input is embedded
+// in persisted Task records, so a custom Input unmarshaler could swallow the
+// outer task fields when restoring a snapshot.
+func inputOption(w http.ResponseWriter, name string, raw json.RawMessage, value *string) bool {
+	if len(raw) == 0 {
+		return true
+	}
+	if strings.TrimSpace(string(raw)) == "null" || json.Unmarshal(raw, value) != nil {
+		problem(w, 400, "invalid_input", name+" 必须为字符串，不能为 null")
+		return false
+	}
+	return true
+}
+
 func spaceID(w http.ResponseWriter, r *http.Request) (string, bool) {
 	s := r.URL.Query().Get("space_id")
 	if s != "personal-demo" && s != "team-demo" {
