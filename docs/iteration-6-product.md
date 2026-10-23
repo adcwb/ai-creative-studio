@@ -40,7 +40,7 @@ MiniMax 文本采用其[官方 OpenAI 兼容接口](https://platform.minimax.io/
 
 ## 角色参考与图像模型边界
 
-OpenAI、Gemini 与方舟图像适配提供可选 `reference_asset_id`，将已有参考图片作为图像输入，并复用角色描述。它能传递外观约束，不能保证跨镜头身份或细节一致；没有锁脸、角色微调或一致性质量评测承诺。Google/Nano Banana 图像接入仅覆盖 `generateContent` 兼容模型，不将需要 Interactions API 的其他新模型宣称为已支持。方舟视频适配与 OpenAI 视频为不同协议，各自的模型权限和真实效果仍未验证。
+OpenAI、Gemini 与方舟图像适配提供可选 `reference_asset_id`，将已有参考图片作为图像输入。角色选择用于资产关联；需要的角色描述由用户写入创作提示。它能传递外观约束，不能保证跨镜头身份或细节一致；没有锁脸、角色微调或一致性质量评测承诺。Google/Nano Banana 图像接入仅覆盖 `generateContent` 兼容模型，不将需要 Interactions API 的其他新模型宣称为已支持。方舟视频适配与 OpenAI 视频为不同协议，各自的模型权限和真实效果仍未验证。
 
 ## 即梦公开图像协议
 
