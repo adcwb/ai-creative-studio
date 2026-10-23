@@ -56,9 +56,9 @@ def main():
         result.check_returncode()
         return result.stdout
     def call(path, body=None, key=None, method=None, status=200, mime='application/json', headers=None):
-        hdr = {'Content-Type': mime, **(headers or {})}
+        hdr = {'Content-Type': mime, 'Origin': base, **(headers or {})}
         if key:
-            hdr['Idempotency-Key'] = key
+            hdr['Idempotency-Key'] = 'docker-' + key
         raw = body if isinstance(body, bytes) else json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(base + path, data=raw, headers=hdr, method=method)
         try:
@@ -110,7 +110,7 @@ def main():
             connection.putrequest('POST', upload)
             connection.putheader('Content-Length', str(34 * 1024 * 1024))
             connection.putheader('Content-Type', 'image/png')
-            connection.putheader('Idempotency-Key', 'nginx-upload-limit')
+            connection.putheader('Idempotency-Key', 'docker-nginx-upload-limit')
             connection.endheaders()
             response = connection.getresponse()
             assert response.status == 413
