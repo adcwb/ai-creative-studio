@@ -65,7 +65,7 @@ def wait(fn, predicate, seconds=45):
 
 def start():
     global process
-    env = {"PATH": os.environ["PATH"], "DATA_DIR": str(EVIDENCE / "data"), "HTTP_ADDR": f"127.0.0.1:{PORT}", "IMAGE_PROVIDER": "mock-svg", "TEXT_PROVIDER": "mock-text", "OPENAI_API_KEY": ""}
+    env = {"PATH": os.environ["PATH"], "AUTH_MODE": "demo", "DATA_DIR": str(EVIDENCE / "data"), "HTTP_ADDR": f"127.0.0.1:{PORT}", "IMAGE_PROVIDER": "mock-svg", "TEXT_PROVIDER": "mock-text", "OPENAI_API_KEY": ""}
     process = subprocess.Popen([str(ROOT / "backend/bin/server")], env=env, stdout=(EVIDENCE / "server.log").open("ab"), stderr=subprocess.STDOUT)
     for _ in range(100):
         try:

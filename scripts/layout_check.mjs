@@ -65,7 +65,7 @@ try {
   execFileSync('go', ['build', '-o', binary, './cmd/server'], { cwd: join(repo, 'backend'), stdio: 'pipe' })
   const backend = start(binary, [], repo, {
     ...process.env, HTTP_ADDR: `127.0.0.1:${apiPort}`, FRONTEND_ORIGIN: origin,
-    DATA_DIR: join(temporary, 'data'), IMAGE_PROVIDER: 'mock-svg', OPENAI_API_KEY: '',
+    AUTH_MODE: 'demo', TEXT_PROVIDER: 'mock-text', SPEECH_PROVIDER: '', VIDEO_PROVIDER: '', ASR_PROVIDER: '', DATA_DIR: join(temporary, 'data'), IMAGE_PROVIDER: 'mock-svg', OPENAI_API_KEY: '',
   })
   await ready(`${api}/healthz`, backend)
   const frontend = start('npm', ['run', 'dev', '--', '--port', String(webPort), '--strictPort'], join(repo, 'frontend'), {
@@ -99,7 +99,7 @@ try {
   ]
   const pages = []
   for (const viewport of viewports) {
-    const context = await browser.newContext(viewport.mobile ? { ...devices['iPhone 13'], viewport: { width: viewport.width, height: viewport.height } } : { viewport: { width: viewport.width, height: viewport.height } })
+    const context = await browser.newContext(viewport.mobile ? { ...devices['iPhone 13'], locale: 'zh-CN', viewport: { width: viewport.width, height: viewport.height } } : { locale: 'zh-CN', viewport: { width: viewport.width, height: viewport.height } })
     const page = await context.newPage()
     const errors = []
     page.on('pageerror', error => errors.push(error.message))

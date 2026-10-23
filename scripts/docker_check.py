@@ -40,7 +40,7 @@ def main():
     override = evidence / 'override.json'
     override.write_text(json.dumps({'services': {
         'backend': {'image': args.backend_image, 'pull_policy': 'never', 'restart': 'no', 'environment': {
-            'IMAGE_PROVIDER': 'mock-svg', 'TEXT_PROVIDER': 'mock-text', 'ASR_PROVIDER': '',
+            'AUTH_MODE': 'demo', 'IMAGE_PROVIDER': 'mock-svg', 'TEXT_PROVIDER': 'mock-text', 'ASR_PROVIDER': '',
             'FRONTEND_ORIGIN': base}},
         'frontend': {'image': args.frontend_image, 'pull_policy': 'never', 'restart': 'no'},
     }}))

@@ -54,7 +54,7 @@ def call(path, body=None, key=None, method=None, status=200, schema=None):
 
 def start():
     global process
-    env = {"PATH": os.environ['PATH'], "DATA_DIR": str(EVIDENCE / "data"), "HTTP_ADDR": f"127.0.0.1:{port}", "IMAGE_PROVIDER": "mock-svg", "TEXT_PROVIDER": "mock-text", "ASR_PROVIDER": "", "OPENAI_API_KEY": ""}
+    env = {"PATH": os.environ['PATH'], "AUTH_MODE": "demo", "DATA_DIR": str(EVIDENCE / "data"), "HTTP_ADDR": f"127.0.0.1:{port}", "IMAGE_PROVIDER": "mock-svg", "TEXT_PROVIDER": "mock-text", "ASR_PROVIDER": "", "OPENAI_API_KEY": ""}
     process = subprocess.Popen([str(ROOT / 'backend/bin/server')], env=env, stdout=(EVIDENCE / 'server.log').open('ab'), stderr=subprocess.STDOUT)
     for _ in range(100):
         try:

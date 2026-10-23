@@ -62,7 +62,7 @@ try {
   const binary = join(temporary, 'server')
   execFileSync('go', ['build', '-o', binary, './cmd/server'], { cwd: join(repo, 'backend'), stdio: 'pipe' })
   // Image configuration intentionally unavailable: local mock-script is independent.
-  const backend = start(binary, [], repo, { ...process.env, HTTP_ADDR: `127.0.0.1:${apiPort}`, FRONTEND_ORIGIN: origin, DATA_DIR: join(temporary, 'data'), IMAGE_PROVIDER: 'openai-images', OPENAI_API_KEY: '' })
+  const backend = start(binary, [], repo, { ...process.env, HTTP_ADDR: `127.0.0.1:${apiPort}`, FRONTEND_ORIGIN: origin, AUTH_MODE: 'demo', TEXT_PROVIDER: 'mock-text', SPEECH_PROVIDER: '', VIDEO_PROVIDER: '', ASR_PROVIDER: '', DATA_DIR: join(temporary, 'data'), IMAGE_PROVIDER: 'openai-images', OPENAI_API_KEY: '' })
   await ready(`${api}/healthz`, backend)
   const frontend = start('npm', ['run', 'dev', '--', '--port', String(webPort), '--strictPort'], join(repo, 'frontend'), { ...process.env, VITE_API_BASE_URL: api })
   await ready(origin, frontend)
@@ -87,7 +87,7 @@ try {
   ]
   const pages = []
   for (const view of views) {
-    const context = await browser.newContext(view.mobile ? {...devices['iPhone 13'],viewport:{width:view.width,height:view.height}} : {viewport:{width:view.width,height:view.height}})
+    const context = await browser.newContext(view.mobile ? {...devices['iPhone 13'],locale:'zh-CN',viewport:{width:view.width,height:view.height}} : {locale:'zh-CN',viewport:{width:view.width,height:view.height}})
     const page = await context.newPage(), errors = []; page.on('pageerror', e => errors.push(e.message)); pages.push({page,view,errors})
   }
   const measurements = []

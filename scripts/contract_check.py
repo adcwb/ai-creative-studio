@@ -53,7 +53,7 @@ def main():
         env = {
             "PATH": os.environ.get("PATH", ""),
             "HTTP_ADDR": f"127.0.0.1:{port}",
-            "DATA_DIR": str(temp / "data"),
+            "AUTH_MODE": "demo", "DATA_DIR": str(temp / "data"),
         }
         proc = None
 

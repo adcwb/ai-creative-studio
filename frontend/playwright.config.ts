@@ -4,10 +4,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 export default defineConfig({
   testDir: './e2e', fullyParallel: false, workers: 1, timeout: 30000,
-  use: { baseURL: 'http://localhost:5174', channel: process.env.PLAYWRIGHT_BROWSER_CHANNEL, trace: 'retain-on-failure', launchOptions: {executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH} },
+  use: { locale: 'zh-CN', baseURL: 'http://localhost:5174', channel: process.env.PLAYWRIGHT_BROWSER_CHANNEL, trace: 'retain-on-failure', launchOptions: {executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH} },
   projects: [{name: 'desktop', use: {...devices['Desktop Chrome']}}, {name: 'mobile', use: {...devices['iPhone 13'], defaultBrowserType: 'chromium'}}],
   webServer: [
-    {command: '../backend/bin/server', url: 'http://127.0.0.1:8081/healthz', env: {HTTP_ADDR: '127.0.0.1:8081', FRONTEND_ORIGIN: 'http://localhost:5174', DATA_DIR: mkdtempSync(join(tmpdir(), 'studio-e2e-')), IMAGE_PROVIDER: 'mock-svg', OPENAI_API_KEY: ''}, reuseExistingServer: false},
+    {command: '../backend/bin/server', url: 'http://127.0.0.1:8081/healthz', env: {AUTH_MODE: 'demo', TEXT_PROVIDER: 'mock-text', SPEECH_PROVIDER: '', VIDEO_PROVIDER: '', ASR_PROVIDER: '', HTTP_ADDR: '127.0.0.1:8081', FRONTEND_ORIGIN: 'http://localhost:5174', DATA_DIR: mkdtempSync(join(tmpdir(), 'studio-e2e-')), IMAGE_PROVIDER: 'mock-svg', OPENAI_API_KEY: ''}, reuseExistingServer: false},
     {command: 'npm run dev -- --port 5174', url: 'http://localhost:5174', env: {VITE_API_BASE_URL: 'http://localhost:8081'}, reuseExistingServer: false},
   ],
 })

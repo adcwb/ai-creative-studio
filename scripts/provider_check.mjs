@@ -53,7 +53,7 @@ try {
   const endpoint = `http://127.0.0.1:${upstream.address().port}/v1/images/generations`
   const binary = join(temp, 'harness')
   execFileSync('go', ['test', '-c', '-o', binary, './internal/studio'], { cwd: join(repo,'backend'), stdio:'pipe' })
-  async function boot(mode) { await stop(service); service = start(binary, ['-test.run=^TestProviderHarness$', '-test.timeout=5m'], repo, { ...process.env, IMAGE_PROVIDER:'mock-svg', OPENAI_API_KEY:'', STUDIO_TEST_HARNESS:'1', STUDIO_TEST_MODE:mode, STUDIO_TEST_UPSTREAM:endpoint, DATA_DIR:join(temp,'data'), HTTP_ADDR:`127.0.0.1:${apiPort}`, FRONTEND_ORIGIN:origin }); await ready(`${api}/healthz`, service) }
+  async function boot(mode) { await stop(service); service = start(binary, ['-test.run=^TestProviderHarness$', '-test.timeout=5m'], repo, { ...process.env, IMAGE_PROVIDER:'mock-svg', OPENAI_API_KEY:'', STUDIO_TEST_HARNESS:'1', STUDIO_TEST_MODE:mode, STUDIO_TEST_UPSTREAM:endpoint, AUTH_MODE: 'demo', TEXT_PROVIDER: 'mock-text', SPEECH_PROVIDER: '', VIDEO_PROVIDER: '', ASR_PROVIDER: '', DATA_DIR:join(temp,'data'), HTTP_ADDR:`127.0.0.1:${apiPort}`, FRONTEND_ORIGIN:origin }); await ready(`${api}/healthz`, service) }
   async function call(path, body, idempotencyKey, status = 200) { const response = await fetch(`${api}/api/v1${path}`, body ? { method:'POST', headers:{'Content-Type':'application/json', ...(idempotencyKey ? {'Idempotency-Key':idempotencyKey} : {})}, body:JSON.stringify(body) } : {}); const text = await response.text(); expect(text).not.toContain(key); expect(text).not.toContain('upstream-private-body'); expect(response.status, text).toBe(status); return JSON.parse(text) }
   const input = { prompt:fixturePrompt, kind:'general', ratio:'1:1', style:'natural' }
   async function terminal(id, status) { let task; await expect.poll(async () => { task = await call(`/tasks/${id}?space_id=personal-demo`); return task.status }, {timeout:10000}).toBe(status); return task }
@@ -61,7 +61,7 @@ try {
   const old = await call('/tasks?space_id=personal-demo', {...input,prompt:'历史模拟 SVG，非 AI 生成'}, 'old-mock',202); await terminal(old.id,'succeeded'); await call('/assets?space_id=personal-demo',{task_id:old.id},null,200)
   const frontend = start('npm',['run','dev','--','--port',String(webPort),'--strictPort'],join(repo,'frontend'),{...process.env,VITE_API_BASE_URL:api}); await ready(origin,frontend)
   browser = await chromium.launch({channel: process.env.PLAYWRIGHT_BROWSER_CHANNEL,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH})
-  const page = await browser.newPage({viewport:{width:1440,height:1100}}); const errors = []; page.on('pageerror', e => errors.push(e.message))
+  const page = await browser.newPage({locale:'zh-CN',viewport:{width:1440,height:1100}}); const errors = []; page.on('pageerror', e => errors.push(e.message))
   await page.goto(origin); await expect(page.locator('.template-card')).toHaveCount(3); await expect(page.locator('.provider-mock')).toContainText('模拟')
   await page.getByLabel('描述你的画面').fill(fixturePrompt); await page.getByLabel('画面比例').selectOption('1:1')
   // Leave cached mock capabilities in this browser, then change the process.
