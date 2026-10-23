@@ -1,3 +1,4 @@
+import { translate } from '../i18n'
 import { useEffect, useState } from 'react'
 import { errorMessage, request, type Capabilities } from '../api'
 
@@ -9,7 +10,7 @@ export function useCapabilities() {
     const controller = new AbortController()
     void request<Capabilities>('/capabilities', {signal: controller.signal})
       .then(value => {if (!controller.signal.aborted) {setResult({revision, value}); setFailure(null)}})
-      .catch(error => {if (!controller.signal.aborted) setFailure({revision, message: errorMessage(error, '服务状态读取失败')})})
+      .catch(error => {if (!controller.signal.aborted) setFailure({revision, message: errorMessage(error, translate("服务状态读取失败"))})})
     return () => controller.abort()
   }, [revision])
   const capability = result?.revision === revision ? result.value : null

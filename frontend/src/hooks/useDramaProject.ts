@@ -1,3 +1,4 @@
+import { translate } from '../i18n'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, errorMessage, request } from '../api'
 import { generationActive, projectDraftError, scriptDraftError, storyboardDraftError, type StoryboardShot, type StoryboardGeneration, type DramaProject, type DramaScript, type ProjectDraft, type ScriptGeneration } from '../drama'
@@ -67,7 +68,7 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
         else setHistoryRevision(value => value + 1)
       } catch (failure) {
         if (controller.signal.aborted) return
-        setLoadError(errorMessage(failure, '项目读取失败')); setLoading(false)
+        setLoadError(errorMessage(failure, translate("项目读取失败"))); setLoading(false)
       }
     }
     void load()
@@ -88,18 +89,18 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
       setUncertain(false); attempt.current = null; setConflict(false)
       if (current.operation === 'generate' || current.operation === 'generateStoryboard') {
         setProject(previous => previous ? current.operation === 'generate' ? {...previous, latest_generation: result as ScriptGeneration} : {...previous, latest_storyboard_generation: result as StoryboardGeneration} : previous)
-        setNotice('生成请求已保存，状态以生成记录为准。离开工作台不会取消已接受的任务。')
+        setNotice(translate("生成请求已保存，状态以生成记录为准。离开工作台不会取消已接受的任务。"))
         setRevision(value => value + 1); setHistoryRevision(value => value + 1)
       } else {
         acceptProject(result as DramaProject, true)
-        setNotice(current.operation === 'create' ? '项目已创建并保存。' : current.operation === 'brief' ? '项目简报已保存。' : current.operation === 'storyboard' ? '分镜修改已保存。' : '剧本修改已保存。')
+        setNotice(current.operation === 'create' ? translate("项目已创建并保存。") : current.operation === 'brief' ? translate("项目简报已保存。") : current.operation === 'storyboard' ? translate("分镜修改已保存。") : translate("剧本修改已保存。"))
       }
     } catch (failure) {
       if (!mounted.current || controller.signal.aborted) return
       const unknown = !(failure instanceof ApiError) || failure.status >= 500
       setUncertain(unknown)
       setConflict(failure instanceof ApiError && ['version_conflict', 'generation_active', 'script_missing', 'storyboard_missing', 'idempotency_conflict'].includes(failure.code ?? ''))
-      setActionError(unknown ? '提交结果尚未确认，服务端可能已保存。重试将使用原请求与同一幂等标识：若此前已接受则返回原操作，尚未接受则尝试执行。' : errorMessage(failure, '操作失败'))
+      setActionError(unknown ? translate("提交结果尚未确认，服务端可能已保存。重试将使用原请求与同一幂等标识：若此前已接受则返回原操作，尚未接受则尝试执行。") : errorMessage(failure, translate("操作失败")))
     } finally {
       controllers.current.delete(controller); inFlight.current = false
       if (mounted.current) setBusy(null)

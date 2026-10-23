@@ -1,3 +1,4 @@
+import { translate } from '../i18n'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, errorMessage, request, type Asset, type Capabilities, type Catalog, type Task, type TaskInput } from '../api'
 
@@ -32,7 +33,7 @@ export function useWorkspace(space: string) {
     const controller = new AbortController()
     void request<Catalog>('/templates', {signal: controller.signal})
       .then(value => {if (!controller.signal.aborted) {setCatalog(value); setCatalogError('')}})
-      .catch(error => {if (!controller.signal.aborted) setCatalogError(errorMessage(error, '模板加载失败'))})
+      .catch(error => {if (!controller.signal.aborted) setCatalogError(errorMessage(error, translate("模板加载失败")))})
     return () => controller.abort()
   }, [revision])
 
@@ -50,7 +51,7 @@ export function useWorkspace(space: string) {
           setTasks(newTasks); setAssets(newAssets); setConnectionError('')
         }
       } catch (error) {
-        if (!controller.signal.aborted) setConnectionError(errorMessage(error, '服务连接失败'))
+        if (!controller.signal.aborted) setConnectionError(errorMessage(error, translate("服务连接失败")))
       } finally {
         if (!controller.signal.aborted) {setLoading(false); timer = setTimeout(() => {void load()}, 1500)}
       }
@@ -88,14 +89,14 @@ export function useWorkspace(space: string) {
       if (!active.current || controller.signal.aborted) return 'failed'
       mutation.current += 1
       setTasks(previous => [task, ...previous.filter(item => item.id !== task.id)])
-      setNotice(retryOf ? '重试任务已提交，原任务保留。相同提交不会重复创建。' : '任务已提交。相同设定重复点击会返回同一任务；可点击“开始新创作”另建任务。')
+      setNotice(retryOf ? translate("重试任务已提交，原任务保留。相同提交不会重复创建。") : translate("任务已提交。相同设定重复点击会返回同一任务；可点击“开始新创作”另建任务。"))
       return 'created'
     } catch (error) {
       if (active.current && !controller.signal.aborted && error instanceof ApiError && error.code === 'provider_changed') {
-        setActionError('图像服务配置已变化。本次未创建任务；请查看更新后的服务与费用提示，再次点击提交。')
+        setActionError(translate("图像服务配置已变化。本次未创建任务；请查看更新后的服务与费用提示，再次点击提交。"))
         return 'provider_changed'
       }
-      if (active.current && !controller.signal.aborted) setActionError(errorMessage(error, '提交失败，请重试'))
+      if (active.current && !controller.signal.aborted) setActionError(errorMessage(error, translate("提交失败，请重试")))
       return 'failed'
     } finally {
       pending.current.delete(controller)
@@ -114,9 +115,9 @@ export function useWorkspace(space: string) {
       const result = await request<Task>(`/tasks/${encodeURIComponent(task.id)}/resume${query}`, {method: 'POST', signal: controller.signal, headers: {'Content-Type': 'application/json', 'Idempotency-Key': key}, body: '{}'})
       if (!active.current || controller.signal.aborted) return
       resumeAttempts.current.delete(task.id); mutation.current += 1
-      updateTask(result); setNotice('继续查询原上游任务，不重新提交图像生成。')
+      updateTask(result); setNotice(translate("继续查询原上游任务，不重新提交图像生成。"))
     } catch (error) {
-      if (active.current && !controller.signal.aborted) setActionError(`继续查询未确认：${errorMessage(error, '请重试')}。再次点击将复用同一请求标识。`)
+      if (active.current && !controller.signal.aborted) setActionError(translate("继续查询未确认：{p0}。再次点击将复用同一请求标识。", {p0: errorMessage(error, '请重试')}))
     } finally {pending.current.delete(controller); inFlight.current = false; if (active.current) setBusy(false)}
   }
 
@@ -133,9 +134,9 @@ export function useWorkspace(space: string) {
       if (!active.current || controller.signal.aborted) return
       mutation.current += 1
       setAssets(previous => [asset, ...previous.filter(item => item.id !== asset.id)])
-      setNotice('已保存到当前空间的素材库。')
+      setNotice(translate("已保存到当前空间的素材库。"))
     } catch (error) {
-      if (active.current && !controller.signal.aborted) setActionError(errorMessage(error, '保存失败，请重试'))
+      if (active.current && !controller.signal.aborted) setActionError(errorMessage(error, translate("保存失败，请重试")))
     } finally {
       pending.current.delete(controller)
       saveInFlight.current = false

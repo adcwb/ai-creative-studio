@@ -79,7 +79,17 @@ func run() error {
 	defer ops.Close()
 	handler = ops.Wrap(handler)
 	srv := &http.Server{Addr: env("HTTP_ADDR", "127.0.0.1:8080"), Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
-	errs := make(chan error, 5)
+	metrics, listener, err := metricsServer(os.Getenv("METRICS_ADDR"), ops.MetricsHandler())
+	if err != nil {
+		return err
+	}
+	if metrics != nil {
+		defer metrics.Close()
+	}
+	errs := make(chan error, 6)
+	if metrics != nil {
+		go func() { errs <- metrics.Serve(listener) }()
+	}
 	workerDone := make(chan struct{})
 	creativeWorkerDone := make(chan struct{})
 	go func() { defer close(creativeWorkerDone); errs <- studio.RunCreativeWorker(ctx, store) }()
@@ -92,7 +102,7 @@ func run() error {
 	go func() { defer close(workerDone); errs <- studio.RunWorker(ctx, store, pipeline) }()
 	go func() { defer close(scriptWorkerDone); errs <- studio.RunScriptWorker(ctx, store, scriptPipeline) }()
 	go func() {
-		slog.Info("demo API listening", "address", srv.Addr, "provider", capabilities.Provider, "provider_ready", capabilities.Ready)
+		slog.Info("studio API listening", "address", srv.Addr, "provider", capabilities.Provider, "provider_ready", capabilities.Ready)
 		errs <- srv.ListenAndServe()
 	}()
 	select {
