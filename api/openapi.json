@@ -8358,7 +8358,9 @@
                 "unsupported",
                 "not_implemented",
                 "requires_signed_adapter",
-                "reference_adapter"
+                "reference_adapter",
+                "legacy_api_retiring",
+                "requires_public_reference_bridge"
               ]
             }
           }
