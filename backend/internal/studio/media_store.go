@@ -62,6 +62,7 @@ type MediaState struct {
 	Exports  []MediaExport `json:"exports"`
 }
 type mediaReceipt struct {
+	AssetID  string `json:"asset_id,omitempty"`
 	Digest   string `json:"digest"`
 	ExportID string `json:"export_id"`
 }
@@ -245,7 +246,7 @@ func (m *MediaStore) AddAsset(project, space, key, name, role, character, shotID
 	p.Assets = append(p.Assets, a)
 	p.Version++
 	d.Projects[k] = p
-	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest}
+	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest, AssetID: id}
 	if err = m.commit(d); err != nil {
 		os.Remove(path)
 	}
@@ -365,4 +366,24 @@ func (m *MediaStore) Available() error { m.mu.Lock(); defer m.mu.Unlock(); retur
 func mediaFileID(id string) bool {
 	b, err := hex.DecodeString(id)
 	return err == nil && len(b) == 16 && id == strings.ToLower(id)
+}
+
+// AssetForReceipt resolves the immutable ingestion result, never a best match by
+// source or shot. Legacy receipts without an identity fail closed.
+func (m *MediaStore) AssetForReceipt(project, space, key string) (MediaAsset, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.failure != nil {
+		return MediaAsset{}, m.failure
+	}
+	k := mediaKey(space, project)
+	receipt, ok := m.data.Receipts[k+":"+key]
+	if !ok || receipt.AssetID == "" {
+		return MediaAsset{}, errors.New("media asset receipt unavailable")
+	}
+	asset, ok := mediaAsset(mediaState(m.data, k), receipt.AssetID)
+	if !ok {
+		return MediaAsset{}, errors.New("media asset receipt target missing")
+	}
+	return asset, nil
 }

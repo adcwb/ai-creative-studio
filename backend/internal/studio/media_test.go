@@ -134,3 +134,56 @@ func TestMediaPersistenceFailureClosesWrites(t *testing.T) {
 		t.Fatal("failed write changed memory")
 	}
 }
+
+func TestMediaAssetReceiptReturnsOriginalAfterLaterSameSourceAsset(t *testing.T) {
+	dir := t.TempDir()
+	m, err := openMediaStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := m.AddAsset("project", "personal-demo", "creative-first", "first", "shot", "", "shot-1", "ark-video", syntheticPNG(0), "image/png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := first.Assets[0].ID
+	if _, err = m.AddAsset("project", "personal-demo", "creative-second", "second", "shot", "", "shot-1", "ark-video", syntheticPNG(1), "image/png"); err != nil {
+		t.Fatal(err)
+	}
+	replay, err := m.AddAsset("project", "personal-demo", "creative-first", "first", "shot", "", "shot-1", "ark-video", syntheticPNG(0), "image/png")
+	if err != nil || len(replay.Assets) != 2 {
+		t.Fatal(err)
+	}
+	a, err := m.AssetForReceipt("project", "personal-demo", "creative-first")
+	if err != nil || a.ID != original {
+		t.Fatalf("wrong asset %s, expected %s, err %v", a.ID, original, err)
+	}
+	m.close()
+	m, err = openMediaStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.close()
+	a, err = m.AssetForReceipt("project", "personal-demo", "creative-first")
+	if err != nil || a.ID != original {
+		t.Fatal("receipt identity lost across restart", err)
+	}
+	if _, err = m.AssetForReceipt("another", "personal-demo", "creative-first"); err == nil {
+		t.Fatal("cross-project receipt lookup")
+	}
+	if _, err = m.AssetForReceipt("project", "team-demo", "creative-first"); err == nil {
+		t.Fatal("cross-space receipt lookup")
+	}
+	m.mu.Lock()
+	d := m.clone()
+	r := d.Receipts["personal-demo:project:creative-first"]
+	r.AssetID = ""
+	d.Receipts["personal-demo:project:creative-first"] = r
+	err = m.commit(d)
+	m.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = m.AssetForReceipt("project", "personal-demo", "creative-first"); err == nil {
+		t.Fatal("legacy receipt guessed identity")
+	}
+}
