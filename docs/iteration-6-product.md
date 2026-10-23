@@ -37,3 +37,7 @@ Anthropic 采用明确锁定的 `2023-06-01` Messages 协议；Google 采用 `ge
 官方依据（2026-10-23 查阅）：[Anthropic Messages](https://platform.claude.com/docs/en/api/messages)、[API 版本](https://platform.claude.com/docs/en/api/versioning)、[认证](https://platform.claude.com/docs/en/manage-claude/authentication)、[Gemini generateContent](https://ai.google.dev/api/generate-content)、[Gemini 结构化输出](https://ai.google.dev/gemini-api/docs/generate-content/structured-output)。本地协议验证不证明任意未来模型与所选 API 版本兼容；模型权限和能力仍需操作者核对。
 
 MiniMax 文本采用其[官方 OpenAI 兼容接口](https://platform.minimax.io/docs/api-reference/text-openai-api)，单独处理推理内容分离和输出长度参数，不把兼容接口当作所有 OpenAI 参数均受支持。文本适配器仍不提供 MiniMax 语音、图像或视频生成；这些能力必须由各自官方协议独立实现和验证。
+
+## 角色参考与图像模型边界
+
+Gemini 与方舟图像适配提供可选 `reference_asset_id`，将已有参考图片作为图像输入，并复用角色描述。它能传递外观约束，不能保证跨镜头身份或细节一致；没有锁脸、角色微调或一致性质量评测承诺。Google/Nano Banana 图像接入仅覆盖 `generateContent` 兼容模型，不将需要 Interactions API 的其他新模型宣称为已支持。方舟视频适配与 OpenAI 视频为不同协议，各自的模型权限和真实效果仍未验证。
