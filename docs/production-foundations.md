@@ -56,3 +56,7 @@ python3 scripts/backup.py restore /private/backups/studio.tar.gz /path/to/new-da
 `python3 scripts/recovery_check.py` 已在真实后端上执行：创建4个明确synthetic素材，运行中备份拒绝，停服全目录归档/校验，恢复至新目录并启动新服务，4素材哈希、媒体元数据及幂等回执完全一致。随附本地health探测100次/4并发、0失败（单次观测p50约15ms、p95约50ms；不作为容量SLA）。
 
 对象容器演练入口为 `python3 scripts/s3_integration.py --image <reviewed-local-minio-image>`，只生成随机合成fixture凭据并在finally销毁容器。历史DockerHub与quay公开旧镜像拉取在本环境返回denied；不尝试登录账号。MinIO开源仓库已归档；官方[公开安全版本说明](https://github.com/minio/minio/releases/tag/RELEASE.2025-10-15T17-29-55Z)建议固定源码构建，旧deploy模板镜像不代表可获取或建议生产部署。S3协议单元测试已验证官方公开签名向量；容器实际运行状态须以最终验证记录为准。
+
+## 内容审核适配边界
+
+`ContentModerator.CheckText`提供可替换文本分类接口；默认`UnavailableModerator`拒绝。OpenAI文本适配依据[官方Moderation指南](https://developers.openai.com/api/docs/guides/moderation)（2026-10-23核对），仅接受显式授权、凭据与`omni-moderation-latest`，固定HTTPS目标，禁代理/重定向/自动重试；错误、缺少flagged、超大响应或空结果都返回unavailable，不能误判allow。分类是政策信号，不代表内容绝对安全。此实现未接到所有创作输入/输出发布流程，不审核音视频；真实服务未调用。全远端执行仍受runtime禁用护栏，不能通过配置本adapter宣称已生产审核。
