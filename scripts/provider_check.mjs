@@ -60,7 +60,7 @@ try {
   await boot('mock')
   const old = await call('/tasks?space_id=personal-demo', {...input,prompt:'历史模拟 SVG，非 AI 生成'}, 'old-mock',202); await terminal(old.id,'succeeded'); await call('/assets?space_id=personal-demo',{task_id:old.id},null,200)
   const frontend = start('npm',['run','dev','--','--port',String(webPort),'--strictPort'],join(repo,'frontend'),{...process.env,VITE_API_BASE_URL:api}); await ready(origin,frontend)
-  browser = await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH})
+  browser = await chromium.launch({channel: process.env.PLAYWRIGHT_BROWSER_CHANNEL,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH})
   const page = await browser.newPage({viewport:{width:1440,height:1100}}); const errors = []; page.on('pageerror', e => errors.push(e.message))
   await page.goto(origin); await expect(page.locator('.template-card')).toHaveCount(3); await expect(page.locator('.provider-mock')).toContainText('模拟')
   await page.getByLabel('描述你的画面').fill(fixturePrompt); await page.getByLabel('画面比例').selectOption('1:1')

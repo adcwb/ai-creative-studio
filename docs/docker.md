@@ -80,3 +80,5 @@ GitHub Actions配置项（不在聊天、日志或代码中读取/展示实际�
 同一分支的新提交会取消旧工作流；取消时可能只有一个镜像已完成，因此应核对同一SHA的两个镜像，不能把部分发布当成完整交付。检查或容器验收失败不会绕过依赖发布。查看Actions结果时应同时核对verify、两个docker任务及镜像digest。仅看到源码push或标签计算步骤成功，不能视为镜像发布成功。
 
 本次公开合成演示须单独标注来源，不能把QA trace、真实运行数据、凭据或合成结果当作真实AI验证一并发布。镜像发布不代表已部署网页，也不验证供应商认证、效果或费用。
+
+CI的媒体播放回归使用Playwright官方Chrome channel，安装Chrome后运行原有完整断言。Playwright捆绑的开源Chromium并不包含所有H264/AAC媒体解码能力；此前CI的两项播放测试未加载视频，切换到具备相应解码能力的浏览器重新验证，不能通过跳过播放断言替代。参见 https://playwright.dev/docs/browsers#media-codecs 。本地可继续使用已经验证具备媒体解码能力的系统Chromium路径。

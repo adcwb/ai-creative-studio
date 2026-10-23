@@ -11,6 +11,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   verify:
+    env:
+      PLAYWRIGHT_BROWSER_CHANNEL: chrome
     # Pin the OS to match the locked Playwright browser dependencies.
     runs-on: ubuntu-24.04
     steps:
@@ -48,7 +50,7 @@ jobs:
       - name: Browser tests
         working-directory: frontend
         run: |
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chrome
           npm run test:e2e
       - name: Local image provider integration
         run: node scripts/provider_check.mjs

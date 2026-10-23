@@ -82,7 +82,7 @@ try {
     }
     return project
   }
-  browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH })
+  browser = await chromium.launch({channel: process.env.PLAYWRIGHT_BROWSER_CHANNEL, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH })
   const views = [
     {name:'desktop-1280',width:1280,height:900}, {name:'desktop-1440',width:1440,height:1100},
     {name:'desktop-1920',width:1920,height:1080}, {name:'desktop-short',width:1280,height:640},

@@ -88,7 +88,7 @@ try {
       .toBe(input.prompt.includes('[mock-fail]') ? 'failed' : 'succeeded')
     return task
   }
-  browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH })
+  browser = await chromium.launch({channel: process.env.PLAYWRIGHT_BROWSER_CHANNEL, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH })
   const viewports = [
     { name: 'desktop-1280', width: 1280, height: 900 },
     { name: 'desktop-1440', width: 1440, height: 1100 },
