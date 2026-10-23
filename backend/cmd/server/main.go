@@ -44,6 +44,8 @@ func run() error {
 	}
 	speech, speechCaps := studio.ConfigureSpeechFromEnv()
 	studio.SetCreativeSpeech(store, speech, speechCaps)
+	music, musicCaps := studio.ConfigureMusicFromEnv()
+	studio.SetCreativeMusic(store, music, musicCaps)
 	video, videoCaps := studio.ConfigureVideoFromEnv()
 	studio.SetCreativeVideo(store, video, videoCaps)
 	studio.SetCreativeImage(store, provider, capabilities)
@@ -57,7 +59,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	srv := &http.Server{Addr: env("HTTP_ADDR", "127.0.0.1:8080"), Handler: studio.Handler(store, env("FRONTEND_ORIGIN", "http://localhost:5173")), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
+	handler, err := studio.HandlerFromEnv(store, env("FRONTEND_ORIGIN", "http://localhost:5173"), env("DATA_DIR", "./data"))
+	if err != nil {
+		return err
+	}
+	srv := &http.Server{Addr: env("HTTP_ADDR", "127.0.0.1:8080"), Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
 	errs := make(chan error, 5)
 	workerDone := make(chan struct{})
 	creativeWorkerDone := make(chan struct{})

@@ -15,6 +15,9 @@ var keyPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{8,128}$`)
 
 func Handler(repo Repository, origin string) http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/auth/session", func(w http.ResponseWriter, r *http.Request) {
+		respond(w, 200, map[string]any{"mode": "demo", "authenticated": false, "registration_enabled": false, "sso_available": false})
+	})
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		respond(w, 200, map[string]string{"status": "ok", "mode": "demo"})
 	})
@@ -130,7 +133,7 @@ func Handler(repo Repository, origin string) http.Handler {
 			}
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, X-CSRF-Token")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
 		}
 		if r.Method == "OPTIONS" {
@@ -220,6 +223,13 @@ func inputOption(w http.ResponseWriter, name string, raw json.RawMessage, value 
 }
 
 func spaceID(w http.ResponseWriter, r *http.Request) (string, bool) {
+	if scope, ok := r.Context().Value(authScopeKey{}).(authScope); ok {
+		if scope.SpaceID == "" || scope.Role == "" {
+			problem(w, 403, "tenant_denied", "没有此工作空间的访问权限")
+			return "", false
+		}
+		return scope.SpaceID, true
+	}
 	s := r.URL.Query().Get("space_id")
 	if s != "personal-demo" && s != "team-demo" {
 		problem(w, 400, "invalid_space", "请选择个人或团队演示空间")
