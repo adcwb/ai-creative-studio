@@ -52,6 +52,8 @@ test('estimated dialogue timing is reviewed, edited, persisted and exported as e
   expect(cue).toEqual({start: 0.25, end: 0.75, text: '人工校正对白'})
   expect(await video.evaluate((node: HTMLVideoElement) => node.textTracks[0].mode)).toBe('showing')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({path: `/tmp/iteration6-alignment-${info.project.name}.png`, fullPage: true})
+  await region.screenshot({path: `/tmp/iteration6-alignment-${info.project.name}-cues.png`})
 })
 
 test('alignment results cannot overwrite a newer saved timeline', async ({page, request}, info) => {
