@@ -65,7 +65,7 @@ def wait(fn, predicate, seconds=45):
 
 def start():
     global process
-    env = {"PATH": os.environ["PATH"], "DATA_DIR": str(EVIDENCE / "data"), "HTTP_ADDR": f"127.0.0.1:{PORT}", "IMAGE_PROVIDER": "mock-svg", "TEXT_PROVIDER": "mock-script", "OPENAI_API_KEY": ""}
+    env = {"PATH": os.environ["PATH"], "DATA_DIR": str(EVIDENCE / "data"), "HTTP_ADDR": f"127.0.0.1:{PORT}", "IMAGE_PROVIDER": "mock-svg", "TEXT_PROVIDER": "mock-text", "OPENAI_API_KEY": ""}
     process = subprocess.Popen([str(ROOT / "backend/bin/server")], env=env, stdout=(EVIDENCE / "server.log").open("ab"), stderr=subprocess.STDOUT)
     for _ in range(100):
         try:
@@ -143,7 +143,10 @@ try:
     expected_duration = sum(c["duration"] for c in saved["timeline"]["clips"])
     assert abs(float(probe["format"]["duration"]) - expected_duration) < .25
     subprocess.run(["ffmpeg", "-v", "error", "-i", str(video), "-f", "null", "-"], check=True, timeout=30)
-    checks.append("MP4 decodes completely; video/audio/subtitle tracks and timeline duration verified")
+    volume = subprocess.run(["ffmpeg", "-hide_banner", "-i", str(video), "-vn", "-af", "volumedetect", "-f", "null", "-"], capture_output=True, text=True, check=True, timeout=30).stderr
+    assert "max_volume:" in volume and "max_volume: -inf" not in volume
+    (EVIDENCE / "audio-volume.txt").write_text(volume)
+    checks.append("MP4 decodes completely; video/audio/subtitle tracks, audible signal energy and timeline duration verified")
     cancellation = request(path + "/exports" + QUERY, export_body, "media-cancel-export", status=202)
     cancel_path = path + f"/exports/{cancellation['id']}/cancel" + QUERY
     cancelled = request(cancel_path, {}, "media-cancel-request")

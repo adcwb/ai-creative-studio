@@ -18,9 +18,18 @@ test('synthetic local timeline saves, exports and plays actual MP4 on desktop an
   test.setTimeout(60000)
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message))
   const p = await project(request, `成片-${info.project.name}-${randomUUID()}`)
+  let saved = await (await request.get(`${api}/projects/${p.id}${query}`)).json()
+  for (const suffix of ['generations', 'storyboard-generations']) {
+    const response = await request.post(`${api}/projects/${p.id}/${suffix}${query}`, {headers: {'Idempotency-Key': randomUUID()}, data: {expected_version: saved.version}})
+    expect(response.status()).toBe(202)
+    await expect.poll(async () => {saved = await (await request.get(`${api}/projects/${p.id}${query}`)).json(); return suffix === 'generations' ? saved.latest_generation?.status : saved.latest_storyboard_generation?.status}).toBe('succeeded')
+  }
+  expect(saved.storyboard.shots).toHaveLength(3)
   await open(page, p.title)
   await page.getByRole('button', {name: '创建合成演示素材与时间轴', exact: true}).click()
   await expect(page.getByLabel('片段 1 字幕', {exact: true})).toBeVisible()
+  const linked = await (await request.get(`${api}/projects/${p.id}/media${query}`)).json()
+  expect(linked.assets.filter((asset: {kind: string}) => asset.kind === 'image').map((asset: {shot_id: string}) => asset.shot_id)).toEqual(saved.storyboard.shots.map((shot: {id: string}) => shot.id))
   const subtitle = `合成验收 ${info.project.name}`
   await page.getByLabel('片段 1 字幕', {exact: true}).fill(subtitle)
   await page.getByRole('button', {name: '保存时间轴', exact: true}).click()
