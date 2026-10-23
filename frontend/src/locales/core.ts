@@ -301,6 +301,7 @@ const messages: Record<string, string> = {
   "未配置ASR；可按文本估算并人工校准，不会识别音频。": "ASR is not configured. Estimate timing from text and adjust manually; audio is not recognized.",
   "请显式配置ASR_MODEL=whisper-1；本适配器不假定其他模型支持verbose_json时间戳。": "Set ASR_MODEL=whisper-1 explicitly. This adapter does not assume other models support verbose_json timestamps.",
   "继续编辑": "Continue editing",
+  "本地合成 · 媒体版本 {version}": "Local rendering · Media version {version}",
   "语言": "Language",
   "界面语言": "Interface language"
 }

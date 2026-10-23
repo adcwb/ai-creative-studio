@@ -173,3 +173,9 @@
 .language-picker select { min-width: 0; width: auto; }
 .mobile-signout { display: none; }
 @media (max-width: 760px) { .mobile-signout { display: inline-flex; } .topbar { flex-wrap: wrap; gap: 10px; } }
+.table-scroll { max-width: 100%; overflow-x: auto; }
+.table-scroll table { border-collapse: collapse; width: 100%; min-width: 560px; }
+.table-scroll th, .table-scroll td { text-align: left; vertical-align: top; padding: 10px; border-bottom: 1px solid #dde2d8; }
+.model-config-list { padding-left: 20px; overflow-wrap: anywhere; }
+.model-config-list li { margin: 16px 0; }
+.model-config-panel input:not([type=checkbox]), .governance-panel input { width: 100%; max-width: 420px; }

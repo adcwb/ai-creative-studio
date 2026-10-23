@@ -2,9 +2,10 @@ import { createContext, useContext } from 'react'
 import core from './locales/core'
 import mediaLegacy from './locales/mediaLegacy'
 import drama from './locales/drama'
+import governance from './locales/governance'
 export type Locale = 'zh-CN' | 'en'
 export type TranslationParams = Record<string, string | number>
-const dictionaries: Record<string, string> = {...drama, ...mediaLegacy, ...core}
+const dictionaries: Record<string, string> = {...drama, ...mediaLegacy, ...core, ...governance}
 export function resolveLocale(saved: string | null, languages: readonly string[]): Locale {
   if (saved === 'zh-CN' || saved === 'en') return saved
   return languages[0]?.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'

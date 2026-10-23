@@ -14,6 +14,8 @@ import { useWorkspace } from './hooks/useWorkspace'
 import { DramaWorkspace } from './components/DramaWorkspace'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { AuthGate, type Session } from './components/AuthGate'
+import { GovernancePanel } from './components/GovernancePanel'
+import { ModelConfigPanel } from './components/ModelConfigPanel'
 import { OrganizationPanel } from './components/OrganizationPanel'
 import './drama.css'
 
@@ -50,6 +52,7 @@ function AuthenticatedApp({session, logout}: {session: Session; logout: () => vo
   }, [revision])
   return <StudioShell session={session} onLogout={() => requestLeave(logout)} spaces={spaces} space={space} workbench={workbench} onWorkbenchChange={next => {if (next !== workbench) requestLeave(() => setWorkbench(next))}} capability={provider.capability} capabilityError={provider.error} onSpaceChange={next => {if (next !== space) requestLeave(() => setSpace(next))}}>
     {session.mode === 'secure' && <OrganizationPanel space={spaces.find(item => item.id === space)} onChange={() => setRevision(value => value + 1)} />}
+    {session.mode === 'secure' && spaces.filter(item => item.id === space).map(item => <div key={item.id}><GovernancePanel space={item} />{(item.role === 'owner' || item.role === 'admin') && <ModelConfigPanel space={item} />}</div>)}
     {error ? <div className="error space-error" role="alert">{t("无法加载工作空间：")}{error} <button onClick={() => setRevision(value => value + 1)}>{t("重新加载空间")}</button></div> : space ? <><div hidden={workbench !== 'image'}><Workspace key={space} space={space} capability={provider.capability} capabilityError={provider.error} onCapabilityRefresh={provider.refresh} /></div>{workbench === 'drama' && <DramaWorkspace key={space} space={space} onDirtyChange={setDramaDirty} requestLeave={requestLeave} />}</> : <div className="loading-block" role="status">{t("正在加载工作空间…")}</div>}
     {pendingLeave && <ConfirmDialog title={t("离开当前编辑？")} message={t("未保存的本地草稿将丢失。如果有请求正在提交或结果尚未确认，服务端可能已保存，离开不会撤销请求。")} confirmLabel={t("放弃本地草稿并继续")} onCancel={() => setPendingLeave(null)} onConfirm={() => {const action = pendingLeave.action; setPendingLeave(null); action()}} />}
   </StudioShell>

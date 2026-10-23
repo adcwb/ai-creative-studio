@@ -115,7 +115,7 @@ export function MediaStudio({project, space, onDirtyChange}: {project: DramaProj
   const visual = state?.assets.filter(asset => asset.kind !== 'audio') ?? []
   const audio = state?.assets.filter(asset => asset.kind === 'audio') ?? []
   return <section className="panel media-studio" aria-labelledby="media-heading">
-    <div className="section-heading"><div><span className="eyebrow">04 / BRING IT TO LIFE</span><h2 id="media-heading">{t("素材与成片")}</h2></div><span>{t("本地合成 · 媒体版本")}{state?.version ?? '—'}</span></div>
+    <div className="section-heading"><div><span className="eyebrow">04 / BRING IT TO LIFE</span><h2 id="media-heading">{t("素材与成片")}</h2></div><span>{t('本地合成 · 媒体版本 {version}', {version: state?.version ?? '—'})}</span></div>
     <p className="drama-help">{t("上传照片、镜头视频、配音或音乐，编排时间轴并导出 MP4。角色参考只保存关联与创作约束，无法保证跨镜头外观一致。真实模型效果与费用尚未验证。")}</p>
     {error && <div className="error" role="alert">{error}{uncertain ? <button disabled={busy} onClick={() => {if (pending.current) void execute(pending.current)}}>{t("原请求重试")}</button> : <button disabled={busy} onClick={() => {void load().then(() => setError('')).catch(failure => setError(errorMessage(failure, t("读取失败"))))}}>{t("重新读取媒体")}</button>}</div>}
     {notice && <p className="notice" role="status">{notice}</p>}
