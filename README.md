@@ -9,27 +9,29 @@
 - 需求分析与澄清、可替换文本适配；结构化剧本/分镜继续经过校验，生成来源与配置状态分开显示。
 - 镜头增删、排序与保存；剧本/分镜历史查看和回滚，回滚产生新版本。
 - 上传 PNG/JPEG、WAV/MP3 或 H.264 MP4，并关联角色或镜头；照片可在浏览器旋转或居中裁为正方形，保存为新 PNG 素材。
-- 时间轴支持逐镜排序、时长、视频起点、字幕、单镜配音/音效及音量，另有全片背景音乐。原视频音轨不自动保留，需另附音频。
+- 时间轴支持逐镜排序、时长、视频起点、逐句字幕起止时间、单镜配音/音效及音量，另有全片背景音乐。原视频音轨不自动保留，需另附音频。
 - 本地 FFmpeg 合成 640×360、24fps H.264/AAC MP4；提供网页预览、下载及 SRT 字幕。内嵌字幕为可选字幕轨，不是烧录到画面。
 
-OpenAI/Gemini/方舟/MiniMax图像适配支持将已上传角色参考作为图像输入；角色选择用于资产关联，角色描述需写入创作提示；仅适用于支持相应协议的已配置模型，属于尽力参考，**不能保证跨镜头人物外观一致**。Google 图像/Nano Banana 使用 `generateContent` 兼容模型，不代表支持可能要求 Interactions API 的全部新图像模型。照片编辑是本地旋转/裁剪，不等于供应商图像编辑或身份保持。时间轴是有界 MVP，不是专业多轨剪辑器。
+OpenAI/Gemini/方舟/MiniMax图像适配支持将已上传角色参考作为图像输入；角色选择用于资产关联，角色描述需写入创作提示；仅适用于支持相应协议的已配置模型，属于尽力参考，**不能保证跨镜头人物外观一致**。Google 图像/Nano Banana 分别提供 `generateContent` 与 Interactions 适配，须选择与配置模型相符的协议，不保证任意未来模型兼容。照片编辑是本地旋转/裁剪，不等于供应商图像编辑或身份保持。时间轴是有界 MVP，不是专业多轨剪辑器。
 
-本轮范围与阶段验收见 [产品](docs/iteration-6-product.md)，接口和安全边界见 [架构](docs/iteration-6-architecture.md)，角色分工见 [协作](docs/iteration-6-collaboration.md)。最终检查结果与未完成项见 [验证记录](docs/iteration-6-verification.md)。后文第三至第五轮说明是历史增量记录，其当时的功能限制不应替代当前实现。
+本轮范围与阶段验收见 [产品](docs/iteration-6-product.md)，接口和安全边界见 [架构](docs/iteration-6-architecture.md)，角色分工见 [协作](docs/iteration-6-collaboration.md)。最终追加代码的检查结果与未完成项见 [追加验证记录](docs/iteration-6-followup-verification.md)，[原验证记录](docs/iteration-6-verification.md)保留第一阶段已验收快照。后文第三至第五轮说明是历史增量记录，其当时的功能限制不应替代当前实现。
 
 ### 已实现的供应商能力
 
-下表表示本项目已有协议代码，**均未进行真实账号、模型效果或费用验证**；“—”表示本项目未接入，不能根据供应商产品宣传推断可用。所有供应商的视觉理解均未接入。
+下表表示本项目已有协议代码，**均未进行真实账号、模型效果或费用验证**；“—”表示未提供该适配，不等于供应商没有相应产品。模型 ID 和权限须由操作者明确选择。
 
-| 官方生态 | 需求/剧本/分镜文本 | 图像 | 图像参考输入 | 镜头视频 | 语音 |
-| --- | --- | --- | --- | --- | --- |
-| OpenAI | 已实现 | 已实现 | 已实现 | 已实现 | 已实现 |
-| Anthropic / Claude | 已实现 | — | — | — | — |
-| Google / Gemini / Nano Banana | 已实现 | 已实现 | 已实现 | — | — |
-| 字节 / 火山方舟 | 已实现 | 已实现 | 已实现 | 已实现，含首帧输入 | — |
-| MiniMax | 已实现 | 已实现 | 已实现，单角色参考 | 已实现，含首帧输入 | 已实现 |
-| 即梦公开视觉 API | — | 已实现，AK/SK签名 | — | — | — |
+| 官方生态 | 文本创作 | 图片理解 | 图像生成 | 图像参考输入 | 镜头视频 | 语音 |
+| --- | --- | --- | --- | --- | --- | --- |
+| OpenAI | 已实现 | 已实现 | 已实现 | 已实现 | 已实现 | 已实现 |
+| Anthropic / Claude | 已实现 | 已实现 | — | — | — | — |
+| Google / Gemini / Nano Banana | 已实现 | 已实现 | 两种协议已实现 | 两种协议已实现 | Interactions已实现，仅文生视频 | Interactions已实现 |
+| 字节 / 火山方舟 / 豆包 | 已实现 | 已实现 | 已实现 | 已实现 | 已实现，含首帧 | 独立豆包TTS已实现 |
+| MiniMax | 已实现 | 已实现 | 已实现 | 单角色参考已实现 | 已实现，含首帧 | 已实现 |
+| 即梦公开视觉 API | — | — | AK/SK签名已实现 | 未接入：官方仅URL参考 | 未接入：旧版下线 | — |
 
-参考输入属于尽力条件生成，不是锁定身份或专业局部编辑工具；Google 图像仅覆盖 `generateContent` 兼容模型。即梦不是方舟 Bearer 接口，也不使用消费网站登录。
+图片理解使用已上传PNG/JPEG与文本模型，输出创作分析，不用于确定人物身份；所选文本模型须实际支持图片输入。参考输入属于尽力条件生成，不是锁脸或通用mask局部编辑。Google图像区分 `gemini-images`（generateContent）与 `gemini-interactions-images`（Interactions）；Google视频不支持本应用首帧输入。即梦4.6参考图需要外部可访问URL，当前没有获授权的公网素材桥接，未将本地文件或伪造URL送入接口；旧视频接口不冒充仍可用。
+
+字幕同步提供三条明确路径：按文本长度估算（不识别音频）、OpenAI ASR时间戳候选、人工逐句起止时间。ASR默认不可用，只适配 `whisper-1` 的verbose_json时间戳协议；候选需要用户应用并保存，不自动覆盖时间轴，准确性未真实验证。音乐/音效使用上传素材和混音，没有生成式音乐模型。
 
 ### 无凭据本地成片路径
 
@@ -175,13 +177,15 @@ export GOCACHE=/tmp/studio-gocache
 | 配置域 | Provider 取值 | 显式模型/额外设置 |
 | --- | --- | --- |
 | `TEXT_PROVIDER` | `openai-text` / `anthropic-text` / `gemini-text` / `ark-text` / `minimax-text` | `TEXT_MODEL` |
-| `IMAGE_PROVIDER` | `openai-images` / `gemini-images` / `ark-images` / `jimeng-images` / `minimax-images` | `IMAGE_MODEL`；即梦改用 `JIMENG_REQ_KEY` |
-| `VIDEO_PROVIDER` | `openai-video` / `ark-video` / `minimax-video` | `VIDEO_MODEL` |
-| `SPEECH_PROVIDER` | `openai-speech` / `minimax-speech` | `SPEECH_MODEL`；MiniMax另需 `SPEECH_VOICE` |
+| `IMAGE_PROVIDER` | `openai-images` / `gemini-images` / `gemini-interactions-images` / `ark-images` / `jimeng-images` / `minimax-images` | `IMAGE_MODEL`；即梦改用 `JIMENG_REQ_KEY` |
+| `VIDEO_PROVIDER` | `openai-video` / `gemini-video` / `ark-video` / `minimax-video` | `VIDEO_MODEL` |
+| `SPEECH_PROVIDER` | `openai-speech` / `gemini-speech` / `bytedance-speech` / `minimax-speech` | `SPEECH_MODEL`；后三者另需 `SPEECH_VOICE` |
 
-凭据变量按供应商分别为 `OPENAI_API_KEY`、`ANTHROPIC_API_KEY`、`GEMINI_API_KEY`、`ARK_API_KEY`、`MINIMAX_API_KEY`；即梦使用 `JIMENG_ACCESS_KEY` 与 `JIMENG_SECRET_KEY`。这里只列配置项，本轮不填写或启用。运行默认使用 `mock-text`、`mock-svg` 和本地合成音视频；未知配置或缺少模型/凭据时不可用，不悄悄回退为付费供应商。请求绑定预期 provider 和 model，防止界面旧配置误触发其他模型。
+`ASR_PROVIDER=openai-asr` 另需显式 `ASR_MODEL=whisper-1`；默认留空。视觉理解复用 `TEXT_PROVIDER/TEXT_MODEL`。字节TTS的 `SPEECH_MODEL` 表示语音资源ID，与方舟模型不是一回事。
 
-真实请求不自动重试，不跟随重定向或任意外部结果 URL；固定官方目标，不使用环境代理。超时、中断或无效响应不证明供应商未计费。真实执行重启后不会自动重发；显式新建生成可能再次收费。取消本地视频等待不保证供应商停止执行或计费。对于已持久保存上游ID的 OpenAI/方舟/MiniMax视频，显式恢复仅查询同一任务，不重新提交生成；即梦图像暂不提供跨重启恢复查询。模式切换不改写历史来源。
+凭据变量按供应商分别为 `OPENAI_API_KEY`、`ANTHROPIC_API_KEY`、`GEMINI_API_KEY`、`ARK_API_KEY`、`MINIMAX_API_KEY`、`BYTEDANCE_SPEECH_API_KEY`；即梦使用 `JIMENG_ACCESS_KEY` 与 `JIMENG_SECRET_KEY`。这里只列配置项，本轮不填写或启用。运行默认使用 `mock-text`、`mock-svg`；语音、视频模型与ASR默认不可用，本地上传与合成演示仍可使用；未知配置或缺少模型/凭据时不可用，不悄悄回退为付费供应商。请求绑定预期 provider 和 model，防止界面旧配置误触发其他模型。
+
+真实请求不自动重试，不跟随重定向或任意外部结果 URL；固定官方目标，不使用环境代理。超时、中断或无效响应不证明供应商未计费。真实执行重启后不会自动重发；显式新建生成可能再次收费。取消本地视频等待不保证供应商停止执行或计费。对于已持久保存上游ID的视频和即梦图像，显式恢复仅查询同一任务，不重新提交生成；尚未拿到或未能持久保存上游ID的结果不明请求不能靠重发冒充恢复。模式切换不改写历史来源。
 
 这仍是无生产认证的本地演示服务；真实适配不补齐企业隔离、认证授权或生产用量治理，不能直接暴露到公网。真实模型质量、一致性、供应商认证与费用均未验证。
 
