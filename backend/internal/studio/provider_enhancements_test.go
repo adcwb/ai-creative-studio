@@ -320,3 +320,68 @@ func TestCreativeMaskAndComparisonRejectCrossProjectAssets(t *testing.T) {
 		t.Fatal("cross-project comparison accepted")
 	}
 }
+
+type consistencyFixtureProvider struct {
+	unsupportedCreativeProvider
+	calls int
+}
+
+func (p *consistencyFixtureProvider) DescribeImage(_ context.Context, prompt string, data []byte, mime string) (BriefAnalysis, error) {
+	p.calls++
+	cfg, e := png.DecodeConfig(bytes.NewReader(data))
+	if e != nil || cfg.Width != 1024 || cfg.Height != 512 || mime != "image/png" || !strings.Contains(prompt, "LEFT is the reference") {
+		return BriefAnalysis{}, providerFailure("invalid_provider_response")
+	}
+	return BriefAnalysis{Summary: "Synthetic comparison fixture", Questions: []string{}, Suggestions: []string{"Review costume color manually."}, Provider: "synthetic-vision"}, nil
+}
+func TestConsistencyWorkflowActualComparisonAndOwnership(t *testing.T) {
+	s, e := OpenStore(t.TempDir())
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer s.Close()
+	p := createProject(t, s)
+	media, e := s.media.AddAsset(p.ID, p.SpaceID, "consistency-ref", "ref.png", "reference", "", "", "uploaded", syntheticCreativePNG(), "image/png")
+	if e != nil {
+		t.Fatal(e)
+	}
+	ref := media.Assets[0].ID
+	media, e = s.media.AddAsset(p.ID, p.SpaceID, "consistency-shot", "shot.png", "shot", "", "", "uploaded", syntheticCreativePNG(), "image/png")
+	if e != nil {
+		t.Fatal(e)
+	}
+	shot := media.Assets[len(media.Assets)-1].ID
+	provider := &consistencyFixtureProvider{}
+	if e = ConfigureCreative(s, provider, Capabilities{Provider: "synthetic-vision", Model: "fixture", Mode: "real", Ready: true}); e != nil {
+		t.Fatal(e)
+	}
+	in := CreativeJobInput{Kind: "consistency", ExpectedVersion: p.Version, ExpectedProvider: "synthetic-vision", ExpectedModel: "fixture", Prompt: "compare costume continuity", ReferenceAssetID: ref, ComparisonAssetID: shot}
+	other, _, e := s.CreateProject(p.SpaceID, "consistency-other", projectInput())
+	if e != nil {
+		t.Fatal(e)
+	}
+	in.ExpectedVersion = other.Version
+	if _, _, e = s.createCreativeJob(other.SpaceID, other.ID, "consistency-cross", in); e == nil {
+		t.Fatal("cross-project images accepted")
+	}
+	in.ExpectedVersion = p.Version
+	job, _, e := s.createCreativeJob(p.SpaceID, p.ID, "consistency-create", in)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = s.executeCreativeJob(context.Background(), &job); e != nil || provider.calls != 1 || job.Analysis == nil || job.ComparisonAssetID != shot {
+		t.Fatal(job, e, provider.calls)
+	}
+}
+func TestLocalSoundEffectContract(t *testing.T) {
+	wave := syntheticWAV(1)
+	p := localTransformFixture(t, `{"audio":"`+base64.StdEncoding.EncodeToString(wave)+`"}`)
+	got, e := p.Music(context.Background(), "test synthetic fixture")
+	if e != nil || !bytes.Equal(got, wave) {
+		t.Fatal(e)
+	}
+	p = localTransformFixture(t, `{"audio":"aW52YWxpZA=="}`)
+	if _, e = p.Music(context.Background(), "invalid fixture"); e == nil {
+		t.Fatal("invalid sound accepted")
+	}
+}

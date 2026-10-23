@@ -34,6 +34,7 @@ func configureLocalTransform(prefix, provider string) (*LocalTransform, Capabili
 		c.ReasonCode = "invalid_local_transform_configuration"
 		return nil, c
 	}
+	c.localExecution = true
 	c.Ready = true
 	c.Message = "本地可替换模型适配已配置，准确率/口型质量未验证；结果需人工复核。"
 	return &LocalTransform{command: command, model: model}, c

@@ -107,10 +107,13 @@ type GenerationResult struct {
 }
 
 type Capabilities struct {
-	Provider   string `json:"provider"`
-	Mode       string `json:"mode"`
-	Ready      bool   `json:"ready"`
-	Model      string `json:"model,omitempty"`
-	ReasonCode string `json:"reason_code,omitempty"`
-	Message    string `json:"message"`
+	// Only configureLocalTransform sets this process-local provenance marker.
+	// Never deserialize it from API/config JSON or infer it from a provider name.
+	localExecution bool
+	Provider       string `json:"provider"`
+	Mode           string `json:"mode"`
+	Ready          bool   `json:"ready"`
+	Model          string `json:"model,omitempty"`
+	ReasonCode     string `json:"reason_code,omitempty"`
+	Message        string `json:"message"`
 }
