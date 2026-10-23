@@ -4704,7 +4704,7 @@
     "/api/v1/creative-media-capabilities": {
       "get": {
         "operationId": "getCreativeMediaCapabilities",
-        "summary": "按image/speech/video读取当前配置状态",
+        "summary": "按image/speech/video/vision读取当前配置状态，未配置时不可用",
         "parameters": [],
         "responses": {
           "400": {
@@ -5201,7 +5201,8 @@
               }
             }
           }
-        }
+        },
+        "description": "kind=vision要求reference_asset_id引用同项目已验证图像，分析结果复用analysis；真实模型质量、权限和费用未验证，不自动重试。"
       }
     },
     "/api/v1/projects/{id}/analysis": {
@@ -5664,7 +5665,7 @@
     "/api/v1/projects/{id}/creative-jobs/{jobId}/resume": {
       "post": {
         "operationId": "resumeCreativeVideo",
-        "summary": "仅对已有upstream_id的视频恢复查询与下载，不重新提交生成POST",
+        "summary": "继续查询已持久上游ID的图片或视频任务，不重新提交生成",
         "parameters": [
           {
             "name": "space_id",
@@ -5816,7 +5817,657 @@
               }
             }
           }
+        },
+        "description": "仅支持当前provider/model匹配原任务且已持久upstream_id的异步任务；旧执行器尚未退出时409，不能并发恢复造成重复发布。"
+      }
+    },
+    "/api/v1/projects/{id}/media/alignments": {
+      "get": {
+        "operationId": "listAlignments",
+        "summary": "读取字幕对齐建议任务",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AlignmentTask"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "对齐任务限额：全局500任务/1000回执、每小时20次其中真实10次、同时2次且每项目1次。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
+      },
+      "post": {
+        "operationId": "createAlignment",
+        "summary": "持久化本地估算或真实ASR任务；不自动改动时间轴",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlignmentTask"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlignmentTask"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "对齐任务限额：全局500任务/1000回执、每小时20次其中真实10次、同时2次且每项目1次。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlignmentInput"
+              }
+            }
+          }
+        },
+        "description": "持久化后异步执行；任务绑定clip时长、视频trim_start和配音asset。配音从音频0播放，ASR按原音频实际duration验证后裁到clip.duration并记录warning。重启未完成任务失败，不自动重新POST；结果只是建议，需显式保存时间轴。"
+      }
+    },
+    "/api/v1/projects/{id}/media/alignments/{taskId}/cancel": {
+      "post": {
+        "operationId": "cancelAlignment",
+        "summary": "取消本地对齐等待；真实上游可能已处理或收费，不承诺撤回",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          },
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlignmentTask"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/alignment-capabilities": {
+      "get": {
+        "operationId": "getAlignmentCapabilities",
+        "summary": "区分本地估算与真实ASR配置；不探测上游",
+        "responses": {
+          "200": {
+            "description": "本地配置状态，不代表真实认证或效果验证。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "estimate",
+                    "asr"
+                  ],
+                  "properties": {
+                    "estimate": {
+                      "$ref": "#/components/schemas/Capabilities"
+                    },
+                    "asr": {
+                      "$ref": "#/components/schemas/Capabilities"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/resume": {
+      "post": {
+        "operationId": "resumeImageTask",
+        "summary": "继续查询已保存上游ID的即梦图像任务，不重新生成",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "按空间持久化的业务提交键，普通创建与重试共享命名空间。网络重发同一提交沿用原键；该键不表示上游图像生成具备 exactly-once 或不会重复计费。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间内状态为 failed 的直接父任务 ID。"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "已恢复查询或精确回执重放；返回原任务ID当前状态。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "space_id、Idempotency-Key、输入枚举/长度、JSON 无效，或 ratio/style 显式为 null/非字符串。 expected_provider/expected_model 必须同时省略或构成有效字符串对。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "invalid_input",
+                    "message": "比例必须为 1:1、4:5 或 16:9"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "无可恢复上游ID、状态不可恢复、模型配置变化或同键不同目标；不重新提交上游。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "idempotencyOrParentConflict": {
+                    "value": {
+                      "error": {
+                        "code": "conflict",
+                        "message": "请求与已有任务冲突，或任务尚未完成"
+                      }
+                    }
+                  },
+                  "providerChanged": {
+                    "summary": "界面看到的模式已经变化，不创建任务",
+                    "value": {
+                      "error": {
+                        "code": "provider_changed",
+                        "message": "生成服务配置已变化，请刷新模式后重新确认提交"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 不支持",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；客户端保留同一幂等键重发，以避免请求结果不确定时重复创建。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "父任务不存在或不属于当前空间。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "not_found",
+                    "message": "记录不存在"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "新的有效提交无法被接受，因为当前 provider 本地配置不可用；不创建任务、不调用上游、不静默回退。已接受请求的精确幂等重放不受此检查阻挡。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "provider_not_ready",
+                    "message": "图像服务尚未就绪，请检查服务端配置后重试"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {}
+              }
+            }
+          }
+        },
+        "description": "只接受failed的jimeng-images任务且upstream_id存在，当前provider/model必须匹配。执行中断无ID时无法安全恢复，保持计费不确定。恢复使用每空间独立ImageResumeReceipts键域，与create/retry及creative域分开；原键精确重放返回当前任务投影。不是创建新付费任务。"
       }
     }
   },
@@ -5954,6 +6605,10 @@
               "provider_unavailable"
             ],
             "description": "失败分类。execution_interrupted 表示真实 provider 执行中断、远端结果可能不确定；provider_unavailable 表示已绑定 provider/model 当前不可执行而未发起上游请求。旧失败记录可省略。"
+          },
+          "upstream_id": {
+            "type": "string",
+            "description": "已原子持久化的异步供应商任务ID。恢复只查询此ID；无ID的执行中断保持结果/计费不确定，不能自动重新提交。"
           }
         },
         "additionalProperties": false,
@@ -6131,7 +6786,9 @@
               "openai-images",
               "gemini-images",
               "ark-images",
-              "jimeng-images"
+              "jimeng-images",
+              "gemini-interactions-images",
+              "minimax-images"
             ],
             "description": "与 expected_model 成对可选的提交前置条件。浏览器始终使用当前能力状态；不修改 provider，不写入业务 Input 或幂等身份。"
           },
@@ -6187,7 +6844,9 @@
                   "openai-images",
                   "gemini-images",
                   "ark-images",
-                  "jimeng-images"
+                  "jimeng-images",
+                  "gemini-interactions-images",
+                  "minimax-images"
                 ]
               },
               "expected_model": {
@@ -7294,6 +7953,27 @@
           },
           "crop_height": {
             "type": "number"
+          },
+          "subtitle_cues": {
+            "type": "array",
+            "maxItems": 60,
+            "items": {
+              "$ref": "#/components/schemas/SubtitleCue"
+            },
+            "description": "非空时替代旧整镜subtitle；时间相对镜头起点。"
+          },
+          "subtitle_source": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "estimated",
+              "asr"
+            ],
+            "description": "manual人工时间；estimated仅文字分句/时长比例估算非语音识别；asr为真实协议任务产物但模型效果仍未验证。"
+          },
+          "subtitle_alignment_id": {
+            "type": "string",
+            "description": "同项目成功对齐任务；estimated/asr必须匹配原任务及镜头/音频/时间快照和原cue。人工修改后应标manual。"
           }
         },
         "required": [
@@ -7523,7 +8203,8 @@
               "analysis",
               "image",
               "speech",
-              "video"
+              "video",
+              "vision"
             ]
           },
           "expected_version": {
@@ -7544,7 +8225,7 @@
           },
           "reference_asset_id": {
             "type": "string",
-            "description": "同项目本地参考图片ID；图像参考或支持的镜头视频首帧，不支持此输入的适配器拒绝。"
+            "description": "同项目本地图像ID；vision必需，执行图像理解；image/video仅支持此能力的适配器接受作为参考图/首帧。不接受外部URL。"
           },
           "expected_model": {
             "type": "string",
@@ -7626,7 +8307,7 @@
           },
           "reference_asset_id": {
             "type": "string",
-            "description": "同项目本地参考图片ID；图像参考或支持的镜头视频首帧，不支持此输入的适配器拒绝。"
+            "description": "同项目本地图像ID；vision必需，执行图像理解；image/video仅支持此能力的适配器接受作为参考图/首帧。不接受外部URL。"
           },
           "model": {
             "type": "string",
@@ -7690,6 +8371,193 @@
           "documentation",
           "capabilities"
         ]
+      },
+      "SubtitleCue": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end",
+          "text"
+        ],
+        "properties": {
+          "start": {
+            "type": "number",
+            "minimum": 0,
+            "description": "相对镜头播放起点的秒数；不是原音频绝对时间。"
+          },
+          "end": {
+            "type": "number",
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "description": "须大于start且不超过当前镜头duration。"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "description": "每镜头最多60句，总文本最多2000 Unicode字符；按start有序且不重叠，可相邻。有限数字，拒绝空文本与越界。"
+      },
+      "AlignmentInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "clip_id",
+          "mode",
+          "expected_version"
+        ],
+        "properties": {
+          "clip_id": {
+            "type": "string"
+          },
+          "audio_asset_id": {
+            "type": "string",
+            "description": "ASR必须引用当前镜头已保存的WAV/MP3配音资产ID；最多24MiB、180秒，不接受任意同项目音频替代。"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "estimate",
+              "asr"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "estimate必需1–2000字符，按句末标点/换行拆句，超过60句拒绝；不是声学对齐。asr禁止预填文本，只识别已绑定配音素材。"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "媒体版本，不是项目剧本版本。"
+          },
+          "expected_provider": {
+            "type": "string"
+          },
+          "expected_model": {
+            "type": "string"
+          }
+        },
+        "description": "任务只产生建议，不自动修改时间轴；用户应用仍须媒体版本CAS。真实ASR未配置时拒绝，不回退估算。"
+      },
+      "AlignmentTask": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "estimate",
+              "asr"
+            ]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "clip_id": {
+            "type": "string"
+          },
+          "audio_asset_id": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "source_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "duration": {
+            "type": "number"
+          },
+          "trim_start": {
+            "type": "number",
+            "description": "原视频trim_start快照用于版本匹配，不偏移从0开始的配音或cue时间。"
+          },
+          "cues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubtitleCue"
+            },
+            "maxItems": 60
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "space_id": {
+            "type": "string"
+          },
+          "audio_mime": {
+            "type": "string"
+          },
+          "audio_duration": {
+            "type": "number"
+          },
+          "text": {
+            "type": "string"
+          },
+          "timing_basis": {
+            "type": "string",
+            "description": "text-estimate/asr-segments/asr-words等实际时间来源；不把本地分配时长冒充声学识别。"
+          },
+          "error_code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "mode",
+          "provider",
+          "clip_id",
+          "audio_asset_id",
+          "status",
+          "source_version",
+          "duration",
+          "trim_start",
+          "cues",
+          "warnings",
+          "created_at",
+          "updated_at",
+          "project_id",
+          "space_id",
+          "audio_mime",
+          "audio_duration",
+          "text",
+          "timing_basis"
+        ],
+        "description": "持久建议任务；真实running中断标失败，禁止自动重新POST；结果不自动保存到时间轴。"
       }
     }
   },
