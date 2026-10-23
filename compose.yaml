@@ -5,6 +5,9 @@ services:
       HTTP_ADDR: 0.0.0.0:8080
       DATA_DIR: /app/data
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:8080}
+      AUTH_ALLOW_REGISTRATION: ${AUTH_ALLOW_REGISTRATION:-false}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
+      AUTH_TRUSTED_PROXY_CIDRS: ${STUDIO_FRONTEND_IP:-172.30.89.3}/32
     volumes:
       - studio-data:/app/data
     security_opt:
@@ -12,6 +15,9 @@ services:
     cap_drop: [ALL]
     restart: unless-stopped
   frontend:
+    networks:
+      default:
+        ipv4_address: ${STUDIO_FRONTEND_IP:-172.30.89.3}
     build: ./frontend
     ports:
       - "127.0.0.1:${STUDIO_PORT:-8080}:8080"
@@ -24,3 +30,9 @@ services:
     restart: unless-stopped
 volumes:
   studio-data:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${STUDIO_INTERNAL_SUBNET:-172.30.89.0/24}

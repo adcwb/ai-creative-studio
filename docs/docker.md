@@ -1,3 +1,13 @@
+# 当前安全模式与本轮验证边界
+
+默认安全模式不开放注册，cookie需要HTTPS。仅本机HTTP演练时，显式设置 `AUTH_ALLOW_REGISTRATION=true AUTH_COOKIE_SECURE=false docker compose up -d`。不要将这个HTTP设置用于公网部署。本轮没有推送镜像或上线；最终容器验收受基础镜像拉取/DNS阻塞，不能引用旧发布结果证明本轮通过。
+
+compose使用专用网段（默认172.30.89.0/24）与前端固定IP（默认172.30.89.3），后端只信任该IP的X-Real-IP；Nginx覆盖客户端该header，以免所有用户共用代理IP的登录速率限制。若已有网段冲突，同时显式更改STUDIO_INTERNAL_SUBNET与其中的STUDIO_FRONTEND_IP。禁止把信任范围扩大为全部公网或直接相信X-Forwarded-For。代理访问日志不含query，以免记录OIDC code/state。
+
+下方为上一轮发布与运行记录，其发布授权不适用于本轮。最新能力和缺口见[交付矩阵](iteration-7-delivery.md)。
+
+---
+
 # Docker 运行与镜像发布
 
 Dockerfile 和 Compose 提供本地运行方式；CI 构建/发布镜像不等于应用部署。本次允许在本地验证后推送默认分支并由 CI 发布已确认的两个镜像仓库。构建和发布的实际结果以 CI 与本轮验证报告为准，本文件不提前宣称成功。

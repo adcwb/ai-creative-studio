@@ -52,7 +52,7 @@ export function errorMessage(error: unknown, fallback: string) {
 }
 
 export function localizedError(message?: string, code?: string) {
-  if (getLocale() === 'zh-CN') return message || translate('网络或服务暂时不可用，请稍后再试。')
+  if (getLocale() === 'zh-CN') return message && /[\u3400-\u9fff]/.test(message) ? message : code ? translate('服务拒绝了请求（{p0}）。请检查输入与当前配置。', {p0: code}) : translate('网络或服务暂时不可用，请稍后再试。')
   if (message && !/[\u3400-\u9fff]/.test(message)) return message
   const translated = message ? translate(message) : ''
   if (translated && !/[\u3400-\u9fff]/.test(translated)) return translated
