@@ -1,6 +1,6 @@
 # 映创 · AI Creative Studio
 
-面向个人与团队的 AI 视觉内容工作室。React / TypeScript / Vite 前端与 Go / Eino 后端独立启动。第五轮已发布基线为 `2ff0b9260471d3ac6b248ee8ce07e16b4cdf9447`；第六轮在此基础上推进真实创作协议与本地短剧成片链路，仅本地实现、验证和提交，不推送或部署。
+面向个人与团队的 AI 视觉内容工作室。React / TypeScript / Vite 前端与 Go / Eino 后端独立启动。第五轮已发布基线为 `2ff0b9260471d3ac6b248ee8ce07e16b4cdf9447`；第六轮在此基础上推进真实创作协议与本地短剧成片链路。后续已获授权在验证后推送默认分支并通过CI发布Docker镜像；实际发布状态以Actions为准，应用没有因此部署。
 
 **默认无凭据、无付费调用。模拟文本、模拟图像及合成音视频必须保留来源标识；本地假上游验证不等于真实模型质量或费用验证。** 用户要求可替换适配器覆盖 OpenAI、Claude、Gemini、字节、MiniMax、即梦及 Nano Banana 相关生态；须区分厂商、模型与消费产品，仅使用官方 API。具体模型、账号和预算尚未提供；能力矩阵须明确支持、未支持及需授权项目，适配实现不代表远端验证。演示空间没有身份认证，不应暴露到公网。
 
@@ -130,6 +130,10 @@ OpenAI/Gemini/方舟/MiniMax图像适配支持将已上传角色参考作为图�
 - `deploy/`：未来 PostgreSQL、Redis、MinIO 本地设施示例，当前应用不连接这些设施。
 - `.github/`：CI、问题和 PR 模板。项目未添加开源许可证。
 
+## Docker 本地运行
+
+可使用 `docker compose build`、`docker compose up -d`，随后打开 `http://localhost:8080`。仅前端绑定宿主回环端口，Nginx同源代理后端；FFmpeg和中文字体包含在后端镜像中，项目与媒体保存在命名卷。详细步骤、备份边界和Docker Hub配置见 [Docker运行与镜像发布](docs/docker.md)。构建/发布结果以实际验证与Actions记录为准，镜像发布不等于应用部署。
+
 ## 本地开发
 
 先决条件：Linux（文件存储使用 `flock`；macOS 可自行验证，Windows 建议 WSL）、Go **1.25.3**、Node.js **24**、npm **11**。Go 与 Eino 版本锁定以确保兼容；升级前须复跑测试。
@@ -250,4 +254,4 @@ python scripts/contract_check.py
 
 ## GitHub 协作
 
-遵循 [CONTRIBUTING.md](CONTRIBUTING.md)，使用短生命周期分支和可审阅 PR，修改契约时同步实现、文档与测试。历史版本已发布至 `master`；本轮仅本地提交，旧发布授权不代表本轮推送或部署授权。仓库公开发布源码，不代表应用已部署或具备生产安全能力；未添加开源许可证。
+遵循 [CONTRIBUTING.md](CONTRIBUTING.md)，使用短生命周期分支和可审阅 PR，修改契约时同步实现、文档与测试。历史版本已发布至 `master`；本轮追加授权允许验证后推送默认分支并发布两个Docker镜像仓库；不包括真实模型调用或应用部署。仓库公开发布源码，不代表应用已部署或具备生产安全能力；未添加开源许可证。
