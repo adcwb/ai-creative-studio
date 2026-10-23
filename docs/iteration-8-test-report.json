@@ -1,0 +1,182 @@
+{
+  "code_sha": "eab902453e6fb5ac5452bc47b604eeb44e709b79",
+  "date": "2026-10-23",
+  "checks": {
+    "go_race": {
+      "status": "passed",
+      "scope": "go test -race ./... -count=1; real PostgreSQL plus fresh source/target DB backup restore",
+      "studio_seconds": 97.623,
+      "log": "/tmp/studio-iteration8-frozen-race-retry.log"
+    },
+    "go_vet": {
+      "status": "passed",
+      "log": "/tmp/studio-iteration8-frozen-vet.log"
+    },
+    "go_build": {
+      "status": "passed",
+      "scope": "all cmd packages and current server binary",
+      "log": "/tmp/studio-iteration8-frozen-build.log"
+    },
+    "frontend": {
+      "status": "passed",
+      "unit_tests": 23,
+      "i18n_messages": 815,
+      "checks": [
+        "lint",
+        "typecheck",
+        "build"
+      ],
+      "logs": [
+        "/tmp/studio-iteration8-frozen-lint.log",
+        "/tmp/studio-iteration8-frozen-typecheck.log",
+        "/tmp/studio-iteration8-frozen-unit.log",
+        "/tmp/studio-iteration8-frozen-frontend-build.log",
+        "/tmp/studio-iteration8-frozen-i18n.log"
+      ]
+    },
+    "e2e": {
+      "status": "passed",
+      "count": 62,
+      "duration_minutes": 5.6,
+      "log": "/tmp/studio-iteration8-frozen-e2e.log"
+    },
+    "layout": {
+      "status": "passed",
+      "count": 90,
+      "groups": [
+        24,
+        30,
+        36
+      ],
+      "evidence": [
+        "/tmp/studio-layout-evidence-SnLXFo",
+        "/tmp/studio-project-evidence-2vweJy",
+        "/tmp/studio-storyboard-evidence-8HmhK9"
+      ]
+    },
+    "api_contract": {
+      "status": "passed",
+      "actual_http_responses": 435,
+      "includes_polling": true,
+      "log": "/tmp/studio-iteration8-frozen-contract.log"
+    },
+    "openapi": {
+      "status": "passed",
+      "log": "/tmp/studio-iteration8-frozen-openapi.log"
+    },
+    "secure_contract": {
+      "status": "passed",
+      "responses": 32,
+      "log": "/tmp/studio-iteration8-frozen-secure-contract.log"
+    },
+    "provider": {
+      "status": "passed",
+      "synthetic_upstream_calls": 5,
+      "automatic_replay": 0,
+      "evidence": "/tmp/studio-provider-evidence-9yELi4",
+      "log": "/tmp/studio-iteration8-frozen-provider.log"
+    },
+    "postgres_worker_browser": {
+      "status": "passed",
+      "tests": 10,
+      "evidence": "/tmp/studio-postgres-browser-rn_pyeup",
+      "log": "/tmp/studio-iteration8-frozen-pg-browser-retry.log"
+    },
+    "postgres_quote_browser": {
+      "status": "passed",
+      "tests": 2,
+      "worker_started": false,
+      "evidence": "/tmp/studio-postgres-browser-5jj0b1y5",
+      "log": "/tmp/studio-iteration8-frozen-quotes.log"
+    },
+    "media": {
+      "status": "passed",
+      "groups": 7,
+      "evidence": "/tmp/studio-media-evidence-yrplu5m4",
+      "log": "/tmp/studio-iteration8-frozen-media.log"
+    },
+    "alignment": {
+      "status": "passed",
+      "groups": 4,
+      "contract_responses": 10,
+      "evidence": "/tmp/studio-alignment-evidence-1e4vjrua",
+      "log": "/tmp/studio-iteration8-frozen-alignment.log"
+    },
+    "file_restore": {
+      "status": "passed",
+      "assets": 4,
+      "log": "/tmp/studio-iteration8-frozen-recovery.log"
+    },
+    "process_crash_smoke": {
+      "status": "passed",
+      "log": "/tmp/studio-iteration8-frozen-smoke.log"
+    },
+    "python_backup_harness": {
+      "status": "passed",
+      "tests": 4,
+      "log": "/tmp/studio-iteration8-frozen-python.log"
+    },
+    "scheduled_backup": {
+      "status": "passed",
+      "tests": 5,
+      "log": "/tmp/studio-iteration8-frozen-scheduled.log"
+    },
+    "live_eval_tool": {
+      "status": "passed",
+      "tests": 5,
+      "mode": "dry-run only",
+      "log": "/tmp/studio-iteration8-frozen-live-tool.log"
+    },
+    "multiservice": {
+      "status": "passed",
+      "apis": 2,
+      "workers": 2,
+      "postgres": "real",
+      "blob_store": "shared-file",
+      "evidence": "/tmp/studio-multiservice-g2b52l0p",
+      "log": "/tmp/studio-iteration8-frozen-multiservice.log",
+      "load": {
+        "kind": "synthetic SVG creation through real PostgreSQL and independent workers",
+        "tasks": 16,
+        "tenants": 2,
+        "concurrent_clients": 8,
+        "failures": 0,
+        "wall_seconds": 9.605,
+        "accept_p50_ms": 59.14,
+        "accept_p95_ms": 225.14,
+        "completion_p50_ms": 3197.15,
+        "completion_p95_ms": 4767.44,
+        "production_capacity_claim": false
+      }
+    },
+    "docker": {
+      "status": "blocked",
+      "action": "official anonymous Docker base-image pull for compose build",
+      "image": "nginx:stable-alpine",
+      "target": "https://auth.docker.io/token",
+      "reason": "DNS 172.31.3.125:53 connection refused",
+      "evidence": "/tmp/studio-docker-evidence-f7p_tfl7/compose.log",
+      "log": "/tmp/studio-iteration8-frozen-docker.log",
+      "network_configuration_changed": false
+    }
+  },
+  "resolved_test_environment_failures": [
+    {
+      "log": "/tmp/studio-iteration8-frozen-race.log",
+      "reason": "QA added passfile option to backup URI, rejected by explicit allowlist; corrected test URI, kept process empty PGPASSFILE/PGSERVICEFILE; fresh DBs and complete suite rerun passed; no code change"
+    },
+    {
+      "log": "/tmp/studio-iteration8-frozen-pg-browser.log",
+      "reason": "No space left on device building worker; cleared only task Go build cache; original tests rerun passed; preserved logs/source/restore evidence"
+    }
+  ],
+  "limitations": [
+    "No live provider calls or charges",
+    "No real S3 integration pass asserted",
+    "Docker compose runtime not verified this round due official pull DNS failure",
+    "Synthetic creative load is not production capacity or model quality evidence"
+  ],
+  "pushed": false,
+  "deployed": false,
+  "live_calls": 0
+}

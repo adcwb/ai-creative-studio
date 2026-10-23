@@ -54,4 +54,4 @@
 
 本轮测试只使用合成价格、合成凭据、假 transport 和本地 fixture 命令。没有配置真实审核服务、价格或账单适配器，没有执行真实模型。
 
-已知上游任务的恢复查询另走 `ExecuteRecovery`，必须已有同租户/模型/币种的 unknown 费用条目，且对应新鲜报价规则显式 `recovery_queries_free: true`。这只表示操作员核验该供应商查询/下载不收费；没有此配置拒绝恢复。运行时对恢复 permit 强制仅 GET，不能再发创建 POST。恢复前错误或成功查询均不释放旧 unknown，配置版本/权限撤销仍阻止恢复。当前 Jimeng 的 POST 查询不受此 GET-only 恢复通道支持，不能借只读名义放行任意 POST。
+已知上游任务的恢复查询另走 `ExecuteRecovery`，必须已有同租户/模型/币种的 unknown 费用条目，且对应新鲜报价规则显式 `recovery_queries_free: true`。这只表示操作员核验该供应商查询/下载不收费；没有此配置拒绝恢复。运行时只允许精确绑定已持久上游 ID 的官方视频 GET 查询，以及即梦原生 adapter 的固定签名 POST 查询（固定 endpoint/action/version/req_key/task_id，拒绝额外字段）；不能再发创建或参考图上传。恢复前错误或成功查询均不释放旧 unknown，配置版本/权限撤销仍阻止恢复。即梦 POST 查询例外不是任意 POST 授权，细节见 [模型管理](model-management.md)。
