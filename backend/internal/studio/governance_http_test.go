@@ -1,10 +1,13 @@
 package studio
 
 import (
+	"context"
 	"encoding/json"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestGovernanceAuthenticatedCurrencyBudget(t *testing.T) {
@@ -134,5 +137,21 @@ func TestGovernanceBudgetAuditRecoveryAndPagination(t *testing.T) {
 	}
 	if err = l.configure("tenant-a", "owner-a", "KWD", 1000, 101); err == nil {
 		t.Fatal("unknown liability released by lowering budget")
+	}
+}
+
+func TestExchangeQuoteRejectsNonDecimalOrUnboundedMetadata(t *testing.T) {
+	now := time.Now().UTC()
+	for _, rate := range []string{"1/2", "1e4", strings.Repeat("1", 65), ".5", "NaN", "0"} {
+		_, err := GetExchangeQuote(context.Background(), quoteStub{ExchangeQuote{From: "USD", To: "CNY", Rate: rate, Source: "fixture", AsOf: now}}, "USD", "CNY", now, time.Hour)
+		if err == nil {
+			t.Fatal("accepted invalid rate", rate)
+		}
+	}
+	for _, source := range []string{strings.Repeat("s", 121), "line\nbreak"} {
+		_, err := GetExchangeQuote(context.Background(), quoteStub{ExchangeQuote{From: "USD", To: "CNY", Rate: "7.25", Source: source, AsOf: now}}, "USD", "CNY", now, time.Hour)
+		if err == nil {
+			t.Fatal("accepted invalid source")
+		}
 	}
 }

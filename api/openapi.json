@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "映创 · Iteration 6 Creative Studio API",
-    "version": "0.6.0",
-    "description": "本地单进程创作工作室，保留图像、剧本、分镜持久化、幂等和乐观版本语义，新增可替换创作适配、项目媒体、时间轴、合成导出及历史恢复。默认无凭据模拟模式；真实协议适配不代表已验证真实模型效果、权限或费用。公开演示空间不是认证边界，不可暴露公网。"
+    "title": "映创 · Iteration 7 Creative Studio API",
+    "version": "0.7.0",
+    "description": "Local creative studio. Default secure mode requires authenticated organization membership, CSRF and trusted Origin for writes. Explicit AUTH_MODE=demo is local-only and provides no tenant security. Real model runtime remains fail-closed pending end-to-end cost governance. Local protocol tests are not live quality verification."
   },
   "servers": [
     {
@@ -37,7 +37,8 @@
                     "mode": {
                       "type": "string",
                       "enum": [
-                        "demo"
+                        "demo",
+                        "secure"
                       ]
                     }
                   }
@@ -55,13 +56,14 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/api/v1/spaces": {
       "get": {
         "operationId": "listSpaces",
-        "summary": "列出两个公开演示空间",
+        "summary": "List workspaces authorized by the session (or explicit demo spaces)",
         "parameters": [],
         "responses": {
           "200": {
@@ -78,7 +80,17 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许",
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -100,13 +112,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           }
         ],
         "responses": {
@@ -134,7 +142,17 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许",
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -155,13 +173,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "Idempotency-Key",
@@ -172,6 +186,24 @@
               "pattern": "^[A-Za-z0-9_-]{8,128}$"
             },
             "description": "按空间持久化的业务提交键，普通创建与重试共享命名空间。网络重发同一提交沿用原键；该键不表示上游图像生成具备 exactly-once 或不会重复计费。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "responses": {
@@ -239,7 +271,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -309,6 +341,16 @@
                     "code": "provider_not_ready",
                     "message": "图像服务尚未就绪，请检查服务端配置后重试"
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -387,13 +429,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -517,7 +555,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -528,6 +566,16 @@
           },
           "404": {
             "description": "当前空间中无此记录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -550,13 +598,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -595,7 +639,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -633,6 +677,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "description": "仅 succeeded 可读。先按空间读取任务，再读取受限结果目录内与内部任务 ID 对应的文件或旧内联 SVG；不接受上游/客户端路径，不下载上游 URL。SVG 带模拟标识并保留 sandbox CSP；PNG 是经大小/尺寸/完整解码校验后安全落盘的 adapter 返回。两类结果均使用 nosniff 和 no-store。历史图像不会因当前 provider 配置变化被重绘或替换。"
@@ -648,13 +702,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "q",
@@ -712,7 +762,17 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许",
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -733,13 +793,27 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "responses": {
@@ -764,7 +838,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -805,6 +879,16 @@
           },
           "500": {
             "description": "持久化失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -914,7 +998,17 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许",
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -936,13 +1030,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "Idempotency-Key",
@@ -962,6 +1052,24 @@
               "type": "string"
             },
             "description": "当前空间内状态为 failed 的直接父任务 ID。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "responses": {
@@ -1016,7 +1124,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -1102,6 +1210,16 @@
                     "code": "provider_not_ready",
                     "message": "图像服务尚未就绪，请检查服务端配置后重试"
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -1210,7 +1328,17 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许",
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -1232,13 +1360,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           }
         ],
         "responses": {
@@ -1279,7 +1403,17 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -1300,13 +1434,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "Idempotency-Key",
@@ -1317,6 +1447,24 @@
               "pattern": "^[A-Za-z0-9_-]{8,128}$"
             },
             "description": "所有项目写操作在同一空间共享项目域命名空间，与图像任务键独立。指纹含操作、目标项目和规范化完整请求（含 expected_version）。同一提交网络重试必须保留键和 body；同键不同操作/目标/body 返回 idempotency_conflict。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "requestBody": {
@@ -1346,7 +1494,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -1508,6 +1656,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -1522,13 +1680,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -1645,7 +1799,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -1656,6 +1810,16 @@
           },
           "404": {
             "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -1675,13 +1839,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -1701,6 +1861,24 @@
               "pattern": "^[A-Za-z0-9_-]{8,128}$"
             },
             "description": "所有项目写操作在同一空间共享项目域命名空间，与图像任务键独立。指纹含操作、目标项目和规范化完整请求（含 expected_version）。同一提交网络重试必须保留键和 body；同键不同操作/目标/body 返回 idempotency_conflict。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "requestBody": {
@@ -1731,7 +1909,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -1906,6 +2084,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "description": "保存成功使 version 增加 1（即使规范化内容未变化），保留当前 script 及 script_brief；新 brief 与来源不同时，界面应说明当前稿源自旧创意。queued/running 期间拒绝新内容写入。已接受请求的精确重放优先于当前版本及活动生成检查。"
@@ -1921,13 +2109,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -1979,7 +2163,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -1990,6 +2174,16 @@
           },
           "404": {
             "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -2009,13 +2203,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -2035,6 +2225,24 @@
               "pattern": "^[A-Za-z0-9_-]{8,128}$"
             },
             "description": "所有项目写操作在同一空间共享项目域命名空间，与图像任务键独立。指纹含操作、目标项目和规范化完整请求（含 expected_version）。同一提交网络重试必须保留键和 body；同键不同操作/目标/body 返回 idempotency_conflict。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "requestBody": {
@@ -2063,7 +2271,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -2191,6 +2399,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "description": "精确重放优先；新请求检查 expected_version 和无活动生成，在同一快照内绑定 source_title/source_brief/base_version。真实 Eino 执行 Normalize→MockGenerate→Validate，输出固定 2 角色/3 场。生成成功原子替换当前稿并 version+1，失败保留原稿、script_brief 和版本；brief 中 [mock-fail] 触发可复现失败。再次生成需用户确认替换；未保存创意不能用于本次生成。mock running 重启恢复 queued，沿用原 attempt/键，至少一次执行。"
@@ -2206,13 +2424,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -2232,6 +2446,24 @@
               "pattern": "^[A-Za-z0-9_-]{8,128}$"
             },
             "description": "所有项目写操作在同一空间共享项目域命名空间，与图像任务键独立。指纹含操作、目标项目和规范化完整请求（含 expected_version）。同一提交网络重试必须保留键和 body；同键不同操作/目标/body 返回 idempotency_conflict。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "requestBody": {
@@ -2318,7 +2550,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -2493,6 +2725,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "description": "要求项目已有 script 且无活动生成，校验完整结构及角色引用，成功原子保存并 version+1，script_brief 保持不变。前端遇到失败或版本冲突须保留本地编辑，只有明确重载/放弃后才能丢弃；不自动覆盖服务器新版本。相同请求键/body 在成功响应丢失后重发返回当前项目且不再次增加版本。"
@@ -2508,13 +2750,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -2565,7 +2803,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -2576,6 +2814,16 @@
           },
           "404": {
             "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -2596,13 +2844,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -2622,6 +2866,24 @@
               "pattern": "^[A-Za-z0-9_-]{8,128}$"
             },
             "description": "所有项目写操作在同一空间共享项目域命名空间，与图像任务键独立。指纹含操作、目标项目和规范化完整请求（含 expected_version）。同一提交网络重试必须保留键和 body；同键不同操作/目标/body 返回 idempotency_conflict。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "requestBody": {
@@ -2650,7 +2912,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -2748,6 +3010,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "description": "使用已保存剧本，不接受浏览器草稿。生成活动期间项目、剧本与分镜写操作互斥。失败不清空当前计划；已接受幂等请求优先重放原尝试。"
@@ -2763,13 +3035,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -2789,6 +3057,24 @@
               "pattern": "^[A-Za-z0-9_-]{8,128}$"
             },
             "description": "所有项目写操作在同一空间共享项目域命名空间，与图像任务键独立。指纹含操作、目标项目和规范化完整请求（含 expected_version）。同一提交网络重试必须保留键和 body；同键不同操作/目标/body 返回 idempotency_conflict。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "requestBody": {
@@ -2828,7 +3114,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -2989,6 +3275,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "description": "全量保存镜头；必须已有计划。来源剧本版本由后端保留。过期计划可继续编辑但不会变成未过期。所有项目写操作共用持久幂等空间。"
@@ -3004,13 +3300,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -3034,7 +3326,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -3101,6 +3393,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -3115,13 +3417,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -3149,6 +3447,24 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "responses": {
@@ -3163,7 +3479,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -3227,6 +3543,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -3251,13 +3577,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -3281,7 +3603,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -3348,6 +3670,16 @@
           },
           "429": {
             "description": "媒体资源限额：单项目120素材/30导出，同时最多2个合成，以及全局容量上限。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -3369,13 +3701,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -3395,6 +3723,24 @@
               "pattern": "^[A-Za-z0-9_-]{8,128}$"
             },
             "description": "媒体域持久幂等键；项目+空间范围内共享，重试必须保留相同请求及标签。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "responses": {
@@ -3409,7 +3755,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -3476,6 +3822,16 @@
           },
           "429": {
             "description": "媒体资源限额：单项目120素材/30导出，同时最多2个合成，以及全局容量上限。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -3507,13 +3863,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -3533,6 +3885,24 @@
               "pattern": "^[A-Za-z0-9_-]{8,128}$"
             },
             "description": "媒体域持久幂等键；项目+空间范围内共享，重试必须保留相同请求及标签。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "responses": {
@@ -3547,7 +3917,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -3621,6 +3991,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -3645,13 +4025,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -3703,6 +4079,24 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "responses": {
@@ -3717,7 +4111,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -3801,6 +4195,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -3850,13 +4254,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -3876,6 +4276,24 @@
               "pattern": "^[A-Za-z0-9_-]{8,128}$"
             },
             "description": "媒体域持久幂等键；项目+空间范围内共享，重试必须保留相同请求及标签。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "responses": {
@@ -3890,7 +4308,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -3964,6 +4382,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -3988,13 +4416,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -4022,6 +4446,24 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "responses": {
@@ -4036,7 +4478,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -4110,6 +4552,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -4135,13 +4587,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -4173,7 +4621,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -4310,6 +4758,16 @@
           },
           "416": {
             "description": "Range 超出文件范围。"
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -4324,13 +4782,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -4362,7 +4816,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -4451,6 +4905,16 @@
           },
           "416": {
             "description": "Range 超出文件范围。"
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -4465,13 +4929,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -4503,7 +4963,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -4592,6 +5052,16 @@
           },
           "416": {
             "description": "Range 超出文件范围。"
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -4613,7 +5083,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -4697,6 +5167,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -4718,7 +5198,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -4805,6 +5285,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -4826,7 +5316,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -4913,6 +5403,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -4927,13 +5427,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -4957,7 +5453,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -5044,6 +5540,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -5056,13 +5562,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -5082,6 +5584,24 @@
               "pattern": "^[A-Za-z0-9_-]{8,128}$"
             },
             "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "responses": {
@@ -5096,7 +5616,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -5183,6 +5703,16 @@
           },
           "503": {
             "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -5215,13 +5745,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -5241,6 +5767,24 @@
               "pattern": "^[A-Za-z0-9_-]{8,128}$"
             },
             "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "responses": {
@@ -5255,7 +5799,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -5349,6 +5893,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -5373,13 +5927,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -5407,6 +5957,24 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "responses": {
@@ -5421,7 +5989,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -5498,6 +6066,16 @@
           },
           "503": {
             "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -5531,13 +6109,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -5569,7 +6143,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -5658,6 +6232,16 @@
           },
           "416": {
             "description": "Range 超出文件范围。"
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -5672,13 +6256,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -5706,6 +6286,24 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "responses": {
@@ -5720,7 +6318,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -5804,6 +6402,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -5831,13 +6439,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -5861,7 +6465,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -5948,6 +6552,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -5960,13 +6574,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -5986,6 +6596,24 @@
               "pattern": "^[A-Za-z0-9_-]{8,128}$"
             },
             "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "responses": {
@@ -6000,7 +6628,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -6094,6 +6722,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -6119,13 +6757,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "id",
@@ -6153,6 +6787,24 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "responses": {
@@ -6167,7 +6819,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许。",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -6251,6 +6903,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -6289,8 +6951,31 @@
                     },
                     "asr": {
                       "$ref": "#/components/schemas/Capabilities"
+                    },
+                    "forced": {
+                      "$ref": "#/components/schemas/Capabilities"
                     }
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -6308,13 +6993,9 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "personal-demo",
-                "team-demo"
-              ]
+              "type": "string"
             },
-            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
           },
           {
             "name": "Idempotency-Key",
@@ -6334,6 +7015,24 @@
               "type": "string"
             },
             "description": "当前空间内状态为 failed 的直接父任务 ID。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
           }
         ],
         "responses": {
@@ -6364,7 +7063,7 @@
             }
           },
           "403": {
-            "description": "浏览器来源不允许",
+            "description": "Rejected request",
             "content": {
               "application/json": {
                 "schema": {
@@ -6453,6 +7152,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -6468,6 +7177,1474 @@
           }
         },
         "description": "只接受failed的jimeng-images任务且upstream_id存在，当前provider/model必须匹配。执行中断无ID时无法安全恢复，保持计费不确定。恢复使用每空间独立ImageResumeReceipts键域，与create/retry及creative域分开；原键精确重放返回当前任务投影。不是创建新付费任务。"
+      }
+    },
+    "/api/v1/auth/session": {
+      "get": {
+        "operationId": "getAuthSession",
+        "summary": "getAuthSession",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSession"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "login",
+        "summary": "login",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSession"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthCredentials"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "operationId": "register",
+        "summary": "register",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSession"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthCredentials"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "summary": "logout",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "authenticated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "authenticated"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations": {
+      "post": {
+        "operationId": "createOrganization",
+        "summary": "createOrganization",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Space"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{id}/members": {
+      "get": {
+        "operationId": "listMembers",
+        "summary": "listMembers",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrganizationMember"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "put": {
+        "operationId": "updateMember",
+        "summary": "updateMember",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "updated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "updated"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "editor",
+                      "viewer",
+                      "remove"
+                    ]
+                  }
+                },
+                "required": [
+                  "email",
+                  "role"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sso/start": {
+      "post": {
+        "operationId": "startSSO",
+        "summary": "startSSO",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "authorization_url": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  },
+                  "required": [
+                    "authorization_url"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/sso/callback": {
+      "get": {
+        "operationId": "completeSSO",
+        "summary": "Complete verified OIDC login; no email auto-linking",
+        "security": [],
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirect to configured frontend after successful authentication"
+          },
+          "400": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/governance": {
+      "get": {
+        "operationId": "getBudgetReport",
+        "summary": "getBudgetReport",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "USD",
+                "EUR",
+                "GBP",
+                "CNY",
+                "CAD",
+                "AUD",
+                "CHF",
+                "HKD",
+                "SGD",
+                "JPY",
+                "KRW",
+                "KWD",
+                "BHD"
+              ],
+              "default": "USD"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Authenticated organization members only; demo mode rejected. Reports one currency without conversion. Unknown liabilities remain reserved."
+      }
+    },
+    "/api/v1/governance/budget": {
+      "put": {
+        "operationId": "configureBudget",
+        "summary": "configureBudget",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Authenticated session CSRF token. Also requires trusted Origin."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigureBudget"
+              }
+            }
+          }
+        },
+        "description": "Organization owner only. Atomic expected-limit check; cannot lower below existing exposure. Configuration and actor audit persist together. Does not enable live execution or provide settlement authority."
+      }
+    },
+    "/api/v1/governance/exchange": {
+      "get": {
+        "operationId": "getExchangeQuote",
+        "summary": "getExchangeQuote",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "USD",
+                "EUR",
+                "GBP",
+                "CNY",
+                "CAD",
+                "AUD",
+                "CHF",
+                "HKD",
+                "SGD",
+                "JPY",
+                "KRW",
+                "KWD",
+                "BHD"
+              ],
+              "default": "USD"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "USD",
+                "EUR",
+                "GBP",
+                "CNY",
+                "CAD",
+                "AUD",
+                "CHF",
+                "HKD",
+                "SGD",
+                "JPY",
+                "KRW",
+                "KWD",
+                "BHD"
+              ],
+              "default": "USD"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExchangeQuote"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Authenticated member read-only quote. Same-currency identity is 1; unconfigured external exchange provider returns 503. No implicit conversion."
+      }
+    },
+    "/api/v1/model-config": {
+      "get": {
+        "operationId": "getModelConfig",
+        "summary": "getModelConfig",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelConfigReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Authenticated tenant owner/admin only. Stores desired tenant configuration, not live runtime configuration. Endpoints and credential references are server allowlisted. Never returns secrets or ciphertext."
+      },
+      "put": {
+        "operationId": "updateModelConfig",
+        "summary": "updateModelConfig",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Authenticated session CSRF token. Also requires trusted Origin."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelConfigReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateModelConfig"
+              }
+            }
+          }
+        },
+        "description": "Authenticated tenant owner/admin only. Stores desired tenant configuration, not live runtime configuration. Endpoints and credential references are server allowlisted. Never returns secrets or ciphertext."
+      }
+    },
+    "/api/v1/model-config/validate": {
+      "post": {
+        "operationId": "validateModelConfig",
+        "summary": "validateModelConfig",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Authenticated session CSRF token. Also requires trusted Origin."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelConfigValidation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id"
+                ]
+              }
+            }
+          }
+        },
+        "description": "Local configuration validation only. Does not contact providers, check quota, or verify model permissions; remote_verified/model_verified remain false."
+      }
+    },
+    "/api/v1/model-config/live": {
+      "post": {
+        "operationId": "rejectUnauthorizedLiveValidation",
+        "summary": "rejectUnauthorizedLiveValidation",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Authenticated session CSRF token. Also requires trusted Origin."
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Always rejects with 403 live_not_authorized; no model request is executed. Separate explicit authorization is required for any future live workflow."
       }
     }
   },
@@ -6881,6 +9058,15 @@
           },
           "owner_id": {
             "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "editor",
+              "viewer"
+            ]
           }
         }
       },
@@ -7967,13 +10153,36 @@
             "enum": [
               "manual",
               "estimated",
-              "asr"
+              "asr",
+              "forced"
             ],
             "description": "manual人工时间；estimated仅文字分句/时长比例估算非语音识别；asr为真实协议任务产物但模型效果仍未验证。"
           },
           "subtitle_alignment_id": {
             "type": "string",
             "description": "同项目成功对齐任务；estimated/asr必须匹配原任务及镜头/音频/时间快照和原cue。人工修改后应标manual。"
+          },
+          "preserve_source_audio": {
+            "type": "boolean",
+            "default": false
+          },
+          "source_audio_volume": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "transition": {
+            "type": "string",
+            "enum": [
+              "",
+              "fade"
+            ],
+            "description": "Fade to/from black at clip edges; no overlap or timeline duration change."
+          },
+          "transition_duration": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2
           }
         },
         "required": [
@@ -8007,6 +10216,41 @@
             "type": "number",
             "minimum": 0,
             "maximum": 1
+          },
+          "output_resolution": {
+            "type": "string",
+            "enum": [
+              "360p",
+              "720p",
+              "1080p"
+            ],
+            "default": "360p",
+            "description": "360p <=180s; 720p <=120s; 1080p <=60s. Bounded 24fps output."
+          },
+          "aspect_ratio": {
+            "type": "string",
+            "enum": [
+              "16:9",
+              "9:16",
+              "1:1"
+            ],
+            "default": "16:9"
+          },
+          "subtitle_mode": {
+            "type": "string",
+            "enum": [
+              "soft",
+              "burn",
+              "none"
+            ],
+            "default": "soft"
+          },
+          "audio_tracks": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "$ref": "#/components/schemas/MediaAudioTrack"
+            }
           }
         },
         "required": [
@@ -8204,7 +10448,11 @@
               "image",
               "speech",
               "video",
-              "vision"
+              "vision",
+              "consistency",
+              "music",
+              "lip_sync",
+              "sound_effect"
             ]
           },
           "expected_version": {
@@ -8225,11 +10473,23 @@
           },
           "reference_asset_id": {
             "type": "string",
-            "description": "同项目本地图像ID；vision必需，执行图像理解；image/video仅支持此能力的适配器接受作为参考图/首帧。不接受外部URL。"
+            "description": "Owned project image reference, or for Google video an MP4 editing input. No arbitrary remote URL. OpenAI mask requires a same-size PNG mask, transparent edit area, <=4MiB."
           },
           "expected_model": {
             "type": "string",
             "description": "客户端确认的服务端模型ID；真实模式须同时匹配能力API的provider和model，避免排队或重启后切换同供应商模型导致意外付费。模拟模式可省略。"
+          },
+          "mask_asset_id": {
+            "type": "string",
+            "description": "Owned asset in the same project; validated by capability and media type."
+          },
+          "comparison_asset_id": {
+            "type": "string",
+            "description": "Owned asset in the same project; validated by capability and media type."
+          },
+          "audio_asset_id": {
+            "type": "string",
+            "description": "Owned asset in the same project; validated by capability and media type."
           }
         },
         "required": [
@@ -8307,11 +10567,23 @@
           },
           "reference_asset_id": {
             "type": "string",
-            "description": "同项目本地图像ID；vision必需，执行图像理解；image/video仅支持此能力的适配器接受作为参考图/首帧。不接受外部URL。"
+            "description": "Owned project image reference, or for Google video an MP4 editing input. No arbitrary remote URL. OpenAI mask requires a same-size PNG mask, transparent edit area, <=4MiB."
           },
           "model": {
             "type": "string",
             "description": "接受任务时冻结并持久化的服务端模型ID。兼容旧模拟记录时可省略；恢复执行必须匹配原供应商与模型，不能自动改用新模型。"
+          },
+          "mask_asset_id": {
+            "type": "string",
+            "description": "Owned asset in the same project; validated by capability and media type."
+          },
+          "comparison_asset_id": {
+            "type": "string",
+            "description": "Owned asset in the same project; validated by capability and media type."
+          },
+          "audio_asset_id": {
+            "type": "string",
+            "description": "Owned asset in the same project; validated by capability and media type."
           }
         },
         "required": [
@@ -8355,12 +10627,14 @@
               "type": "string",
               "enum": [
                 "adapter",
-                "unsupported",
-                "not_implemented",
-                "requires_signed_adapter",
-                "reference_adapter",
+                "existing_customer_adapter",
+                "first_frame_and_edit_adapter",
                 "legacy_api_retiring",
-                "requires_public_reference_bridge"
+                "mask_adapter",
+                "reference_adapter",
+                "requires_controlled_object_bridge",
+                "retired_2026_09_24",
+                "unsupported"
               ]
             }
           }
@@ -8422,13 +10696,14 @@
             "type": "string",
             "enum": [
               "estimate",
-              "asr"
+              "asr",
+              "forced"
             ]
           },
           "text": {
             "type": "string",
             "maxLength": 2000,
-            "description": "estimate必需1–2000字符，按句末标点/换行拆句，超过60句拒绝；不是声学对齐。asr禁止预填文本，只识别已绑定配音素材。"
+            "description": "Known transcript required for forced alignment; not inferred from ASR."
           },
           "expected_version": {
             "type": "integer",
@@ -8455,7 +10730,8 @@
             "type": "string",
             "enum": [
               "estimate",
-              "asr"
+              "asr",
+              "forced"
             ]
           },
           "provider": {
@@ -8528,7 +10804,9 @@
             "type": "number"
           },
           "text": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 2000,
+            "description": "Known transcript required for forced alignment; not inferred from ASR."
           },
           "timing_basis": {
             "type": "string",
@@ -8560,8 +10838,925 @@
           "timing_basis"
         ],
         "description": "持久建议任务；真实running中断标失败，禁止自动重新POST；结果不自动保存到时间轴。"
+      },
+      "MediaAudioTrack": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "asset_id": {
+            "type": "string"
+          },
+          "start": {
+            "type": "number",
+            "minimum": 0
+          },
+          "trim_start": {
+            "type": "number",
+            "minimum": 0
+          },
+          "duration": {
+            "type": "number",
+            "minimum": 0.1
+          },
+          "volume": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "id",
+          "asset_id",
+          "start",
+          "trim_start",
+          "duration",
+          "volume"
+        ]
+      },
+      "AuthUser": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email"
+        ]
+      },
+      "AuthSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "demo",
+              "secure"
+            ]
+          },
+          "authenticated": {
+            "type": "boolean"
+          },
+          "registration_enabled": {
+            "type": "boolean"
+          },
+          "sso_available": {
+            "type": "boolean"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AuthUser"
+          },
+          "csrf_token": {
+            "type": "string"
+          },
+          "spaces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Space"
+            }
+          }
+        },
+        "required": [
+          "mode",
+          "authenticated",
+          "registration_enabled",
+          "sso_available"
+        ]
+      },
+      "AuthCredentials": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128,
+            "format": "password"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "OrganizationMember": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "editor",
+              "viewer"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "role"
+        ]
+      },
+      "CostEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "tenant": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD",
+              "EUR",
+              "GBP",
+              "CNY",
+              "CAD",
+              "AUD",
+              "CHF",
+              "HKD",
+              "SGD",
+              "JPY",
+              "KRW",
+              "KWD",
+              "BHD"
+            ]
+          },
+          "reserved_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "actual_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "reserved",
+              "unknown",
+              "settled",
+              "released"
+            ]
+          },
+          "evidence_ref": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "tenant",
+          "provider",
+          "model",
+          "currency",
+          "reserved_minor",
+          "actual_minor",
+          "state",
+          "updated_at"
+        ]
+      },
+      "BudgetChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "type": "string"
+          },
+          "tenant": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD",
+              "EUR",
+              "GBP",
+              "CNY",
+              "CAD",
+              "AUD",
+              "CHF",
+              "HKD",
+              "SGD",
+              "JPY",
+              "KRW",
+              "KWD",
+              "BHD"
+            ]
+          },
+          "before_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "after_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "actor",
+          "tenant",
+          "currency",
+          "before_minor",
+          "after_minor",
+          "at"
+        ]
+      },
+      "BudgetReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD",
+              "EUR",
+              "GBP",
+              "CNY",
+              "CAD",
+              "AUD",
+              "CHF",
+              "HKD",
+              "SGD",
+              "JPY",
+              "KRW",
+              "KWD",
+              "BHD"
+            ]
+          },
+          "minor_units": {
+            "type": "integer",
+            "enum": [
+              0,
+              2,
+              3
+            ]
+          },
+          "limit_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "exposure_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "available_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "entries": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/CostEntry"
+            }
+          },
+          "total_entries": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next_offset": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true
+          },
+          "budget_changes": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/BudgetChange"
+            }
+          },
+          "live_execution_enabled": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "fx_available": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "currency",
+          "minor_units",
+          "limit_minor",
+          "exposure_minor",
+          "available_minor",
+          "entries",
+          "total_entries",
+          "next_offset",
+          "budget_changes",
+          "live_execution_enabled",
+          "fx_available"
+        ]
+      },
+      "ConfigureBudget": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD",
+              "EUR",
+              "GBP",
+              "CNY",
+              "CAD",
+              "AUD",
+              "CHF",
+              "HKD",
+              "SGD",
+              "JPY",
+              "KRW",
+              "KWD",
+              "BHD"
+            ],
+            "default": "USD"
+          },
+          "limit_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "expected_limit_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "limit_minor",
+          "expected_limit_minor"
+        ]
+      },
+      "ExchangeQuote": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "type": "string",
+            "enum": [
+              "USD",
+              "EUR",
+              "GBP",
+              "CNY",
+              "CAD",
+              "AUD",
+              "CHF",
+              "HKD",
+              "SGD",
+              "JPY",
+              "KRW",
+              "KWD",
+              "BHD"
+            ]
+          },
+          "to": {
+            "type": "string",
+            "enum": [
+              "USD",
+              "EUR",
+              "GBP",
+              "CNY",
+              "CAD",
+              "AUD",
+              "CHF",
+              "HKD",
+              "SGD",
+              "JPY",
+              "KRW",
+              "KWD",
+              "BHD"
+            ]
+          },
+          "rate": {
+            "type": "string",
+            "pattern": "^[0-9]+(\\.[0-9]+)?$",
+            "maxLength": 64,
+            "description": "Positive decimal quotation string; never applied to original-currency ledger balances."
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "stale": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "rate",
+          "source",
+          "as_of",
+          "stale"
+        ]
+      },
+      "ModelConfigInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "openai-text",
+              "openai-images",
+              "openai-speech",
+              "openai-asr",
+              "gemini-text",
+              "gemini-images",
+              "gemini-interactions-images",
+              "gemini-video",
+              "gemini-speech",
+              "ark-text",
+              "ark-images",
+              "ark-video",
+              "minimax-text",
+              "minimax-images",
+              "minimax-video",
+              "minimax-speech",
+              "minimax-music",
+              "anthropic-text",
+              "jimeng-images",
+              "bytedance-speech"
+            ]
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$"
+          },
+          "capability": {
+            "type": "string",
+            "enum": [
+              "text",
+              "vision",
+              "image",
+              "video",
+              "speech",
+              "music",
+              "asr"
+            ]
+          },
+          "region": {
+            "type": "string",
+            "enum": [
+              "global",
+              "cn-beijing",
+              "cn-north-1",
+              "cn"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "lifecycle": {
+            "type": "string",
+            "enum": [
+              "active",
+              "deprecated",
+              "disabled"
+            ]
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "capability",
+          "region",
+          "lifecycle"
+        ]
+      },
+      "ModelConfigEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "openai-text",
+              "openai-images",
+              "openai-speech",
+              "openai-asr",
+              "gemini-text",
+              "gemini-images",
+              "gemini-interactions-images",
+              "gemini-video",
+              "gemini-speech",
+              "ark-text",
+              "ark-images",
+              "ark-video",
+              "minimax-text",
+              "minimax-images",
+              "minimax-video",
+              "minimax-speech",
+              "minimax-music",
+              "anthropic-text",
+              "jimeng-images",
+              "bytedance-speech"
+            ]
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$"
+          },
+          "capability": {
+            "type": "string",
+            "enum": [
+              "text",
+              "vision",
+              "image",
+              "video",
+              "speech",
+              "music",
+              "asr"
+            ]
+          },
+          "region": {
+            "type": "string",
+            "enum": [
+              "global",
+              "cn-beijing",
+              "cn-north-1",
+              "cn"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "lifecycle": {
+            "type": "string",
+            "enum": [
+              "active",
+              "deprecated",
+              "disabled"
+            ]
+          },
+          "endpoint": {
+            "type": "string",
+            "format": "uri"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "secret_status": {
+            "type": "string",
+            "enum": [
+              "not_configured",
+              "encrypted",
+              "reference_unverified",
+              "revoked"
+            ]
+          },
+          "secret_mask": {
+            "type": "string",
+            "enum": [
+              "",
+              "••••••••"
+            ]
+          },
+          "secret_reference": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "model",
+          "capability",
+          "region",
+          "enabled",
+          "is_default",
+          "lifecycle",
+          "endpoint",
+          "protocol",
+          "secret_status",
+          "secret_mask",
+          "secret_reference",
+          "updated_at"
+        ]
+      },
+      "ModelAdapter": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "openai-text",
+              "openai-images",
+              "openai-speech",
+              "openai-asr",
+              "gemini-text",
+              "gemini-images",
+              "gemini-interactions-images",
+              "gemini-video",
+              "gemini-speech",
+              "ark-text",
+              "ark-images",
+              "ark-video",
+              "minimax-text",
+              "minimax-images",
+              "minimax-video",
+              "minimax-speech",
+              "minimax-music",
+              "anthropic-text",
+              "jimeng-images",
+              "bytedance-speech"
+            ]
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "text",
+                "vision",
+                "image",
+                "video",
+                "speech",
+                "music",
+                "asr"
+              ]
+            }
+          },
+          "regions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "global",
+                "cn-beijing",
+                "cn-north-1",
+                "cn"
+              ]
+            }
+          },
+          "endpoint": {
+            "type": "string",
+            "format": "uri"
+          },
+          "credential_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "provider",
+          "protocol",
+          "capabilities",
+          "regions",
+          "endpoint",
+          "credential_refs"
+        ]
+      },
+      "ModelConfigReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "entries": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/ModelConfigEntry"
+            }
+          },
+          "adapters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelAdapter"
+            }
+          },
+          "secret_storage_available": {
+            "type": "boolean"
+          },
+          "live_enabled": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "runtime_applied": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "tenant"
+            ]
+          }
+        },
+        "required": [
+          "version",
+          "entries",
+          "adapters",
+          "secret_storage_available",
+          "live_enabled",
+          "runtime_applied",
+          "scope"
+        ]
+      },
+      "ModelCredentialInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "keep",
+              "set",
+              "reference",
+              "revoke"
+            ]
+          },
+          "secret": {
+            "type": "string",
+            "maxLength": 4096,
+            "writeOnly": true,
+            "description": "Optional replacement secret. Never returned. Requires server encryption key; do not include real credentials in examples."
+          },
+          "reference": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "UpdateModelConfig": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "entry": {
+            "$ref": "#/components/schemas/ModelConfigInput"
+          },
+          "credential": {
+            "$ref": "#/components/schemas/ModelCredentialInput"
+          }
+        },
+        "required": [
+          "entry",
+          "credential"
+        ]
+      },
+      "ModelConfigValidation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "configuration_valid": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "credential_status": {
+            "type": "string",
+            "enum": [
+              "not_configured",
+              "encrypted",
+              "reference_unverified",
+              "revoked",
+              "encryption_key_unavailable",
+              "credential_unreadable"
+            ]
+          },
+          "remote_verified": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "live_enabled": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "runtime_applied": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "model_verified": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          }
+        },
+        "required": [
+          "configuration_valid",
+          "credential_status",
+          "remote_verified",
+          "live_enabled",
+          "runtime_applied",
+          "model_verified"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "SessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "studio_session",
+        "description": "HttpOnly session cookie. Secure by default. Mutations additionally require trusted Origin and session X-CSRF-Token."
       }
     }
   },
-  "security": []
+  "security": [
+    {
+      "SessionCookie": []
+    }
+  ]
 }

@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -334,6 +335,8 @@ type ExchangeProvider interface {
 	Quote(context.Context, string, string) (ExchangeQuote, error)
 }
 
+var exchangeRatePattern = regexp.MustCompile(`^[0-9]+(\.[0-9]+)?$`)
+
 func GetExchangeQuote(ctx context.Context, provider ExchangeProvider, from, to string, now time.Time, maxAge time.Duration) (ExchangeQuote, error) {
 	from, err := normalizeCurrency(from)
 	if err != nil {
@@ -349,6 +352,9 @@ func GetExchangeQuote(ctx context.Context, provider ExchangeProvider, from, to s
 	quote, err := provider.Quote(ctx, from, to)
 	if err != nil {
 		return ExchangeQuote{}, errors.New("exchange quote unavailable; amounts are not converted")
+	}
+	if len(quote.Rate) > 64 || !exchangeRatePattern.MatchString(quote.Rate) || len(quote.Source) > 120 || strings.ContainsAny(quote.Source, "\x00\r\n") {
+		return ExchangeQuote{}, errors.New("invalid exchange quote")
 	}
 	rate, ok := new(big.Rat).SetString(quote.Rate)
 	if !ok || rate.Sign() <= 0 || quote.From != from || quote.To != to || quote.Source == "" || quote.AsOf.IsZero() || quote.AsOf.After(now) || maxAge <= 0 {
