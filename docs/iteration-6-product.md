@@ -29,3 +29,11 @@
 本轮不是专业非线性剪辑软件或企业账户计费系统。演示空间没有身份认证，不是租户权限边界；本地服务不能直接公开部署。必要的上传校验、媒体资源限额、外部URL防护、幂等、版本冲突与避免自动重复收费属于本轮范围。账户、预算和真实供应商测试是独立授权事项。
 
 最终实现范围、已执行检查与未完成项以 [第六轮验证](iteration-6-verification.md) 为准；接口以 [OpenAPI](../api/openapi.json) 和 [第六轮架构](iteration-6-architecture.md) 为准。本文定义验收目标，不把尚未通过的项目写为已完成。
+
+## 原生文本协议依据
+
+Anthropic 采用明确锁定的 `2023-06-01` Messages 协议；Google 采用 `generateContent`。模型 ID 由配置提供，不能把厂商生态名称或消费产品名称直接当作可调用模型。仅实现结构化需求分析、剧本与分镜文本；这两个文本适配器不会把语音/视频请求路由到文本 API，而是明确返回能力不支持。没有默认模型、真实密钥或真实模型效果验证。
+
+官方依据（2026-10-23 查阅）：[Anthropic Messages](https://platform.claude.com/docs/en/api/messages)、[API 版本](https://platform.claude.com/docs/en/api/versioning)、[认证](https://platform.claude.com/docs/en/manage-claude/authentication)、[Gemini generateContent](https://ai.google.dev/api/generate-content)、[Gemini 结构化输出](https://ai.google.dev/gemini-api/docs/generate-content/structured-output)。本地协议验证不证明任意未来模型与所选 API 版本兼容；模型权限和能力仍需操作者核对。
+
+MiniMax 文本采用其[官方 OpenAI 兼容接口](https://platform.minimax.io/docs/api-reference/text-openai-api)，单独处理推理内容分离和输出长度参数，不把兼容接口当作所有 OpenAI 参数均受支持。文本适配器仍不提供 MiniMax 语音、图像或视频生成；这些能力必须由各自官方协议独立实现和验证。
