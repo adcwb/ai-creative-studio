@@ -36,11 +36,11 @@ Anthropic 采用明确锁定的 `2023-06-01` Messages 协议；Google 采用 `ge
 
 官方依据（2026-10-23 查阅）：[Anthropic Messages](https://platform.claude.com/docs/en/api/messages)、[API 版本](https://platform.claude.com/docs/en/api/versioning)、[认证](https://platform.claude.com/docs/en/manage-claude/authentication)、[Gemini generateContent](https://ai.google.dev/api/generate-content)、[Gemini 结构化输出](https://ai.google.dev/gemini-api/docs/generate-content/structured-output)。本地协议验证不证明任意未来模型与所选 API 版本兼容；模型权限和能力仍需操作者核对。
 
-MiniMax 文本采用其[官方 OpenAI 兼容接口](https://platform.minimax.io/docs/api-reference/text-openai-api)，单独处理推理内容分离和输出长度参数，不把兼容接口当作所有 OpenAI 参数均受支持。该文本适配器不复用文本接口生成媒体；MiniMax 语音已通过独立原生 T2A 协议实现，MiniMax 图像与视频尚未实现。
+MiniMax 文本采用其[官方 OpenAI 兼容接口](https://platform.minimax.io/docs/api-reference/text-openai-api)，单独处理推理内容分离和输出长度参数，不把兼容接口当作所有 OpenAI 参数均受支持。该文本适配器不复用文本接口生成媒体；MiniMax 语音已通过独立原生 T2A 协议实现，MiniMax 图像与视频通过独立官方媒体协议实现。
 
 ## 角色参考与图像模型边界
 
-OpenAI、Gemini 与方舟图像适配提供可选 `reference_asset_id`，将已有参考图片作为图像输入。角色选择用于资产关联；需要的角色描述由用户写入创作提示。它能传递外观约束，不能保证跨镜头身份或细节一致；没有锁脸、角色微调或一致性质量评测承诺。Google/Nano Banana 图像接入仅覆盖 `generateContent` 兼容模型，不将需要 Interactions API 的其他新模型宣称为已支持。方舟视频适配与 OpenAI 视频为不同协议，各自的模型权限和真实效果仍未验证。
+OpenAI、Gemini、方舟与 MiniMax 图像适配提供可选 `reference_asset_id`，将已有参考图片作为图像输入。角色选择用于资产关联；需要的角色描述由用户写入创作提示。它能传递外观约束，不能保证跨镜头身份或细节一致；没有锁脸、角色微调或一致性质量评测承诺。Google/Nano Banana 图像接入仅覆盖 `generateContent` 兼容模型，不将需要 Interactions API 的其他新模型宣称为已支持。方舟视频适配与 OpenAI 视频为不同协议，各自的模型权限和真实效果仍未验证。
 
 ## 即梦公开图像协议
 
@@ -50,8 +50,16 @@ OpenAI、Gemini 与方舟图像适配提供可选 `reference_asset_id`，将已�
 
 ## 最终实现边界与后续工作
 
-当前可替换协议矩阵与配置项集中在 [README](../README.md#已实现的供应商能力)；它与 `provider_registry.go`、`.env.example` 对齐。已实现文本覆盖 OpenAI/Anthropic/Gemini/方舟/MiniMax，图像覆盖 OpenAI/Gemini/方舟/即梦，参考图覆盖 OpenAI/Gemini/方舟，视频覆盖 OpenAI/方舟（方舟支持首帧），语音覆盖 OpenAI/MiniMax。提交绑定 provider/model，媒体回执精确关联生成资产；可恢复视频仅查询已有上游任务，取消不保证供应商停费。
+当前可替换协议矩阵与配置项集中在 [README](../README.md#已实现的供应商能力)；它与 `provider_registry.go`、`.env.example` 对齐。已实现文本覆盖 OpenAI/Anthropic/Gemini/方舟/MiniMax，图像覆盖 OpenAI/Gemini/方舟/即梦/MiniMax，参考图覆盖 OpenAI/Gemini/方舟/MiniMax，视频覆盖 OpenAI/方舟/MiniMax（方舟和MiniMax支持首帧），语音覆盖 OpenAI/MiniMax。提交绑定 provider/model，媒体回执精确关联生成资产；可恢复视频仅查询已有上游任务，取消不保证供应商停费。
 
-尚未实现：Google 视频和语音、MiniMax 图像和视频、即梦参考图编辑和视频、所有供应商的视觉理解，以及专业多轨剪辑/自动对白对齐/自动身份一致性评测。即梦图像的上游ID不跨重启恢复查询。音乐/音效支持上传、选用和合成，不包含真实生成式音乐模型。上述是已知实现范围，不是权限阻塞，也不代表这些供应商本身没有相应产品。
+尚未实现：Google 视频和语音、即梦参考图编辑和视频、所有供应商的视觉理解，以及专业多轨剪辑/自动对白对齐/自动身份一致性评测。即梦图像的上游ID不跨重启恢复查询。音乐/音效支持上传、选用和合成，不包含真实生成式音乐模型。上述是已知实现范围，不是权限阻塞，也不代表这些供应商本身没有相应产品。
 
 待验证而非未写代码：真实供应商认证、用户选定模型可用性、质量、一致性和实际费用；本轮未配置或调用。最终完整QA仍须以实际验证报告为准，不将局部协议测试结果拼成整体验收通过。
+
+## MiniMax 媒体协议补齐
+
+图像使用[官方原生图像API](https://platform.minimax.io/docs/api-reference/image-generation-i2i)，强制单张、内联base64和业务成功码校验；参考输入为单个 `subject_reference` 人物图，不是mask/inpainting工具。图像的4:5比例只在支持显式宽高的 `image-01` 模型使用1024×1280；其他模型拒绝该比例，不静默替换。
+
+视频使用官方[创建](https://platform.minimax.io/docs/api-reference/video-generation-v2-create)、[查询](https://platform.minimax.io/docs/api-reference/video-generation-v2-query)和[取消](https://platform.minimax.io/docs/api-reference/video-generation-v2-delete)协议，固定5秒/768P，可提交首帧；任务ID交由统一队列持久保存。结果下载复用HTTPS、公网IP检查、DNS固定连接、无凭据/代理/重定向的受限下载器，并校验MP4格式。适配器的远端取消只在查询显示queued时尝试，running不允许取消；终态DELETE是删除记录，不能当作成功取消。查询与DELETE间仍有上游状态变化窗口，故默认本地停止语义与远端取消必须明确区分，不能保证免费或停止计费。
+
+本地假上游仅验证请求结构、状态与安全错误处理；实际模型、账号权限、输出质量和费用仍未验证。
