@@ -1,0 +1,11 @@
+# TEMPLATE ONLY: install after configuring and testing explicit operator hooks.
+[Unit]
+Description=Creative Studio offline backup with operator maintenance hooks
+[Service]
+Type=oneshot
+User=studio-backup
+UMask=0077
+EnvironmentFile=/etc/studio/backup.env
+ExecStart=/usr/bin/python3 /opt/studio/scripts/scheduled_backup.py --pre-hook=/etc/studio/backup-stop-all --post-hook=/etc/studio/backup-resume --binary=/opt/studio/backup --destination-root=/var/backups/studio --pg-dump=/usr/bin/pg_dump
+NoNewPrivileges=true
+PrivateTmp=true

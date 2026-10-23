@@ -1,0 +1,122 @@
+// backup never loads .env or shared credential profiles and never stops services.
+package main
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"github.com/adcwb/ai-creative-studio/backend/internal/studio"
+	"net/url"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"strings"
+	"syscall"
+)
+
+func main() {
+	if run() != nil {
+		fmt.Fprintln(os.Stderr, "backup operation failed; inspect maintenance state and retained staging before retry; no automatic rollback or retry performed")
+		os.Exit(1)
+	}
+}
+func run() error {
+	mode := flag.String("mode", "verify", "backup, verify or restore")
+	source := flag.String("source", "", "backup bundle for verify/restore")
+	dest := flag.String("destination", "", "new bundle or restore directory")
+	stopped := flag.Bool("confirm-stopped", false, "operator confirms ALL API/worker instances stopped")
+	dump := flag.String("pg-dump", "pg_dump", "matching PostgreSQL pg_dump executable")
+	restore := flag.String("pg-restore", "pg_restore", "matching PostgreSQL pg_restore executable")
+	flag.Parse()
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	var report studio.PostgresBackupReport
+	var err error
+	if *mode == "verify" {
+		_, report, err = studio.VerifyPostgresBackup(ctx, *source)
+	} else {
+		if !*stopped || *dest == "" {
+			return fmt.Errorf("maintenance confirmation and new destination required")
+		}
+		dsn := os.Getenv("DATABASE_URL")
+		if dsn == "" {
+			return fmt.Errorf("explicit DATABASE_URL required")
+		}
+		// Isolate pgx from inherited libpq profiles as well as the child tools.
+		for _, pair := range os.Environ() {
+			name, _, _ := strings.Cut(pair, "=")
+			if strings.HasPrefix(name, "PG") {
+				os.Unsetenv(name)
+			}
+		}
+		private, e := os.MkdirTemp("", "studio-backup-connect-")
+		if e != nil {
+			return e
+		}
+		defer os.RemoveAll(private)
+		passfile := filepath.Join(private, "empty.pgpass")
+		if e = os.WriteFile(passfile, nil, 0600); e != nil {
+			return e
+		}
+		u, e := url.Parse(dsn)
+		if e != nil || (u.Scheme != "postgres" && u.Scheme != "postgresql") {
+			return fmt.Errorf("explicit PostgreSQL URI required")
+		}
+		query := u.Query()
+		allowed := map[string]bool{"host": true, "port": true, "user": true, "password": true, "dbname": true, "sslmode": true, "sslrootcert": true, "sslcert": true, "sslkey": true, "sslpassword": true, "connect_timeout": true, "application_name": true, "target_session_attrs": true}
+		for key, v := range query {
+			if !allowed[key] || len(v) != 1 {
+				return fmt.Errorf("unsupported PostgreSQL URI option")
+			}
+		}
+		if query.Get("sslmode") == "" {
+			return fmt.Errorf("explicit sslmode required")
+		}
+
+		query.Set("passfile", passfile)
+		u.RawQuery = query.Encode()
+		db, e := sql.Open("pgx", u.String())
+		if e != nil {
+			return e
+		}
+		defer db.Close()
+		db.SetMaxOpenConns(1)
+		tools := studio.PostgresBackupTools{Dump: *dump, Restore: *restore, LibraryPath: os.Getenv("BACKUP_PG_LIBRARY_PATH")}
+		switch *mode {
+		case "backup":
+			var store studio.BlobStore
+			switch os.Getenv("BLOB_STORE") {
+			case "shared-file":
+				root := os.Getenv("BLOB_FILE_ROOT")
+				st, e := os.Lstat(root)
+				if e != nil || !st.IsDir() || st.Mode()&os.ModeSymlink != 0 {
+					return fmt.Errorf("existing shared object directory required")
+				}
+				fs, e := studio.NewFileBlobStore(root)
+				if e != nil {
+					return e
+				}
+				defer fs.Close()
+				store = fs
+			case "s3":
+				store, err = studio.S3BlobStoreFromEnv()
+			default:
+				return fmt.Errorf("shared-file or s3 required")
+			}
+			if err != nil {
+				return err
+			}
+			report, err = studio.BackupPostgresObjects(ctx, db, dsn, store, *dest, tools, true)
+		case "restore":
+			report, err = studio.RestorePostgresBackup(ctx, db, dsn, *source, *dest, tools, true)
+		default:
+			return fmt.Errorf("invalid mode")
+		}
+	}
+	if err != nil {
+		return err
+	}
+	return json.NewEncoder(os.Stdout).Encode(report)
+}
