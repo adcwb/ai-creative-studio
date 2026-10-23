@@ -12,12 +12,15 @@ import (
 	"unicode/utf8"
 )
 
+var errAuthAudit = errors.New("authentication audit unavailable")
+
 type authScopeKey struct{}
 type authScope struct{ UserID, SpaceID, Role string }
 type AuthOptions struct {
 	AllowRegistration bool
 	SecureCookie      bool
 	OIDC              *OIDCLogin
+	TrustedProxies    []*net.IPNet
 }
 
 // SSOAuthenticator is a trusted server-side adapter boundary, never a client identity header.
@@ -44,12 +47,27 @@ func HandlerFromEnv(repo Repository, origin, dir string) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	modelKey, err := modelKeyFromEnv()
+	if err != nil {
+		return nil, err
+	}
+	s.models, err = OpenModelConfigStore(dir, modelKey)
+	for i := range modelKey {
+		modelKey[i] = 0
+	}
+	if err != nil {
+		return nil, err
+	}
 	oidcLogin, err := oidcFromEnv()
 	if err != nil {
 		return nil, err
 	}
+	trustedProxies, err := parseTrustedAuthProxies(os.Getenv("AUTH_TRUSTED_PROXY_CIDRS"))
+	if err != nil {
+		return nil, err
+	}
 	secure := os.Getenv("AUTH_COOKIE_SECURE") != "false"
-	return SecureHandler(repo, origin, s, AuthOptions{AllowRegistration: os.Getenv("AUTH_ALLOW_REGISTRATION") == "true", SecureCookie: secure, OIDC: oidcLogin}), nil
+	return SecureHandler(repo, origin, s, AuthOptions{AllowRegistration: os.Getenv("AUTH_ALLOW_REGISTRATION") == "true", SecureCookie: secure, OIDC: oidcLogin, TrustedProxies: trustedProxies}), nil
 }
 func authWrite(r *http.Request) bool {
 	return r.Method != "GET" && r.Method != "HEAD" && r.Method != "OPTIONS"
@@ -115,10 +133,12 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 				problem(w, 403, "registration_disabled", "注册未开放")
 				return
 			}
-			ip, _, err := net.SplitHostPort(r.RemoteAddr)
-			if err != nil {
-				ip = r.RemoteAddr
+			ip := authClientIP(r, options.TrustedProxies)
+			if ip == "" {
+				problem(w, 400, "client_address_invalid", "客户端地址无效")
+				return
 			}
+			var err error
 			if !auth.allowAttempt(ip) {
 				problem(w, 429, "auth_rate_limit", "尝试过于频繁，请稍后再试")
 				return
@@ -131,12 +151,23 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 				return
 			}
 			var newToken string
-			user, newToken, session, err = auth.login(in.Email, in.Password, register)
+			user, newToken, session, err = auth.login(in.Email, in.Password, register, func(candidate AuthUser) error {
+				SetAuditIdentity(r.Context(), candidate.ID, "", "")
+				if err := BeginAuditMutation(r.Context()); err != nil {
+					return errAuthAudit
+				}
+				return nil
+			})
 			if err != nil {
+				if errors.Is(err, errAuthAudit) {
+					problem(w, 503, "audit_unavailable", "审计不可用，已拒绝登录变更")
+					return
+				}
 				problem(w, 401, "authentication_failed", "登录或注册失败，请检查输入（密码需12–128字节）")
 				return
 			}
 			logged = true
+			SetAuditIdentity(r.Context(), user.ID, "", "")
 			// Rotate the authenticated browser session; old sessions on other devices remain bounded.
 			if token != "" {
 				auth.mu.Lock()
@@ -153,6 +184,9 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 			respond(w, 200, sessionResponse())
 			return
 		}
+		if logged {
+			SetAuditIdentity(r.Context(), user.ID, "", "")
+		}
 		if !logged {
 			problem(w, 401, "authentication_required", "请先登录")
 			return
@@ -162,6 +196,9 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 			return
 		}
 		if r.URL.Path == "/api/v1/auth/logout" && r.Method == "POST" {
+			if !beginAuthAudit(w, r) {
+				return
+			}
 			auth.mu.Lock()
 			d := auth.clone()
 			delete(d.Sessions, authDigest(token))
@@ -180,6 +217,9 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 			return
 		}
 		if r.URL.Path == "/api/v1/organizations" && r.Method == "POST" {
+			if !beginAuthAudit(w, r) {
+				return
+			}
 			auth.createOrganization(w, r, user)
 			return
 		}
@@ -198,6 +238,15 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 		}
 		if authWrite(r) && role == "viewer" {
 			problem(w, 403, "role_denied", "只读成员不能修改内容")
+			return
+		}
+		SetAuditIdentity(r.Context(), user.ID, space, role)
+		if authWrite(r) && !beginAuthAudit(w, r) {
+			return
+		}
+		if r.URL.Path == "/api/v1/model-config" || strings.HasPrefix(r.URL.Path, "/api/v1/model-config/") {
+			s := authScope{UserID: user.ID, SpaceID: space, Role: role}
+			auth.models.serve(w, r, s)
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), authScopeKey{}, authScope{UserID: user.ID, SpaceID: space, Role: role})))
@@ -254,6 +303,7 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 		problem(w, 403, "role_denied", "仅管理员可管理成员")
 		return
 	}
+	SetAuditIdentity(r.Context(), user.ID, org.ID, role)
 	if r.Method == "GET" {
 		members := []map[string]string{}
 		for uid, role := range org.Members {
@@ -268,8 +318,9 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 		return
 	}
 	var in struct {
-		Email string `json:"email"`
-		Role  string `json:"role"`
+		Email  string `json:"email"`
+		Role   string `json:"role"`
+		UserID string `json:"user_id,omitempty"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -289,6 +340,14 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 		problem(w, 404, "not_found", "该账号不存在，请先注册")
 		return
 	}
+	if in.UserID != "" && in.UserID != uid {
+		problem(w, 403, "member_identity_mismatch", "账号ID与当前邮箱不匹配")
+		return
+	}
+	if s.data.Users[uid].Issuer != "" && in.UserID != uid {
+		problem(w, 403, "sso_identity_confirmation_required", "SSO成员变更需要提供对方分享的稳定账号ID，不能仅凭邮箱授权")
+		return
+	}
 	current := org.Members[uid]
 	if current == "owner" || (role == "admin" && (current == "admin" || in.Role == "admin")) {
 		problem(w, 403, "role_denied", "不能修改此角色")
@@ -296,6 +355,9 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 	}
 	if len(org.Members) >= 200 && current == "" && in.Role != "remove" {
 		problem(w, 429, "member_limit", "成员数量达到上限")
+		return
+	}
+	if !beginAuthAudit(w, r) {
 		return
 	}
 	d := s.clone()
@@ -311,4 +373,46 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 		return
 	}
 	respond(w, 200, map[string]bool{"updated": true})
+}
+
+func beginAuthAudit(w http.ResponseWriter, r *http.Request) bool {
+	if err := BeginAuditMutation(r.Context()); err != nil {
+		problem(w, 503, "audit_unavailable", "审计不可用，已拒绝写入")
+		return false
+	}
+	return true
+}
+func parseTrustedAuthProxies(raw string) ([]*net.IPNet, error) {
+	out := []*net.IPNet{}
+	if strings.TrimSpace(raw) == "" {
+		return out, nil
+	}
+	for _, value := range strings.Split(raw, ",") {
+		_, network, err := net.ParseCIDR(strings.TrimSpace(value))
+		if err != nil || len(out) >= 32 {
+			return nil, errors.New("invalid AUTH_TRUSTED_PROXY_CIDRS")
+		}
+		out = append(out, network)
+	}
+	return out, nil
+}
+func authClientIP(r *http.Request, trusted []*net.IPNet) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return ""
+	}
+	remote := net.ParseIP(host)
+	if remote == nil {
+		return ""
+	}
+	for _, network := range trusted {
+		if network.Contains(remote) {
+			forwarded := net.ParseIP(r.Header.Get("X-Real-IP"))
+			if forwarded == nil {
+				return ""
+			}
+			return forwarded.String()
+		}
+	}
+	return remote.String()
 }

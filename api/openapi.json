@@ -7755,6 +7755,10 @@
                       "viewer",
                       "remove"
                     ]
+                  },
+                  "user_id": {
+                    "type": "string",
+                    "description": "Stable user ID; required when target account is SSO. Must match the email account; prevents directory-email reuse from granting access to the wrong identity."
                   }
                 },
                 "required": [

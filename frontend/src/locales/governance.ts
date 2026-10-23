@@ -1,4 +1,7 @@
 const messages: Record<string, string> = {
+  "我的账号 ID：": "My account ID: ",
+  "成员账号 ID（SSO必填）": "Member account ID (required for SSO)",
+  "添加SSO成员时请让对方分享账号ID；不凭可能被复用的邮箱自动授权。": "Ask SSO members to share their account ID. Reusable email addresses alone do not grant access.",
   "本地结构：{result}；凭据状态：{status}。未联网，不证明权限或模型质量。": "Local structure: {result}; credential status: {status}. No network access; permissions and model quality are unverified.",
   "通过": "Valid",
   "未通过": "Invalid",

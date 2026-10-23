@@ -20,6 +20,7 @@ import (
 // AuthStore is intentionally local and protected by the enclosing FileStore lock.
 // Its file must be backed up with the entire DATA_DIR. It is not a multi-instance store.
 type AuthStore struct {
+	models   *ModelConfigStore
 	mu       sync.Mutex
 	path     string
 	data     authSnapshot
@@ -98,6 +99,10 @@ func OpenAuthStore(dir string) (*AuthStore, error) {
 		if _, ok := s.data.Users[ss.UserID]; !ok || len(ss.CSRF) != 64 || ss.Expires.IsZero() {
 			return nil, errors.New("invalid authentication session")
 		}
+	}
+	s.models, err = OpenModelConfigStore(dir, nil)
+	if err != nil {
+		return nil, err
 	}
 	return s, nil
 }
@@ -198,7 +203,7 @@ func (s *AuthStore) allowAttempt(ip string) bool {
 	s.attempts[ip] = a
 	return a.Count <= 20
 }
-func (s *AuthStore) login(email, password string, register bool) (AuthUser, string, authSession, error) {
+func (s *AuthStore) login(email, password string, register bool, beforeCommit ...func(AuthUser) error) (AuthUser, string, authSession, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	email = strings.ToLower(strings.TrimSpace(email))
@@ -250,6 +255,11 @@ func (s *AuthStore) login(email, password string, register bool) (AuthUser, stri
 	token := authRandom(32)
 	ss := authSession{UserID: account.ID, CSRF: authRandom(32), Expires: now.Add(12 * time.Hour)}
 	d.Sessions[authDigest(token)] = ss
+	for _, check := range beforeCommit {
+		if err := check(account.AuthUser); err != nil {
+			return AuthUser{}, "", authSession{}, err
+		}
+	}
 	if err := s.commit(d); err != nil {
 		return AuthUser{}, "", authSession{}, err
 	}

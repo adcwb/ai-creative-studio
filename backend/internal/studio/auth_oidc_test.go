@@ -170,6 +170,10 @@ func TestOIDCDoesNotLinkEmailAndDisallowsPasswordLogin(t *testing.T) {
 	if _, _, _, err = auth.loginSSO(identity, true); err == nil {
 		t.Fatal("SSO silently claimed local email")
 	}
+	identity.Email = "invalid email"
+	if _, _, _, err = auth.loginSSO(identity, true); err == nil {
+		t.Fatal("invalid SSO email accepted")
+	}
 	identity.Email = "sso@example.test"
 	if _, _, _, err = auth.loginSSO(identity, false); err == nil {
 		t.Fatal("SSO registration bypass")
@@ -181,7 +185,21 @@ func TestOIDCDoesNotLinkEmailAndDisallowsPasswordLogin(t *testing.T) {
 	if _, _, _, err = auth.login(user.Email, "synthetic-password", false); err == nil {
 		t.Fatal("SSO account accepted password")
 	}
-	if _, _, _, err = auth.loginSSO(identity, false); err != nil {
-		t.Fatal("existing SSO account denied", err)
+	_, oldToken, _, err := auth.loginSSO(identity, false)
+	if err != nil {
+		t.Fatal(err)
 	}
+	identity.Email = "changed@example.test"
+	updated, _, _, err := auth.loginSSO(identity, false)
+	if err != nil || updated.ID != user.ID || updated.Email != identity.Email {
+		t.Fatal("verified email change not applied", updated, err)
+	}
+	if _, _, ok := auth.authenticate(oldToken); ok {
+		t.Fatal("old SSO directory session survived email change")
+	}
+	identity.Email = "local@example.test"
+	if _, _, _, err = auth.loginSSO(identity, false); err == nil {
+		t.Fatal("SSO email change merged local account")
+	}
+
 }

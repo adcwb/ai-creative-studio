@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"os"
 	"strings"
@@ -134,18 +135,24 @@ func (o *OIDCLogin) callback(w http.ResponseWriter, r *http.Request, auth *AuthS
 		problem(w, 401, "sso_failed", "SSO验证失败")
 		return
 	}
-	_, sessionToken, session, err := auth.loginSSO(SSOIdentity{Issuer: o.issuer, Subject: verified.Subject, Email: claims.Email, EmailVerified: true}, options.AllowRegistration)
+	if !beginAuthAudit(w, r) {
+		return
+	}
+	user, sessionToken, session, err := auth.loginSSO(SSOIdentity{Issuer: o.issuer, Subject: verified.Subject, Email: claims.Email, EmailVerified: true}, options.AllowRegistration)
 	if err != nil {
 		problem(w, 403, "sso_account_denied", "SSO账号未开放注册或与现有本地账号冲突；不会自动关联邮箱")
 		return
 	}
+	SetAuditIdentity(r.Context(), user.ID, "", "")
 	http.SetCookie(w, &http.Cookie{Name: "studio_session", Value: sessionToken, Path: "/", Secure: options.SecureCookie, HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: 43200, Expires: session.Expires})
 	http.Redirect(w, r, strings.TrimSuffix(origin, "/")+"/", http.StatusSeeOther)
 }
 func (s *AuthStore) loginSSO(identity SSOIdentity, allowRegistration bool) (AuthUser, string, authSession, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !identity.EmailVerified || identity.Issuer == "" || identity.Subject == "" || len(identity.Email) > 254 {
+	email := strings.ToLower(strings.TrimSpace(identity.Email))
+	address, parseErr := mail.ParseAddress(email)
+	if !identity.EmailVerified || identity.Issuer == "" || identity.Subject == "" || len(identity.Subject) > 255 || len(email) > 254 || parseErr != nil || address.Address != email {
 		return AuthUser{}, "", authSession{}, errors.New("invalid SSO identity")
 	}
 	var account authAccount
@@ -158,11 +165,24 @@ func (s *AuthStore) loginSSO(identity SSOIdentity, allowRegistration bool) (Auth
 		}
 	}
 	d := s.clone()
+	if found && account.Email != email {
+		for _, existing := range d.Users {
+			if existing.ID != account.ID && existing.Email == email {
+				return AuthUser{}, "", authSession{}, errors.New("SSO directory email collision")
+			}
+		}
+		account.Email = email
+		d.Users[account.ID] = account
+		for token, session := range d.Sessions {
+			if session.UserID == account.ID {
+				delete(d.Sessions, token)
+			}
+		}
+	}
 	if !found {
 		if !allowRegistration || len(d.Users) >= 1000 {
 			return AuthUser{}, "", authSession{}, errors.New("SSO registration disabled")
 		}
-		email := strings.ToLower(strings.TrimSpace(identity.Email))
 		for _, u := range d.Users {
 			if u.Email == email {
 				return AuthUser{}, "", authSession{}, errors.New("email collision requires explicit account linking")
