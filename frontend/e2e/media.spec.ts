@@ -109,9 +109,9 @@ test('HD portrait output, burn subtitles, fade and extra audio survive timeline 
   const seeded = await request.post(`${path}/demo${query}`, {headers: {'Idempotency-Key': randomUUID()}, data: {expected_version: 1}})
   expect(seeded.status()).toBe(200)
   await open(page, p.title)
-  await page.getByLabel('输出清晰度', {exact: true}).selectOption('720p')
-  await page.getByLabel('成片画幅', {exact: true}).selectOption('9:16')
-  await page.getByLabel('字幕输出', {exact: true}).selectOption('burn')
+  await page.getByRole('combobox', {name: '输出清晰度', exact: true}).selectOption('720p')
+  await page.getByRole('combobox', {name: '成片画幅', exact: true}).selectOption('9:16')
+  await page.getByRole('combobox', {name: '字幕输出', exact: true}).selectOption('burn')
   await page.getByLabel('片段 1 转场', {exact: true}).selectOption('fade')
   await page.getByRole('button', {name: '添加音轨', exact: true}).click()
   await page.getByLabel('音轨 1 volume', {exact: true}).fill('0.2')
@@ -125,7 +125,33 @@ test('HD portrait output, burn subtitles, fade and extra audio survive timeline 
   await page.reload()
   await page.getByRole('button', {name: '短剧工作台', exact: true}).click()
   await page.locator('.drama-project-list button').filter({hasText: p.title}).click()
-  await expect(page.getByLabel('输出清晰度', {exact: true})).toHaveValue('720p')
+  await expect(page.getByRole('combobox', {name: '输出清晰度', exact: true})).toHaveValue('720p')
   await expect(page.getByLabel('音轨 1 volume', {exact: true})).toHaveValue('0.2')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
+test('mask editor saves a transparent PNG as a new reference without model calls', async ({page, request}, info) => {
+  const p = await project(request, `局部遮罩-${info.project.name}-${randomUUID()}`)
+  const path = `${api}/projects/${p.id}/media`
+  const seeded = await request.post(`${path}/demo${query}`, {headers: {'Idempotency-Key': randomUUID()}, data: {expected_version: 1}})
+  expect(seeded.status()).toBe(200)
+  const before = await seeded.json()
+  let generations = 0
+  page.on('request', r => {if (r.method() === 'POST' && r.url().includes('/creative-jobs')) generations++})
+  await open(page, p.title)
+  await page.getByRole('button', {name: '绘制局部编辑遮罩', exact: true}).first().click()
+  await page.getByRole('button', {name: '标记矩形修改区域', exact: true}).click()
+  const canvas = page.getByLabel('局部编辑遮罩画布，可用下方矩形输入代替涂抹', {exact: true})
+  expect(await canvas.evaluate((node: HTMLCanvasElement) => {
+    const context = node.getContext('2d')!
+    return [context.getImageData(0, 0, 1, 1).data[3], context.getImageData(node.width / 2, node.height / 2, 1, 1).data[3]]
+  })).toEqual([255, 0])
+  await page.getByRole('button', {name: '保存遮罩为新素材', exact: true}).click()
+  await expect.poll(async () => (await (await request.get(path + query)).json()).assets.length).toBe(before.assets.length + 1)
+  const after = await (await request.get(path + query)).json()
+  const mask = after.assets.find((asset: {name: string}) => asset.name.startsWith('mask-'))
+  expect(mask).toMatchObject({mime_type: 'image/png', role: 'reference', source: 'uploaded'})
+  for (const asset of before.assets) expect(after.assets.some((item: {id: string}) => item.id === asset.id)).toBe(true)
+  expect(generations).toBe(0)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })

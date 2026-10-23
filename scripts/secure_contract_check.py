@@ -104,6 +104,17 @@ def main():
                 exchange = governance + '/exchange'
                 call(alice, 'GET', exchange + query + '&from=USD&to=CNY', exchange, status=503)
                 call(alice, 'GET', exchange + query + '&from=USD&to=USD', exchange)
+                model_route = '/api/v1/model-config'
+                model = call(alice, 'GET', model_route + query, model_route)
+                assert model['secret_storage_available'] is False and model['live_enabled'] is False and model['runtime_applied'] is False
+                call(bob, 'GET', model_route + query, model_route, status=403)
+                declaration = {'expected_version': model['version'], 'entry': {'provider': 'openai-text', 'model': 'synthetic-model-declaration', 'capability': 'text', 'region': 'global', 'enabled': False, 'is_default': False, 'lifecycle': 'active'}, 'credential': {'action': 'keep'}}
+                model = call(alice, 'PUT', model_route + query, model_route, declaration, aq)
+                assert model['entries'][0]['secret_status'] == 'not_configured'
+                call(alice, 'PUT', model_route + query, model_route, declaration, aq, status=409)
+                validate_route = model_route + '/validate'
+                call(alice, 'POST', validate_route + query, validate_route, {'id': model['entries'][0]['id']}, aq)
+                call(alice, 'POST', model_route + '/live' + query, model_route + '/live', {}, aq, status=403)
                 call(alice, 'POST', '/api/v1/auth/logout', '/api/v1/auth/logout', {}, aq)
                 assert call(alice, 'GET', session_route, session_route)['authenticated'] is False
                 print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed'], 'live_provider_calls': 0}))
