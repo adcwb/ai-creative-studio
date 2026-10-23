@@ -233,6 +233,7 @@ func NewS3BlobStore(c S3BlobConfig) (*S3BlobStore, error) {
 	u.Path = ""
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	tr.Proxy = nil
+	tr.DisableCompression = true
 	return &S3BlobStore{c, u, &http.Client{Transport: tr, Timeout: 60 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 func (s *S3BlobStore) request(ctx context.Context, method, key string, b []byte, headers map[string]string) (*http.Response, error) {

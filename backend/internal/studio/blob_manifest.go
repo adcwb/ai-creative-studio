@@ -27,7 +27,7 @@ type managedBlobs struct {
 
 func openManagedBlobs(dir string, store BlobStore) (*managedBlobs, error) {
 	m := &managedBlobs{store: store, dir: dir, entries: map[string]BlobInfo{}}
-	b, e := os.ReadFile(filepath.Join(dir, "blobs.json"))
+	b, e := safeReadLocal(filepath.Join(dir, "blobs.json"), 64<<20)
 	if e == nil {
 		if json.Unmarshal(b, &m.entries) != nil || m.entries == nil {
 			return nil, errors.New("invalid blob manifest")
@@ -178,15 +178,24 @@ func blobContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), 60*time.Second)
 }
 func (m *MediaStore) storeBlob(space, project, name string) error {
+	ctx, cancel := blobContext()
+	defer cancel()
+	return m.storeBlobContext(ctx, space, project, name)
+}
+func (m *MediaStore) storeBlobContext(ctx context.Context, space, project, name string) error {
 	if m.blobs == nil {
 		return nil
+	}
+	if e := ctx.Err(); e != nil {
+		return e
+	}
+	if !validMediaBlobName(name) {
+		return ErrBlobIntegrity
 	}
 	b, e := safeReadLocal(filepath.Join(m.dir, name), MaxBlobBytes)
 	if e != nil {
 		return e
 	}
-	ctx, cancel := blobContext()
-	defer cancel()
 	return m.blobs.put(ctx, blobKey(space, project, name), b)
 }
 func (m *MediaStore) localBlob(space, project, name string) (string, error) {
@@ -289,7 +298,11 @@ const BlobSchema = `CREATE TABLE IF NOT EXISTS studio_blobs (
  sha256 text NOT NULL CHECK(sha256 ~ '^[a-f0-9]{64}$')
 );`
 
-func insertBlobInfo(ctx context.Context, db *sql.DB, i BlobInfo) error {
+type blobSQLExecutor interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+func insertBlobInfo(ctx context.Context, db blobSQLExecutor, i BlobInfo) error {
 	if !validBlobInfo(i) {
 		return ErrBlobIntegrity
 	}
@@ -309,10 +322,18 @@ func ImportBlobManifest(ctx context.Context, dir string, db *sql.DB) error {
 	if e != nil {
 		return e
 	}
+	tx, e := db.BeginTx(ctx, nil)
+	if e != nil {
+		return errors.New("blob import transaction unavailable")
+	}
+	defer tx.Rollback()
 	for _, i := range m.entries {
-		if e = insertBlobInfo(ctx, db, i); e != nil {
+		if e = insertBlobInfo(ctx, tx, i); e != nil {
 			return e
 		}
+	}
+	if e = tx.Commit(); e != nil {
+		return errors.New("blob manifest import commit failed")
 	}
 	return nil
 }

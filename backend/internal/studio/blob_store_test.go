@@ -316,3 +316,55 @@ func TestBlobPNGResultRoundtrip(t *testing.T) {
 		t.Fatalf("remote PNG %v", e)
 	}
 }
+
+func TestBlobHTTPRangeOwnershipAndCorruption(t *testing.T) {
+	s, e := OpenStore(t.TempDir())
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer s.Close()
+	root := t.TempDir()
+	storage, e := NewFileBlobStore(root)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = configureBlobStorage(s, storage); e != nil {
+		storage.Close()
+		t.Fatal(e)
+	}
+	project, _, e := s.CreateProject("personal-demo", "blob-project", ProjectInput{Title: "Synthetic storage test", Brief: "Fixture"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	p, e := s.media.AddAsset(project.ID, "personal-demo", "blob-upload", "fixture", "", "", "", "synthetic", syntheticPNG(0), "image/png")
+	if e != nil {
+		t.Fatal(e)
+	}
+	id := p.Assets[0].ID
+	url := "/api/v1/projects/" + project.ID + "/media/assets/" + id + "/file?space_id="
+	handler := Handler(s, "")
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", url+"personal-demo", nil)
+	req.Header.Set("Range", "bytes=0-7")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != 206 || !bytes.Equal(rec.Body.Bytes(), syntheticPNG(0)[:8]) {
+		t.Fatalf("range response %d", rec.Code)
+	}
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest("GET", url+"team-demo", nil))
+	if rec.Code != 404 {
+		t.Fatalf("cross tenant status %d", rec.Code)
+	}
+	key := blobKey("personal-demo", project.ID, id)
+	if e = os.WriteFile(filepath.Join(root, key), []byte("corrupt object must not be returned"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	if e = os.Remove(filepath.Join(s.media.dir, id)); e != nil {
+		t.Fatal(e)
+	}
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest("GET", url+"personal-demo", nil))
+	if rec.Code != 500 || bytes.Contains(rec.Body.Bytes(), []byte("corrupt object")) || bytes.Contains(rec.Body.Bytes(), []byte(key)) {
+		t.Fatalf("corruption response %d %s", rec.Code, rec.Body.String())
+	}
+}
