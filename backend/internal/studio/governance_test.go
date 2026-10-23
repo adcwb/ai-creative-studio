@@ -162,6 +162,9 @@ func TestRuntimeRefusesSilentFallbackAndLive(t *testing.T) {
 		}
 		t.Setenv(key, "")
 	}
+	if err := ValidateRuntimeFromEnv(Capabilities{Mode: "real", Ready: true, localExecution: true}); err != nil {
+		t.Fatal("local plugin blocked", err)
+	}
 	if err := ValidateRuntimeFromEnv(Capabilities{Mode: "real", Ready: true}); err == nil {
 		t.Fatal("ungoverned live accepted")
 	}
