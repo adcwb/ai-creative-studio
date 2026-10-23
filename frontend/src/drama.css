@@ -120,3 +120,27 @@
 @media (max-width: 700px) {
   .storyboard-fields { grid-template-columns: minmax(0, 1fr); gap: 14px; }
 }
+.media-studio h3 { margin: 24px 0 12px; font-size: 15px; }
+.media-studio h3 small { color: var(--ink-muted); font-weight: 400; }
+.media-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
+.media-actions button { font-size: 12px; }
+.media-upload { margin: 22px 0; border-block: 1px solid var(--border); padding: 18px 0; }
+.media-upload summary { cursor: pointer; font-weight: 600; margin-bottom: 18px; }
+.media-assets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 20px 0; }
+.media-assets article { background: var(--surface-soft); border-radius: var(--radius-sm); padding: 12px; min-width: 0; overflow-wrap: anywhere; }
+.media-assets img, .media-assets video { width: 100%; max-height: 200px; object-fit: contain; background: #101a15; border-radius: 5px; }
+.media-assets audio { width: 100%; }
+.media-assets strong { display: block; font-size: 12px; margin-top: 12px; }
+.media-assets p, .media-exports p { font-size: 11px; color: var(--ink-muted); }
+.media-timeline article { border: 1px solid var(--border); border-radius: var(--radius-sm); margin: 16px 0; padding: 16px; }
+.media-studio input, .media-studio select, .media-studio textarea { font-size: 12px; }
+.media-studio input[type=file] { max-width: 100%; padding: 10px; }
+.media-studio input[type=checkbox] { width: auto; }
+.media-exports video { width: 100%; max-height: 440px; border-radius: var(--radius-sm); background: #101a15; }
+.media-exports a { display: inline-block; margin-top: 14px; color: var(--primary); }
+@media (max-width: 700px) { .media-assets { grid-template-columns: minmax(0, 1fr); } .media-timeline article { padding: 12px; } }
+.creative-tools > button { margin-top: 16px; }
+.creative-tools pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; font-size: 11px; }
+.creative-analysis { margin-top: 20px; padding: 16px; background: var(--surface-soft); border-radius: var(--radius-sm); }
+.creative-analysis h3, .creative-analysis h4 { font-size: 13px; margin: 12px 0; }
+.creative-analysis li { font-size: 12px; line-height: 1.9; }

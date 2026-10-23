@@ -1,7 +1,7 @@
 import { type DramaScript, scriptDraftError } from '../drama'
 
-export function DramaScriptEditor({script, editing, disabled, dirty, onChange, onEdit, onCancel, onSave}: {
-  script: DramaScript; editing: boolean; disabled: boolean; dirty: boolean
+export function DramaScriptEditor({script, provider, editing, disabled, dirty, onChange, onEdit, onCancel, onSave}: {
+  script: DramaScript; provider?: string; editing: boolean; disabled: boolean; dirty: boolean
   onChange: (script: DramaScript) => void; onEdit: () => void; onCancel: () => void; onSave: () => void
 }) {
   const validation = editing ? scriptDraftError(script) : ''
@@ -13,7 +13,7 @@ export function DramaScriptEditor({script, editing, disabled, dirty, onChange, o
   }
   return <section className="panel drama-script" aria-labelledby="script-heading">
     <div className="section-heading"><div><span className="eyebrow">THE CURRENT DRAFT</span><h2 id="script-heading">当前剧本</h2></div><span>{editing ? '编辑中 · 尚未保存' : '已持久保存'}</span></div>
-    <p className="drama-source">mock-script · 程序生成的模拟剧本，非真实 AI 创作。</p>
+    <p className="drama-source">{!provider || provider.startsWith('mock') ? 'mock-script · 程序生成的模拟剧本，非真实 AI 创作。' : `${provider} · 模型生成来源，可能包含人工编辑；真实效果与费用未验证。`}</p>
     {!editing && <button type="button" className="drama-edit-button" disabled={disabled} onClick={onEdit}>编辑剧本</button>}
     <fieldset disabled={disabled}>
       {editing ? <div className="drama-script-intro"><label htmlFor="script-title">剧本标题</label><input id="script-title" value={script.title} onChange={event => onChange({...script, title: event.target.value})} /><label htmlFor="script-logline">故事梗概</label><textarea id="script-logline" value={script.logline} onChange={event => onChange({...script, logline: event.target.value})} /></div> : <div className="drama-script-intro"><h3>{script.title}</h3><p>{script.logline}</p></div>}

@@ -4,17 +4,17 @@ export interface ScriptScene { heading: string; action: string; dialogue: Script
 export interface DramaScript { title: string; logline: string; characters: ScriptCharacter[]; scenes: ScriptScene[] }
 export interface ScriptGeneration {
   id: string; space_id: string; project_id: string; source_title: string; source_brief: string; base_version: number
-  provider: 'mock-script'; status: 'queued' | 'running' | 'succeeded' | 'failed'; progress: number
+  provider: string; status: 'queued' | 'running' | 'succeeded' | 'failed'; progress: number
   created_at: string; updated_at: string; error?: string; error_code?: string
 }
 export interface DramaProject {
   id: string; space_id: string; title: string; brief: string; version: number; created_at: string; updated_at: string
-  script?: DramaScript; script_brief?: string; latest_generation?: ScriptGeneration
+  script_provider?: string; script?: DramaScript; script_brief?: string; latest_generation?: ScriptGeneration
   script_version: number; storyboard?: StoryboardPlan; storyboard_stale: boolean; latest_storyboard_generation?: StoryboardGeneration
 }
 export interface ProjectDraft { title: string; brief: string }
 export const generationLabels: Record<ScriptGeneration['status'], string> = {
-  queued: '等待生成', running: '正在生成模拟剧本', succeeded: '模拟剧本已生成', failed: '生成失败',
+  queued: '等待生成', running: '正在生成剧本', succeeded: '剧本已生成', failed: '生成失败',
 }
 export function generationActive(project: DramaProject | null) {
   return [project?.latest_generation?.status, project?.latest_storyboard_generation?.status].some(status => status === 'queued' || status === 'running')
@@ -41,14 +41,14 @@ export interface StoryboardShot {
   id: string; scene_index: number; description: string; shot_size: keyof typeof shotSizeLabels
   camera_movement: keyof typeof cameraMovementLabels; duration_seconds: number; dialogue: string
 }
-export interface StoryboardPlan { source_script_version: number; shots: StoryboardShot[] }
+export interface StoryboardPlan { provider?: string; source_script_version: number; shots: StoryboardShot[] }
 export interface StoryboardGeneration {
   id: string; space_id: string; project_id: string; base_version: number; source_script_version: number
-  provider: 'mock-storyboard'; status: ScriptGeneration['status']; progress: number
+  provider: string; status: ScriptGeneration['status']; progress: number
   created_at: string; updated_at: string; error?: string; error_code?: string
 }
 export const storyboardGenerationLabels: Record<StoryboardGeneration['status'], string> = {
-  queued: '等待生成分镜', running: '正在生成模拟分镜', succeeded: '模拟分镜已生成', failed: '分镜生成失败',
+  queued: '等待生成分镜', running: '正在生成分镜', succeeded: '分镜已生成', failed: '分镜生成失败',
 }
 export function storyboardDraftError(shots: StoryboardShot[]) {
   if (shots.length < 1 || shots.length > 30) return '分镜计划需包含 1–30 个镜头。'

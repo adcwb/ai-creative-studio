@@ -1,23 +1,26 @@
 import { cameraMovementLabels, shotSizeLabels, storyboardDraftError, type StoryboardShot } from '../drama'
 
-export function StoryboardEditor({shots, editing, disabled, dirty, sourceVersion, stale, onChange, onEdit, onCancel, onSave}: {
-  shots: StoryboardShot[]; editing: boolean; disabled: boolean; dirty: boolean; sourceVersion: number; stale: boolean
+export function StoryboardEditor({shots, provider, editing, disabled, dirty, sourceVersion, stale, onChange, onEdit, onCancel, onSave}: {
+  shots: StoryboardShot[]; provider?: string; editing: boolean; disabled: boolean; dirty: boolean; sourceVersion: number; stale: boolean
   onChange: (shots: StoryboardShot[]) => void; onEdit: () => void; onCancel: () => void; onSave: () => void
 }) {
   const validation = editing ? storyboardDraftError(shots) : ''
   function change(index: number, patch: Partial<StoryboardShot>) {
     onChange(shots.map((shot, item) => item === index ? {...shot, ...patch} : shot))
   }
+  function move(index: number, direction: number) {
+    const reordered = [...shots]; [reordered[index], reordered[index + direction]] = [reordered[index + direction], reordered[index]]; onChange(reordered)
+  }
   return <section className="panel drama-storyboard" aria-labelledby="storyboard-heading">
     <div className="section-heading"><div><span className="eyebrow">THE SHOT PLAN</span><h2 id="storyboard-heading">当前分镜计划</h2></div><span>{editing ? '编辑中 · 尚未保存' : '已持久保存'}</span></div>
-    <p className="drama-source">mock-storyboard · 程序生成的模拟分镜，非真实 AI 创作。来源：剧本版本 {sourceVersion}。</p>
+    <p className="drama-source">{!provider || provider.startsWith('mock') ? 'mock-storyboard · 程序生成的模拟分镜，非真实 AI 创作。' : `${provider} · 模型生成来源，可能包含人工编辑；真实效果与费用未验证。`}来源：剧本版本 {sourceVersion}。</p>
     {stale && <div className="editing-note storyboard-stale" role="status"><strong>分镜已过期</strong><p>已保存剧本发生变化。下方场景编号仍引用来源剧本，可能与当前内容不同；编辑保存不会消除过期状态。重新生成成功后才会更新来源。</p></div>}
     {!editing && <button type="button" className="drama-edit-button" disabled={disabled} onClick={onEdit}>编辑分镜</button>}
     <fieldset disabled={disabled}>
       <div className="storyboard-shots">{shots.map((shot, index) => <article className="storyboard-shot" key={shot.id}>
         <div className="drama-scene-label">SHOT {String(index + 1).padStart(2, '0')} <span>第 {index + 1} 镜</span></div>
         {editing ? <>
-          <div className="storyboard-fields">
+          <div className="media-actions"><button type="button" disabled={disabled || index === 0} onClick={() => move(index, -1)}>上移第 {index + 1} 镜</button><button type="button" disabled={disabled || index === shots.length - 1} onClick={() => move(index, 1)}>下移第 {index + 1} 镜</button><button type="button" disabled={disabled || shots.length === 1} onClick={() => onChange(shots.filter((_, item) => item !== index))}>删除第 {index + 1} 镜</button></div><div className="storyboard-fields">
             <div><label htmlFor={`shot-scene-${index}`}>第 {index + 1} 镜场景引用</label><select id={`shot-scene-${index}`} value={shot.scene_index} onChange={event => change(index, {scene_index: Number(event.target.value)})}>{[1, 2, 3].map(scene => <option key={scene} value={scene}>来源剧本第 {scene} 场</option>)}</select></div>
             <div><label htmlFor={`shot-size-${index}`}>第 {index + 1} 镜景别</label><select id={`shot-size-${index}`} value={shot.shot_size} onChange={event => change(index, {shot_size: event.target.value as StoryboardShot['shot_size']})}>{Object.entries(shotSizeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
             <div><label htmlFor={`shot-camera-${index}`}>第 {index + 1} 镜运镜</label><select id={`shot-camera-${index}`} value={shot.camera_movement} onChange={event => change(index, {camera_movement: event.target.value as StoryboardShot['camera_movement']})}>{Object.entries(cameraMovementLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
@@ -32,6 +35,6 @@ export function StoryboardEditor({shots, editing, disabled, dirty, sourceVersion
         </>}
       </article>)}</div>
     </fieldset>
-    {editing && <div className="drama-script-actions">{validation && <p className="drama-validation" role="status">{validation}</p>}<p>编辑已有镜头并保存当前计划；场景编号引用生成时的剧本，不生成图片或视频。</p><div><button type="button" disabled={disabled} onClick={onCancel}>取消分镜编辑</button><button type="button" className="primary" disabled={disabled || !dirty || Boolean(validation)} onClick={onSave}>保存分镜</button></div></div>}
+    {editing && <div className="drama-script-actions">{validation && <p className="drama-validation" role="status">{validation}</p>}<p>支持 1–30 镜增删与排序；删除只在保存后生效。场景编号引用生成时的剧本。</p><div><button type="button" disabled={disabled || shots.length >= 30} onClick={() => onChange([...shots, {id: crypto.randomUUID(), scene_index: 1, description: '新镜头画面', shot_size: 'medium', camera_movement: 'static', duration_seconds: 3, dialogue: ''}])}>添加镜头</button><button type="button" disabled={disabled} onClick={onCancel}>取消分镜编辑</button><button type="button" className="primary" disabled={disabled || !dirty || Boolean(validation)} onClick={onSave}>保存分镜</button></div></div>}
   </section>
 }
