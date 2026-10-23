@@ -1,0 +1,48 @@
+import { useEffect, useState } from 'react'
+import { request } from '../api'
+import { useI18n } from '../i18n'
+import { formatMinorCurrency } from '../money'
+
+import { initialRuntimeChoice, type RuntimeChoice, type RuntimeModelOption } from '../runtimeSelection'
+
+export function RuntimeModelPicker({space, capability, value, onChange, disabled = false}: {
+  space: string; capability: string; value: RuntimeChoice | null; onChange: (value: RuntimeChoice | null) => void; disabled?: boolean
+}) {
+  const {t, locale, formatDate} = useI18n()
+  const [catalog, setCatalog] = useState<{governance_ready: boolean; models: RuntimeModelOption[]} | null>(null)
+  const [revision, setRevision] = useState(0)
+  const [error, setError] = useState(false)
+  useEffect(() => {
+    const controller = new AbortController()
+    void request<{governance_ready: boolean; models: RuntimeModelOption[]}>(`/runtime-models?${new URLSearchParams({space_id: space})}`, {signal: controller.signal})
+      .then(result => {if (!controller.signal.aborted) {setCatalog(result); setError(false)}})
+      .catch(() => {if (!controller.signal.aborted) setError(true)})
+    return () => controller.abort()
+  }, [space, revision])
+  useEffect(() => {
+    if (!value?.quoteReady || !value.model.quote) return
+    const delay = Math.max(0, Math.min(2147483647, Date.parse(value.model.quote.expires_at) - Date.now()))
+    const timer = setTimeout(() => onChange({...value, confirmed: false, quoteReady: false}), delay)
+    return () => clearTimeout(timer)
+  }, [value, onChange])
+  // Legacy demo mode has no runtime catalog. Its layout and local behavior remain unchanged.
+  if (!catalog) return null
+  const options = catalog.models.filter(model => model.capability === capability)
+  const stale = !!value && !options.some(model => model.id === value.model.id && model.version === value.model.version && model.available === value.model.available)
+  return <fieldset className="runtime-model-picker" disabled={disabled}>
+    <legend>{t('本次执行模型')}</legend>
+    <label>{t('模型选择')}<select value={value?.model.id ?? ''} onChange={event => {const model = options.find(item => item.id === event.target.value); onChange(model ? initialRuntimeChoice(model) : null)}}>
+      <option value="">{t('保留当前本地或演示模式')}</option>
+      {options.map(model => <option key={model.id} value={model.id}>{model.provider} / {model.model}{model.is_default ? ` · ${t('组织默认')}` : ''}{!model.available ? ` · ${t('暂不可执行')}` : ''}</option>)}
+    </select></label>
+    <button type="button" onClick={() => {onChange(null); setRevision(previous => previous + 1)}}>{t('刷新模型目录')}</button>
+    {options.length === 0 && <p>{t('此能力尚无启用的组织模型。')}</p>}
+    {(error || stale) && <p role="alert">{t('模型目录已失效，请刷新并重新确认。')}</p>}
+    {value && <><p>{t('配置版本：{version}', {version: value.model.version})}</p>
+      {capability === 'speech' && <label>{t('声音标识')}<input value={value.voice} maxLength={128} autoComplete="off" onChange={event => onChange({...value, voice: event.target.value, confirmed: false, quoteReady: false})} /></label>}
+      <p role="status">{!catalog.governance_ready ? t('费用与审核治理尚未就绪，远端执行不可用。') : value.model.quote ? t('单次预留上限：{amount}；报价来源：{source}；有效至：{expiry}', {amount: formatMinorCurrency(value.model.quote.maximum_minor, value.model.quote.currency, value.model.quote.minor_units, locale), source: value.model.quote.source, expiry: formatDate(value.model.quote.expires_at)}) : t('尚未获取本次请求的可信费用上限，远端提交保持禁用。')}</p>
+      <p>{t('模型调用可能计费。取消、超时或结果未知不代表免费；费用按原币种预留，不自动兑换或重试。')}</p>
+      <label><input type="checkbox" checked={value.confirmed} disabled={!value.quoteReady || stale} onChange={event => onChange({...value, confirmed: event.target.checked})} />{t('确认本次报价与可能产生的费用')}</label>
+    </>}
+  </fieldset>
+}

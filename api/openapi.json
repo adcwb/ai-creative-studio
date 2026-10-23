@@ -8650,6 +8650,41 @@
         },
         "description": "Always rejects with 403 live_not_authorized; no model request is executed. Separate explicit authorization is required for any future live workflow."
       }
+    },
+    "/api/v1/runtime-models": {
+      "get": {
+        "operationId": "listRuntimeModels",
+        "summary": "List tenant model choices without credentials; read does not call providers.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Enabled model choices and trusted bounded text cost previews.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeModelCatalog"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Organization access required."
+          },
+          "503": {
+            "description": "Model configuration storage unavailable."
+          }
+        }
+      }
     }
   },
   "components": {
@@ -8790,6 +8825,32 @@
           "upstream_id": {
             "type": "string",
             "description": "已原子持久化的异步供应商任务ID。恢复只查询此ID；无ID的执行中断保持结果/计费不确定，不能自动重新提交。"
+          },
+          "model_config_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Explicit tenant model configuration ID. Must be paired with its current version; omission retains the configured local/mock route."
+          },
+          "model_config_version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "voice": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Explicit voice selection, speech jobs only."
+          },
+          "budget_currency": {
+            "type": "string",
+            "description": "Explicit original currency for this execution ceiling. No conversion."
+          },
+          "budget_maximum_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "User-confirmed maximum in integer currency minor units. Required with a model configuration choice."
           }
         },
         "additionalProperties": false,
@@ -8962,20 +9023,37 @@
           },
           "expected_provider": {
             "type": "string",
-            "enum": [
-              "mock-svg",
-              "openai-images",
-              "gemini-images",
-              "ark-images",
-              "jimeng-images",
-              "gemini-interactions-images",
-              "minimax-images"
-            ],
             "description": "与 expected_model 成对可选的提交前置条件。浏览器始终使用当前能力状态；不修改 provider，不写入业务 Input 或幂等身份。"
           },
           "expected_model": {
             "type": "string",
             "description": "与expected_provider成对。mock-svg使用空字符串；真实供应商使用能力API给出的服务端配置模型ID。"
+          },
+          "model_config_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Explicit tenant model configuration ID. Must be paired with its current version; omission retains the configured local/mock route."
+          },
+          "model_config_version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "voice": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Explicit voice selection, speech jobs only."
+          },
+          "budget_currency": {
+            "type": "string",
+            "description": "Explicit original currency for this execution ceiling. No conversion."
+          },
+          "budget_maximum_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "User-confirmed maximum in integer currency minor units. Required with a model configuration choice."
           }
         },
         "description": "创建和失败重试共用输入。prompt/kind/ratio/style 为业务输入；expected_provider/expected_model 是成对可选的 HTTP 提交前置条件，不进入持久化 Input 或幂等比较。浏览器必须提供；旧 API 客户端两项都省略时兼容原行为。后端绑定实际当前配置，不接受 endpoint、凭据或直接选择 provider/model。",
@@ -9731,6 +9809,32 @@
           "expected_model": {
             "type": "string",
             "description": "客户端确认的服务端模型ID；真实模式须同时匹配能力API的provider和model，避免排队或重启后切换同供应商模型导致意外付费。模拟模式可省略。"
+          },
+          "model_config_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Explicit tenant model configuration ID. Must be paired with its current version; omission retains the configured local/mock route."
+          },
+          "model_config_version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "voice": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Explicit voice selection, speech jobs only."
+          },
+          "budget_currency": {
+            "type": "string",
+            "description": "Explicit original currency for this execution ceiling. No conversion."
+          },
+          "budget_maximum_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "User-confirmed maximum in integer currency minor units. Required with a model configuration choice."
           }
         }
       },
@@ -10494,6 +10598,32 @@
           "audio_asset_id": {
             "type": "string",
             "description": "Owned asset in the same project; validated by capability and media type."
+          },
+          "model_config_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Explicit tenant model configuration ID. Must be paired with its current version; omission retains the configured local/mock route."
+          },
+          "model_config_version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "voice": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Explicit voice selection, speech jobs only."
+          },
+          "budget_currency": {
+            "type": "string",
+            "description": "Explicit original currency for this execution ceiling. No conversion."
+          },
+          "budget_maximum_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "User-confirmed maximum in integer currency minor units. Required with a model configuration choice."
           }
         },
         "required": [
@@ -10719,6 +10849,32 @@
           },
           "expected_model": {
             "type": "string"
+          },
+          "model_config_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Explicit tenant model configuration ID. Must be paired with its current version; omission retains the configured local/mock route."
+          },
+          "model_config_version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "voice": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Explicit voice selection, speech jobs only."
+          },
+          "budget_currency": {
+            "type": "string",
+            "description": "Explicit original currency for this execution ceiling. No conversion."
+          },
+          "budget_maximum_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "User-confirmed maximum in integer currency minor units. Required with a model configuration choice."
           }
         },
         "description": "任务只产生建议，不自动修改时间轴；用户应用仍须媒体版本CAS。真实ASR未配置时拒绝，不回退估算。"
@@ -11747,6 +11903,102 @@
           "runtime_applied",
           "model_verified"
         ]
+      },
+      "RuntimeQuotePreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "currency",
+          "maximum_minor",
+          "minor_units",
+          "source",
+          "expires_at",
+          "contract"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "maximum_minor": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "minor_units": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "source": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "contract": {
+            "type": "string"
+          }
+        }
+      },
+      "RuntimeModelOption": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "version",
+          "provider",
+          "model",
+          "capability",
+          "is_default",
+          "available"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "capability": {
+            "type": "string"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "quote": {
+            "$ref": "#/components/schemas/RuntimeQuotePreview"
+          }
+        }
+      },
+      "RuntimeModelCatalog": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "governance_ready",
+          "models"
+        ],
+        "properties": {
+          "governance_ready": {
+            "type": "boolean"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuntimeModelOption"
+            }
+          }
+        }
       }
     },
     "securitySchemes": {

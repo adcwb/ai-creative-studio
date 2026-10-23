@@ -7,7 +7,7 @@ type Operation = 'create' | 'brief' | 'script' | 'generate' | 'storyboard' | 'ge
 interface Attempt { operation: Operation; path: string; body: string; key: string }
 const emptyDraft: ProjectDraft = {title: '', brief: ''}
 
-export function useDramaProject(space: string, id: string | null, onProject: (project: DramaProject) => void, expectedProvider?: string, expectedModel?: string) {
+export function useDramaProject(space: string, id: string | null, onProject: (project: DramaProject) => void, expectedProvider?: string, expectedModel?: string, runtimeSelection: Record<string, unknown> = {}, runtimeAllowed = true) {
   const [project, setProject] = useState<DramaProject | null>(null)
   const [baseline, setBaseline] = useState<DramaProject | null>(null)
   const [draft, setDraft] = useState<ProjectDraft>(emptyDraft)
@@ -113,10 +113,11 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
     if (error) {setActionError(error); return}
     if ((operation === 'generate' || operation === 'generateStoryboard') && (briefDirty || scriptDirty || editingScript || editingStoryboard)) return
     if (operation === 'generateStoryboard' && !project?.script) return
+    if ((operation === 'generate' || operation === 'generateStoryboard') && !runtimeAllowed) return
     const query = new URLSearchParams({space_id: space})
     const projectPath = `/projects/${encodeURIComponent(id ?? '')}`
     const path = `${operation === 'create' ? '/projects' : operation === 'generate' ? `${projectPath}/generations` : operation === 'script' ? `${projectPath}/script` : operation === 'storyboard' ? `${projectPath}/storyboard` : operation === 'generateStoryboard' ? `${projectPath}/storyboard-generations` : projectPath}?${query}`
-    const body = JSON.stringify(operation === 'create' ? {title: draft.title.trim(), brief: draft.brief.trim()} : operation === 'brief' ? {title: draft.title.trim(), brief: draft.brief.trim(), expected_version: baseline?.version} : operation === 'script' ? {script, expected_version: baseline?.version} : operation === 'storyboard' ? {shots, expected_version: baseline?.version} : {expected_version: baseline?.version, ...(expectedProvider ? {expected_provider: expectedProvider, expected_model: expectedModel ?? ''} : {})})
+    const body = JSON.stringify(operation === 'create' ? {title: draft.title.trim(), brief: draft.brief.trim()} : operation === 'brief' ? {title: draft.title.trim(), brief: draft.brief.trim(), expected_version: baseline?.version} : operation === 'script' ? {script, expected_version: baseline?.version} : operation === 'storyboard' ? {shots, expected_version: baseline?.version} : {...runtimeSelection, expected_version: baseline?.version, ...(expectedProvider ? {expected_provider: expectedProvider, expected_model: expectedModel ?? ''} : {})})
     if (attempt.current?.path !== path || attempt.current.body !== body) attempt.current = {operation, path, body, key: crypto.randomUUID()}
     void execute(attempt.current)
   }

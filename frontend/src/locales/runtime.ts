@@ -1,0 +1,20 @@
+const messages: Record<string, string> = {
+ '管理配置已保存；执行时使用最新权限与版本校验，未进行真实调用。': 'Configuration saved. Execution checks current permissions and versions. No live call was made.',
+ '组织管理员管理模型接入。执行时重新校验权限与配置版本；须显式选择模型、确认可信报价并通过预算和审核，不会自动测试凭据。': 'Organization administrators manage model connections. Execution rechecks permissions and configuration versions, requires explicit model and trusted quote confirmation, and must pass budget and moderation controls. Credentials are never tested automatically.',
+ '本次执行模型': 'Model for this execution',
+ '模型选择': 'Model selection',
+ '保留当前本地或演示模式': 'Keep current local or demo mode',
+ '组织默认': 'Organization default',
+ '暂不可执行': 'Execution unavailable',
+ '刷新模型目录': 'Refresh model catalog',
+ '此能力尚无启用的组织模型。': 'No enabled organization models for this capability.',
+ '模型目录已失效，请刷新并重新确认。': 'The model catalog is stale. Refresh and confirm again.',
+ '声音标识': 'Voice identifier',
+ '费用与审核治理尚未就绪，远端执行不可用。': 'Budget and moderation controls are not ready. Remote execution is unavailable.',
+ '尚未获取本次请求的可信费用上限，远端提交保持禁用。': 'A trusted cost ceiling is not available for this request. Remote submission remains disabled.',
+ '模型调用可能计费。取消、超时或结果未知不代表免费；费用按原币种预留，不自动兑换或重试。': 'Model calls may incur charges. Cancellation, timeout or an unknown result does not imply zero cost. Funds are reserved in the original currency, with no automatic conversion or retry.',
+ '确认本次报价与可能产生的费用': 'Confirm this quote and potential charges',
+ '单次预留上限：{amount}；报价来源：{source}；有效至：{expiry}': 'Reservation ceiling per call: {amount}; source: {source}; valid until: {expiry}',
+ '已选择组织模型，提交前须确认费用上限。': 'Organization model selected. Confirm the cost ceiling before submitting.',
+}
+export default messages
