@@ -97,6 +97,7 @@ func renderMockSVG(in Input) string {
 }
 
 type Pipeline struct {
+	provider     ImageProvider
 	run          compose.Runnable[Input, GenerationResult]
 	capabilities Capabilities
 }
@@ -114,7 +115,7 @@ func NewPipeline(ctx context.Context, provider ImageProvider, options ...Capabil
 	if err != nil {
 		return nil, err
 	}
-	return &Pipeline{run: run, capabilities: caps}, nil
+	return &Pipeline{run: run, capabilities: caps, provider: provider}, nil
 }
 func (p *Pipeline) Invoke(ctx context.Context, in Input) (GenerationResult, error) {
 	return p.run.Invoke(ctx, in)
@@ -142,7 +143,33 @@ func RunWorker(ctx context.Context, repo Repository, p *Pipeline) error {
 		if !p.capabilities.Ready || t.Provider != p.capabilities.Provider || t.Model != p.capabilities.Model {
 			runErr = providerFailure("provider_unavailable")
 		} else {
-			result, runErr = p.Invoke(ctx, t.Input)
+			if async, ok := p.provider.(AsyncImageProvider); ok {
+				durable, ok := repo.(interface{ SetImageUpstream(Task, string) error })
+				if !ok {
+					return fmt.Errorf("asynchronous image repository cannot persist upstream IDs")
+				}
+				if t.UpstreamID == "" {
+					ack, e := async.SubmitImage(ctx, t.Input)
+					runErr = e
+					if e == nil {
+						if ack.ID == "" {
+							runErr = providerFailure("invalid_provider_response")
+						} else {
+							if e = durable.SetImageUpstream(t, ack.ID); e != nil {
+								return e
+							}
+							t.UpstreamID = ack.ID
+						}
+					}
+				}
+				if runErr == nil {
+					result, runErr = awaitAsyncImage(ctx, async, t.UpstreamID, 2*time.Second)
+				}
+			} else if t.UpstreamID != "" {
+				runErr = providerFailure("provider_unavailable")
+			} else {
+				result, runErr = p.Invoke(ctx, t.Input)
+			}
 		}
 		if ctx.Err() != nil {
 			return nil

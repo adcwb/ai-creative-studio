@@ -71,7 +71,7 @@ func TestJimengSubmitOncePollAndInlineImage(t *testing.T) {
 	if err != nil || result.Width != 8 || result.MIMEType != "image/png" {
 		t.Fatalf("result %#v %v", result, err)
 	}
-	if submits.Load() != 1 || polls.Load() != 2 {
+	if submits.Load() != 1 || polls.Load() != 3 {
 		t.Fatal("unexpected submission or polling count")
 	}
 }
@@ -89,7 +89,11 @@ func TestJimengRejectsUnsafeAndFailedResults(t *testing.T) {
 			defer server.Close()
 			p := newJimengImageProvider("synthetic-access", "synthetic-secret", "synthetic", server.URL, server.Client())
 			_, err := p.Generate(context.Background(), jimengInput())
-			if err == nil || strings.Contains(err.Error(), "secret upstream") || calls.Load() != 2 {
+			expectedCalls := int32(2)
+			if strings.Contains(result, `"status":"done"`) {
+				expectedCalls = 3
+			}
+			if err == nil || strings.Contains(err.Error(), "secret upstream") || calls.Load() != expectedCalls {
 				t.Fatalf("invalid result accepted/retried: %v %d", err, calls.Load())
 			}
 		})

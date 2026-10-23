@@ -2,8 +2,8 @@ package studio
 
 // Public Visual API, not the Jimeng consumer website. Signature construction
 // follows the canonical request documented by volcengine/volc-sdk-golang/base/sign.go.
-// Submission is sent once. Process interruption uses the existing real-image
-// failure policy, never an automatic resubmission; upstream cost can be uncertain.
+// Submission is sent once. Workers persist task_id before querying; restart
+// resumes reads of known IDs only. Missing ACKs retain billing uncertainty.
 import (
 	"bytes"
 	"context"
@@ -122,56 +122,68 @@ func (p *JimengImageProvider) request(ctx context.Context, action string, body a
 
 var jimengTaskPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 
-func (p *JimengImageProvider) Generate(ctx context.Context, in Input) (GenerationResult, error) {
+func (p *JimengImageProvider) SubmitImage(ctx context.Context, in Input) (AsyncImageJob, error) {
 	if !validCredential(p.accessKey) || !validCredential(p.secretKey) || !nativeModelPattern.MatchString(p.reqKey) {
-		return GenerationResult{}, providerFailure("provider_unavailable")
+		return AsyncImageJob{}, providerFailure("provider_unavailable")
 	}
 	in, err := Normalize(in)
 	if err != nil {
-		return GenerationResult{}, providerFailure("provider_rejected")
+		return AsyncImageJob{}, providerFailure("provider_rejected")
 	}
 	prompt := "Create one image. Style: " + in.Style + ". Aspect ratio: " + in.Ratio + ". Brief: " + in.Prompt
 	if len([]rune(prompt)) > 800 {
-		return GenerationResult{}, providerFailure("provider_rejected")
+		return AsyncImageJob{}, providerFailure("provider_rejected")
 	}
-	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
-	defer cancel()
 	_, w, h := imageSize(in.Ratio)
 	out, err := p.request(ctx, "CVSync2AsyncSubmitTask", map[string]any{"req_key": p.reqKey, "prompt": prompt, "force_single": true, "width": w, "height": h})
 	if err != nil {
+		return AsyncImageJob{}, err
+	}
+	if !jimengTaskPattern.MatchString(out.Data.TaskID) {
+		return AsyncImageJob{}, providerFailure("invalid_provider_response")
+	}
+	return AsyncImageJob{ID: out.Data.TaskID, Status: "queued"}, nil
+}
+func (p *JimengImageProvider) queryImage(ctx context.Context, id string) (jimengEnvelope, error) {
+	if !jimengTaskPattern.MatchString(id) {
+		return jimengEnvelope{}, providerFailure("provider_rejected")
+	}
+	return p.request(ctx, "CVSync2AsyncGetResult", map[string]string{"req_key": p.reqKey, "task_id": id, "req_json": `{"return_url":false,"logo_info":{"add_logo":true}}`})
+}
+func (p *JimengImageProvider) PollImage(ctx context.Context, id string) (AsyncImageJob, error) {
+	out, err := p.queryImage(ctx, id)
+	if err != nil {
+		return AsyncImageJob{}, err
+	}
+	status := map[string]string{"done": "succeeded", "in_queue": "queued", "generating": "running", "failed": "failed", "not_found": "failed", "expired": "failed"}[out.Data.Status]
+	if status == "" {
+		return AsyncImageJob{}, providerFailure("invalid_provider_response")
+	}
+	return AsyncImageJob{ID: id, Status: status}, nil
+}
+func (p *JimengImageProvider) DownloadImage(ctx context.Context, id string) (GenerationResult, error) {
+	out, err := p.queryImage(ctx, id)
+	if err != nil {
 		return GenerationResult{}, err
 	}
-	id := out.Data.TaskID
-	if !jimengTaskPattern.MatchString(id) {
+	if out.Data.Status != "done" || len(out.Data.Images) != 1 || out.Data.Images[0] == "" || len(out.Data.Images[0]) > base64.StdEncoding.EncodedLen(maxPNGBytes) {
 		return GenerationResult{}, providerFailure("invalid_provider_response")
 	}
-	for {
-		out, err = p.request(ctx, "CVSync2AsyncGetResult", map[string]string{"req_key": p.reqKey, "task_id": id, "req_json": `{"return_url":false,"logo_info":{"add_logo":true}}`})
-		if err != nil {
-			return GenerationResult{}, err
-		}
-		switch out.Data.Status {
-		case "done":
-			if len(out.Data.Images) != 1 || out.Data.Images[0] == "" || len(out.Data.Images[0]) > base64.StdEncoding.EncodedLen(maxPNGBytes) {
-				return GenerationResult{}, providerFailure("invalid_provider_response")
-			}
-			raw, e := base64.StdEncoding.Strict().DecodeString(out.Data.Images[0])
-			if e != nil {
-				return GenerationResult{}, providerFailure("invalid_provider_response")
-			}
-			return nativeImage(raw, "")
-		case "in_queue", "generating":
-			timer := time.NewTimer(p.pollInterval)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-				return GenerationResult{}, providerFailure("provider_timeout")
-			case <-timer.C:
-			}
-		case "failed", "not_found", "expired":
-			return GenerationResult{}, providerFailure("provider_rejected")
-		default:
-			return GenerationResult{}, providerFailure("invalid_provider_response")
-		}
+	raw, err := base64.StdEncoding.Strict().DecodeString(out.Data.Images[0])
+	if err != nil {
+		return GenerationResult{}, providerFailure("invalid_provider_response")
 	}
+	return nativeImage(raw, "")
+}
+
+// Generate is retained for direct protocol users. Durable application workers
+// use the three-phase interface and persist the ACK before the first query.
+func (p *JimengImageProvider) Generate(ctx context.Context, in Input) (GenerationResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	defer cancel()
+	job, err := p.SubmitImage(ctx, in)
+	if err != nil {
+		return GenerationResult{}, err
+	}
+	return awaitAsyncImage(ctx, p, job.ID, p.pollInterval)
 }
