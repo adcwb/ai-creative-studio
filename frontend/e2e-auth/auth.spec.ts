@@ -20,7 +20,7 @@ test('register, session reload, organization and logout on real secure API', asy
   await expect(page.getByRole('heading', { name: '登录映创' })).toBeVisible()
 })
 
-test('authenticated browser loads private synthetic media and rejects other tenant access', async ({page, browser}, info) => {
+test('authenticated browser loads private synthetic media and rejects anonymous access', async ({page, browser}, info) => {
   const origin = 'http://localhost:5175'
   const api = 'http://localhost:8082/api/v1'
   await page.goto('/')
@@ -47,4 +47,35 @@ test('authenticated browser loads private synthetic media and rejects other tena
   const denied = await outsider.request.get('http://localhost:8082' + media.assets[0].file_url)
   expect(denied.status()).toBe(401)
   await outsider.close()
+})
+
+test('owner manages separate currency budgets and credential-free model declarations', async ({page}, info) => {
+  await page.goto('/')
+  await page.getByRole('button', {name: '创建新账户'}).click()
+  await page.locator('#auth-email').fill(`governance-${info.project.name}-${Date.now()}@example.invalid`)
+  await page.locator('#auth-password').fill('Synthetic-governance-passphrase!')
+  await page.getByRole('button', {name: '注册并登录'}).click()
+  await expect(page.getByRole('button', {name: '退出登录'}).filter({visible: true})).toBeVisible()
+  await page.getByText('预算与费用记录', {exact: true}).click()
+  await expect(page.getByLabel('账本币种', {exact: true})).toHaveValue('USD')
+  await page.getByLabel('新的预算上限（USD）', {exact: true}).fill('3.00')
+  await page.getByRole('button', {name: '保存预算', exact: true}).click()
+  await expect(page.getByText('预算已保存。此操作不会启用真实模型调用。', {exact: true})).toBeVisible()
+  await page.getByLabel('账本币种', {exact: true}).selectOption('CNY')
+  await expect(page.getByLabel('新的预算上限（CNY）', {exact: true})).toHaveValue('0.00')
+  await page.getByLabel('新的预算上限（CNY）', {exact: true}).fill('5.00')
+  await page.getByRole('button', {name: '保存预算', exact: true}).click()
+  await expect(page.getByText('预算已保存。此操作不会启用真实模型调用。', {exact: true})).toBeVisible()
+  await page.getByLabel('账本币种', {exact: true}).selectOption('USD')
+  await expect(page.getByLabel('新的预算上限（USD）', {exact: true})).toHaveValue('3.00')
+  await page.getByText('模型接入管理', {exact: true}).click()
+  await page.getByLabel('供应商协议', {exact: true}).selectOption('openai-text')
+  await page.getByLabel('模型标识', {exact: true}).fill('synthetic-declaration-only')
+  await expect(page.getByRole('option', {name: '保存新的加密凭据', exact: true})).toBeDisabled()
+  await page.getByRole('button', {name: '保存模型声明', exact: true}).click()
+  await expect(page.getByText('管理配置已保存；尚未应用到执行器，也未进行真实调用。', {exact: true})).toBeVisible()
+  await expect(page.getByText('openai-text / synthetic-declaration-only', {exact: true})).toBeVisible()
+  await page.getByRole('button', {name: '仅本地检查', exact: true}).click()
+  await expect(page.locator('.model-config-panel').getByRole('status')).toContainText('未联网')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
