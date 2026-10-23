@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/adcwb/ai-creative-studio/backend/internal/jobqueue"
+	"github.com/adcwb/ai-creative-studio/backend/internal/tracing"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
@@ -119,7 +120,7 @@ func srtTime(t float64) string {
 	ms := int(t*1000 + 0.5)
 	return fmt.Sprintf("%02d:%02d:%02d,%03d", ms/3600000, ms/60000%60, ms/1000%60, ms%1000)
 }
-func (m *MediaStore) StartExport(project, space, key string, version int) (MediaExport, error) {
+func (m *MediaStore) StartExport(project, space, key string, version int, traceParents ...string) (MediaExport, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	d := m.clone()
@@ -173,7 +174,11 @@ func (m *MediaStore) StartExport(project, space, key string, version int) (Media
 	if active >= 2 || len(p.Exports) >= 30 || m.overQuota(256<<20) {
 		return MediaExport{}, errMediaLimit
 	}
-	e := MediaExport{ID: mediaID(), Status: "running", Timeline: p.Timeline}
+	parent := ""
+	if len(traceParents) == 1 && tracing.ValidParent(traceParents[0]) {
+		parent = traceParents[0]
+	}
+	e := MediaExport{TraceParent: parent, ID: mediaID(), Status: "running", Timeline: p.Timeline}
 	if m.pg != nil {
 		e.Status = "queued"
 	}
@@ -186,7 +191,7 @@ func (m *MediaStore) StartExport(project, space, key string, version int) (Media
 	if m.pg != nil {
 		payload, _ := json.Marshal(map[string]string{"task_id": e.ID, "project_id": project})
 		m.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error {
-			return jobqueue.EnqueueTx(ctx, tx, jobqueue.Job{TenantID: space, ID: e.ID, Kind: "export", IdempotencyKey: project + ":" + key, Payload: payload})
+			return jobqueue.EnqueueTx(ctx, tx, jobqueue.Job{TenantID: space, ID: e.ID, TraceParent: e.TraceParent, Kind: "export", IdempotencyKey: project + ":" + key, Payload: payload})
 		}
 		defer func() { m.pg.beforeCommit = nil }()
 	}
@@ -196,7 +201,7 @@ func (m *MediaStore) StartExport(project, space, key string, version int) (Media
 	if m.pg != nil {
 		return e, nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(tracing.WithParent(context.Background(), e.TraceParent), 5*time.Minute)
 	m.cancels[e.ID] = cancel
 	m.wg.Add(1)
 	go func() {

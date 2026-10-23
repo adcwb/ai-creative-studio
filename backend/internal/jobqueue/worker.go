@@ -3,6 +3,7 @@ package jobqueue
 import (
 	"context"
 	"errors"
+	"github.com/adcwb/ai-creative-studio/backend/internal/tracing"
 	"time"
 )
 
@@ -61,7 +62,13 @@ func Run(ctx context.Context, q Queue, kind string, handler Handler) error {
 			}
 		}
 		if q.Slots == nil || acquired {
-			err = handler(runCtx, q, j)
+			traceCtx, span := tracing.Start(tracing.WithParent(runCtx, j.TraceParent), "worker.execute", tracing.Attributes{Kind: j.Kind})
+			err = handler(traceCtx, q, j)
+			outcome := "ok"
+			if err != nil {
+				outcome = "unknown"
+			}
+			span.End(outcome)
 		} else {
 			err = runCtx.Err()
 		}

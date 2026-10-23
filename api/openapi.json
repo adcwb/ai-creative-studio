@@ -8907,6 +8907,12 @@
             "type": "string",
             "pattern": "^[a-f0-9]{64}$",
             "description": "Request-bound digest from runtime-quote; required for explicit managed execution."
+          },
+          "trace_parent": {
+            "type": "string",
+            "readOnly": true,
+            "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$",
+            "description": "Optional server-captured correlation context; never authorization."
           }
         },
         "additionalProperties": false,
@@ -9688,6 +9694,12 @@
           "model": {
             "type": "string",
             "description": "接受任务时冻结并持久化的服务端模型ID。兼容旧模拟记录时可省略；恢复执行必须匹配原供应商与模型，不能自动改用新模型。"
+          },
+          "trace_parent": {
+            "type": "string",
+            "readOnly": true,
+            "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$",
+            "description": "Optional server-captured correlation context; never authorization."
           }
         },
         "description": "持久化执行尝试及不可变需求快照。只保留尝试状态和来源，不提供历史剧本版本恢复。mock 执行中重启重新排队，不创建新 attempt；失败保留项目既有稿件。",
@@ -10152,6 +10164,12 @@
           "model": {
             "type": "string",
             "description": "接受任务时冻结并持久化的服务端模型ID。兼容旧模拟记录时可省略；恢复执行必须匹配原供应商与模型，不能自动改用新模型。"
+          },
+          "trace_parent": {
+            "type": "string",
+            "readOnly": true,
+            "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$",
+            "description": "Optional server-captured correlation context; never authorization."
           }
         },
         "description": "持久化模拟分镜执行记录；来源是提交时已保存剧本的不可变快照，内部 source_script 不对外返回。运行中重启重新排队；失败保留旧计划。",
@@ -10467,6 +10485,12 @@
           },
           "subtitle_vtt_url": {
             "type": "string"
+          },
+          "trace_parent": {
+            "type": "string",
+            "readOnly": true,
+            "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$",
+            "description": "Optional server-captured correlation context; never authorization."
           }
         },
         "required": [
@@ -10789,6 +10813,12 @@
           "audio_asset_id": {
             "type": "string",
             "description": "Owned asset in the same project; validated by capability and media type."
+          },
+          "trace_parent": {
+            "type": "string",
+            "readOnly": true,
+            "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$",
+            "description": "Optional server-captured correlation context; never authorization."
           }
         },
         "required": [
@@ -11050,6 +11080,12 @@
           },
           "error_code": {
             "type": "string"
+          },
+          "trace_parent": {
+            "type": "string",
+            "readOnly": true,
+            "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$",
+            "description": "Optional server-captured correlation context; never authorization."
           }
         },
         "required": [

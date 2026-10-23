@@ -9,7 +9,7 @@ groups:
         annotations:
           summary: Studio audit persistence unavailable; mutations are blocked
       - alert: StudioHTTPErrorRate
-        expr: rate(studio_http_requests_total{class="5xx"}[5m]) / clamp_min(sum(rate(studio_http_requests_total[5m])), 0.001) > 0.05
+        expr: sum by(job,instance)(rate(studio_http_requests_total{class="5xx"}[5m])) / clamp_min(sum by(job,instance)(rate(studio_http_requests_total[5m])), 0.001) > 0.05
         for: 5m
         labels: {severity: warning}
         annotations:
@@ -20,3 +20,30 @@ groups:
         labels: {severity: warning}
         annotations:
           summary: Studio metrics target is missing
+      - alert: StudioUnknownExecution
+        expr: studio_queue_jobs{state="unknown"} > 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: Provider outcome unknown; reconcile billing without resubmission
+      - alert: StudioDatabaseUnavailable
+        expr: (studio_database_configured == 1) and (studio_database_available == 0)
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: Studio database or queue metric query unavailable
+      - alert: StudioDatabaseFailures
+        expr: increase(studio_database_failures_total[5m]) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: Studio database health query failed
+      - alert: StudioAuditFailures
+        expr: increase(studio_audit_failures_total[5m]) > 0
+        labels: {severity: critical}
+        annotations:
+          summary: Studio audit persistence failure detected
+      - alert: StudioTraceLoss
+        expr: increase(studio_trace_dropped_total[5m]) > 0 or increase(studio_trace_failures_total[5m]) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: Optional trace export dropped spans or failed

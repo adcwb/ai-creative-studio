@@ -16,32 +16,32 @@ func (s *FileStore) enqueueNewPostgres(d snapshot) error {
 	if s.pg.tx == nil {
 		return errors.New("task mutation requires transaction")
 	}
-	enqueue := func(tenant, id, kind, key, project, provider, model string, selection *RuntimeSelection) error {
+	enqueue := func(tenant, id, kind, key, project, provider, model string, selection *RuntimeSelection, traceParent string) error {
 		if selection != nil {
 			if err := ReservePostgresTx(s.pg.ctx, s.pg.tx, kind+":"+id, tenant, provider, model, selection.Currency, selection.MaximumMinor); err != nil {
 				return err
 			}
 		}
 		b, _ := json.Marshal(map[string]string{"task_id": id, "project_id": project})
-		return jobqueue.EnqueueTx(s.pg.ctx, s.pg.tx, jobqueue.Job{TenantID: tenant, ID: id, Kind: kind, IdempotencyKey: key, Payload: b})
+		return jobqueue.EnqueueTx(s.pg.ctx, s.pg.tx, jobqueue.Job{TenantID: tenant, ID: id, Kind: kind, IdempotencyKey: key, Payload: b, TraceParent: traceParent})
 	}
 	for id, t := range d.Tasks {
 		if _, ok := s.data.Tasks[id]; !ok && t.Status == "queued" {
-			if err := enqueue(t.SpaceID, t.ID, "image", t.Key, "", t.Provider, t.Model, t.RuntimeSelection); err != nil {
+			if err := enqueue(t.SpaceID, t.ID, "image", t.Key, "", t.Provider, t.Model, t.RuntimeSelection, t.TraceParent); err != nil {
 				return err
 			}
 		}
 	}
 	for id, t := range d.ScriptGenerations {
 		if _, ok := s.data.ScriptGenerations[id]; !ok && t.Status == "queued" {
-			if err := enqueue(t.SpaceID, t.ID, "script", t.ID, t.ProjectID, t.Provider, t.Model, t.RuntimeSelection); err != nil {
+			if err := enqueue(t.SpaceID, t.ID, "script", t.ID, t.ProjectID, t.Provider, t.Model, t.RuntimeSelection, t.TraceParent); err != nil {
 				return err
 			}
 		}
 	}
 	for id, t := range d.StoryboardGenerations {
 		if _, ok := s.data.StoryboardGenerations[id]; !ok && t.Status == "queued" {
-			if err := enqueue(t.SpaceID, t.ID, "storyboard", t.ID, t.ProjectID, t.Provider, t.Model, t.RuntimeSelection); err != nil {
+			if err := enqueue(t.SpaceID, t.ID, "storyboard", t.ID, t.ProjectID, t.Provider, t.Model, t.RuntimeSelection, t.TraceParent); err != nil {
 				return err
 			}
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"github.com/adcwb/ai-creative-studio/backend/internal/tracing"
 	"io"
 	"net/http"
 	"sync"
@@ -284,26 +285,49 @@ func (t runtimeTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if t.onDispatch != nil {
 		t.onDispatch()
 	}
+	ctx, span := tracing.Start(ctx, "provider.request", tracing.Attributes{Method: req.Method})
 	resp, err := t.base.RoundTrip(req.Clone(ctx))
 	if err != nil {
+		span.End("unknown")
 		stop()
 		cancel()
 		return nil, err
 	}
-	resp.Body = &runtimeResponseBody{ReadCloser: resp.Body, stop: stop, cancel: cancel}
+	span.HTTPStatus(resp.StatusCode)
+	outcome := "ok"
+	if resp.StatusCode >= 400 {
+		outcome = "unknown"
+	}
+	resp.Body = &runtimeResponseBody{span: span, outcome: outcome, ReadCloser: resp.Body, stop: stop, cancel: cancel}
 	return resp, nil
 }
 
 type runtimeResponseBody struct {
+	span    *tracing.Span
+	outcome string
 	io.ReadCloser
 	stop   func() bool
 	cancel context.CancelFunc
 }
 
+func (b *runtimeResponseBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if err != nil && err != io.EOF {
+		b.span.End("unknown")
+	}
+	return n, err
+}
+
 func (b *runtimeResponseBody) Close() error {
 	defer b.stop()
 	defer b.cancel()
-	return b.ReadCloser.Close()
+	err := b.ReadCloser.Close()
+	if err != nil {
+		b.span.End("unknown")
+	} else {
+		b.span.End(b.outcome)
+	}
+	return err
 }
 
 func guardRuntimeClient(c *http.Client, lifetime context.Context, guard func(context.Context) error, onDispatch func()) {

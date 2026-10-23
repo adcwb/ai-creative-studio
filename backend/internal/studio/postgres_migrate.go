@@ -338,27 +338,27 @@ func importQueuedTasks(ctx context.Context, tx *sql.Tx, values map[string]json.R
 	if err := json.Unmarshal(values["core"], &core); err != nil {
 		return err
 	}
-	enqueue := func(tenant, id, kind, key, project string) error {
+	enqueue := func(tenant, id, kind, key, project, traceParent string) error {
 		b, _ := json.Marshal(map[string]string{"task_id": id, "project_id": project})
-		return jobqueue.EnqueueTx(ctx, tx, jobqueue.Job{TenantID: tenant, ID: id, Kind: kind, IdempotencyKey: key, Payload: b})
+		return jobqueue.EnqueueTx(ctx, tx, jobqueue.Job{TenantID: tenant, ID: id, Kind: kind, IdempotencyKey: key, Payload: b, TraceParent: traceParent})
 	}
 	for _, t := range core.Tasks {
 		if t.Status == "queued" {
-			if err := enqueue(t.SpaceID, t.ID, "image", t.Key, ""); err != nil {
+			if err := enqueue(t.SpaceID, t.ID, "image", t.Key, "", t.TraceParent); err != nil {
 				return err
 			}
 		}
 	}
 	for _, t := range core.ScriptGenerations {
 		if t.Status == "queued" {
-			if err := enqueue(t.SpaceID, t.ID, "script", t.ID, t.ProjectID); err != nil {
+			if err := enqueue(t.SpaceID, t.ID, "script", t.ID, t.ProjectID, t.TraceParent); err != nil {
 				return err
 			}
 		}
 	}
 	for _, t := range core.StoryboardGenerations {
 		if t.Status == "queued" {
-			if err := enqueue(t.SpaceID, t.ID, "storyboard", t.ID, t.ProjectID); err != nil {
+			if err := enqueue(t.SpaceID, t.ID, "storyboard", t.ID, t.ProjectID, t.TraceParent); err != nil {
 				return err
 			}
 		}

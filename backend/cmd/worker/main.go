@@ -24,6 +24,15 @@ func main() {
 	}
 }
 func run() error {
+	flushTraces, traceErr := studio.ConfigureTracingFromEnv("worker")
+	if traceErr != nil {
+		return traceErr
+	}
+	defer func() {
+		if flushTraces() != nil {
+			slog.Warn("trace export incomplete")
+		}
+	}()
 	if os.Getenv("STORAGE_BACKEND") != "postgres" || os.Getenv("QUEUE_BACKEND") != "postgres" {
 		return errors.New("worker requires postgres storage and queue")
 	}
@@ -50,12 +59,10 @@ func run() error {
 		if err = studio.InitPostgres(ctx, db); err != nil {
 			return err
 		}
-	} else {
-		var version int
-		if err = db.QueryRowContext(ctx, "SELECT version FROM studio_schema").Scan(&version); err != nil || version != 1 {
-			return errors.New("postgres schema unavailable; run explicit migration")
-		}
 	}
+ if err = studio.CheckPostgres(ctx, db); err != nil {
+ return errors.New("postgres schema unavailable; run explicit migration")
+ }
 	concurrency, err := workerConcurrency(os.Getenv("WORKER_CONCURRENCY"))
 	if err != nil {
 		return err

@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/adcwb/ai-creative-studio/backend/internal/tracing"
 	"time"
 )
 
@@ -30,10 +31,12 @@ const Schema = `CREATE TABLE IF NOT EXISTS execution_jobs (
  updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
  PRIMARY KEY (tenant_id,id), UNIQUE (tenant_id,kind,idempotency_key)
 );
+ALTER TABLE execution_jobs ADD COLUMN IF NOT EXISTS trace_parent text NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS execution_jobs_claim ON execution_jobs(kind,created_at) WHERE state IN ('queued','leased');
 CREATE INDEX IF NOT EXISTS execution_jobs_expired ON execution_jobs(kind,lease_until) WHERE state='dispatch_started';`
 
 type Job struct {
+	TraceParent    string          `json:"trace_parent,omitempty"`
 	TenantID       string          `json:"tenant_id"`
 	ID             string          `json:"id"`
 	Kind           string          `json:"kind"`
@@ -59,8 +62,11 @@ func EnqueueTx(ctx context.Context, tx *sql.Tx, j Job) error {
 	if j.TenantID == "" || j.ID == "" || j.Kind == "" || j.IdempotencyKey == "" || !json.Valid(j.Payload) || len(j.Payload) > 65536 {
 		return errors.New("invalid job")
 	}
+	if !tracing.ValidParent(j.TraceParent) {
+		j.TraceParent = ""
+	}
 	var id string
-	err := tx.QueryRowContext(ctx, `INSERT INTO execution_jobs(tenant_id,id,kind,idempotency_key,payload) VALUES($1,$2,$3,$4,$5) ON CONFLICT(tenant_id,kind,idempotency_key) DO UPDATE SET idempotency_key=execution_jobs.idempotency_key WHERE execution_jobs.id=EXCLUDED.id AND execution_jobs.payload=EXCLUDED.payload RETURNING id`, j.TenantID, j.ID, j.Kind, j.IdempotencyKey, []byte(j.Payload)).Scan(&id)
+	err := tx.QueryRowContext(ctx, `INSERT INTO execution_jobs(tenant_id,id,kind,idempotency_key,payload,trace_parent) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(tenant_id,kind,idempotency_key) DO UPDATE SET idempotency_key=execution_jobs.idempotency_key WHERE execution_jobs.id=EXCLUDED.id AND execution_jobs.payload=EXCLUDED.payload RETURNING id`, j.TenantID, j.ID, j.Kind, j.IdempotencyKey, []byte(j.Payload), j.TraceParent).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrConflict
 	}
@@ -104,7 +110,7 @@ func (q Queue) Claim(ctx context.Context, kind string) (Job, bool, error) {
 		return Job{}, false, err
 	}
 	var j Job
-	err = tx.QueryRowContext(ctx, `WITH active AS MATERIALIZED (SELECT tenant_id,kind FROM execution_jobs WHERE state IN ('leased','dispatch_started') AND lease_until>clock_timestamp()), candidate AS (SELECT tenant_id,id FROM execution_jobs qj WHERE kind=$1 AND (state='queued' OR (state='leased' AND lease_until<=clock_timestamp())) AND (SELECT count(*) FROM active)<8 AND (SELECT count(*) FROM active WHERE kind=$1)<$4 AND (SELECT count(*) FROM active WHERE tenant_id=qj.tenant_id)<4 ORDER BY created_at,tenant_id,id FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE execution_jobs j SET state='leased',lease_token=$2,lease_until=clock_timestamp()+($3 * interval '1 millisecond'),attempt=attempt+1,updated_at=clock_timestamp() FROM candidate c WHERE j.tenant_id=c.tenant_id AND j.id=c.id RETURNING j.tenant_id,j.id,j.kind,j.idempotency_key,j.payload,j.state,j.lease_token,j.attempt`, kind, token, q.lease().Milliseconds(), kindActiveLimit(kind)).Scan(&j.TenantID, &j.ID, &j.Kind, &j.IdempotencyKey, &j.Payload, &j.State, &j.Token, &j.Attempt)
+	err = tx.QueryRowContext(ctx, `WITH active AS MATERIALIZED (SELECT tenant_id,kind FROM execution_jobs WHERE state IN ('leased','dispatch_started') AND lease_until>clock_timestamp()), candidate AS (SELECT tenant_id,id FROM execution_jobs qj WHERE kind=$1 AND (state='queued' OR (state='leased' AND lease_until<=clock_timestamp())) AND (SELECT count(*) FROM active)<8 AND (SELECT count(*) FROM active WHERE kind=$1)<$4 AND (SELECT count(*) FROM active WHERE tenant_id=qj.tenant_id)<4 ORDER BY created_at,tenant_id,id FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE execution_jobs j SET state='leased',lease_token=$2,lease_until=clock_timestamp()+($3 * interval '1 millisecond'),attempt=attempt+1,updated_at=clock_timestamp() FROM candidate c WHERE j.tenant_id=c.tenant_id AND j.id=c.id RETURNING j.tenant_id,j.id,j.kind,j.idempotency_key,j.payload,j.state,j.lease_token,j.attempt,j.trace_parent`, kind, token, q.lease().Milliseconds(), kindActiveLimit(kind)).Scan(&j.TenantID, &j.ID, &j.Kind, &j.IdempotencyKey, &j.Payload, &j.State, &j.Token, &j.Attempt, &j.TraceParent)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Job{}, false, tx.Commit()
 	}
@@ -183,7 +189,7 @@ func (q Queue) Get(ctx context.Context, tenant, id string) (Job, error) {
 	if tenant == "" || id == "" {
 		return j, fmt.Errorf("tenant and job required")
 	}
-	err := q.DB.QueryRowContext(ctx, `SELECT tenant_id,id,kind,idempotency_key,payload,state,attempt FROM execution_jobs WHERE tenant_id=$1 AND id=$2`, tenant, id).Scan(&j.TenantID, &j.ID, &j.Kind, &j.IdempotencyKey, &j.Payload, &j.State, &j.Attempt)
+	err := q.DB.QueryRowContext(ctx, `SELECT tenant_id,id,kind,idempotency_key,payload,state,attempt,trace_parent FROM execution_jobs WHERE tenant_id=$1 AND id=$2`, tenant, id).Scan(&j.TenantID, &j.ID, &j.Kind, &j.IdempotencyKey, &j.Payload, &j.State, &j.Attempt, &j.TraceParent)
 	return j, err
 }
 

@@ -68,6 +68,7 @@ type MediaTimeline struct {
 	MusicVolume      float64           `json:"music_volume"`
 }
 type MediaExport struct {
+	TraceParent    string        `json:"trace_parent,omitempty"`
 	SubtitleVTTURL string        `json:"subtitle_vtt_url"`
 	ID             string        `json:"id"`
 	Status         string        `json:"status"`
