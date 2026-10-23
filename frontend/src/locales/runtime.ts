@@ -1,4 +1,10 @@
 const messages: Record<string, string> = {
+ '即梦需要完整 JSON 对象，包含 access_key 和 secret_key 两个字符串字段。服务端整体加密保存，不读取平台环境凭据，也不自动验证或调用。': 'Jimeng requires a complete JSON object with two string fields: access_key and secret_key. The server encrypts the whole object. It does not read platform environment credentials or automatically validate or call the provider.',
+ '当前请求没有可用报价，请调整请求或联系管理员。': 'No quote is available for this request. Adjust the request or contact an administrator.',
+ '正在读取费用报价…': 'Loading cost quote…',
+ '获取当前请求报价（不调用模型）': 'Quote this request (no model call)',
+ '请求内容已改变，请重新获取并确认报价。': 'The request has changed. Get a new quote and confirm it.',
+
  '管理配置已保存；执行时使用最新权限与版本校验，未进行真实调用。': 'Configuration saved. Execution checks current permissions and versions. No live call was made.',
  '组织管理员管理模型接入。执行时重新校验权限与配置版本；须显式选择模型、确认可信报价并通过预算和审核，不会自动测试凭据。': 'Organization administrators manage model connections. Execution rechecks permissions and configuration versions, requires explicit model and trusted quote confirmation, and must pass budget and moderation controls. Credentials are never tested automatically.',
  '本次执行模型': 'Model for this execution',

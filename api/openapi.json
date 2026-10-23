@@ -8685,6 +8685,57 @@
           }
         }
       }
+    },
+    "/api/v1/runtime-quote": {
+      "post": {
+        "operationId": "quoteRuntimeRequest",
+        "summary": "Preview a trusted request-specific cost bound without provider calls or ledger mutations.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeQuoteInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Current request quote; submission must carry its digest and explicit original-currency limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeRequestQuote"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request input."
+          },
+          "403": {
+            "description": "Execution role required."
+          },
+          "409": {
+            "description": "No exact trusted quote, stale configuration or changed resource version."
+          },
+          "503": {
+            "description": "Governance unavailable."
+          }
+        }
+      }
     }
   },
   "components": {
@@ -8851,6 +8902,11 @@
             "minimum": 1,
             "maximum": 9007199254740991,
             "description": "User-confirmed maximum in integer currency minor units. Required with a model configuration choice."
+          },
+          "quote_request_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "Request-bound digest from runtime-quote; required for explicit managed execution."
           }
         },
         "additionalProperties": false,
@@ -9054,6 +9110,11 @@
             "minimum": 1,
             "maximum": 9007199254740991,
             "description": "User-confirmed maximum in integer currency minor units. Required with a model configuration choice."
+          },
+          "quote_request_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "Request-bound digest from runtime-quote; required for explicit managed execution."
           }
         },
         "description": "创建和失败重试共用输入。prompt/kind/ratio/style 为业务输入；expected_provider/expected_model 是成对可选的 HTTP 提交前置条件，不进入持久化 Input 或幂等比较。浏览器必须提供；旧 API 客户端两项都省略时兼容原行为。后端绑定实际当前配置，不接受 endpoint、凭据或直接选择 provider/model。",
@@ -9835,6 +9896,11 @@
             "minimum": 1,
             "maximum": 9007199254740991,
             "description": "User-confirmed maximum in integer currency minor units. Required with a model configuration choice."
+          },
+          "quote_request_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "Request-bound digest from runtime-quote; required for explicit managed execution."
           }
         }
       },
@@ -10624,6 +10690,11 @@
             "minimum": 1,
             "maximum": 9007199254740991,
             "description": "User-confirmed maximum in integer currency minor units. Required with a model configuration choice."
+          },
+          "quote_request_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "Request-bound digest from runtime-quote; required for explicit managed execution."
           }
         },
         "required": [
@@ -10875,6 +10946,11 @@
             "minimum": 1,
             "maximum": 9007199254740991,
             "description": "User-confirmed maximum in integer currency minor units. Required with a model configuration choice."
+          },
+          "quote_request_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "Request-bound digest from runtime-quote; required for explicit managed execution."
           }
         },
         "description": "任务只产生建议，不自动修改时间轴；用户应用仍须媒体版本CAS。真实ASR未配置时拒绝，不回退估算。"
@@ -11997,6 +12073,93 @@
             "items": {
               "$ref": "#/components/schemas/RuntimeModelOption"
             }
+          }
+        }
+      },
+      "RuntimeQuoteInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation",
+          "model_config_id",
+          "model_config_version",
+          "input"
+        ],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "image",
+              "script",
+              "storyboard",
+              "creative",
+              "analysis",
+              "alignment"
+            ]
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "model_config_id": {
+            "type": "string"
+          },
+          "model_config_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "voice": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "input": {
+            "type": "object",
+            "description": "Business request fields only, without model selection, consent or identity metadata. Uses the operation creation schema."
+          }
+        }
+      },
+      "RuntimeRequestQuote": {
+        "type": "object",
+        "required": [
+          "currency",
+          "maximum_minor",
+          "minor_units",
+          "source",
+          "expires_at",
+          "request_sha256",
+          "model_config_id",
+          "model_config_version"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "maximum_minor": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "minor_units": {
+            "type": "integer"
+          },
+          "source": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "contract": {
+            "type": "string"
+          },
+          "request_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "model_config_id": {
+            "type": "string"
+          },
+          "model_config_version": {
+            "type": "integer"
           }
         }
       }

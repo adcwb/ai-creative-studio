@@ -65,9 +65,11 @@ function Workspace({space, capability, capabilityError, onCapabilityRefresh}: {s
 
   const studio = useWorkspace(space)
   const [runtimeChoice, setRuntimeChoice] = useState<RuntimeChoice | null>(null)
-  const effectiveCapability = runtimeChoice ? {provider: runtimeChoice.model.provider as Capabilities['provider'], model: runtimeChoice.model.model, mode: 'real' as const, ready: runtimeReady(runtimeChoice), message: t('模型调用可能计费。取消、超时或结果未知不代表免费；费用按原币种预留，不自动兑换或重试。')} : capability
+
   const [tab, setTab] = useState<'create' | 'assets'>('create')
   const [draft, setDraft] = useState<TaskInput>(blankDraft)
+  const preview = {operation: 'image' as const, input: {...draft, prompt: draft.prompt.trim()}}
+  const effectiveCapability = runtimeChoice ? {provider: runtimeChoice.model.provider as Capabilities['provider'], model: runtimeChoice.model.model, mode: 'real' as const, ready: runtimeReady(runtimeChoice, preview), message: t('模型调用可能计费。取消、超时或结果未知不代表免费；费用按原币种预留，不自动兑换或重试。')} : capability
   const [editing, setEditing] = useState<{task: Task; previous: TaskInput} | null>(null)
   const [detailId, setDetailId] = useState<string | null>(null)
   const promptRef = useRef<HTMLTextAreaElement>(null)
@@ -108,7 +110,7 @@ function Workspace({space, capability, capabilityError, onCapabilityRefresh}: {s
     {studio.notice && !detailId && <p role="status" className="notice"><Icon name="check" />{studio.notice}</p>}
     {tab === 'create' ? <>
       <TemplateGallery catalog={studio.catalog} error={studio.catalogError} disabled={studio.busy} onChoose={chooseTemplate} onRetry={studio.reconnect} />
-      <RuntimeModelPicker space={space} capability="image" value={runtimeChoice} onChange={setRuntimeChoice} disabled={studio.busy} />
+      <RuntimeModelPicker space={space} capability="image" preview={preview} value={runtimeChoice} onChange={setRuntimeChoice} disabled={studio.busy} />
       <div className="creation-grid"><Composer catalog={studio.catalogError ? null : studio.catalog} capability={effectiveCapability} draft={draft} busy={studio.busy} retryTask={editing?.task ?? null} promptRef={promptRef} onChange={setDraft} onSubmit={() => {void submitDraft()}} onCancelEdit={cancelEdit} onNew={startNew} /><TaskList tasks={studio.tasks} catalog={studio.catalog} loading={studio.loading} error={studio.connectionError} savedIds={savedIds} saving={studio.saving} busy={studio.busy} onSave={task => {void studio.save(task)}} onDetail={task => openDetail(task.id)} onEdit={editTask} onResume={studio.resume} /></div>
     </> : <AssetLibrary space={space} catalog={studio.catalog} total={studio.assets.length} onCreate={() => setTab('create')} onDetail={openDetail} />}
     {detailId && <TaskDetail key={detailId} id={detailId} space={space} catalog={studio.catalog} saved={savedIds.has(detailId)} saving={studio.saving} busy={studio.busy} actionError={studio.actionError} notice={studio.notice} onClose={() => setDetailId(null)} onUpdate={studio.updateTask} onSave={task => {void studio.save(task)}} onEdit={editTask} onResume={studio.resume} />}

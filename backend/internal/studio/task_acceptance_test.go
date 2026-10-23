@@ -57,6 +57,10 @@ func TestRuntimeAcceptanceBindsAuthenticatedActorAndVersion(t *testing.T) {
 	post("runtime-not-ready", body, 503)
 	governor, _ := executionFixture(t)
 	ConfigureExecutionGovernance(s, governor)
+
+	normalized, _ := Normalize(Input{Prompt: "synthetic image request", Kind: "general"})
+	digest := ExecutionRequestDigest(imageExecutionRequest(Task{Input: normalized, Provider: "openai-images", Model: model.Model}))
+	body = strings.TrimSuffix(body, "}") + `,"quote_request_sha256":"` + digest + `"}`
 	post("runtime-no-cost-consent", strings.Replace(body, `,"budget_currency":"USD","budget_maximum_minor":30`, "", 1), 400)
 	post("runtime-spoof-actor", strings.TrimSuffix(body, "}")+`,"actor_id":"other-user"}`, 400)
 	post("runtime-spoof-scope", strings.TrimSuffix(body, "}")+`,"runtime_selection":{"tenant_id":"other"}}`, 400)
