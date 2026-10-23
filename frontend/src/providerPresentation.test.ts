@@ -10,12 +10,14 @@ describe('historical provider presentation and cost uncertainty', () => {
     expect(resultImageAlt(mock)).toContain('模拟')
     expect(resultProviderLabel(mock)).toContain('mock-svg')
     expect(resultOriginLabel(task)).toContain('OpenAI')
+    expect(resultProviderLabel({provider: 'gemini-interactions-images'})).toBe('Gemini Interactions')
+    expect(resultProviderLabel({provider: 'gemini-images'})).toBe('Gemini generateContent')
     expect(resultImageAlt(task)).not.toContain('模拟')
     expect(taskStatusLabel({ provider: 'mock-svg', status: 'succeeded' })).toBe('模拟完成')
     expect(taskStatusLabel({ provider: 'openai-images', status: 'succeeded' })).toBe('生成完成')
   })
   it('preserves provenance and charge uncertainty for every real provider', () => {
-    for (const provider of ['gemini-images', 'ark-images', 'jimeng-images', 'minimax-images'] satisfies Provider[]) {
+    for (const provider of ['gemini-images', 'gemini-interactions-images', 'ark-images', 'jimeng-images', 'minimax-images'] satisfies Provider[]) {
       const historical = {...task, provider}
       expect(resultOriginLabel(historical)).not.toContain('OpenAI')
       expect(resultImageAlt(historical)).not.toContain('模拟')

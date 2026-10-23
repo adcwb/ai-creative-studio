@@ -1,6 +1,6 @@
 import type { Capabilities, Provider, ResultSource, Task } from './api'
 
-const names: Record<Provider, string> = {'mock-svg': 'mock-svg', 'openai-images': 'OpenAI', 'gemini-images': 'Gemini', 'ark-images': '火山方舟', 'jimeng-images': '即梦', 'minimax-images': 'MiniMax'}
+const names: Record<Provider, string> = {'mock-svg': 'mock-svg', 'openai-images': 'OpenAI', 'gemini-images': 'Gemini generateContent', 'gemini-interactions-images': 'Gemini Interactions', 'ark-images': '火山方舟', 'jimeng-images': '即梦', 'minimax-images': 'MiniMax'}
 
 export function resultOriginLabel(source: ResultSource) {
   return source.provider === 'mock-svg' ? '模拟图像 · 非 AI 生成' : `${names[source.provider] ?? source.provider} 图像服务返回`
