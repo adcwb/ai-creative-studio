@@ -19,7 +19,7 @@
 
 ## 调用与安全边界
 
-所有对象仍按公开演示 `space_id` 过滤；没有新增企业账户或计费系统。服务继续只供本地使用。项目 JSON 请求保留 64 KiB、严格类型/未知字段/null 校验；原图像请求保留原有限制。浏览器不接触凭据，客户端不提供任意供应商 URL；外部适配端点固定，不跟随重定向，不自动重试付费请求。
+所有对象仍按公开演示 `space_id` 过滤；没有新增企业账户或计费系统。服务继续只供本地使用。项目 JSON 请求保留 64 KiB、严格类型/未知字段/null 校验；原图像请求保留原有限制。浏览器不接触凭据，客户端不提供任意供应商 URL；外部生成适配端点固定，生成请求不跟随重定向，不自动重试付费请求。Google官方文件下载可将单次CDN跳转交无凭据的安全下载器；后续跳转拒绝。
 
 媒体上传不接受远程 URL、用户文件路径或可执行参数。服务端检查体积、真实媒体格式和尺寸/时长，文件名只作显示信息。FFmpeg 使用参数数组，不通过 shell；输入只能是受控本地资产，执行有超时及资源边界。上传或生成成功不等于被加入时间轴，时间轴明确引用资产并控制顺序、入点、长度、音量和字幕。
 
@@ -57,3 +57,14 @@ Ark 图像通过固定 `ark.cn-beijing.volces.com/api/v3/images/generations`，�
 
 
 本架构/合同专项验证已执行：OpenAPI 3.0.3 结构校验通过；`scripts/contract_check.py` 实际 435 次 HTTP 响应符合 schema（含轮询，不是 435 个独立用例），覆盖既有图像/剧本/分镜、历史恢复与分析创作任务。Gemini/Ark 图像适配四组本地假服务测试通过 `go test -race`，验证原生请求、内联参考、PNG/JPEG规范化、URL拒绝、重定向拒绝、超时/取消、429脱敏及无自动重试。运行日志为临时文件 `/tmp/iteration6-architecture-contract.log`；完整集成验收由独立测试记录。
+
+
+## Google 原生语音与视频
+
+`gemini-speech` 使用当前 [Google TTS 官方 REST 协议](https://ai.google.dev/gemini-api/docs/speech-generation)，发送 `POST /v1beta/interactions`，显式模型、voice 和 `audio/wav`、24000 Hz；解析原始 `steps[].content[]` 的音频块。SDK 的 `output_audio` 不是原始响应字段。返回必须是完整 RIFF/WAVE、PCM16 单声道 24 kHz，最大 10 MiB/180秒；不将未知裸 PCM 包装为 WAV，不下载语音 URL。
+
+`gemini-video` 使用 [Gemini Omni 当前协议](https://ai.google.dev/gemini-api/docs/omni)，不调用已停用的 Veo preview 路径。请求固定720p、16:9、非流式、URI交付；初次POST返回后从原始视频块提取受限Google Files ID，作为持久化上游ID。只读 `GET /v1beta/files/{id}` 等待 `ACTIVE`，映射 `PROCESSING` 与 `FAILED`。恢复无需再次生成或依赖进程内URI缓存；不调用GET interactions找回URI，因为官方注明该响应可能只含内联视频。
+
+下载仅向固定官方Google源的规范文件路径发送key，忽略元数据中的任意下载URL。若官方源返回CDN跳转，去掉凭据后交现有安全下载器，校验公网DNS并固定拨号IP；禁止HTTP、内网地址、混合DNS与后续重定向。视频最多32MiB，后续媒体入库仍执行完整ffprobe校验。初次POST超时且未持久化Files ID时结果/费用不确定，不自动重发。此适配只实现文本到视频，不宣称首帧条件、视频编辑、字幕口型同步或真实模型效果已经验证。
+
+`gemini-interactions-images` 另实现当前 [Nano Banana Interactions 图像协议](https://ai.google.dev/gemini-api/docs/image-generation)。它使用独立供应商ID，与 `gemini-images` 的 generateContent 模式并存；切换协议会触发已有任务的供应商绑定检查。输入只接受文本与一张内联参考图；请求显式1K档位、PNG及选择的画面比例，原始响应按 `steps[].content[]` 解析一个内联PNG/JPEG后规范化。不接受SDK便利字段、图片URL响应或多个结果；不做隐式模型/协议回退。该限制不保证模型一定按提示返回一张图，异常结果会失败并保留费用不确定提示。
