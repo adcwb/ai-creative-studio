@@ -68,3 +68,11 @@ Ark 图像通过固定 `ark.cn-beijing.volces.com/api/v3/images/generations`，�
 下载仅向固定官方Google源的规范文件路径发送key，忽略元数据中的任意下载URL。若官方源返回CDN跳转，去掉凭据后交现有安全下载器，校验公网DNS并固定拨号IP；禁止HTTP、内网地址、混合DNS与后续重定向。视频最多32MiB，后续媒体入库仍执行完整ffprobe校验。初次POST超时且未持久化Files ID时结果/费用不确定，不自动重发。此适配只实现文本到视频，不宣称首帧条件、视频编辑、字幕口型同步或真实模型效果已经验证。
 
 `gemini-interactions-images` 另实现当前 [Nano Banana Interactions 图像协议](https://ai.google.dev/gemini-api/docs/image-generation)。它使用独立供应商ID，与 `gemini-images` 的 generateContent 模式并存；切换协议会触发已有任务的供应商绑定检查。输入只接受文本与一张内联参考图；请求显式1K档位、PNG及选择的画面比例，原始响应按 `steps[].content[]` 解析一个内联PNG/JPEG后规范化。不接受SDK便利字段、图片URL响应或多个结果；不做隐式模型/协议回退。该限制不保证模型一定按提示返回一张图，异常结果会失败并保留费用不确定提示。
+
+## 逐句字幕与音频时间对齐
+
+`MediaClip.subtitle_cues` 保存相对**镜头起点**的 `{start,end,text}`，每镜最多60句、每句1–300字、合计2000字，必须有序、不重叠且在镜头时长内；时间必须有限且至少能表示1毫秒。存在逐句字幕时优先于旧整镜 `subtitle`。SRT、WebVTT 与 MP4 mov_text 使用同一组 cue 时刻加上前序镜头累计时长。`trim_start` 仅裁剪视频源；配音始终从音频0开始，字幕不随视频裁剪偏移。
+
+独立 `media/alignments.json` 保存任务、接受时媒体版本、镜头/配音/时长快照与幂等回执。按文本估算仅按句子字数分配时长，**不识别音频、停顿或说话人**。真实 ASR 是音频转写，不是把既有剧本强制对齐到音素。`ASR_PROVIDER=openai-asr` 必须显式配置 `ASR_MODEL=whisper-1`，当前只确认该模型支持 [官方 `/audio/transcriptions` multipart、verbose_json 和 segment/word 时间戳](https://developers.openai.com/api/reference/resources/audio/subresources/transcriptions/methods/create/)；不把其他 JSON/diarized 模型当作可互换协议。ASR仅处理本项目镜头已绑定、校验过的WAV/MP3（最多24MiB/180秒），固定官方端点、禁代理/重定向、无自动重试。完整转写先按音频时钟校验，再截到镜头范围；截掉的内容通过 warnings 明示。
+
+结果不自动覆盖时间轴。用户检查结果后应用并用媒体版本保存；`estimated/asr` 来源必须引用同项目成功任务，并且字幕、配音、时长与裁剪快照完全匹配。人工改字或改时间须设为 `manual`，可保留任务ID溯源。任务创建202、原键重放200；取消只停止本地处理，不保证撤销已发请求或费用。重启将未完成任务标为中断失败，不重新发送ASR；没有会重新提交的resume接口。对齐全局最多500任务/1000回执、同时2个且每项目1个、每小时20个任务（其中真实ASR最多10个）。持久化失败后读写均报告错误，不把旧 running 永久伪装为仍在正常执行。所有真实识别质量与费用仍未验证。

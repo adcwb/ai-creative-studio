@@ -27,13 +27,16 @@ type MediaAsset struct {
 	FileURL   string  `json:"file_url"`
 }
 type MediaClip struct {
-	ID           string  `json:"id"`
-	AssetID      string  `json:"asset_id"`
-	Duration     float64 `json:"duration"`
-	TrimStart    float64 `json:"trim_start"`
-	Subtitle     string  `json:"subtitle"`
-	AudioAssetID string  `json:"audio_asset_id"`
-	AudioVolume  float64 `json:"audio_volume"`
+	SubtitleCues        []SubtitleCue `json:"subtitle_cues,omitempty"`
+	SubtitleSource      string        `json:"subtitle_source,omitempty"`
+	SubtitleAlignmentID string        `json:"subtitle_alignment_id,omitempty"`
+	ID                  string        `json:"id"`
+	AssetID             string        `json:"asset_id"`
+	Duration            float64       `json:"duration"`
+	TrimStart           float64       `json:"trim_start"`
+	Subtitle            string        `json:"subtitle"`
+	AudioAssetID        string        `json:"audio_asset_id"`
+	AudioVolume         float64       `json:"audio_volume"`
 	// A normalized crop, applied before fitting to the output frame.
 	CropX      float64 `json:"crop_x"`
 	CropY      float64 `json:"crop_y"`
@@ -72,12 +75,13 @@ type mediaDisk struct {
 	Receipts map[string]mediaReceipt `json:"receipts"`
 }
 type MediaStore struct {
-	failure error
-	mu      sync.Mutex
-	dir     string
-	data    mediaDisk
-	cancels map[string]context.CancelFunc
-	wg      sync.WaitGroup
+	alignment *AlignmentStore
+	failure   error
+	mu        sync.Mutex
+	dir       string
+	data      mediaDisk
+	cancels   map[string]context.CancelFunc
+	wg        sync.WaitGroup
 }
 
 var errMediaInput = errors.New("invalid media input")
@@ -137,9 +141,16 @@ func openMediaStore(dir string) (*MediaStore, error) {
 	if err = m.commit(m.data); err != nil {
 		return nil, err
 	}
+	m.alignment, err = openAlignmentStore(m.dir)
+	if err != nil {
+		return nil, err
+	}
 	return m, nil
 }
 func (m *MediaStore) close() {
+	if m.alignment != nil {
+		m.alignment.close()
+	}
 	m.mu.Lock()
 	for _, cancel := range m.cancels {
 		cancel()
@@ -263,6 +274,9 @@ func validateTimeline(p MediaState, t MediaTimeline) error {
 		if !ok || (a.Kind != "image" && a.Kind != "video") || !shotIDPattern.MatchString(c.ID) || ids[c.ID] || c.Duration < 0.5 || c.Duration > 30 || c.TrimStart < 0 || len([]rune(c.Subtitle)) > 300 || c.AudioVolume < 0 || c.AudioVolume > 1 {
 			return mediaInvalid("镜头素材、时长、字幕或音量无效")
 		}
+		if err := validateSubtitleCues(c.SubtitleCues, c.Duration); err != nil {
+			return err
+		}
 		ids[c.ID] = true
 		duration += c.Duration
 		if a.Kind == "video" && c.TrimStart+c.Duration > a.Duration+0.05 {
@@ -309,6 +323,9 @@ func (m *MediaStore) SaveTimeline(project, space, key string, version int, t Med
 		return p, errMediaVersion
 	}
 	if err := validateTimeline(p, t); err != nil {
+		return p, err
+	}
+	if err := m.validateAlignmentSources(project, space, t); err != nil {
 		return p, err
 	}
 	p.Timeline = t

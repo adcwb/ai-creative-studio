@@ -271,12 +271,13 @@ func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) er
 			return err
 		}
 		fmt.Fprintf(&concat, "file '%s'\n", clipPath)
-		if c.Subtitle != "" {
+		for _, cue := range clipSubtitleCues(c) {
 			subtitleCount++
-			text := strings.ReplaceAll(strings.ReplaceAll(c.Subtitle, "\r", " "), "\n", " ")
+			text := strings.ReplaceAll(strings.ReplaceAll(cue.Text, "\r", " "), "\n", " ")
 			text = strings.ReplaceAll(text, "-->", "→")
-			fmt.Fprintf(&subs, "%d\n%s --> %s\n%s\n\n", subtitleCount, srtTime(elapsed), srtTime(elapsed+c.Duration), text)
-			fmt.Fprintf(&vtt, "%s --> %s\n%s\n\n", strings.ReplaceAll(srtTime(elapsed), ",", "."), strings.ReplaceAll(srtTime(elapsed+c.Duration), ",", "."), strings.ReplaceAll(strings.ReplaceAll(text, "<", "&lt;"), ">", "&gt;"))
+			fmt.Fprintf(&subs, "%d\n%s --> %s\n%s\n\n", subtitleCount, srtTime(elapsed+cue.Start), srtTime(elapsed+cue.End), text)
+			escaped := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(text)
+			fmt.Fprintf(&vtt, "%s --> %s\n%s\n\n", strings.ReplaceAll(srtTime(elapsed+cue.Start), ",", "."), strings.ReplaceAll(srtTime(elapsed+cue.End), ",", "."), escaped)
 		}
 		elapsed += c.Duration
 	}

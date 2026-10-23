@@ -25,6 +25,7 @@ func mediaError(w http.ResponseWriter, err error) {
 	}
 }
 func registerMediaRoutes(mux *http.ServeMux, s *FileStore) {
+	registerAlignmentRoutes(mux, s)
 	m := s.media
 	uploadSlots := make(chan struct{}, 2)
 	scope := func(w http.ResponseWriter, r *http.Request, write bool) (string, string, bool) {
