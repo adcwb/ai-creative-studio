@@ -1,7 +1,7 @@
 name: Checks
 on:
   push:
-    branches: [master]
+    branches: ['**']
   pull_request:
 permissions:
   contents: read
@@ -20,6 +20,10 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Install local media dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-noto-cjk
       - name: Go checks
         working-directory: backend
         run: |
@@ -58,3 +62,65 @@ jobs:
           pip install openapi-spec-validator==0.7.2
           python -m openapi_spec_validator api/openapi.json
           python scripts/contract_check.py
+      - name: Synthetic media workflow and API contracts
+        run: python scripts/media_check.py
+      - name: Audio, subtitle and video alignment
+        run: python scripts/alignment_check.py
+  docker:
+    name: Docker / ${{ matrix.component }}
+    needs: verify
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [backend, frontend]
+    # Serialize mutable branch/latest tags without cancelling an in-flight publish.
+    concurrency:
+      group: docker-${{ github.workflow }}-${{ github.ref }}-${{ matrix.component }}
+      cancel-in-progress: false
+    env:
+      # A namespace must be explicitly configured before any publication is enabled.
+      PUBLISH_IMAGE: ${{ github.event_name == 'push' && github.repository == 'adcwb/ai-creative-studio' && vars.DOCKERHUB_NAMESPACE != '' }}
+      IMAGE_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE || 'local' }}
+      IMAGE_REPOSITORY: ${{ matrix.component == 'backend' && (vars.DOCKERHUB_BACKEND_REPOSITORY || 'ai-creative-studio-backend') || (vars.DOCKERHUB_FRONTEND_REPOSITORY || 'ai-creative-studio-frontend') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate Docker Hub image target
+        shell: bash
+        run: |
+          # Repository variables are data, never interpolated into shell source.
+          [[ "$IMAGE_NAMESPACE" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || { echo 'Invalid Docker Hub namespace'; exit 1; }
+          [[ "$IMAGE_REPOSITORY" =~ ^[a-z0-9]+([._-][a-z0-9]+)*$ ]] || { echo 'Use a repository name without registry or namespace'; exit 1; }
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Image tags and labels
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: docker.io/${{ env.IMAGE_NAMESPACE }}/${{ env.IMAGE_REPOSITORY }}
+          flavor: latest=false
+          tags: |
+            type=ref,event=branch,prefix=branch-
+            type=ref,event=pr
+            type=sha,format=long
+            type=raw,value=latest,enable=${{ github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+      - name: Log in to Docker Hub
+        if: env.PUBLISH_IMAGE == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: docker.io
+          username: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build image (publish only on configured upstream pushes)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ./${{ matrix.component }}
+          file: ./${{ matrix.component }}/Dockerfile
+          platforms: linux/amd64
+          push: ${{ env.PUBLISH_IMAGE == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
