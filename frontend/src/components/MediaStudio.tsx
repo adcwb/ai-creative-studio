@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, baseURL, errorMessage, request } from '../api'
+import { ConfirmDialog } from './ConfirmDialog'
 import type { DramaProject } from '../drama'
 
 interface MediaAsset { id: string; kind: 'image' | 'audio' | 'video'; mime_type: string; name: string; role: string; character: string; shot_id: string; duration: number; source: string; file_url: string }
@@ -19,6 +20,7 @@ export function MediaStudio({project, space, onDirtyChange}: {project: DramaProj
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [uncertain, setUncertain] = useState(false)
+  const [confirmDemo, setConfirmDemo] = useState(false)
   const [role, setRole] = useState('shot')
   const [character, setCharacter] = useState('')
   const [shotId, setShotId] = useState('')
@@ -111,7 +113,7 @@ export function MediaStudio({project, space, onDirtyChange}: {project: DramaProj
       </fieldset></details>
       <div className="media-assets">{state.assets.map(asset => <article key={asset.id}>{asset.kind === 'image' ? <img src={mediaURL(asset.file_url)} alt={asset.name} loading="lazy" /> : asset.kind === 'video' ? <video src={mediaURL(asset.file_url)} controls preload="metadata" /> : <audio src={mediaURL(asset.file_url)} controls preload="metadata" />}<strong>{asset.name}</strong><p>{asset.role} {asset.character} · {asset.source}</p>{asset.shot_id && <p>已关联镜头 {(project.storyboard?.shots.findIndex(shot => shot.id === asset.shot_id) ?? -1) + 1}</p>}{asset.kind !== 'audio' && <button disabled={locked || timeline.clips.length >= 30} onClick={() => setTimeline({...timeline, clips: [...timeline.clips, {id: crypto.randomUUID(), asset_id: asset.id, duration: Math.min(asset.duration || 3, 30), trim_start: 0, subtitle: '', audio_asset_id: '', audio_volume: 1}]})}>加入时间轴</button>}</article>)}</div>
       {state.assets.length === 0 && <p className="drama-help">还没有媒体。上传素材，或使用明确标注的合成演示验证本地成片。</p>}
-      <button disabled={locked || dirty} onClick={() => mutate('/demo', {expected_version: state.version})}>创建合成演示素材与时间轴</button>
+      <button disabled={locked || dirty} onClick={() => {if (timeline.clips.length) setConfirmDemo(true); else mutate('/demo', {expected_version: state.version})}}>创建合成演示素材与时间轴</button>
       <h3>可编辑时间轴 <small>{timeline.clips.reduce((total, clip) => total + clip.duration, 0)} 秒</small></h3>
       <p className="drama-help">按顺序拼接镜头；配音从镜头起点播放，字幕持续整个镜头，背景音乐覆盖成片。视频原音不自动保留，请单独上传配音或音效。保存后再导出。</p>
       <fieldset disabled={locked}><div className="media-timeline">{timeline.clips.map((clip, index) => <article key={clip.id}>
@@ -124,5 +126,6 @@ export function MediaStudio({project, space, onDirtyChange}: {project: DramaProj
       {dirty && <p className="drama-help">时间轴有未保存修改。切换前请先保存或取消。</p>}
       <div className="media-exports">{state.exports.map(item => <article key={item.id}><h3>成片 · {{queued: '等待合成', running: '正在合成', succeeded: '导出完成', failed: '导出失败', cancelled: '已取消'}[item.status]}</h3>{item.error && <p className="error">{item.error}</p>}{item.status === 'succeeded' && item.file_url && <><video controls crossOrigin="anonymous" src={mediaURL(item.file_url)} preload="metadata" aria-label="成片预览">{item.subtitle_vtt_url && <track kind="subtitles" src={mediaURL(item.subtitle_vtt_url)} srcLang="zh" label="中文字幕" default />}</video><a href={mediaURL(item.file_url)} download>下载 MP4 成片</a>{item.subtitle_url && <a href={mediaURL(item.subtitle_url)} download>下载 SRT 字幕</a>}<p>{item.duration} 秒 · 本地合成；素材来源见素材列表</p></>}{(item.status === 'queued' || item.status === 'running') && <button disabled={locked} onClick={() => mutate(`/exports/${item.id}/cancel`, {})}>取消成片合成</button>}</article>)}</div>
     </>}
+    {confirmDemo && state && <ConfirmDialog title="替换当前时间轴为合成演示？" message="此操作创建合成图片和音轨，并用演示镜头替换已保存时间轴。原媒体素材仍保留。" confirmLabel="确认创建合成演示" onCancel={() => setConfirmDemo(false)} onConfirm={() => {setConfirmDemo(false); mutate('/demo', {expected_version: state.version})}} />}
   </section>
 }
