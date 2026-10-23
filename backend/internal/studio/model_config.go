@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -92,11 +91,14 @@ type modelSnapshot struct {
 	Tenants map[string]modelTenant `json:"tenants"`
 }
 type ModelConfigStore struct {
-	mu     sync.Mutex
-	path   string
-	data   modelSnapshot
-	aead   cipher.AEAD
-	failed error
+	runtimeReady   func() bool
+	runtimeCancels map[*runtimeCall]struct{}
+	mu             stateMutex
+	pg             *postgresScope
+	path           string
+	data           modelSnapshot
+	aead           cipher.AEAD
+	failed         error
 }
 type ModelConfigInput struct {
 	ID         string `json:"id"`
@@ -234,7 +236,7 @@ func (s *ModelConfigStore) reportLocked(tenant string) (ModelConfigReport, error
 		return ModelConfigReport{}, s.failed
 	}
 	t := s.data.Tenants[tenant]
-	out := ModelConfigReport{Version: t.Version, Entries: []ModelConfigEntry{}, Adapters: ModelAdapters(), SecretStorageAvailable: s.aead != nil, Scope: "tenant"}
+	out := ModelConfigReport{Version: t.Version, Entries: []ModelConfigEntry{}, Adapters: ModelAdapters(), SecretStorageAvailable: s.aead != nil, Scope: "tenant", RuntimeApplied: s.runtimeReady != nil && s.runtimeReady()}
 	for _, m := range t.Entries {
 		e := m.Entry
 		e.SecretMask = ""
@@ -249,6 +251,16 @@ func (s *ModelConfigStore) reportLocked(tenant string) (ModelConfigReport, error
 func (s *ModelConfigStore) commit(d modelSnapshot) error {
 	if s.failed != nil {
 		return s.failed
+	}
+	if s.pg != nil {
+		if err := s.pg.save(d); err != nil {
+			for call := range s.runtimeCancels {
+				call.cancel()
+			}
+			return err
+		}
+		s.publishRuntimeSnapshot(d)
+		return nil
 	}
 	b, err := json.Marshal(d)
 	if err != nil {
@@ -280,10 +292,22 @@ func (s *ModelConfigStore) commit(d modelSnapshot) error {
 	}
 	if err != nil {
 		s.failed = err
+		for call := range s.runtimeCancels {
+			call.cancel()
+		}
 		return err
 	}
-	s.data = d
+	s.publishRuntimeSnapshot(d)
 	return nil
+}
+
+func (s *ModelConfigStore) publishRuntimeSnapshot(d modelSnapshot) {
+	for call := range s.runtimeCancels {
+		if d.Tenants[call.selection.TenantID].Version != call.selection.Version {
+			call.cancel()
+		}
+	}
+	s.data = d
 }
 func (s *ModelConfigStore) update(tenant string, expected int64, in ModelConfigInput, credential ModelCredentialInput) (ModelConfigReport, error) {
 	s.mu.Lock()
@@ -413,5 +437,5 @@ func (s *ModelConfigStore) validate(tenant, id string) (map[string]any, error) {
 			}
 		}
 	}
-	return map[string]any{"configuration_valid": true, "credential_status": status, "remote_verified": false, "live_enabled": false, "runtime_applied": false, "model_verified": false}, nil
+	return map[string]any{"configuration_valid": true, "credential_status": status, "remote_verified": false, "live_enabled": false, "runtime_applied": s.runtimeReady != nil && s.runtimeReady(), "model_verified": false}, nil
 }
