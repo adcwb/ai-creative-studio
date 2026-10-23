@@ -142,7 +142,43 @@ with tempfile.TemporaryDirectory(prefix="studio-process-smoke-") as directory:
         request(independent_path + "/generations" + SPACE, {"expected_version": 1}, "process-independent-generation")
         independent = await_value(lambda: request(independent_path + SPACE), lambda p: p.get("latest_generation", {}).get("status") == "succeeded")
         assert independent["version"] == 2 and independent["latest_generation"]["provider"] == "mock-script"
-        print("PASS: image retry/SVG recovery and search; script generation SIGKILL recovery, persistent project/script/version/receipts, failure preserving saved edits, cross-space lists, and script independence from unavailable image provider")
+        # Storyboards use the saved script snapshot and survive a real SIGKILL.
+        board_path = independent_path + "/storyboard" + SPACE
+        boards_path = independent_path + "/storyboard-generations" + SPACE
+        board_body = {"expected_version": independent["version"]}
+        board_attempt = request(boards_path, board_body, "process-board-generate")
+        await_value(lambda: request(independent_path + SPACE), lambda p: p.get("latest_storyboard_generation", {}).get("status") == "running")
+        crash()
+        start()
+        boarded = await_value(lambda: request(independent_path + SPACE), lambda p: p.get("latest_storyboard_generation", {}).get("status") == "succeeded")
+        assert boarded["version"] == independent["version"] + 1
+        assert boarded["latest_storyboard_generation"]["id"] == board_attempt["id"]
+        assert boarded["latest_storyboard_generation"]["provider"] == "mock-storyboard"
+        assert boarded["storyboard"]["source_script_version"] == boarded["script_version"]
+        assert boarded["storyboard_stale"] is False
+        assert request(boards_path, board_body, "process-board-generate")["id"] == board_attempt["id"]
+        assert len(request(boards_path)) == 1
+        shots = json.loads(json.dumps(boarded["storyboard"]["shots"]))
+        shots[0]["description"] = "合成分镜人工修改，重启后保留。"
+        board_save = {"expected_version": boarded["version"], "shots": shots}
+        board_saved = request(board_path, board_save, "process-board-save", method="PUT")
+        crash()
+        start()
+        assert request(independent_path + SPACE)["storyboard"]["shots"] == shots
+        assert request(board_path, board_save, "process-board-save", method="PUT")["version"] == board_saved["version"]
+        revised_script = json.loads(json.dumps(board_saved["script"]))
+        revised_script["scenes"][0]["action"] = "[mock-fail] 合成分镜失败不能覆盖已保存计划。"
+        revised = request(independent_path + "/script" + SPACE, {"expected_version": board_saved["version"], "script": revised_script}, "process-board-source", method="PUT")
+        assert revised["storyboard_stale"] is True
+        request(boards_path, {"expected_version": revised["version"]}, "process-board-failure")
+        board_failed = await_value(lambda: request(independent_path + SPACE), lambda p: p["latest_storyboard_generation"]["status"] == "failed")
+        assert board_failed["version"] == revised["version"]
+        assert board_failed["storyboard"] == board_saved["storyboard"]
+        assert board_failed["storyboard_stale"] is True
+        crash()
+        start()
+        assert request(independent_path + SPACE)["storyboard"] == board_saved["storyboard"]
+        print("PASS: image/script recovery and receipts; storyboard running SIGKILL recovery, saved edits and receipt restart replay, source staleness and failure preserving old plan; unavailable image provider independence")
     finally:
         if process is not None and process.poll() is None:
             process.terminate()

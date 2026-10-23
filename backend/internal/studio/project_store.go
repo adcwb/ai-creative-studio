@@ -11,6 +11,7 @@ import (
 )
 
 type ProjectRepository interface {
+	StoryboardRepository
 	CreateProject(string, string, ProjectInput) (Project, bool, error)
 	UpdateProject(string, string, string, ProjectUpdate) (Project, error)
 	GetProject(string, string) (Project, error)
@@ -74,10 +75,20 @@ func (s *FileStore) projectViewLocked(project Project) Project {
 		project.LatestGeneration = &generation
 	}
 	project.LatestGenerationID = ""
+	project.LatestStoryboardGeneration = nil
+	if g, ok := s.data.StoryboardGenerations[project.LatestStoryboardGenerationID]; ok && g.ProjectID == project.ID && g.SpaceID == project.SpaceID {
+		v := storyboardGenerationView(g)
+		project.LatestStoryboardGeneration = &v
+	}
+	project.LatestStoryboardGenerationID = ""
+	project.StoryboardStale = project.Storyboard != nil && project.Storyboard.SourceScriptVersion != project.ScriptVersion
 	return project
 }
 
 func (s *FileStore) generationActiveLocked(project Project) bool {
+	if g, ok := s.data.StoryboardGenerations[project.LatestStoryboardGenerationID]; ok && g.ProjectID == project.ID && g.SpaceID == project.SpaceID && (g.Status == "queued" || g.Status == "running") {
+		return true
+	}
 	generation, ok := s.data.ScriptGenerations[project.LatestGenerationID]
 	return ok && generation.ProjectID == project.ID && generation.SpaceID == project.SpaceID && (generation.Status == "queued" || generation.Status == "running")
 }
@@ -283,6 +294,7 @@ func (s *FileStore) SaveProjectScript(space, id, key string, in ScriptSaveInput)
 		return Project{}, ErrScriptMissing
 	}
 	project.Script = &in.Script
+	project.ScriptVersion++
 	project.Version++
 	project.UpdatedAt = time.Now().UTC()
 	d := s.clone()
@@ -354,6 +366,7 @@ func (s *FileStore) FinishScriptGeneration(generation ScriptGeneration, script S
 	} else {
 		current.Status = "succeeded"
 		project.Script = &script
+		project.ScriptVersion++
 		project.ScriptBrief = current.SourceBrief
 		project.Version++
 	}

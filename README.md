@@ -1,8 +1,18 @@
 # 映创 · AI Creative Studio
 
-面向个人与团队的 AI 视觉内容工作室。React / TypeScript / Vite 前端与 Go / Eino 后端独立启动。第三轮已发布。第四轮基于 `7dab4ea` 在同一云工作区实现，本轮未推送或部署。
+面向个人与团队的 AI 视觉内容工作室。React / TypeScript / Vite 前端与 Go / Eino 后端独立启动。第四轮已发布并验证。第五轮基于 `b080d6b` 实现可编辑分镜计划，仅本地开发与验证，未推送或部署。
 
-**默认仍为无凭据、无付费调用的 mock 模式。模拟结果是程序绘制 SVG，带有“模拟图像 · 非 AI 生成”标识。第三轮增加一种明确的真实图像协议适配器，但仅以本地 HTTP 假服务验证，未进行真实付费生成或验证任何模型质量。** 肖像仅为概念任务分类，不上传或编辑照片。第四轮新增短剧项目与结构化模拟剧本草稿；文本由程序生成并明确标记，未生成分镜、音频或视频。
+**默认仍为无凭据、无付费调用的 mock 模式。模拟结果是程序绘制 SVG，带有“模拟图像 · 非 AI 生成”标识。第三轮增加一种明确的真实图像协议适配器，但仅以本地 HTTP 假服务验证，未进行真实付费生成或验证任何模型质量。** 肖像仅为概念任务分类，不上传或编辑照片。短剧项目支持结构化模拟剧本与可编辑模拟分镜计划；文本由程序生成并明确标记，未生成分镜图像、音频或视频。
+
+## 第五轮增量
+
+- 从已保存剧本异步生成 `mock-storyboard` 分镜计划；每项目保留一份当前计划。
+- 逐镜编辑画面、场景序号、景别、运镜、时长与对白，显式保存到真实后端；刷新与重启后可读取。
+- 分镜记录来源剧本版本，剧本编辑或重新生成后提示过期；编辑旧分镜不会消除过期提示。
+- 生成失败保留旧计划；生成期间锁定项目写操作，版本冲突保留本地草稿，结果不确定时使用原请求与幂等键重试。
+- 仍不提供分镜图像、真实文本模型、镜头增删界面、时间轴或视频编辑器。
+
+契约与数据升级见 [第五轮架构](docs/iteration-5-architecture.md)，实际检查与限制见 [第五轮验证](docs/iteration-5-verification.md)。
 
 ## 第四轮增量
 
@@ -36,6 +46,14 @@
 产品、架构、前端、后端、测试五个实际子代理的职责和文件边界见 [协作记录](docs/iteration-2-collaboration.md)。验收范围见 [产品文档](docs/iteration-2-product.md)，接口与兼容设计见 [第二轮架构](docs/iteration-2-architecture.md)，最终验证见 [第二轮测试记录](docs/iteration-2-verification.md)，视觉规则见 [品牌与组件规范](docs/brand.md)。
 
 ## 实际运行截图
+
+### 第五轮：可编辑模拟分镜计划
+
+真实本地前后端，使用合成剧本；分镜为程序模拟文本计划，不是分镜图像或视频，也不是已部署服务。
+
+[桌面原图](docs/screenshots/storyboard-desktop.png) · [手机原图](docs/screenshots/storyboard-mobile.png) · [36 状态布局证据](docs/screenshots/iteration-5-storyboard-geometry.json)
+
+![映创当前模拟分镜计划](docs/screenshots/storyboard-desktop.png)
 
 ### 第四轮：短剧项目与结构化模拟剧本
 
@@ -157,6 +175,7 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e
 node scripts/layout_check.mjs
 node scripts/provider_check.mjs
 node scripts/project_check.mjs
+node scripts/storyboard_check.mjs
 ```
 
 系统 Chromium 可通过同一个 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` 指定。该检查覆盖多个桌面宽度、短屏、单列断点、手机、空库及长文本，不使用开发数据。
@@ -175,9 +194,9 @@ python scripts/contract_check.py
 
 ## 数据和恢复
 
-`backend/data/state.json` 保存图像任务、历史模拟 SVG、素材元数据，以及短剧项目、当前剧本、生成记录和写操作幂等记录；真实 PNG 保存在同目录下的 `results/`；整个运行数据目录已加入 Git 忽略。`DATA_DIR` 可覆盖路径。任务先持久化再返回接受响应；mock 执行中任务在重启时重新排队，真实执行中任务转为结果不确定的失败，避免自动重复调用。写文件采用临时文件、文件 fsync、原子 rename，第二个进程无法锁定同一目录。状态损坏时启动失败，**不会清空重建**。停服后备份整个数据目录；要重置演示，请先备份，再显式移走该目录。
+`backend/data/state.json` 保存图像任务、历史模拟 SVG、素材元数据，以及短剧项目、当前剧本和分镜计划、生成记录和写操作幂等记录；真实 PNG 保存在同目录下的 `results/`；整个运行数据目录已加入 Git 忽略。`DATA_DIR` 可覆盖路径。任务先持久化再返回接受响应；mock 执行中任务在重启时重新排队，真实执行中任务转为结果不确定的失败，避免自动重复调用。写文件采用临时文件、文件 fsync、原子 rename，第二个进程无法锁定同一目录。状态损坏时启动失败，**不会清空重建**。停服后备份整个数据目录；要重置演示，请先备份，再显式移走该目录。
 
-第四轮首次启动会将完整 v1 文件快照升级为 v2，保留旧图像数据；v2 缺失必需字段仍拒绝启动。升级前停服备份整个 `DATA_DIR`；旧版本程序不能直接读取 v2，回退须恢复对应备份，不要手改版本号。此升级不涉及数据库或外部服务。
+第五轮使用 v3 文件快照，支持完整 v1/v2 数据受控升级，保留已有图像、项目、剧本与回执。升级前停服备份整个 `DATA_DIR`；旧版本程序不能直接读取 v3，回退须恢复对应备份，不要手改版本号。损坏或缺失必需字段仍拒绝启动。此升级不涉及数据库或外部服务。
 
 短剧 `running` 在重启后重新排队，仅用于无外部调用的 mock；图像真实模式仍遵守中断不自动重发规则。
 

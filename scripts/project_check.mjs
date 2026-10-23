@@ -97,7 +97,7 @@ try {
       if (project) await page.locator('.drama-project-list button').filter({hasText:project.title}).click()
       await expect(page.getByLabel('项目名称')).toBeVisible()
       if (state === 'empty') await expect(page.locator('.drama-projects')).toContainText('还没有项目')
-      else if (state === 'failed') await expect(page.locator('.drama-generation')).toContainText('mock_script_failed')
+      else if (state === 'failed') await expect(page.getByRole('region', {name: '生成模拟剧本', exact: true})).toContainText('mock_script_failed')
       else await expect(page.locator('.drama-scene')).toHaveCount(3)
       if (state === 'editing') await page.getByRole('button',{name:'编辑剧本',exact:true}).click()
       await page.evaluate(async () => { await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); window.scrollTo(0,0) })

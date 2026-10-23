@@ -106,3 +106,17 @@
   .drama-brief-actions .primary { flex: 1; }
   .drama-script-actions > div { flex-direction: column-reverse; }
 }
+.storyboard-shots { display: grid; gap: 24px; }
+.storyboard-shot { min-width: 0; border-top: 1px solid var(--border); padding-top: 22px; }
+.storyboard-shot h3 { font-size: 13px; margin: 18px 0 8px; }
+.storyboard-shot-meta { color: var(--green-soft); font-size: 12px; line-height: 1.9; }
+.storyboard-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-bottom: 20px; }
+.storyboard-fields > div { min-width: 0; }
+.drama-storyboard input, .drama-storyboard select, .drama-storyboard textarea { font-size: 13px; }
+.storyboard-shot textarea { min-height: 120px; }
+.storyboard-shot .field-footer { margin-bottom: 18px; }
+.storyboard-shot .drama-dialogue { gap: 0; }
+.storyboard-stale p { font-size: 12px; line-height: 1.9; margin-bottom: 0; }
+@media (max-width: 700px) {
+  .storyboard-fields { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+}

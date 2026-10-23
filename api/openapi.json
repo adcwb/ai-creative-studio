@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "映创 · Iteration 4 Creative Studio API",
-    "version": "0.4.0",
-    "description": "真实运行并持久化业务任务的本地工作室 API。默认使用 mock-svg；可由服务端显式配置 OpenAI Images generations 的 gpt-image-2-2026-04-21 固定协议适配器。能力就绪仅表示本地配置可提交，不代表已验证上游凭据或完成真实付费调用。任务和素材保留自身 provider；公开演示空间仍无生产认证或企业隔离，不可直接暴露公网。 第四轮增加独立 mock-script 短剧项目：创意需求、真实 Eino 异步结构化剧本生成、乐观版本编辑与持久幂等。剧本仅为确定性模拟，不调用文本模型、不依赖图像 provider 或凭据。"
+    "title": "映创 · Iteration 5 Creative Studio API",
+    "version": "0.5.0",
+    "description": "真实运行并持久化业务任务的本地工作室 API。默认使用 mock-svg；可由服务端显式配置 OpenAI Images generations 的 gpt-image-2-2026-04-21 固定协议适配器。能力就绪仅表示本地配置可提交，不代表已验证上游凭据或完成真实付费调用。任务和素材保留自身 provider；公开演示空间仍无生产认证或企业隔离，不可直接暴露公网。 第四轮增加独立 mock-script 短剧项目：创意需求、真实 Eino 异步结构化剧本生成、乐观版本编辑与持久幂等。剧本仅为确定性模拟，不调用文本模型、不依赖图像 provider 或凭据。 第五轮增加已保存剧本到当前可编辑分镜的独立 mock-storyboard 流程，真实持久化、版本冲突、过期来源提示与恢复，不生成音视频。"
   },
   "servers": [
     {
@@ -1260,7 +1260,9 @@
                     "brief": "两名旧友因一封错寄的信，在雨夜车站重逢。",
                     "version": 1,
                     "created_at": "2026-10-22T12:00:00Z",
-                    "updated_at": "2026-10-22T12:00:00Z"
+                    "updated_at": "2026-10-22T12:00:00Z",
+                    "script_version": 0,
+                    "storyboard_stale": false
                   }
                 ]
               }
@@ -1479,7 +1481,9 @@
                     "progress": 100,
                     "created_at": "2026-10-22T12:00:00Z",
                     "updated_at": "2026-10-22T12:00:00Z"
-                  }
+                  },
+                  "script_version": 1,
+                  "storyboard_stale": false
                 }
               }
             }
@@ -1498,7 +1502,9 @@
                   "brief": "两名旧友因一封错寄的信，在雨夜车站重逢。",
                   "version": 1,
                   "created_at": "2026-10-22T12:00:00Z",
-                  "updated_at": "2026-10-22T12:00:00Z"
+                  "updated_at": "2026-10-22T12:00:00Z",
+                  "script_version": 0,
+                  "storyboard_stale": false
                 }
               }
             }
@@ -1621,7 +1627,9 @@
                     "progress": 100,
                     "created_at": "2026-10-22T12:00:00Z",
                     "updated_at": "2026-10-22T12:00:00Z"
-                  }
+                  },
+                  "script_version": 1,
+                  "storyboard_stale": false
                 }
               }
             }
@@ -1892,7 +1900,9 @@
                     "progress": 100,
                     "created_at": "2026-10-22T12:00:00Z",
                     "updated_at": "2026-10-22T12:00:00Z"
-                  }
+                  },
+                  "script_version": 1,
+                  "storyboard_stale": false
                 }
               }
             }
@@ -2477,13 +2487,511 @@
                     "progress": 100,
                     "created_at": "2026-10-22T12:00:00Z",
                     "updated_at": "2026-10-22T12:00:00Z"
-                  }
+                  },
+                  "script_version": 1,
+                  "storyboard_stale": false
                 }
               }
             }
           }
         },
         "description": "要求项目已有 script 且无活动生成，校验完整结构及角色引用，成功原子保存并 version+1，script_brief 保持不变。前端遇到失败或版本冲突须保留本地编辑，只有明确重载/放弃后才能丢弃；不自动覆盖服务器新版本。相同请求键/body 在成功响应丢失后重发返回当前项目且不再次增加版本。"
+      }
+    },
+    "/api/v1/projects/{id}/storyboard-generations": {
+      "get": {
+        "operationId": "listStoryboardGenerations",
+        "summary": "读取模拟分镜生成记录",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "直接返回数组，按 created_at 倒序，ID 作为稳定次序。没有尝试时为 []；记录包含来源版本与状态，不提供历史计划回滚。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StoryboardGeneration"
+                  }
+                },
+                "example": [
+                  {
+                    "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                    "space_id": "personal-demo",
+                    "project_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "base_version": 2,
+                    "provider": "mock-storyboard",
+                    "status": "queued",
+                    "progress": 0,
+                    "created_at": "2026-10-22T12:00:00Z",
+                    "updated_at": "2026-10-22T12:00:00Z",
+                    "source_script_version": 1
+                  }
+                ]
+              }
+            }
+          },
+          "400": {
+            "description": "空间、键、JSON 或字段无效；缺字段、null、未知字段、类型错误或超出 Unicode/结构限制均拒绝。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "使用已保存剧本，不接受浏览器草稿。生成活动期间项目、剧本与分镜写操作互斥。失败不清空当前计划；已接受幂等请求优先重放原尝试。"
+      },
+      "post": {
+        "operationId": "createStoryboardGeneration",
+        "summary": "从已保存剧本异步生成模拟分镜",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "所有项目写操作在同一空间共享项目域命名空间，与图像任务键独立。指纹含操作、目标项目和规范化完整请求（含 expected_version）。同一提交网络重试必须保留键和 body；同键不同操作/目标/body 返回 idempotency_conflict。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "仅一个 application/json 对象，最多 64 KiB。所有字段必填、不可为 null，禁止未知字段。此限制仅适用于项目 API；图像请求仍为 16 KiB。",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateScript"
+              },
+              "example": {
+                "expected_version": 2
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 script_missing；保留本地草稿，不能自动换键覆盖。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "精确幂等重放返回原尝试当前状态，不创建新尝试。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryboardGeneration"
+                },
+                "example": {
+                  "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "space_id": "personal-demo",
+                  "project_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "base_version": 2,
+                  "provider": "mock-storyboard",
+                  "status": "queued",
+                  "progress": 0,
+                  "created_at": "2026-10-22T12:00:00Z",
+                  "updated_at": "2026-10-22T12:00:00Z",
+                  "source_script_version": 1
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "已保存剧本快照、来源版本、queued 尝试、项目最新尝试关联及回执已原子持久化；尚未完成分镜生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryboardGeneration"
+                },
+                "example": {
+                  "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "space_id": "personal-demo",
+                  "project_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "base_version": 2,
+                  "provider": "mock-storyboard",
+                  "status": "queued",
+                  "progress": 0,
+                  "created_at": "2026-10-22T12:00:00Z",
+                  "updated_at": "2026-10-22T12:00:00Z",
+                  "source_script_version": 1
+                }
+              }
+            }
+          }
+        },
+        "description": "使用已保存剧本，不接受浏览器草稿。生成活动期间项目、剧本与分镜写操作互斥。失败不清空当前计划；已接受幂等请求优先重放原尝试。"
+      }
+    },
+    "/api/v1/projects/{id}/storyboard": {
+      "put": {
+        "operationId": "saveStoryboard",
+        "summary": "按项目预期版本保存当前分镜计划",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "所有项目写操作在同一空间共享项目域命名空间，与图像任务键独立。指纹含操作、目标项目和规范化完整请求（含 expected_version）。同一提交网络重试必须保留键和 body；同键不同操作/目标/body 返回 idempotency_conflict。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "仅一个 application/json 对象，最多 64 KiB。所有字段必填、不可为 null，禁止未知字段。此限制仅适用于项目 API；图像请求仍为 16 KiB。",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveStoryboard"
+              },
+              "example": {
+                "expected_version": 3,
+                "shots": [
+                  {
+                    "id": "shot-1",
+                    "scene_index": 1,
+                    "description": "雨夜车站门口，两名旧友在屋檐下相遇。",
+                    "shot_size": "wide",
+                    "camera_movement": "static",
+                    "duration_seconds": 6,
+                    "dialogue": "林岚：这封信为什么还在这里？"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "写入成功，或精确幂等重放返回当前项目投影。回执证明操作已提交，不承诺冻结历史响应；重放不再次修改版本。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                },
+                "example": {
+                  "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "space_id": "personal-demo",
+                  "title": "雨夜来信",
+                  "brief": "两名旧友因一封错寄的信，在雨夜车站重逢。",
+                  "version": 4,
+                  "created_at": "2026-10-22T12:00:00Z",
+                  "updated_at": "2026-10-22T12:00:00Z",
+                  "script": {
+                    "title": "雨夜来信",
+                    "logline": "两名旧友因一封错寄的信，在雨夜车站重逢并决定合作。",
+                    "characters": [
+                      {
+                        "name": "林岚",
+                        "description": "准备离开小城的摄影师。"
+                      },
+                      {
+                        "name": "周远",
+                        "description": "保管旧信的车站管理员。"
+                      }
+                    ],
+                    "scenes": [
+                      {
+                        "heading": "第一场 · 车站门口",
+                        "action": "林岚躲雨，发现周远手中的旧信。",
+                        "dialogue": [
+                          {
+                            "character": "林岚",
+                            "text": "这封信为什么还在这里？"
+                          },
+                          {
+                            "character": "周远",
+                            "text": "我一直在等收信人。"
+                          }
+                        ]
+                      },
+                      {
+                        "heading": "第二场 · 候车室",
+                        "action": "两人核对信中的日期，发现错过的约定。",
+                        "dialogue": [
+                          {
+                            "character": "林岚",
+                            "text": "原来我们都记错了时间。"
+                          },
+                          {
+                            "character": "周远",
+                            "text": "现在还来得及谈一谈。"
+                          }
+                        ]
+                      },
+                      {
+                        "heading": "第三场 · 雨停以后",
+                        "action": "林岚收起车票，两人约好记录车站的故事。",
+                        "dialogue": [
+                          {
+                            "character": "林岚",
+                            "text": "那就从今天开始。"
+                          },
+                          {
+                            "character": "周远",
+                            "text": "第一张照片，拍这里。"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "script_brief": "两名旧友因一封错寄的信，在雨夜车站重逢。",
+                  "latest_generation": {
+                    "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                    "space_id": "personal-demo",
+                    "project_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "source_title": "雨夜来信",
+                    "source_brief": "两名旧友因一封错寄的信，在雨夜车站重逢。",
+                    "base_version": 1,
+                    "provider": "mock-script",
+                    "status": "succeeded",
+                    "progress": 100,
+                    "created_at": "2026-10-22T12:00:00Z",
+                    "updated_at": "2026-10-22T12:00:00Z"
+                  },
+                  "script_version": 1,
+                  "storyboard_stale": false,
+                  "storyboard": {
+                    "source_script_version": 1,
+                    "shots": [
+                      {
+                        "id": "shot-1",
+                        "scene_index": 1,
+                        "description": "雨夜车站门口，两名旧友在屋檐下相遇。",
+                        "shot_size": "wide",
+                        "camera_movement": "static",
+                        "duration_seconds": 6,
+                        "dialogue": "林岚：这封信为什么还在这里？"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "全量保存镜头；必须已有计划。来源剧本版本由后端保留。过期计划可继续编辑但不会变成未过期。所有项目写操作共用持久幂等空间。"
       }
     }
   },
@@ -3419,7 +3927,9 @@
           "brief",
           "version",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "script_version",
+          "storyboard_stale"
         ],
         "properties": {
           "id": {
@@ -3469,9 +3979,24 @@
           },
           "latest_generation": {
             "$ref": "#/components/schemas/ScriptGeneration"
+          },
+          "script_version": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "无剧本为0，首次成功剧本为1；仅剧本保存或重新生成成功递增，需求和分镜保存不递增。"
+          },
+          "storyboard_stale": {
+            "type": "boolean",
+            "description": "服务端计算计划来源剧本版本是否不同于当前 script_version；无计划时 false。"
+          },
+          "storyboard": {
+            "$ref": "#/components/schemas/Storyboard"
+          },
+          "latest_storyboard_generation": {
+            "$ref": "#/components/schemas/StoryboardGeneration"
           }
         },
-        "description": "单项目只有一份当前剧本。无稿时省略 script/script_brief，无尝试时省略 latest_generation，不返回 null。生成活动期间拒绝内容修改和新生成，精确幂等重放仍返回当前投影。项目没有独立的伪状态字段。",
+        "description": "单项目只有一份当前剧本。无稿时省略 script/script_brief，无尝试时省略 latest_generation，不返回 null。生成活动期间拒绝内容修改和新生成，精确幂等重放仍返回当前投影。项目没有独立的伪状态字段。 第五轮每项目另有一份当前分镜；两种生成均锁定项目写操作。source_script_version 不随分镜编辑改变。",
         "example": {
           "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           "space_id": "personal-demo",
@@ -3479,7 +4004,9 @@
           "brief": "两名旧友因一封错寄的信，在雨夜车站重逢。",
           "version": 1,
           "created_at": "2026-10-22T12:00:00Z",
-          "updated_at": "2026-10-22T12:00:00Z"
+          "updated_at": "2026-10-22T12:00:00Z",
+          "script_version": 0,
+          "storyboard_stale": false
         }
       },
       "CreateProject": {
@@ -3562,6 +4089,246 @@
             "minimum": 1,
             "description": "提交者所编辑的项目内容版本，必须显式提供；已有精确幂等记录先于当前版本检查。该字段纳入提交身份，不可在网络重发时悄悄更新。"
           }
+        }
+      },
+      "StoryboardShot": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "scene_index",
+          "description",
+          "shot_size",
+          "camera_movement",
+          "duration_seconds",
+          "dialogue"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,40}$"
+          },
+          "scene_index": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "description": "去除首尾空白后按 Unicode 字符计数。"
+          },
+          "shot_size": {
+            "type": "string",
+            "enum": [
+              "wide",
+              "medium",
+              "close_up"
+            ]
+          },
+          "camera_movement": {
+            "type": "string",
+            "enum": [
+              "static",
+              "pan",
+              "track"
+            ]
+          },
+          "duration_seconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60
+          },
+          "dialogue": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 2000,
+            "description": "去除首尾空白后按 Unicode 字符计数。"
+          }
+        },
+        "description": "镜头 ID 在计划内唯一；scene_index 为来源剧本场景数组的 1-based 序号，必须结合 source_script_version 理解，不能当作跨版本稳定场景 ID。",
+        "example": {
+          "id": "shot-1",
+          "scene_index": 1,
+          "description": "雨夜车站门口，两名旧友在屋檐下相遇。",
+          "shot_size": "wide",
+          "camera_movement": "static",
+          "duration_seconds": 6,
+          "dialogue": "林岚：这封信为什么还在这里？"
+        }
+      },
+      "Storyboard": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_script_version",
+          "shots"
+        ],
+        "properties": {
+          "source_script_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "shots": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 30,
+            "items": {
+              "$ref": "#/components/schemas/StoryboardShot"
+            }
+          }
+        },
+        "description": "每项目仅一份当前计划。来源版本由后端写入，编辑保存不能改写它；过期后仍允许编辑并保留过期提示。",
+        "example": {
+          "source_script_version": 1,
+          "shots": [
+            {
+              "id": "shot-1",
+              "scene_index": 1,
+              "description": "雨夜车站门口，两名旧友在屋檐下相遇。",
+              "shot_size": "wide",
+              "camera_movement": "static",
+              "duration_seconds": 6,
+              "dialogue": "林岚：这封信为什么还在这里？"
+            }
+          ]
+        }
+      },
+      "SaveStoryboard": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_version",
+          "shots"
+        ],
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "shots": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 30,
+            "items": {
+              "$ref": "#/components/schemas/StoryboardShot"
+            }
+          }
+        },
+        "description": "以 Project.version 乐观锁保存完整镜头数组；不能提交来源版本、状态或 provider。",
+        "example": {
+          "expected_version": 3,
+          "shots": [
+            {
+              "id": "shot-1",
+              "scene_index": 1,
+              "description": "雨夜车站门口，两名旧友在屋檐下相遇。",
+              "shot_size": "wide",
+              "camera_movement": "static",
+              "duration_seconds": 6,
+              "dialogue": "林岚：这封信为什么还在这里？"
+            }
+          ]
+        }
+      },
+      "StoryboardGeneration": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "space_id",
+          "project_id",
+          "base_version",
+          "provider",
+          "status",
+          "progress",
+          "created_at",
+          "updated_at",
+          "source_script_version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$"
+          },
+          "space_id": {
+            "type": "string",
+            "enum": [
+              "personal-demo",
+              "team-demo"
+            ]
+          },
+          "project_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$"
+          },
+          "base_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "内容版本；项目初始为 1，每次成功的内容写入或生成成功递增 1。接受/运行/失败不递增。"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "mock-storyboard"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed"
+            ]
+          },
+          "progress": {
+            "type": "integer",
+            "enum": [
+              0,
+              35,
+              100
+            ],
+            "description": "queued=0，running=35，终态=100，仅为流程阶段。"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error": {
+            "type": "string",
+            "minLength": 1,
+            "description": "失败时的安全静态说明，不回显内部异常。"
+          },
+          "error_code": {
+            "type": "string",
+            "enum": [
+              "mock_storyboard_failed",
+              "invalid_storyboard_output"
+            ]
+          },
+          "source_script_version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "description": "持久化模拟分镜执行记录；来源是提交时已保存剧本的不可变快照，内部 source_script 不对外返回。运行中重启重新排队；失败保留旧计划。",
+        "example": {
+          "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "space_id": "personal-demo",
+          "project_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "base_version": 2,
+          "provider": "mock-storyboard",
+          "status": "queued",
+          "progress": 0,
+          "created_at": "2026-10-22T12:00:00Z",
+          "updated_at": "2026-10-22T12:00:00Z",
+          "source_script_version": 1
         }
       }
     }

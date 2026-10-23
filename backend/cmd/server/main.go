@@ -47,10 +47,19 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	storyboardPipeline, err := studio.NewStoryboardPipeline(ctx, studio.MockStoryboardProvider{Delay: 900 * time.Millisecond})
+	if err != nil {
+		return err
+	}
 	srv := &http.Server{Addr: env("HTTP_ADDR", "127.0.0.1:8080"), Handler: studio.Handler(store, env("FRONTEND_ORIGIN", "http://localhost:5173")), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
-	errs := make(chan error, 3)
+	errs := make(chan error, 4)
 	workerDone := make(chan struct{})
 	scriptWorkerDone := make(chan struct{})
+	storyboardWorkerDone := make(chan struct{})
+	go func() {
+		defer close(storyboardWorkerDone)
+		errs <- studio.RunStoryboardWorker(ctx, store, storyboardPipeline)
+	}()
 	go func() { defer close(workerDone); errs <- studio.RunWorker(ctx, store, pipeline) }()
 	go func() { defer close(scriptWorkerDone); errs <- studio.RunScriptWorker(ctx, store, scriptPipeline) }()
 	go func() {
@@ -67,6 +76,7 @@ func run() error {
 	shutdownErr := srv.Shutdown(shutdown)
 	<-workerDone
 	<-scriptWorkerDone
+	<-storyboardWorkerDone
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

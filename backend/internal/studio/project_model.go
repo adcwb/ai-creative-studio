@@ -52,17 +52,22 @@ type ScriptDialogue struct {
 }
 
 type Project struct {
-	ID                 string            `json:"id"`
-	SpaceID            string            `json:"space_id"`
-	Title              string            `json:"title"`
-	Brief              string            `json:"brief"`
-	Version            int               `json:"version"`
-	Script             *Script           `json:"script,omitempty"`
-	ScriptBrief        string            `json:"script_brief,omitempty"`
-	LatestGeneration   *ScriptGeneration `json:"latest_generation,omitempty"`
-	CreatedAt          time.Time         `json:"created_at"`
-	UpdatedAt          time.Time         `json:"updated_at"`
-	LatestGenerationID string            `json:"latest_generation_id,omitempty"`
+	ScriptVersion                int                   `json:"script_version"`
+	Storyboard                   *Storyboard           `json:"storyboard,omitempty"`
+	StoryboardStale              bool                  `json:"storyboard_stale"`
+	LatestStoryboardGeneration   *StoryboardGeneration `json:"latest_storyboard_generation,omitempty"`
+	LatestStoryboardGenerationID string                `json:"latest_storyboard_generation_id,omitempty"`
+	ID                           string                `json:"id"`
+	SpaceID                      string                `json:"space_id"`
+	Title                        string                `json:"title"`
+	Brief                        string                `json:"brief"`
+	Version                      int                   `json:"version"`
+	Script                       *Script               `json:"script,omitempty"`
+	ScriptBrief                  string                `json:"script_brief,omitempty"`
+	LatestGeneration             *ScriptGeneration     `json:"latest_generation,omitempty"`
+	CreatedAt                    time.Time             `json:"created_at"`
+	UpdatedAt                    time.Time             `json:"updated_at"`
+	LatestGenerationID           string                `json:"latest_generation_id,omitempty"`
 }
 
 type ScriptGeneration struct {
@@ -94,7 +99,7 @@ var (
 	ErrInvalidProjectInput = errors.New("项目输入无效")
 	ErrIdempotencyConflict = errors.New("幂等键已用于不同的项目操作或内容")
 	ErrVersionConflict     = errors.New("项目版本已更新，请保留草稿并读取最新版本")
-	ErrGenerationActive    = errors.New("剧本正在生成，请等待本次生成完成")
+	ErrGenerationActive    = errors.New("项目正在生成，请等待本次生成完成")
 	ErrScriptMissing       = errors.New("请先成功生成一版模拟剧本")
 )
 
@@ -132,6 +137,15 @@ func cloneScript(script Script) Script {
 }
 
 func cloneProject(project Project) Project {
+	if project.Storyboard != nil {
+		plan := *project.Storyboard
+		plan.Shots = append([]StoryboardShot(nil), plan.Shots...)
+		project.Storyboard = &plan
+	}
+	if project.LatestStoryboardGeneration != nil {
+		generation := cloneStoryboardGeneration(*project.LatestStoryboardGeneration)
+		project.LatestStoryboardGeneration = &generation
+	}
 	if project.Script != nil {
 		script := cloneScript(*project.Script)
 		project.Script = &script

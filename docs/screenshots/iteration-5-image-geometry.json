@@ -1,0 +1,842 @@
+[
+  {
+    "state": "empty",
+    "name": "desktop-1280",
+    "composer": {
+      "top": 588.140625,
+      "bottom": 1249.453125,
+      "left": 270,
+      "right": 694.796875,
+      "height": 661.3125
+    },
+    "results": {
+      "top": 588.140625,
+      "bottom": 1249.453125,
+      "left": 716.796875,
+      "right": 1236,
+      "height": 661.3125
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 1327.046875,
+      "left": 0,
+      "right": 226,
+      "height": 1327.046875
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 1327.046875,
+      "left": 0,
+      "right": 1280,
+      "height": 1327.046875
+    },
+    "viewport": 1280,
+    "documentWidth": 1280,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "empty",
+    "name": "desktop-1440",
+    "composer": {
+      "top": 584.953125,
+      "bottom": 1246.265625,
+      "left": 270,
+      "right": 766.796875,
+      "height": 661.3125
+    },
+    "results": {
+      "top": 584.953125,
+      "bottom": 1246.265625,
+      "left": 788.796875,
+      "right": 1396,
+      "height": 661.3125
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 1323.859375,
+      "left": 0,
+      "right": 226,
+      "height": 1323.859375
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 1323.859375,
+      "left": 0,
+      "right": 1440,
+      "height": 1323.859375
+    },
+    "viewport": 1440,
+    "documentWidth": 1440,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "empty",
+    "name": "desktop-1920",
+    "composer": {
+      "top": 584.953125,
+      "bottom": 1246.265625,
+      "left": 270,
+      "right": 976.5,
+      "height": 661.3125
+    },
+    "results": {
+      "top": 584.953125,
+      "bottom": 1246.265625,
+      "left": 998.5,
+      "right": 1862,
+      "height": 661.3125
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 1323.859375,
+      "left": 0,
+      "right": 226,
+      "height": 1323.859375
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 1323.859375,
+      "left": 0,
+      "right": 1920,
+      "height": 1323.859375
+    },
+    "viewport": 1920,
+    "documentWidth": 1920,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "empty",
+    "name": "desktop-short",
+    "composer": {
+      "top": 588.140625,
+      "bottom": 1249.453125,
+      "left": 270,
+      "right": 694.796875,
+      "height": 661.3125
+    },
+    "results": {
+      "top": 588.140625,
+      "bottom": 1249.453125,
+      "left": 716.796875,
+      "right": 1236,
+      "height": 661.3125
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 1327.046875,
+      "left": 0,
+      "right": 226,
+      "height": 1327.046875
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 1327.046875,
+      "left": 0,
+      "right": 1280,
+      "height": 1327.046875
+    },
+    "viewport": 1280,
+    "documentWidth": 1280,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "empty",
+    "name": "stacked-1040",
+    "composer": {
+      "top": 698.046875,
+      "bottom": 1351.359375,
+      "left": 233,
+      "right": 1012,
+      "height": 653.3125
+    },
+    "results": {
+      "top": 1369.359375,
+      "bottom": 1775.53125,
+      "left": 233,
+      "right": 1012,
+      "height": 406.171875
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 1853.125,
+      "left": 0,
+      "right": 205,
+      "height": 1853.125
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 1853.125,
+      "left": 0,
+      "right": 1040,
+      "height": 1853.125
+    },
+    "viewport": 1040,
+    "documentWidth": 1040,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "empty",
+    "name": "mobile-390",
+    "composer": {
+      "top": 783.34375,
+      "bottom": 1440.65625,
+      "left": 20,
+      "right": 370,
+      "height": 657.3125
+    },
+    "results": {
+      "top": 1460.65625,
+      "bottom": 1865.828125,
+      "left": 20,
+      "right": 370,
+      "height": 405.171875
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 74,
+      "left": 0,
+      "right": 390,
+      "height": 74
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 1908.625,
+      "left": 0,
+      "right": 390,
+      "height": 1908.625
+    },
+    "viewport": 390,
+    "documentWidth": 390,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "completed",
+    "name": "desktop-1280",
+    "composer": {
+      "top": 588.140625,
+      "bottom": 1249.453125,
+      "left": 270,
+      "right": 694.796875,
+      "height": 661.3125
+    },
+    "results": {
+      "top": 588.140625,
+      "bottom": 1249.453125,
+      "left": 716.796875,
+      "right": 1236,
+      "height": 661.3125
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 1327.046875,
+      "left": 0,
+      "right": 226,
+      "height": 1327.046875
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 1327.046875,
+      "left": 0,
+      "right": 1280,
+      "height": 1327.046875
+    },
+    "viewport": 1280,
+    "documentWidth": 1280,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "completed",
+    "name": "desktop-1440",
+    "composer": {
+      "top": 584.953125,
+      "bottom": 1246.265625,
+      "left": 270,
+      "right": 766.796875,
+      "height": 661.3125
+    },
+    "results": {
+      "top": 584.953125,
+      "bottom": 1246.265625,
+      "left": 788.796875,
+      "right": 1396,
+      "height": 661.3125
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 1323.859375,
+      "left": 0,
+      "right": 226,
+      "height": 1323.859375
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 1323.859375,
+      "left": 0,
+      "right": 1440,
+      "height": 1323.859375
+    },
+    "viewport": 1440,
+    "documentWidth": 1440,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "completed",
+    "name": "desktop-1920",
+    "composer": {
+      "top": 584.953125,
+      "bottom": 1246.265625,
+      "left": 270,
+      "right": 976.5,
+      "height": 661.3125
+    },
+    "results": {
+      "top": 584.953125,
+      "bottom": 1246.265625,
+      "left": 998.5,
+      "right": 1862,
+      "height": 661.3125
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 1323.859375,
+      "left": 0,
+      "right": 226,
+      "height": 1323.859375
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 1323.859375,
+      "left": 0,
+      "right": 1920,
+      "height": 1323.859375
+    },
+    "viewport": 1920,
+    "documentWidth": 1920,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "completed",
+    "name": "desktop-short",
+    "composer": {
+      "top": 588.140625,
+      "bottom": 1249.453125,
+      "left": 270,
+      "right": 694.796875,
+      "height": 661.3125
+    },
+    "results": {
+      "top": 588.140625,
+      "bottom": 1249.453125,
+      "left": 716.796875,
+      "right": 1236,
+      "height": 661.3125
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 1327.046875,
+      "left": 0,
+      "right": 226,
+      "height": 1327.046875
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 1327.046875,
+      "left": 0,
+      "right": 1280,
+      "height": 1327.046875
+    },
+    "viewport": 1280,
+    "documentWidth": 1280,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "completed",
+    "name": "stacked-1040",
+    "composer": {
+      "top": 698.046875,
+      "bottom": 1351.359375,
+      "left": 233,
+      "right": 1012,
+      "height": 653.3125
+    },
+    "results": {
+      "top": 1369.359375,
+      "bottom": 1957.71875,
+      "left": 233,
+      "right": 1012,
+      "height": 588.359375
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 2035.3125,
+      "left": 0,
+      "right": 205,
+      "height": 2035.3125
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 2035.3125,
+      "left": 0,
+      "right": 1040,
+      "height": 2035.3125
+    },
+    "viewport": 1040,
+    "documentWidth": 1040,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "completed",
+    "name": "mobile-390",
+    "composer": {
+      "top": 783.34375,
+      "bottom": 1440.65625,
+      "left": 20,
+      "right": 370,
+      "height": 657.3125
+    },
+    "results": {
+      "top": 1460.65625,
+      "bottom": 2063.609375,
+      "left": 20,
+      "right": 370,
+      "height": 602.953125
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 74,
+      "left": 0,
+      "right": 390,
+      "height": 74
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 2106.40625,
+      "left": 0,
+      "right": 390,
+      "height": 2106.40625
+    },
+    "viewport": 390,
+    "documentWidth": 390,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "long",
+    "name": "desktop-1280",
+    "composer": {
+      "top": 588.140625,
+      "bottom": 2391.390625,
+      "left": 270,
+      "right": 694.796875,
+      "height": 1803.25
+    },
+    "results": {
+      "top": 588.140625,
+      "bottom": 2391.390625,
+      "left": 716.796875,
+      "right": 1236,
+      "height": 1803.25
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 2468.984375,
+      "left": 0,
+      "right": 226,
+      "height": 2468.984375
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 2468.984375,
+      "left": 0,
+      "right": 1280,
+      "height": 2468.984375
+    },
+    "viewport": 1280,
+    "documentWidth": 1280,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "long",
+    "name": "desktop-1440",
+    "composer": {
+      "top": 584.953125,
+      "bottom": 2317.03125,
+      "left": 270,
+      "right": 766.796875,
+      "height": 1732.078125
+    },
+    "results": {
+      "top": 584.953125,
+      "bottom": 2317.03125,
+      "left": 788.796875,
+      "right": 1396,
+      "height": 1732.078125
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 2394.625,
+      "left": 0,
+      "right": 226,
+      "height": 2394.625
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 2394.625,
+      "left": 0,
+      "right": 1440,
+      "height": 2394.625
+    },
+    "viewport": 1440,
+    "documentWidth": 1440,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "long",
+    "name": "desktop-1920",
+    "composer": {
+      "top": 584.953125,
+      "bottom": 2187.46875,
+      "left": 270,
+      "right": 976.5,
+      "height": 1602.515625
+    },
+    "results": {
+      "top": 584.953125,
+      "bottom": 2187.46875,
+      "left": 998.5,
+      "right": 1862,
+      "height": 1602.515625
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 2265.0625,
+      "left": 0,
+      "right": 226,
+      "height": 2265.0625
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 2265.0625,
+      "left": 0,
+      "right": 1920,
+      "height": 2265.0625
+    },
+    "viewport": 1920,
+    "documentWidth": 1920,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "long",
+    "name": "desktop-short",
+    "composer": {
+      "top": 588.140625,
+      "bottom": 2391.390625,
+      "left": 270,
+      "right": 694.796875,
+      "height": 1803.25
+    },
+    "results": {
+      "top": 588.140625,
+      "bottom": 2391.390625,
+      "left": 716.796875,
+      "right": 1236,
+      "height": 1803.25
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 2468.984375,
+      "left": 0,
+      "right": 226,
+      "height": 2468.984375
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 2468.984375,
+      "left": 0,
+      "right": 1280,
+      "height": 2468.984375
+    },
+    "viewport": 1280,
+    "documentWidth": 1280,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "long",
+    "name": "stacked-1040",
+    "composer": {
+      "top": 698.046875,
+      "bottom": 1351.359375,
+      "left": 233,
+      "right": 1012,
+      "height": 653.3125
+    },
+    "results": {
+      "top": 1369.359375,
+      "bottom": 2985.46875,
+      "left": 233,
+      "right": 1012,
+      "height": 1616.109375
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 3063.0625,
+      "left": 0,
+      "right": 205,
+      "height": 3063.0625
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 3063.0625,
+      "left": 0,
+      "right": 1040,
+      "height": 3063.0625
+    },
+    "viewport": 1040,
+    "documentWidth": 1040,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "long",
+    "name": "mobile-390",
+    "composer": {
+      "top": 783.34375,
+      "bottom": 1440.65625,
+      "left": 20,
+      "right": 370,
+      "height": 657.3125
+    },
+    "results": {
+      "top": 1460.65625,
+      "bottom": 3431.453125,
+      "left": 20,
+      "right": 370,
+      "height": 1970.796875
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 74,
+      "left": 0,
+      "right": 390,
+      "height": 74
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 3474.25,
+      "left": 0,
+      "right": 390,
+      "height": 3474.25
+    },
+    "viewport": 390,
+    "documentWidth": 390,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "editing",
+    "name": "desktop-1280",
+    "composer": {
+      "top": 588.140625,
+      "bottom": 2391.390625,
+      "left": 270,
+      "right": 694.796875,
+      "height": 1803.25
+    },
+    "results": {
+      "top": 588.140625,
+      "bottom": 2391.390625,
+      "left": 716.796875,
+      "right": 1236,
+      "height": 1803.25
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 2468.984375,
+      "left": 0,
+      "right": 226,
+      "height": 2468.984375
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 2468.984375,
+      "left": 0,
+      "right": 1280,
+      "height": 2468.984375
+    },
+    "viewport": 1280,
+    "documentWidth": 1280,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "editing",
+    "name": "desktop-1440",
+    "composer": {
+      "top": 584.953125,
+      "bottom": 2317.03125,
+      "left": 270,
+      "right": 766.796875,
+      "height": 1732.078125
+    },
+    "results": {
+      "top": 584.953125,
+      "bottom": 2317.03125,
+      "left": 788.796875,
+      "right": 1396,
+      "height": 1732.078125
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 2394.625,
+      "left": 0,
+      "right": 226,
+      "height": 2394.625
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 2394.625,
+      "left": 0,
+      "right": 1440,
+      "height": 2394.625
+    },
+    "viewport": 1440,
+    "documentWidth": 1440,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "editing",
+    "name": "desktop-1920",
+    "composer": {
+      "top": 584.953125,
+      "bottom": 2187.46875,
+      "left": 270,
+      "right": 976.5,
+      "height": 1602.515625
+    },
+    "results": {
+      "top": 584.953125,
+      "bottom": 2187.46875,
+      "left": 998.5,
+      "right": 1862,
+      "height": 1602.515625
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 2265.0625,
+      "left": 0,
+      "right": 226,
+      "height": 2265.0625
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 2265.0625,
+      "left": 0,
+      "right": 1920,
+      "height": 2265.0625
+    },
+    "viewport": 1920,
+    "documentWidth": 1920,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "editing",
+    "name": "desktop-short",
+    "composer": {
+      "top": 588.140625,
+      "bottom": 2391.390625,
+      "left": 270,
+      "right": 694.796875,
+      "height": 1803.25
+    },
+    "results": {
+      "top": 588.140625,
+      "bottom": 2391.390625,
+      "left": 716.796875,
+      "right": 1236,
+      "height": 1803.25
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 2468.984375,
+      "left": 0,
+      "right": 226,
+      "height": 2468.984375
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 2468.984375,
+      "left": 0,
+      "right": 1280,
+      "height": 2468.984375
+    },
+    "viewport": 1280,
+    "documentWidth": 1280,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "editing",
+    "name": "stacked-1040",
+    "composer": {
+      "top": 698.046875,
+      "bottom": 1503.328125,
+      "left": 233,
+      "right": 1012,
+      "height": 805.28125
+    },
+    "results": {
+      "top": 1521.328125,
+      "bottom": 3137.4375,
+      "left": 233,
+      "right": 1012,
+      "height": 1616.109375
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 3215.03125,
+      "left": 0,
+      "right": 205,
+      "height": 3215.03125
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 3215.03125,
+      "left": 0,
+      "right": 1040,
+      "height": 3215.03125
+    },
+    "viewport": 1040,
+    "documentWidth": 1040,
+    "clippedPrompts": 0
+  },
+  {
+    "state": "editing",
+    "name": "mobile-390",
+    "composer": {
+      "top": 783.34375,
+      "bottom": 1610.625,
+      "left": 20,
+      "right": 370,
+      "height": 827.28125
+    },
+    "results": {
+      "top": 1630.625,
+      "bottom": 3601.421875,
+      "left": 20,
+      "right": 370,
+      "height": 1970.796875
+    },
+    "sidebar": {
+      "top": 0,
+      "bottom": 74,
+      "left": 0,
+      "right": 390,
+      "height": 74
+    },
+    "shell": {
+      "top": 0,
+      "bottom": 3644.21875,
+      "left": 0,
+      "right": 390,
+      "height": 3644.21875
+    },
+    "viewport": 390,
+    "documentWidth": 390,
+    "clippedPrompts": 0
+  }
+]

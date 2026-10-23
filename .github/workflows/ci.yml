@@ -46,6 +46,8 @@ jobs:
         run: node scripts/provider_check.mjs
       - name: Script workspace integration and layout
         run: node scripts/project_check.mjs
+      - name: Storyboard integration and layout
+        run: node scripts/storyboard_check.mjs
       - name: Responsive layout regression
         run: node scripts/layout_check.mjs
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0; Node 24 action runtime

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { errorMessage, request } from '../api'
-import { generationActive, generationLabels, projectDraftError, type DramaProject } from '../drama'
+import { generationLabels, storyboardGenerationLabels, projectDraftError, type DramaProject } from '../drama'
 import { useDramaProject } from '../hooks/useDramaProject'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DramaScriptEditor } from './DramaScriptEditor'
 import { GenerationHistory } from './GenerationHistory'
+import { StoryboardEditor } from './StoryboardEditor'
 import { Icon } from './Icon'
 
 export function DramaWorkspace({space, onDirtyChange, requestLeave}: {
@@ -35,8 +36,8 @@ export function DramaWorkspace({space, onDirtyChange, requestLeave}: {
   }, [])
   useEffect(() => () => onDirtyChange(false), [onDirtyChange])
   return <div className="drama-workspace">
-    <section className="intro"><div><div className="eyebrow">A STORY STARTS WITH ONE IDEA</div><h1>让故事，从这里开场<span>。</span></h1><p>记录一个想法，整理成三个场景，再把对白慢慢打磨。</p></div><div className="intro-count"><strong>{String(projects.length).padStart(2, '0')}</strong><span>个短剧项目</span></div></section>
-    <div className="banner drama-banner"><span className="banner-icon"><Icon name="script" /></span><div><strong>模拟剧本工作台 · mock-script</strong><p>剧本由后端程序生成，非真实 AI 创作；不调用付费模型。项目、生成记录与已保存的剧本持久保存。</p><p>无生产认证，演示空间不构成权限隔离；请勿输入敏感信息。</p></div></div>
+    <section className="intro"><div><div className="eyebrow">A STORY STARTS WITH ONE IDEA</div><h1>让故事，从这里开场<span>。</span></h1><p>记录一个想法，整理成三个场景，再打磨对白与分镜计划。</p></div><div className="intro-count"><strong>{String(projects.length).padStart(2, '0')}</strong><span>个短剧项目</span></div></section>
+    <div className="banner drama-banner"><span className="banner-icon"><Icon name="script" /></span><div><strong>模拟剧本工作台 · mock-script</strong><p>剧本由后端程序生成，非真实 AI 创作；不调用付费模型。分镜同样为程序模拟生成；项目、生成记录与已保存的剧本和分镜持久保存。</p><p>无生产认证，演示空间不构成权限隔离；请勿输入敏感信息。</p></div></div>
     <div className="drama-layout">
       <section className="panel drama-projects" aria-labelledby="projects-heading"><div className="section-heading"><div><span className="eyebrow">YOUR STORIES</span><h2 id="projects-heading">短剧项目</h2></div><span className="count">{projects.length}</span></div><button type="button" className="primary drama-new" disabled={selection === 'new'} onClick={() => requestLeave(() => setSelection('new'))}>新建短剧项目 <span aria-hidden="true">＋</span></button>
         {loading && <p role="status" className="drama-help">正在读取项目列表…</p>}
@@ -55,7 +56,10 @@ function ProjectEditor({space, id, onProject, onDirtyChange, requestLeave}: {
 }) {
   const editor = useDramaProject(space, id, onProject)
   const [confirmGenerate, setConfirmGenerate] = useState(false)
-  const active = generationActive(editor.project)
+  const [confirmStoryboard, setConfirmStoryboard] = useState(false)
+  const active = editor.project?.latest_generation?.status === 'queued' || editor.project?.latest_generation?.status === 'running'
+  const storyboardGeneration = editor.project?.latest_storyboard_generation
+  const storyboardActive = storyboardGeneration?.status === 'queued' || storyboardGeneration?.status === 'running'
   const generation = editor.project?.latest_generation
   const validation = projectDraftError(editor.draft)
   useEffect(() => {onDirtyChange(editor.dirty); return () => onDirtyChange(false)}, [editor.dirty, onDirtyChange])
@@ -75,28 +79,37 @@ function ProjectEditor({space, id, onProject, onDirtyChange, requestLeave}: {
     {(!id || editor.project) && <>
       <section className="panel drama-brief" aria-labelledby="brief-heading"><div className="section-heading"><div><span className="eyebrow">01 / THE STARTING POINT</span><h2 id="brief-heading">{id ? '项目简报' : '新建短剧项目'}</h2></div><span>{id ? `版本 ${editor.baseline?.version ?? '—'}` : '先保存，再生成'}</span></div>
         <form onSubmit={event => {event.preventDefault(); editor.submit(id ? 'brief' : 'create')}}>
-          <fieldset disabled={editor.locked || editor.editingScript}><label htmlFor="project-title">项目名称</label><input id="project-title" value={editor.draft.title} onChange={event => editor.setDraft({...editor.draft, title: event.target.value})} placeholder="给这个故事起个名字" />
+          <fieldset disabled={editor.locked || editor.editingScript || editor.editingStoryboard}><label htmlFor="project-title">项目名称</label><input id="project-title" value={editor.draft.title} onChange={event => editor.setDraft({...editor.draft, title: event.target.value})} placeholder="给这个故事起个名字" />
             <div className="drama-field-title"><label htmlFor="project-brief">创作简报</label><span>3–2000 字</span></div><textarea id="project-brief" value={editor.draft.brief} onChange={event => editor.setDraft({...editor.draft, brief: event.target.value})} placeholder="写下人物关系、冲突和期待的结局。简报会成为本次生成的依据。" /><div className="field-footer"><span>请勿输入敏感信息</span><span>{[...editor.draft.brief.trim()].length} / 2000</span></div>
           </fieldset>
           {validation && editor.briefDirty && <p className="drama-validation" role="status">{validation}</p>}
-          <div className="drama-brief-actions"><span>{editor.briefDirty ? '有未保存的简报修改' : id ? '简报已保存' : '建立你的第一个故事起点'}</span><div>{id && editor.briefDirty && <button type="button" disabled={editor.locked || editor.editingScript} onClick={editor.cancelBrief}>取消简报修改</button>}<button className="primary" type="submit" disabled={editor.locked || editor.editingScript || Boolean(validation) || (Boolean(id) && !editor.briefDirty)}>{editor.busy === 'create' || editor.busy === 'brief' ? '正在保存…' : id ? '保存项目简报' : '创建项目'}</button></div></div>
+          <div className="drama-brief-actions"><span>{editor.briefDirty ? '有未保存的简报修改' : id ? '简报已保存' : '建立你的第一个故事起点'}</span><div>{id && editor.briefDirty && <button type="button" disabled={editor.locked || editor.editingScript || editor.editingStoryboard} onClick={editor.cancelBrief}>取消简报修改</button>}<button className="primary" type="submit" disabled={editor.locked || editor.editingScript || editor.editingStoryboard || Boolean(validation) || (Boolean(id) && !editor.briefDirty)}>{editor.busy === 'create' || editor.busy === 'brief' ? '正在保存…' : id ? '保存项目简报' : '创建项目'}</button></div></div>
         </form>
       </section>
       {editor.actionError && <div className="error drama-action-error" role="alert">{editor.actionError}{editor.uncertain && <button type="button" disabled={Boolean(editor.busy)} onClick={editor.retry}>{editor.busy ? '正在重试…' : '重试上次请求'}</button>}{editor.conflict && <div><p>本地草稿已保留。重新读取会载入服务端最新内容并放弃本地修改。</p><button type="button" onClick={() => requestLeave(() => editor.reload(true))}>重新读取最新项目</button></div>}</div>}
       {editor.notice && <p className="notice" role="status"><Icon name="check" />{editor.notice}</p>}
-      {editor.busy && <p className="notice" role="status">{editor.busy === 'generate' ? '正在提交生成请求…' : '正在提交保存请求…'}请等待服务端确认。</p>}
+      {editor.busy && <p className="notice" role="status">{editor.busy === 'generate' || editor.busy === 'generateStoryboard' ? '正在提交生成请求…' : '正在提交保存请求…'}请等待服务端确认。</p>}
       {id && editor.project && <>
         <section className="panel drama-generation" aria-labelledby="generation-heading"><div className="section-heading"><div><span className="eyebrow">02 / A FIRST DRAFT</span><h2 id="generation-heading">生成模拟剧本</h2></div><span>2 位角色 / 3 个场景</span></div>
           <p>根据已保存简报，由后端生成结构化剧本；成功后替换当前稿，失败会保留已有剧本。</p>
           {generation && <div className="drama-generation-state"><span className={`status ${generation.status}`}><span />{generationLabels[generation.status]}</span>{active && <div className="progress-block"><progress aria-label="剧本生成进度" value={generation.progress} max="100" /><span>{generation.progress}% · 后端处理中，自动更新</span></div>}{generation.error && <div className="error" role="alert">{generation.error}{generation.error_code && <code>（{generation.error_code}）</code>}<p>已有剧本不会被覆盖。调整并保存简报后，可以再次生成。</p></div>}</div>}
-          {(editor.briefDirty || editor.editingScript) && <p className="drama-help">请先保存或取消当前编辑，再生成剧本。</p>}
-          <button type="button" className="primary" disabled={editor.locked || editor.briefDirty || editor.editingScript || Boolean(editor.loadError)} onClick={generate}><Icon name="spark" />{active ? '剧本生成中…' : editor.busy === 'generate' ? '正在提交…' : editor.project.script ? '重新生成剧本' : '生成模拟剧本'}</button>
+          {(editor.briefDirty || editor.editingScript || editor.editingStoryboard) && <p className="drama-help">请先保存或取消当前编辑，再生成剧本。</p>}
+          <button type="button" className="primary" disabled={editor.locked || editor.briefDirty || editor.editingScript || editor.editingStoryboard || Boolean(editor.loadError)} onClick={generate}><Icon name="spark" />{active ? '剧本生成中…' : editor.busy === 'generate' ? '正在提交…' : editor.project.script ? '重新生成剧本' : '生成模拟剧本'}</button>
           <GenerationHistory space={space} projectId={id} revision={editor.historyRevision} />
         </section>
         {editor.project.script_brief && editor.project.script_brief !== editor.project.brief && <div className="editing-note drama-source-note"><strong>当前剧本来自之前的简报</strong><p>项目需求已更新，现有剧本仍保留原来的内容。重新生成成功后才会替换。</p><details><summary>查看剧本来源简报</summary><p>{editor.project.script_brief}</p></details></div>}
-        {editor.script ? <DramaScriptEditor script={editor.script} editing={editor.editingScript} disabled={editor.locked || editor.briefDirty || Boolean(editor.loadError)} dirty={editor.scriptDirty} onChange={editor.setScript} onEdit={() => editor.setEditingScript(true)} onCancel={editor.cancelScript} onSave={() => editor.submit('script')} /> : <section className="panel drama-no-script"><Icon name="script" /><h2>故事在等一个开场</h2><p>保存项目简报后，生成第一份模拟剧本。你可以继续编辑场景与对白。</p></section>}
+        {editor.script ? <DramaScriptEditor script={editor.script} editing={editor.editingScript} disabled={editor.locked || editor.briefDirty || editor.editingStoryboard || Boolean(editor.loadError)} dirty={editor.scriptDirty} onChange={editor.setScript} onEdit={() => editor.setEditingScript(true)} onCancel={editor.cancelScript} onSave={() => editor.submit('script')} /> : <section className="panel drama-no-script"><Icon name="script" /><h2>故事在等一个开场</h2><p>保存项目简报后，生成第一份模拟剧本。你可以继续编辑场景与对白。</p></section>}
+        <section className="panel drama-generation storyboard-generation" aria-labelledby="storyboard-generation-heading"><div className="section-heading"><div><span className="eyebrow">03 / FROM SCENES TO SHOTS</span><h2 id="storyboard-generation-heading">生成模拟分镜</h2></div><span>mock-storyboard</span></div>
+          <p>从已保存的剧本生成镜头计划，再编辑画面、景别、运镜、时长和对白。生成成功替换当前计划，失败保留旧计划。</p>
+          {!editor.project.script && <p className="drama-help">还没有已保存剧本。请先生成剧本，再创建分镜计划。</p>}
+          {storyboardGeneration && <div className="drama-generation-state"><span className={`status ${storyboardGeneration.status}`}><span />{storyboardGenerationLabels[storyboardGeneration.status]}</span>{storyboardActive && <div className="progress-block"><progress aria-label="分镜生成进度" value={storyboardGeneration.progress} max="100" /><span>{storyboardGeneration.progress}% · 后端处理中，自动更新</span></div>}{storyboardGeneration.error && <div className="error" role="alert">{storyboardGeneration.error}{storyboardGeneration.error_code && <code>（{storyboardGeneration.error_code}）</code>}<p>旧分镜计划仍保留。检查并保存剧本后，可以再次生成。</p></div>}</div>}
+          {(editor.briefDirty || editor.editingScript || editor.editingStoryboard) && <p className="drama-help">请先保存或取消当前编辑，再生成分镜。</p>}
+          <button type="button" className="primary" disabled={editor.locked || !editor.project.script || editor.briefDirty || editor.editingScript || editor.editingStoryboard || Boolean(editor.loadError)} onClick={() => {if (editor.project?.storyboard) setConfirmStoryboard(true); else editor.submit('generateStoryboard')}}><Icon name="spark" />{storyboardActive ? '分镜生成中…' : editor.busy === 'generateStoryboard' ? '正在提交分镜…' : editor.project.storyboard ? '重新生成分镜' : '生成模拟分镜'}</button>
+        </section>
+        {editor.project.storyboard ? <StoryboardEditor shots={editor.shots} sourceVersion={editor.baseline?.storyboard?.source_script_version ?? editor.project.storyboard.source_script_version} stale={(editor.baseline?.storyboard?.source_script_version ?? editor.project.storyboard.source_script_version) !== editor.project.script_version} editing={editor.editingStoryboard} disabled={editor.locked || editor.briefDirty || editor.editingScript || Boolean(editor.loadError)} dirty={editor.storyboardDirty} onChange={editor.setShots} onEdit={() => editor.setEditingStoryboard(true)} onCancel={editor.cancelStoryboard} onSave={() => editor.submit('storyboard')} /> : editor.project.script && <section className="panel drama-no-script storyboard-empty"><Icon name="script" /><h2>还没有分镜计划</h2><p>剧本已保存。生成模拟分镜后，可以逐镜编辑并保存。</p></section>}
       </>}
     </>}
-    {confirmGenerate && <ConfirmDialog title="替换当前剧本？" message="新的模拟剧本生成成功后，会替换当前已保存的剧本；本轮不保留可回滚的旧稿。生成失败时，当前稿保持不变。" confirmLabel="确认重新生成" onCancel={() => setConfirmGenerate(false)} onConfirm={() => {setConfirmGenerate(false); editor.submit('generate')}} />}
+    {confirmStoryboard && <ConfirmDialog title="替换当前分镜计划？" message="新的模拟分镜生成成功后，会替换当前已保存的分镜计划；不保留可回滚的旧计划。生成失败时，当前计划保持不变。" confirmLabel="确认重新生成分镜" onCancel={() => setConfirmStoryboard(false)} onConfirm={() => {setConfirmStoryboard(false); editor.submit('generateStoryboard')}} />}
+    {confirmGenerate && <ConfirmDialog title="替换当前剧本？" message="新的模拟剧本生成成功后，会替换当前已保存的剧本；本轮不保留可回滚的旧稿。生成失败时，当前稿保持不变；成功后已有分镜会标记为过期。" confirmLabel="确认重新生成" onCancel={() => setConfirmGenerate(false)} onConfirm={() => {setConfirmGenerate(false); editor.submit('generate')}} />}
   </div>
 }

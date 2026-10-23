@@ -55,6 +55,7 @@ func TestProjectSnapshotV1UpgradePreservesImagesAssetsAndKeys(t *testing.T) {
 	delete(legacy, "projects")
 	delete(legacy, "script_generations")
 	delete(legacy, "project_receipts")
+	delete(legacy, "storyboard_generations")
 	before, _ := json.Marshal(legacy)
 	if e = os.WriteFile(path, before, 0600); e != nil {
 		t.Fatal(e)
@@ -91,7 +92,7 @@ func TestProjectSnapshotV1UpgradePreservesImagesAssetsAndKeys(t *testing.T) {
 	if e = json.Unmarshal(migrated, &state); e != nil {
 		t.Fatal(e)
 	}
-	if state["version"] != float64(2) {
+	if state["version"] != float64(3) {
 		t.Fatal("snapshot not migrated", state["version"])
 	}
 	for _, field := range []string{"projects", "script_generations", "project_receipts"} {

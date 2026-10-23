@@ -28,6 +28,7 @@ func Handler(repo Repository, origin string) http.Handler {
 		respond(w, 200, repo.Capabilities())
 	})
 	registerProjectRoutes(mux, repo)
+	registerStoryboardRoutes(mux, repo)
 	mux.HandleFunc("GET /api/v1/tasks", func(w http.ResponseWriter, r *http.Request) {
 		space, ok := spaceID(w, r)
 		if !ok {
@@ -260,6 +261,8 @@ func storeError(w http.ResponseWriter, err error) {
 		problem(w, 409, "version_conflict", ErrVersionConflict.Error())
 	case errors.Is(err, ErrGenerationActive):
 		problem(w, 409, "generation_active", ErrGenerationActive.Error())
+	case errors.Is(err, ErrStoryboardMissing):
+		problem(w, 409, "storyboard_missing", ErrStoryboardMissing.Error())
 	case errors.Is(err, ErrScriptMissing):
 		problem(w, 409, "script_missing", ErrScriptMissing.Error())
 	case errors.Is(err, ErrNotFound):

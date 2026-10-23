@@ -16,12 +16,13 @@ import (
 )
 
 type snapshot struct {
-	Version           int                         `json:"version"`
-	Tasks             map[string]Task             `json:"tasks"`
-	Assets            map[string]Asset            `json:"assets"`
-	Projects          map[string]Project          `json:"projects"`
-	ScriptGenerations map[string]ScriptGeneration `json:"script_generations"`
-	ProjectReceipts   map[string]projectReceipt   `json:"project_receipts"`
+	StoryboardGenerations map[string]StoryboardGeneration `json:"storyboard_generations"`
+	Version               int                             `json:"version"`
+	Tasks                 map[string]Task                 `json:"tasks"`
+	Assets                map[string]Asset                `json:"assets"`
+	Projects              map[string]Project              `json:"projects"`
+	ScriptGenerations     map[string]ScriptGeneration     `json:"script_generations"`
+	ProjectReceipts       map[string]projectReceipt       `json:"project_receipts"`
 }
 
 // Repository is the boundary for a future transactional PostgreSQL implementation.
@@ -92,14 +93,14 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 		s.Close()
 		return nil, fmt.Errorf("read state (refusing to reset): %w", err)
 	}
-	if (s.data.Version != 1 && s.data.Version != 2) || s.data.Tasks == nil || s.data.Assets == nil {
+	if (s.data.Version != 1 && s.data.Version != 2 && s.data.Version != 3) || s.data.Tasks == nil || s.data.Assets == nil {
 		s.Close()
 		return nil, fmt.Errorf("unsupported or invalid state")
 	}
 	if s.data.Version == 1 {
 		// Only a complete legacy image snapshot can be upgraded. A v1 file
 		// carrying newer records must not have those records silently reset.
-		if s.data.Projects != nil || s.data.ScriptGenerations != nil || s.data.ProjectReceipts != nil {
+		if s.data.Projects != nil || s.data.ScriptGenerations != nil || s.data.ProjectReceipts != nil || s.data.StoryboardGenerations != nil {
 			s.Close()
 			return nil, fmt.Errorf("invalid legacy state with project records")
 		}
@@ -111,6 +112,84 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 	if s.data.Projects == nil || s.data.ScriptGenerations == nil || s.data.ProjectReceipts == nil {
 		s.Close()
 		return nil, fmt.Errorf("incomplete project state")
+	}
+	if s.data.Version == 2 {
+		if s.data.StoryboardGenerations != nil {
+			s.Close()
+			return nil, fmt.Errorf("invalid legacy state with storyboard records")
+		}
+		for id, p := range s.data.Projects {
+			if p.Storyboard != nil || p.LatestStoryboardGenerationID != "" || p.LatestStoryboardGeneration != nil || p.ScriptVersion != 0 {
+				s.Close()
+				return nil, fmt.Errorf("invalid legacy storyboard project")
+			}
+			if p.Script != nil {
+				p.ScriptVersion = 1
+			}
+			s.data.Projects[id] = p
+		}
+		s.data.StoryboardGenerations = map[string]StoryboardGeneration{}
+		s.data.Version = 3
+	}
+	if s.data.StoryboardGenerations == nil {
+		s.Close()
+		return nil, fmt.Errorf("incomplete storyboard state")
+	}
+	for _, p := range s.data.Projects {
+		if (p.Script == nil && p.ScriptVersion != 0) || (p.Script != nil && p.ScriptVersion < 1) {
+			s.Close()
+			return nil, fmt.Errorf("invalid script revision")
+		}
+		if p.Storyboard != nil {
+			if p.Storyboard.SourceScriptVersion < 1 || p.Storyboard.SourceScriptVersion > p.ScriptVersion {
+				s.Close()
+				return nil, fmt.Errorf("invalid storyboard source revision")
+			}
+			if _, err := NormalizeStoryboardShots(p.Storyboard.Shots); err != nil {
+				s.Close()
+				return nil, fmt.Errorf("invalid saved storyboard")
+			}
+		}
+	}
+	for id, g := range s.data.StoryboardGenerations {
+		p, ok := s.data.Projects[g.ProjectID]
+		if !ok || g.ID != id || p.SpaceID != g.SpaceID || g.SourceScript == nil || g.SourceScriptVersion < 1 || g.SourceScriptVersion > p.ScriptVersion || g.Provider != "mock-storyboard" {
+			s.Close()
+			return nil, fmt.Errorf("invalid storyboard generation")
+		}
+		if _, err := NormalizeScript(*g.SourceScript); err != nil {
+			s.Close()
+			return nil, fmt.Errorf("invalid storyboard source script")
+		}
+		if g.Status != "queued" && g.Status != "running" && g.Status != "succeeded" && g.Status != "failed" {
+			s.Close()
+			return nil, fmt.Errorf("invalid storyboard status")
+		}
+		if g.Status == "queued" || g.Status == "running" {
+			if p.LatestStoryboardGenerationID != id || p.Version != g.BaseVersion || p.ScriptVersion != g.SourceScriptVersion {
+				s.Close()
+				return nil, fmt.Errorf("invalid active storyboard linkage")
+			}
+			if sg, ok := s.data.ScriptGenerations[p.LatestGenerationID]; ok && (sg.Status == "queued" || sg.Status == "running") {
+				s.Close()
+				return nil, fmt.Errorf("multiple active project generations")
+			}
+		}
+		if g.Status == "running" {
+			g.Status = "queued"
+			g.Progress = 0
+			g.UpdatedAt = time.Now().UTC()
+			s.data.StoryboardGenerations[id] = g
+		}
+	}
+	for _, p := range s.data.Projects {
+		if p.LatestStoryboardGenerationID != "" {
+			g, ok := s.data.StoryboardGenerations[p.LatestStoryboardGenerationID]
+			if !ok || g.ProjectID != p.ID || g.SpaceID != p.SpaceID {
+				s.Close()
+				return nil, fmt.Errorf("invalid storyboard projection linkage")
+			}
+		}
 	}
 	for id, t := range s.data.Tasks {
 		t.Input = withDefaults(t.Input)
@@ -181,10 +260,13 @@ func (s *FileStore) Close() error {
 
 func (s *FileStore) Capabilities() Capabilities { return s.capabilities }
 func emptySnapshot() snapshot {
-	return snapshot{Version: 2, Tasks: map[string]Task{}, Assets: map[string]Asset{}, Projects: map[string]Project{}, ScriptGenerations: map[string]ScriptGeneration{}, ProjectReceipts: map[string]projectReceipt{}}
+	return snapshot{Version: 3, StoryboardGenerations: map[string]StoryboardGeneration{}, Tasks: map[string]Task{}, Assets: map[string]Asset{}, Projects: map[string]Project{}, ScriptGenerations: map[string]ScriptGeneration{}, ProjectReceipts: map[string]projectReceipt{}}
 }
 func (s *FileStore) clone() snapshot {
 	d := emptySnapshot()
+	for k, v := range s.data.StoryboardGenerations {
+		d.StoryboardGenerations[k] = cloneStoryboardGeneration(v)
+	}
 	for k, v := range s.data.Tasks {
 		d.Tasks[k] = v
 	}

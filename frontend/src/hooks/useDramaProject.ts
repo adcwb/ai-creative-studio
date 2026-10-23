@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, errorMessage, request } from '../api'
-import { generationActive, projectDraftError, scriptDraftError, type DramaProject, type DramaScript, type ProjectDraft, type ScriptGeneration } from '../drama'
+import { generationActive, projectDraftError, scriptDraftError, storyboardDraftError, type StoryboardShot, type StoryboardGeneration, type DramaProject, type DramaScript, type ProjectDraft, type ScriptGeneration } from '../drama'
 
-type Operation = 'create' | 'brief' | 'script' | 'generate'
+type Operation = 'create' | 'brief' | 'script' | 'generate' | 'storyboard' | 'generateStoryboard'
 interface Attempt { operation: Operation; path: string; body: string; key: string }
 const emptyDraft: ProjectDraft = {title: '', brief: ''}
 
@@ -12,6 +12,8 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
   const [draft, setDraft] = useState<ProjectDraft>(emptyDraft)
   const [script, setScript] = useState<DramaScript | null>(null)
   const [editingScript, setEditingScript] = useState(false)
+  const [shots, setShots] = useState<StoryboardShot[]>([])
+  const [editingStoryboard, setEditingStoryboard] = useState(false)
   const [loading, setLoading] = useState(Boolean(id))
   const [loadError, setLoadError] = useState('')
   const [actionError, setActionError] = useState('')
@@ -30,9 +32,10 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
   const latestVersion = useRef(0)
   const briefDirty = draft.title !== (baseline?.title ?? '') || draft.brief !== (baseline?.brief ?? '')
   const scriptDirty = editingScript && JSON.stringify(script) !== JSON.stringify(baseline?.script ?? null)
-  const dirty = briefDirty || scriptDirty || uncertain || busy !== null
+  const storyboardDirty = editingStoryboard && JSON.stringify(shots) !== JSON.stringify(baseline?.storyboard?.shots ?? [])
+  const dirty = briefDirty || scriptDirty || storyboardDirty || uncertain || busy !== null
   const dirtyRef = useRef(false)
-  useEffect(() => {dirtyRef.current = briefDirty || scriptDirty}, [briefDirty, scriptDirty])
+  useEffect(() => {dirtyRef.current = briefDirty || scriptDirty || storyboardDirty || uncertain || busy !== null}, [briefDirty, scriptDirty, storyboardDirty, uncertain, busy])
   useEffect(() => {
     mounted.current = true
     const pending = controllers.current
@@ -44,8 +47,8 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
     latestVersion.current = result.version
     setProject(result); onProject(result)
     if (replace || !dirtyRef.current) {
-      setBaseline(result); setDraft({title: result.title, brief: result.brief}); setScript(result.script ?? null)
-      if (replace) {setEditingScript(false); setConflict(false); setActionError('')}
+      setBaseline(result); setDraft({title: result.title, brief: result.brief}); setScript(result.script ?? null); setShots(result.storyboard?.shots ?? [])
+      if (replace) {setEditingScript(false); setEditingStoryboard(false); setConflict(false); setActionError('')}
     }
   }, [onProject])
 
@@ -77,26 +80,25 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
     inFlight.current = true; setBusy(current.operation); setActionError(''); setNotice('')
     const controller = new AbortController(); controllers.current.add(controller)
     try {
-      const result = await request<DramaProject | ScriptGeneration>(current.path, {
-        method: current.operation === 'create' || current.operation === 'generate' ? 'POST' : 'PUT',
+      const result = await request<DramaProject | ScriptGeneration | StoryboardGeneration>(current.path, {
+        method: current.operation === 'create' || current.operation === 'generate' || current.operation === 'generateStoryboard' ? 'POST' : 'PUT',
         headers: {'Content-Type': 'application/json', 'Idempotency-Key': current.key}, body: current.body, signal: controller.signal,
       })
       if (!mounted.current || controller.signal.aborted) return
       setUncertain(false); attempt.current = null; setConflict(false)
-      if (current.operation === 'generate') {
-        const generation = result as ScriptGeneration
-        setProject(previous => previous ? {...previous, latest_generation: generation} : previous)
+      if (current.operation === 'generate' || current.operation === 'generateStoryboard') {
+        setProject(previous => previous ? current.operation === 'generate' ? {...previous, latest_generation: result as ScriptGeneration} : {...previous, latest_storyboard_generation: result as StoryboardGeneration} : previous)
         setNotice('生成请求已保存，状态以生成记录为准。离开工作台不会取消已接受的任务。')
         setRevision(value => value + 1); setHistoryRevision(value => value + 1)
       } else {
         acceptProject(result as DramaProject, true)
-        setNotice(current.operation === 'create' ? '项目已创建并保存。' : current.operation === 'brief' ? '项目简报已保存。' : '剧本修改已保存。')
+        setNotice(current.operation === 'create' ? '项目已创建并保存。' : current.operation === 'brief' ? '项目简报已保存。' : current.operation === 'storyboard' ? '分镜修改已保存。' : '剧本修改已保存。')
       }
     } catch (failure) {
       if (!mounted.current || controller.signal.aborted) return
       const unknown = !(failure instanceof ApiError) || failure.status >= 500
       setUncertain(unknown)
-      setConflict(failure instanceof ApiError && ['version_conflict', 'generation_active', 'script_missing', 'idempotency_conflict'].includes(failure.code ?? ''))
+      setConflict(failure instanceof ApiError && ['version_conflict', 'generation_active', 'script_missing', 'storyboard_missing', 'idempotency_conflict'].includes(failure.code ?? ''))
       setActionError(unknown ? '提交结果尚未确认，服务端可能已保存。重试将使用原请求与同一幂等标识：若此前已接受则返回原操作，尚未接受则尝试执行。' : errorMessage(failure, '操作失败'))
     } finally {
       controllers.current.delete(controller); inFlight.current = false
@@ -106,13 +108,14 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
 
   function submit(operation: Operation) {
     if (inFlight.current || uncertain || generationActive(project) || loading || conflict) return
-    const error = operation === 'create' || operation === 'brief' ? projectDraftError(draft) : operation === 'script' && script ? scriptDraftError(script) : ''
+    const error = operation === 'create' || operation === 'brief' ? projectDraftError(draft) : operation === 'script' && script ? scriptDraftError(script) : operation === 'storyboard' ? storyboardDraftError(shots) : ''
     if (error) {setActionError(error); return}
-    if (operation === 'generate' && (briefDirty || scriptDirty || editingScript)) return
+    if ((operation === 'generate' || operation === 'generateStoryboard') && (briefDirty || scriptDirty || editingScript || editingStoryboard)) return
+    if (operation === 'generateStoryboard' && !project?.script) return
     const query = new URLSearchParams({space_id: space})
     const projectPath = `/projects/${encodeURIComponent(id ?? '')}`
-    const path = `${operation === 'create' ? '/projects' : operation === 'generate' ? `${projectPath}/generations` : operation === 'script' ? `${projectPath}/script` : projectPath}?${query}`
-    const body = JSON.stringify(operation === 'create' ? {title: draft.title.trim(), brief: draft.brief.trim()} : operation === 'brief' ? {title: draft.title.trim(), brief: draft.brief.trim(), expected_version: baseline?.version} : operation === 'script' ? {script, expected_version: baseline?.version} : {expected_version: baseline?.version})
+    const path = `${operation === 'create' ? '/projects' : operation === 'generate' ? `${projectPath}/generations` : operation === 'script' ? `${projectPath}/script` : operation === 'storyboard' ? `${projectPath}/storyboard` : operation === 'generateStoryboard' ? `${projectPath}/storyboard-generations` : projectPath}?${query}`
+    const body = JSON.stringify(operation === 'create' ? {title: draft.title.trim(), brief: draft.brief.trim()} : operation === 'brief' ? {title: draft.title.trim(), brief: draft.brief.trim(), expected_version: baseline?.version} : operation === 'script' ? {script, expected_version: baseline?.version} : operation === 'storyboard' ? {shots, expected_version: baseline?.version} : {expected_version: baseline?.version})
     if (attempt.current?.path !== path || attempt.current.body !== body) attempt.current = {operation, path, body, key: crypto.randomUUID()}
     void execute(attempt.current)
   }
@@ -123,8 +126,9 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
     setRevision(value => value + 1)
   }
   function cancelScript() {setScript(baseline?.script ?? null); setEditingScript(false); setActionError('')}
+  function cancelStoryboard() {setShots(baseline?.storyboard?.shots ?? []); setEditingStoryboard(false); setActionError('')}
   function cancelBrief() {setDraft({title: baseline?.title ?? '', brief: baseline?.brief ?? ''}); setActionError('')}
 
-  return {project, baseline, draft, setDraft, script, setScript, editingScript, setEditingScript, loading, loadError, actionError, conflict, notice, busy, uncertain, dirty, briefDirty, scriptDirty, historyRevision, submit, reload, cancelScript, cancelBrief,
+  return {shots, setShots, editingStoryboard, setEditingStoryboard, storyboardDirty, cancelStoryboard, project, baseline, draft, setDraft, script, setScript, editingScript, setEditingScript, loading, loadError, actionError, conflict, notice, busy, uncertain, dirty, briefDirty, scriptDirty, historyRevision, submit, reload, cancelScript, cancelBrief,
     retry: () => {if (attempt.current) void execute(attempt.current)}, locked: Boolean(busy) || uncertain || generationActive(project) || loading || conflict}
 }

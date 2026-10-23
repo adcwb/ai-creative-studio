@@ -123,7 +123,11 @@ def main():
                 route = "/api/v1/projects"
                 if suffix:
                     route += "/{id}"
-                    if suffix.endswith("/script"):
+                    if suffix.endswith("/storyboard-generations"):
+                        route += "/storyboard-generations"
+                    elif suffix.endswith("/storyboard"):
+                        route += "/storyboard"
+                    elif suffix.endswith("/script"):
                         route += "/script"
                     elif suffix.endswith("/generations"):
                         route += "/generations"
@@ -137,6 +141,93 @@ def main():
                         return project
                     time.sleep(.05)
                 raise RuntimeError("Script generation did not reach a terminal state")
+
+            def wait_storyboard(project_id):
+                deadline = time.monotonic() + 8
+                while time.monotonic() < deadline:
+                    project = project_call("GET", "/" + project_id)
+                    if project.get("latest_storyboard_generation", {}).get("status") in ["succeeded", "failed"]:
+                        return project
+                    time.sleep(.05)
+                raise RuntimeError("Storyboard generation did not reach a terminal state")
+
+            def check_storyboards():
+                created = project_call("POST", body={"title": "分镜合同雨夜", "brief": "两位旧友在车站相遇，讨论一起举办摄影展。"}, key="board-project-create", expected=201)
+                pid = created["id"]
+                suffix = "/" + pid
+                assert created["script_version"] == 0 and not created["storyboard_stale"]
+                assert project_call("GET", suffix + "/storyboard-generations") == []
+                sample = copy.deepcopy(spec["components"]["schemas"]["StoryboardShot"]["example"])
+                missing = project_call("POST", suffix + "/storyboard-generations", {"expected_version": 1}, "board-no-script", 409)
+                assert missing["error"]["code"] == "script_missing"
+                missing = project_call("PUT", suffix + "/storyboard", {"expected_version": 1, "shots": [sample]}, "board-no-plan", 409)
+                assert missing["error"]["code"] == "storyboard_missing"
+                for method, tail, body in [("GET", "/storyboard-generations", None), ("POST", "/storyboard-generations", {"expected_version": 1}), ("PUT", "/storyboard", {"expected_version": 1, "shots": [sample]})]:
+                    project_call(method, suffix + tail, body, "board-cross-space", 404, "team-demo")
+                project_call("POST", suffix + "/generations", {"expected_version": 1}, "board-source-generate", 202)
+                source = wait_script(pid)
+                assert source["script_version"] == 1
+                gen_body = {"expected_version": source["version"]}
+                generation = project_call("POST", suffix + "/storyboard-generations", gen_body, "board-first-generate", 202)
+                assert generation["provider"] == "mock-storyboard" and generation["source_script_version"] == 1
+                assert "source_script" not in generation
+                assert project_call("POST", suffix + "/storyboard-generations", gen_body, "board-first-generate")["id"] == generation["id"]
+                # Accepted writes are blocked across both generation kinds while pending.
+                active = project_call("GET", suffix)
+                if active["latest_storyboard_generation"]["status"] in ["queued", "running"]:
+                    blocked = project_call("PUT", suffix + "/script", {"expected_version": source["version"], "script": source["script"]}, "board-active-script", 409)
+                    assert blocked["error"]["code"] == "generation_active"
+                    blocked = project_call("POST", suffix + "/generations", gen_body, "board-active-generation", 409)
+                    assert blocked["error"]["code"] == "generation_active"
+                ready = wait_storyboard(pid)
+                assert ready["latest_storyboard_generation"]["status"] == "succeeded"
+                assert ready["version"] == source["version"] + 1 and ready["script_version"] == 1 and not ready["storyboard_stale"]
+                assert ready["storyboard"]["source_script_version"] == 1 and ready["storyboard"]["shots"]
+                shots = copy.deepcopy(ready["storyboard"]["shots"])
+                shots[0].update(description="手工编辑后保留的镜头内容", duration_seconds=9, dialogue="", shot_size="close_up", camera_movement="pan")
+                save_body = {"expected_version": ready["version"], "shots": shots}
+                saved = project_call("PUT", suffix + "/storyboard", save_body, "board-save-first")
+                assert saved["storyboard"]["shots"] == shots and saved["script_version"] == 1 and not saved["storyboard_stale"]
+                assert project_call("PUT", suffix + "/storyboard", save_body, "board-save-first") == saved
+                assert project_call("PUT", suffix + "/storyboard", save_body, "board-save-stale", 409)["error"]["code"] == "version_conflict"
+                different = copy.deepcopy(save_body); different["shots"][0]["description"] = "同键不同内容"
+                assert project_call("PUT", suffix + "/storyboard", different, "board-save-first", 409)["error"]["code"] == "idempotency_conflict"
+                for index, change in enumerate([{"scene_index": 0}, {"scene_index": 4}, {"duration_seconds": 0}, {"duration_seconds": 61}, {"duration_seconds": 1.5}, {"shot_size": "other"}, {"camera_movement": "other"}, {"description": ""}, {"description": "长" * 1001}, {"dialogue": "长" * 2001}, {"dialogue": None}, {"id": "invalid id"}]):
+                    invalid = copy.deepcopy(shots); invalid[0].update(change)
+                    project_call("PUT", suffix + "/storyboard", {"expected_version": saved["version"], "shots": invalid}, f"board-invalid-shot-{index}", 400)
+                for index, invalid_shots in enumerate([[], [sample] * 31, [sample, sample], None]):
+                    project_call("PUT", suffix + "/storyboard", {"expected_version": saved["version"], "shots": invalid_shots}, f"board-invalid-list-{index}", 400)
+                project_call("PUT", suffix + "/storyboard", dict(save_body, expected_version=saved["version"], source_script_version=1), "board-forged-source", 400)
+                missing_dialogue = copy.deepcopy(shots); del missing_dialogue[0]["dialogue"]
+                project_call("PUT", suffix + "/storyboard", {"expected_version": saved["version"], "shots": missing_dialogue}, "board-missing-dialogue", 400)
+                for index, invalid in enumerate([{}, {"expected_version": 0}, {"expected_version": None}, {"expected_version": "1"}, {"expected_version": saved["version"], "source_script": source["script"]}]):
+                    project_call("POST", suffix + "/storyboard-generations", invalid, f"board-invalid-gen-{index}", 400)
+                project_call("PUT", suffix + "/storyboard", {"expected_version": saved["version"], "shots": shots}, expected=400)
+                # Project brief edits do not change script revision or mark plan stale.
+                revised = project_call("PUT", suffix, {"expected_version": saved["version"], "title": saved["title"], "brief": "已更新需求，但尚未修改已保存剧本。"}, "board-update-brief")
+                assert revised["script_version"] == 1 and not revised["storyboard_stale"]
+                script = copy.deepcopy(revised["script"])
+                script["scenes"][0]["action"] = "[mock-fail] 保存的新剧本触发模拟分镜失败。"
+                stale = project_call("PUT", suffix + "/script", {"expected_version": revised["version"], "script": script}, "board-change-script")
+                assert stale["script_version"] == 2 and stale["storyboard_stale"] and stale["storyboard"] == saved["storyboard"]
+                stale_saved = project_call("PUT", suffix + "/storyboard", {"expected_version": stale["version"], "shots": shots}, "board-save-old-plan")
+                assert stale_saved["storyboard_stale"] and stale_saved["storyboard"]["source_script_version"] == 1
+                project_call("POST", suffix + "/storyboard-generations", {"expected_version": stale_saved["version"]}, "board-fail-generate", 202)
+                failed = wait_storyboard(pid)
+                assert failed["latest_storyboard_generation"]["error_code"] == "mock_storyboard_failed"
+                assert failed["version"] == stale_saved["version"] and failed["storyboard"] == stale_saved["storyboard"] and failed["storyboard_stale"]
+                # Restart proves persisted source revision, edits, failure and old receipts.
+                stop(); start()
+                assert project_call("GET", suffix) == failed
+                assert project_call("PUT", suffix + "/storyboard", save_body, "board-save-first") == failed
+                assert project_call("POST", suffix + "/storyboard-generations", gen_body, "board-first-generate")["id"] == generation["id"]
+                assert len(project_call("GET", suffix + "/storyboard-generations")) == 2
+                script["scenes"][0]["action"] = "旧友在车站重新握手，准备共同举办摄影展。"
+                recovered_source = project_call("PUT", suffix + "/script", {"expected_version": failed["version"], "script": script}, "board-fix-source")
+                project_call("POST", suffix + "/storyboard-generations", {"expected_version": recovered_source["version"]}, "board-recover-generate", 202)
+                final = wait_storyboard(pid)
+                assert not final["storyboard_stale"] and final["storyboard"]["source_script_version"] == 3
+                assert final["version"] == recovered_source["version"] + 1
 
             def check_projects():
                 assert project_call("GET") == []
@@ -318,6 +409,7 @@ def main():
                 final = call("GET", "/api/v1/assets?space_id=personal-demo&q=recovery&kind=general", "/api/v1/assets")
                 assert final == listed
                 project_case = check_projects()
+                check_storyboards()
                 stop()
                 configurations = [
                     ("openai-images", "", "missing_api_key"),
@@ -361,6 +453,7 @@ def main():
                 print(f"PASS: {count} actual HTTP responses conform to OpenAPI schemas (including polling).")
                 print("Verified: catalog/defaults, capability states, atomic provider guards, invalid expectation pairs, accepted-key replay before readiness/expectations, 503 without queueing, task/asset metadata, persistent search and historical results across restarts.")
                 print("Verified: real project create/detail/edit, Eino structured mock script, 400/404/409 paths, version/source preservation, failed generation keeps draft, all-write accepted-key replay across restarts, and script execution independent of unavailable image configuration.")
+                print("Verified: storyboard mock generation/editing, 400/404/409 guards, source script revision/staleness, failed generation keeps old plan, persisted receipts across restart and successful regeneration clears staleness.")
                 print("No real credential was read and no external provider was enabled; all runtime data and processes were temporary.")
             finally:
                 stop()
