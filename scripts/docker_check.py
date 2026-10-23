@@ -46,6 +46,7 @@ def main():
     }}))
     config = str(evidence / 'docker-config')
     Path(config).mkdir()
+    # Empty config plus an allowlist: no registry auth, remote daemon/context or TLS inheritance.
     env = {'PATH': os.environ['PATH'], 'DOCKER_CONFIG': config, 'STUDIO_PORT': str(port)}
     command = ['docker', 'compose', '--env-file', str(empty_env), '-p', project,
                '-f', str(ROOT / 'compose.yaml'), '-f', str(override)]

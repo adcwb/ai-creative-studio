@@ -23,12 +23,16 @@ def main():
     name = 'studio-s3-test-' + secrets.token_hex(6)
     access, secret = 'test' + secrets.token_hex(10), secrets.token_hex(32)
     with tempfile.TemporaryDirectory(prefix='studio-s3-') as directory:
+        docker_config = Path(directory) / 'docker-config'
+        docker_config.mkdir()
+        # Whitelist: never read/inherit an existing registry credential store or auth variables.
+        docker_env = {'PATH': os.environ['PATH'], 'DOCKER_CONFIG': str(docker_config)}
         env_file = Path(directory) / 'fixture.env'
         env_file.write_text(f'MINIO_ROOT_USER={access}\nMINIO_ROOT_PASSWORD={secret}\n')
         env_file.chmod(0o600)
         try:
-            run('docker', 'run', '-d', '--name', name, '--env-file', str(env_file), '-p', '127.0.0.1::9000', args.image, 'server', '/data', stdout=subprocess.DEVNULL)
-            binding = run('docker', 'port', name, '9000/tcp', capture_output=True).stdout.strip()
+            run('docker', 'run', '-d', '--name', name, '--env-file', str(env_file), '-p', '127.0.0.1::9000', args.image, 'server', '/data', stdout=subprocess.DEVNULL, env=docker_env)
+            binding = run('docker', 'port', name, '9000/tcp', capture_output=True, env=docker_env).stdout.strip()
             endpoint = 'http://' + binding
             opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
             for attempt in range(60):
@@ -46,7 +50,7 @@ def main():
             run('go', 'test', '-race', './internal/studio', '-run', '^TestS3LocalContainerIntegration$', '-count=1', '-v', cwd=ROOT / 'backend', env=env)
             print(json.dumps({'fixture': 'local disposable MinIO', 'result': 'passed', 'checks': ['signed upload', 'signed read', 'PNG roundtrip', 'expired URL rejected', 'object substitution rejected', 'anonymous read denied'], 'live_provider_calls': 0}))
         finally:
-            subprocess.run(['docker', 'rm', '-f', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+            subprocess.run(['docker', 'rm', '-f', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False, env=docker_env)
 
 if __name__ == '__main__':
     main()

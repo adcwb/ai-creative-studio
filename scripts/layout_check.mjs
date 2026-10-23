@@ -64,12 +64,12 @@ try {
   const binary = join(temporary, 'server')
   execFileSync('go', ['build', '-o', binary, './cmd/server'], { cwd: join(repo, 'backend'), stdio: 'pipe' })
   const backend = start(binary, [], repo, {
-    ...process.env, HTTP_ADDR: `127.0.0.1:${apiPort}`, FRONTEND_ORIGIN: origin,
+    PATH: process.env.PATH, HTTP_ADDR: `127.0.0.1:${apiPort}`, FRONTEND_ORIGIN: origin,
     AUTH_MODE: 'demo', TEXT_PROVIDER: 'mock-text', SPEECH_PROVIDER: '', VIDEO_PROVIDER: '', ASR_PROVIDER: '', DATA_DIR: join(temporary, 'data'), IMAGE_PROVIDER: 'mock-svg', OPENAI_API_KEY: '',
   })
   await ready(`${api}/healthz`, backend)
   const frontend = start('npm', ['run', 'dev', '--', '--port', String(webPort), '--strictPort'], join(repo, 'frontend'), {
-    ...process.env, VITE_API_BASE_URL: api,
+    PATH: process.env.PATH, VITE_API_BASE_URL: api,
   })
   await ready(origin, frontend)
   async function call(path, init) {
