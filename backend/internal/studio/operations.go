@@ -1,6 +1,7 @@
 package studio
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -24,7 +25,21 @@ type Operations struct {
 	duration time.Duration
 	started  time.Time
 }
+type auditIdentityKey struct{}
+type auditIdentity struct{ Actor, Tenant, Role string }
+
+func SetAuditIdentity(ctx context.Context, actor, tenant, role string) {
+	if identity, ok := ctx.Value(auditIdentityKey{}).(*auditIdentity); ok {
+		identity.Actor = actor
+		identity.Tenant = tenant
+		identity.Role = role
+	}
+}
+
 type auditRecord struct {
+	Actor      string    `json:"actor_id,omitempty"`
+	Tenant     string    `json:"tenant_id,omitempty"`
+	Role       string    `json:"role,omitempty"`
 	At         time.Time `json:"at"`
 	RequestID  string    `json:"request_id"`
 	Method     string    `json:"method"`
@@ -89,6 +104,8 @@ func (w *observedResponse) Unwrap() http.ResponseWriter { return w.ResponseWrite
 func (o *Operations) Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
+		identity := &auditIdentity{}
+		r = r.WithContext(context.WithValue(r.Context(), auditIdentityKey{}, identity))
 		var id [16]byte
 		if _, err := rand.Read(id[:]); err != nil {
 			http.Error(w, "request identity unavailable", 503)
@@ -96,7 +113,7 @@ func (o *Operations) Wrap(next http.Handler) http.Handler {
 		}
 		requestID := hex.EncodeToString(id[:])
 		w.Header().Set("X-Request-ID", requestID)
-		if err := o.append(auditRecord{At: start.UTC(), RequestID: requestID, Method: r.Method, Phase: "started"}); err != nil && authWrite(r) {
+		if err := o.append(auditRecord{At: start.UTC(), RequestID: requestID, Method: r.Method, Phase: "started"}); err != nil && (authWrite(r) || r.URL.Path == "/api/v1/auth/sso/callback") {
 			http.Error(w, "audit unavailable", 503)
 			return
 		}
@@ -107,7 +124,7 @@ func (o *Operations) Wrap(next http.Handler) http.Handler {
 			status = 200
 		}
 		elapsed := time.Since(start)
-		_ = o.append(auditRecord{At: time.Now().UTC(), RequestID: requestID, Method: r.Method, Phase: "finished", Status: status, DurationMS: elapsed.Milliseconds()})
+		_ = o.append(auditRecord{At: time.Now().UTC(), RequestID: requestID, Method: r.Method, Phase: "finished", Actor: identity.Actor, Tenant: identity.Tenant, Role: identity.Role, Status: status, DurationMS: elapsed.Milliseconds()})
 		o.mu.Lock()
 		o.counts[status/100]++
 		o.duration += elapsed

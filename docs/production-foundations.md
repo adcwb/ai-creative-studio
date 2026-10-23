@@ -30,9 +30,9 @@ go run ./cmd/budget -data-dir /path/to/stopped-data -tenant org-id -currency USD
 
 ## 审计、指标与告警
 
-`Operations.Wrap` 为请求分配随机 request ID，向本地 `audit.jsonl` 写入开始/结束时间、方法、响应类别和耗时。请求体、URL路径、query、Cookie、prompt均不记录。写入/fsync失败或超过64MiB容量后拒绝新的写请求；已发生响应后的审计失败无法撤销已完成业务，后续写请求会失败。停服后归档审计文件再重启，不自动删除证据。
+`Operations.Wrap` 为请求分配随机 request ID，向本地 `audit.jsonl` 写入开始/结束时间、方法、响应类别和耗时。认证后记录受信actor ID、tenant ID和role；请求体、URL路径、query、Cookie、prompt均不记录。写入/fsync失败或超过64MiB容量后拒绝新的写请求；已发生响应后的审计失败无法撤销已完成业务，后续写请求会失败。停服后归档审计文件再重启，不自动删除证据。
 
-这是请求级本地审计，不是具备用户/资源语义的不可篡改外部审计或分布式追踪。`MetricsHandler` 必须运行于独立运维端口，不能挂到公开Nginx代理后以回环peer冒充授权。导出HTTP计数、耗时总和、audit健康和uptime；`deploy/alerts.yaml` 是待操作者加载的告警配置，不表示已部署监控或通知渠道。
+这是请求级本地审计，尚不具备细粒度资源变更语义、不可篡改外部审计或分布式追踪。`MetricsHandler` 必须运行于独立运维端口，不能挂到公开Nginx代理后以回环peer冒充授权。导出HTTP计数、耗时总和、audit健康和uptime；`deploy/alerts.yaml` 是待操作者加载的告警配置，不表示已部署监控或通知渠道。
 
 ## 停服备份与恢复
 
@@ -49,3 +49,10 @@ python3 scripts/backup.py restore /private/backups/studio.tar.gz /path/to/new-da
 ## 负载演练
 
 `python3 scripts/local_load.py --base-url http://127.0.0.1:8080 --requests 100 --concurrency 4` 限定回环HTTP、无代理重定向、最多10000请求/32并发，仅GET健康端点，输出p50/p95/失败数。它不是创作worker、数据库、多实例或付费供应商吞吐认证。
+
+
+## 本轮独立运行证据
+
+`python3 scripts/recovery_check.py` 已在真实后端上执行：创建4个明确synthetic素材，运行中备份拒绝，停服全目录归档/校验，恢复至新目录并启动新服务，4素材哈希、媒体元数据及幂等回执完全一致。随附本地health探测100次/4并发、0失败（单次观测p50约15ms、p95约50ms；不作为容量SLA）。
+
+对象容器演练入口为 `python3 scripts/s3_integration.py --image <reviewed-local-minio-image>`，只生成随机合成fixture凭据并在finally销毁容器。历史DockerHub与quay公开旧镜像拉取在本环境返回denied；不尝试登录账号。MinIO开源仓库已归档；官方[公开安全版本说明](https://github.com/minio/minio/releases/tag/RELEASE.2025-10-15T17-29-55Z)建议固定源码构建，旧deploy模板镜像不代表可获取或建议生产部署。S3协议单元测试已验证官方公开签名向量；容器实际运行状态须以最终验证记录为准。
