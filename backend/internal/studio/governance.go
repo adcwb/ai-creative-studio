@@ -23,7 +23,7 @@ func ValidateRuntimeFromEnv(capabilities ...Capabilities) error {
 		}
 	}
 	for _, caps := range capabilities {
-		if caps.Mode == "real" && caps.Ready {
+		if caps.Mode == "real" && caps.Ready && !caps.localExecution {
 			return errors.New("live execution is disabled until per-request budget and moderation enforcement is integrated; use isolated protocol tests")
 		}
 	}
@@ -69,7 +69,16 @@ type CostEntry struct {
 	Evidence  string    `json:"evidence_ref,omitempty"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+type BudgetChange struct {
+	Actor    string    `json:"actor"`
+	Tenant   string    `json:"tenant"`
+	Currency string    `json:"currency"`
+	Before   int64     `json:"before_minor"`
+	After    int64     `json:"after_minor"`
+	At       time.Time `json:"at"`
+}
 type costSnapshot struct {
+	Changes []BudgetChange       `json:"changes,omitempty"`
 	Version int                  `json:"version"`
 	Limits  map[string]int64     `json:"limits"`
 	Entries map[string]CostEntry `json:"entries"`
@@ -109,6 +118,16 @@ func OpenBudgetLedger(dir string) (*BudgetLedger, error) {
 				return nil, errors.New("invalid budget currency")
 			}
 		}
+
+		if len(ledger.data.Changes) > 10000 {
+			return nil, errors.New("budget audit capacity exceeded")
+		}
+		for _, change := range ledger.data.Changes {
+			_, currencyErr := normalizeCurrency(change.Currency)
+			if change.Actor == "" || change.Tenant == "" || change.Currency == "" || currencyErr != nil || change.Before < 0 || change.After < 0 || change.At.IsZero() {
+				return nil, errors.New("invalid budget audit entry")
+			}
+		}
 		for id, e := range ledger.data.Entries {
 			if e.ID != id || e.Tenant == "" || e.Reserved <= 0 || e.Actual < 0 || (e.State != "reserved" && e.State != "unknown" && e.State != "settled" && e.State != "released") {
 				return nil, errors.New("invalid budget entry")
@@ -130,6 +149,7 @@ func OpenBudgetLedger(dir string) (*BudgetLedger, error) {
 }
 func (l *BudgetLedger) clone() costSnapshot {
 	n := l.data
+	n.Changes = append([]BudgetChange(nil), l.data.Changes...)
 	n.Limits = map[string]int64{}
 	n.Entries = map[string]CostEntry{}
 	for k, v := range l.data.Limits {

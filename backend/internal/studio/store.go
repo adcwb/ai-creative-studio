@@ -42,6 +42,8 @@ type Repository interface {
 	Finish(Task, GenerationResult, error) error
 }
 type FileStore struct {
+	budget       *BudgetLedger
+	exchange     ExchangeProvider
 	creative     *creativeStore
 	media        *MediaStore
 	mu           sync.Mutex
@@ -268,6 +270,11 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 		return nil, err
 	}
 	s.media, err = openMediaStore(filepath.Dir(s.path))
+	if err != nil {
+		s.Close()
+		return nil, err
+	}
+	s.budget, err = OpenBudgetLedger(filepath.Dir(s.path))
 	if err != nil {
 		s.Close()
 		return nil, err

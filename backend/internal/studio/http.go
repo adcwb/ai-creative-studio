@@ -33,6 +33,7 @@ func Handler(repo Repository, origin string) http.Handler {
 	registerProjectRoutes(mux, repo)
 	registerStoryboardRoutes(mux, repo)
 	if store, ok := repo.(*FileStore); ok {
+		registerGovernanceRoutes(mux, store)
 		registerMediaRoutes(mux, store)
 		registerCreativeRoutes(mux, store)
 		registerImageResumeRoute(mux, store)
