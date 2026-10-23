@@ -41,3 +41,9 @@ MiniMax 文本采用其[官方 OpenAI 兼容接口](https://platform.minimax.io/
 ## 角色参考与图像模型边界
 
 Gemini 与方舟图像适配提供可选 `reference_asset_id`，将已有参考图片作为图像输入，并复用角色描述。它能传递外观约束，不能保证跨镜头身份或细节一致；没有锁脸、角色微调或一致性质量评测承诺。Google/Nano Banana 图像接入仅覆盖 `generateContent` 兼容模型，不将需要 Interactions API 的其他新模型宣称为已支持。方舟视频适配与 OpenAI 视频为不同协议，各自的模型权限和真实效果仍未验证。
+
+## 即梦公开图像协议
+
+即梦图像使用公开火山视觉 API 的 AK/SK 签名，不调用消费网站或逆向接口。`req_key` 显式配置；提交强制单图，随后只查询同一任务。签名根据[官方 Go SDK](https://github.com/volcengine/volc-sdk-golang/blob/64e6e051a12441821178c93b8922db4e7158d3e1/base/sign.go)核对，并以该 SDK 独立计算的固定合成凭据向量验证。请求/状态依据[即梦图像4.6官方接口](https://docs.volcengine.com/docs/JimengAI/JimengAI-ImageGeneration46-InterfaceDocumentation?lang=zh)。
+
+只接受 `code=10000` 且任务完成后的内联图片；仅返回 URL 时安全失败，不下载任意外部链接。此适配暂为文生图，不提供即梦参考图编辑或视频。提交不自动重试；当前统一图像接口不持久保存可恢复查询的即梦上游任务ID，因此进程中断按真实图像失败处理，不重新提交。恢复原上游结果尚未提供，远端执行和费用可能不确定。签名与本地假上游通过不等于真实账号、模型权限或效果验证。
