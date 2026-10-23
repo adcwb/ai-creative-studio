@@ -31,8 +31,10 @@ model-config.json为0600，临时文件写入、fsync、rename及目录fsync，�
 
 `ModelRuntime.Resolve`不读取secret，锁定当前租户配置版本；`Execute`必须获得执行治理的任务许可，随后解密AES-GCM凭据。每次HTTP发送、视频轮询和下载前重新检查组织成员角色、配置版本、能力与治理许可。配置变更取消本进程已注册的请求，成员角色变更也取消；回调结束后旧adapter不能复用。已经发送给供应商的请求无法撤回，取消后仍需保留未知费用。跨进程变更除每次发送前复核，还每秒读取共享权威状态；复核超时两秒即取消，在本地将检查延迟限制为最多三秒。不能撤回供应商已经接受的请求，不承诺供应商端瞬时停算。
 
-默认仅租户独立加密secret参与运行时，禁止租户通过引用平台变量名借用部署操作者的credential。外部secret-store使用可替换`ApprovedSecretResolver`：部署显式绑定tenant、配置ID、provider与reference到外部secret ID，并注入遵守context取消的fetch实现；没有默认环境变量解析器，缺绑定即拒绝，HTTP不能创建这种平台授权绑定。返回的secret只用于当前执行，不缓存进配置。语音必须显式提供voice。即梦双凭据、需要另行核准账户资格的MiniMax music、已弃用OpenAI speech尚未开放这个管理运行时，非whisper-1的ASR不套用旧时间戳协议；这些配置在任务接收前拒绝，无自动供应商fallback。
+默认仅租户独立加密secret参与运行时，禁止租户通过引用平台变量名借用部署操作者的credential。外部secret-store使用可替换`ApprovedSecretResolver`：部署显式绑定tenant、配置ID、provider与reference到外部secret ID，并注入遵守context取消的fetch实现；没有默认环境变量解析器，缺绑定即拒绝，HTTP不能创建这种平台授权绑定。返回的secret只用于当前执行，不缓存进配置。语音必须显式提供voice。即梦凭据使用JSON对象`{"access_key":"…","secret_key":"…"}`一起加密保存或由明确绑定的外部secret-store返回，禁止把单个AK或SK当作完整凭据。需要另行核准账户资格的MiniMax music、已弃用OpenAI speech尚未开放这个管理运行时，非whisper-1的ASR不套用旧时间戳协议；这些配置在任务接收前拒绝，无自动供应商fallback。
 
 合成fixture验证真实adapter发送所保存的model及租户secret、固定HTTPS目标、跨能力拒绝、过期版本、跨租户、缺治理许可、撤销在途取消及回调结束后复用拒绝。fixture不代表真实供应商验收。
 
 运行时使用`RuntimeNoDispatchError`标识可证明没有进入任何HTTP transport的本地失败，治理层可据此释放预留。连接失败、请求取消和下载尝试后错误均不能使用这个证据，保守保留未知费用，不推测供应商实际计费。
+
+已知上游任务恢复仍要求操作策略明确确认查询免费，且不新预留、不释放旧未知费用。运行时仅放行GET，以及原生即梦adapter的固定POST查询：`https://visual.volcengineapi.com/`、`CVSync2AsyncGetResult`、固定版本和完整查询body严格校验；创建动作、其他endpoint、其他req_key或额外body字段拒绝。POST查询没有伪装成通用可写授权。

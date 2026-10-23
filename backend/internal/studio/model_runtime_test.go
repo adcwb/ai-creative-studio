@@ -200,8 +200,12 @@ func TestModelRuntimeFactoryHasNoFallbackAndUsesSavedModel(t *testing.T) {
 					model = "whisper-1"
 				}
 				entry := ModelConfigEntry{Provider: a.Provider, Capability: capability, Model: model}
-				p, err := buildRuntimeProviders(context.Background(), entry, "synthetic-secret", "synthetic-voice", func(context.Context) error { return errRuntimeDenied }, nil)
-				unsupported := a.Provider == "jimeng-images" || a.Provider == "minimax-music" || a.Provider == "openai-speech"
+				secret := "synthetic-secret"
+				if a.Provider == "jimeng-images" {
+					secret = `{"access_key":"synthetic-ak","secret_key":"synthetic-sk"}`
+				}
+				p, err := buildRuntimeProviders(context.Background(), entry, secret, "synthetic-voice", func(context.Context) error { return errRuntimeDenied }, nil)
+				unsupported := a.Provider == "minimax-music" || a.Provider == "openai-speech"
 				if unsupported {
 					if err == nil {
 						t.Fatal("unsupported configuration silently enabled")
@@ -299,5 +303,104 @@ func TestModelRuntimeNoDispatchEvidenceAndDynamicReadiness(t *testing.T) {
 	})
 	if err == nil || RuntimeNoDispatch(err) {
 		t.Fatal("attempted dispatch incorrectly released")
+	}
+	err = r.Execute(context.Background(), sel, func(ctx context.Context, p RuntimeProviders) error {
+		runtimeReplaceTransport(p, func(*http.Request) (*http.Response, error) { return nil, errors.New("synthetic network error") })
+		_, _ = p.Creative.Analyze(ctx, ProjectInput{Title: "Synthetic title", Brief: "Synthetic local-only description"})
+		return &RuntimeNoDispatchError{cause: errRuntimeUnavailable}
+	})
+	if RuntimeNoDispatch(err) {
+		t.Fatal("nested no-dispatch marker erased observed attempt")
+	}
+}
+
+func TestModelRuntimeRecoveryTransportRejectsCreation(t *testing.T) {
+	ctx := context.WithValue(context.Background(), executionReadOnlyKey{}, true)
+	var attempts int
+	transport := runtimeTransport{lifetime: ctx, guard: func(context.Context) error { return nil }, onDispatch: func() { attempts++ }, base: runtimeFixtureTransport(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("{}"))}, nil
+	})}
+	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete} {
+		req, _ := http.NewRequestWithContext(ctx, method, "https://api.openai.com/v1/synthetic", nil)
+		if _, err := transport.RoundTrip(req); !errors.Is(err, errRuntimeDenied) {
+			t.Fatal("read-only permit accepted mutation", method)
+		}
+	}
+	if attempts != 0 {
+		t.Fatal("recovery sent a mutation")
+	}
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.openai.com/v1/synthetic", nil)
+	resp, err := transport.RoundTrip(req)
+	if err != nil || attempts != 1 {
+		t.Fatal("recovery GET denied", err)
+	}
+	resp.Body.Close()
+}
+
+func TestModelRuntimeJimengReadOnlyRecoveryIsStrict(t *testing.T) {
+	ctx := context.WithValue(context.Background(), executionReadOnlyKey{}, true)
+	providers, err := buildRuntimeProviders(ctx, ModelConfigEntry{Provider: "jimeng-images", Model: "jimeng_seedream46_cvtob", Capability: "image"}, `{"access_key":"synthetic-ak","secret_key":"synthetic-sk"}`, "", func(context.Context) error { return nil }, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := providers.Image.(*JimengImageProvider)
+	transport := p.client.Transport.(runtimeTransport)
+	calls := 0
+	transport.base = runtimeFixtureTransport(func(req *http.Request) (*http.Response, error) {
+		calls++
+		if !strings.HasPrefix(req.Header.Get("Authorization"), "HMAC-SHA256 Credential=synthetic-ak/") {
+			t.Fatal("missing signed adapter")
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"code":10000,"data":{"task_id":"synthetic-job","status":"done"}}`)), Header: http.Header{}}, nil
+	})
+	p.client.Transport = transport
+	if _, err = p.PollImage(ctx, "synthetic-job"); err != nil || calls != 1 {
+		t.Fatal("documented query failed", err, calls)
+	}
+	if _, err = p.request(ctx, "CVSync2AsyncSubmitTask", map[string]string{"req_key": p.reqKey, "prompt": "synthetic"}); err == nil || calls != 1 {
+		t.Fatal("read-only permit submitted new work")
+	}
+	baseURL := "https://visual.volcengineapi.com/?Action=CVSync2AsyncGetResult&Version=2022-08-31"
+	body := `{"req_key":"jimeng_seedream46_cvtob","task_id":"synthetic-job","req_json":"{\"return_url\":false,\"logo_info\":{\"add_logo\":true}}"}`
+	for _, tc := range []struct{ url, body string }{
+		{strings.Replace(baseURL, "visual.volcengineapi.com", "evil.example", 1), body},
+		{baseURL + "&Action=CVSync2AsyncSubmitTask", body},
+		{strings.Replace(baseURL, "2022-08-31", "other", 1), body},
+		{baseURL, strings.Replace(body, "jimeng_seedream46_cvtob", "other-model", 1)},
+		{baseURL, strings.TrimSuffix(body, "}") + `,"prompt":"create"}`},
+	} {
+		req, _ := http.NewRequestWithContext(ctx, http.MethodPost, tc.url, strings.NewReader(tc.body))
+		if jimengReadOnlyRequest(p.reqKey)(req) {
+			t.Fatal("unsafe query accepted")
+		}
+	}
+}
+
+func TestModelRuntimeJimengCredentialPairEncryptedAndValidated(t *testing.T) {
+	r, sel, _ := runtimeFixture(t)
+	in := ModelConfigInput{Provider: "jimeng-images", Model: "jimeng_seedream46_cvtob", Capability: "image", Region: "cn-north-1", Enabled: true, IsDefault: true, Lifecycle: "active"}
+	if _, err := r.auth.models.update(sel.TenantID, sel.Version, in, ModelCredentialInput{Action: "set", Secret: "synthetic-single-key"}); !errors.Is(err, errModelInput) {
+		t.Fatal("single key accepted as credential pair")
+	}
+	report, err := r.auth.models.update(sel.TenantID, sel.Version, in, ModelCredentialInput{Action: "set", Secret: `{"access_key":"synthetic-pair-ak","secret_key":"synthetic-pair-sk"}`})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(report)
+	if strings.Contains(string(raw), "synthetic-pair") {
+		t.Fatal("credential pair leaked")
+	}
+	selection, _, err := r.Resolve(context.Background(), sel.TenantID, sel.ActorID, "", "image")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = r.Execute(context.Background(), selection, func(ctx context.Context, p RuntimeProviders) error {
+		jimeng, ok := p.Image.(*JimengImageProvider)
+		if !ok || jimeng.accessKey != "synthetic-pair-ak" || jimeng.secretKey != "synthetic-pair-sk" {
+			t.Fatal("encrypted credential pair not applied")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
 	}
 }

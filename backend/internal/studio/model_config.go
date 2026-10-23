@@ -351,7 +351,7 @@ func (s *ModelConfigStore) update(tenant string, expected int64, in ModelConfigI
 		if s.aead == nil {
 			return ModelConfigReport{}, errModelKey
 		}
-		if credential.Reference != "" || len(credential.Secret) > 4096 || !validCredential(credential.Secret) {
+		if credential.Reference != "" || len(credential.Secret) > 4096 || !validModelSecret(in.Provider, credential.Secret) {
 			return ModelConfigReport{}, errModelInput
 		}
 		nonce := make([]byte, s.aead.NonceSize())

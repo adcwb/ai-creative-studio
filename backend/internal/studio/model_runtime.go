@@ -113,7 +113,7 @@ func (r *ModelRuntime) entryAllowed(e ModelConfigEntry, tenant, capability strin
 		return false
 	}
 	switch e.Provider {
-	case "jimeng-images", "minimax-music", "openai-speech":
+	case "minimax-music", "openai-speech":
 		return false
 	case "openai-asr":
 		return e.Model == "whisper-1"
@@ -148,6 +148,10 @@ func (r *ModelRuntime) Execute(ctx context.Context, selection RuntimeSelection, 
 	defer func() {
 		if resultErr != nil && attempts.Load() == 0 {
 			resultErr = &RuntimeNoDispatchError{cause: resultErr}
+		} else if resultErr != nil {
+			// A nested callback's no-dispatch marker cannot erase this invocation's
+			// observed transport attempt.
+			resultErr = &runtimeAttemptedError{cause: resultErr}
 		}
 	}()
 	if dispatch == nil {
@@ -260,13 +264,17 @@ func (s *AuthStore) cancelChangedRuntimeLocked(before, after authSnapshot) {
 }
 
 type runtimeTransport struct {
-	lifetime   context.Context
-	base       http.RoundTripper
-	guard      func(context.Context) error
-	onDispatch func()
+	allowReadOnly func(*http.Request) bool
+	lifetime      context.Context
+	base          http.RoundTripper
+	guard         func(context.Context) error
+	onDispatch    func()
 }
 
 func (t runtimeTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if executionReadOnly(req.Context()) && req.Method != http.MethodGet && (t.allowReadOnly == nil || !t.allowReadOnly(req)) {
+		return nil, errRuntimeDenied
+	}
 	if err := t.guard(req.Context()); err != nil {
 		return nil, err
 	}
@@ -303,7 +311,7 @@ func guardRuntimeClient(c *http.Client, lifetime context.Context, guard func(con
 
 func buildRuntimeProviders(lifetime context.Context, e ModelConfigEntry, secret, voice string, guard func(context.Context) error, onDispatch func()) (RuntimeProviders, error) {
 	var out RuntimeProviders
-	if !validCredential(secret) {
+	if !validModelSecret(e.Provider, secret) {
 		return out, errRuntimeUnavailable
 	}
 	switch e.Provider {
@@ -346,6 +354,17 @@ func buildRuntimeProviders(lifetime context.Context, e ModelConfigEntry, secret,
 	case "minimax-images":
 		p := NewMiniMaxImageProvider(secret, e.Model)
 		guardRuntimeClient(p.api.client, lifetime, guard, onDispatch)
+		out.Image = p
+	case "jimeng-images":
+		pair, err := decodeJimengCredential(secret)
+		if err != nil {
+			return out, errRuntimeUnavailable
+		}
+		p := NewJimengImageProvider(pair.AccessKey, pair.SecretKey, e.Model)
+		guardRuntimeClient(p.client, lifetime, guard, onDispatch)
+		transport := p.client.Transport.(runtimeTransport)
+		transport.allowReadOnly = jimengReadOnlyRequest(e.Model)
+		p.client.Transport = transport
 		out.Image = p
 	case "gemini-video":
 		p := NewGoogleVideoProvider(secret, e.Model)
@@ -391,8 +410,8 @@ func buildRuntimeProviders(lifetime context.Context, e ModelConfigEntry, secret,
 		guardRuntimeClient(p.client, lifetime, guard, onDispatch)
 		out.Creative = p
 	default:
-		// Jimeng needs a structured credential pair; music needs independently
-		// verified account eligibility; deprecated OpenAI speech stays disabled.
+		// Music needs independently verified account eligibility; deprecated
+		// OpenAI speech stays disabled.
 		return out, errRuntimeUnavailable
 	}
 	if out.Creative != nil {

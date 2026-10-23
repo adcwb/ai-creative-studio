@@ -2,7 +2,6 @@ package studio
 
 import (
 	"context"
-	"errors"
 	"time"
 )
 
@@ -13,7 +12,16 @@ type RuntimeNoDispatchError struct{ cause error }
 
 func (e *RuntimeNoDispatchError) Error() string { return "model request was not dispatched" }
 func (e *RuntimeNoDispatchError) Unwrap() error { return e.cause }
-func RuntimeNoDispatch(err error) bool          { var e *RuntimeNoDispatchError; return errors.As(err, &e) }
+func RuntimeNoDispatch(err error) bool {
+	// An inner callback's local failure cannot erase an outer dispatch attempt.
+	_, ok := err.(*RuntimeNoDispatchError)
+	return ok
+}
+
+type runtimeAttemptedError struct{ cause error }
+
+func (e *runtimeAttemptedError) Error() string { return "model request dispatch was attempted" }
+func (e *runtimeAttemptedError) Unwrap() error { return e.cause }
 
 // Membership/configuration changes made by another API process are observed
 // through the shared authoritative store. One-second polling plus a two-second

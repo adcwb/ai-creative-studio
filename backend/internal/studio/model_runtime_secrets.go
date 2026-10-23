@@ -13,7 +13,8 @@ type SecretBinding struct {
 
 // ApprovedSecretResolver makes both tenant and exact model configuration part
 // of secret-store authorization. Merely saving an environment-variable name in
-// the UI grants no access. Fetch implementations must honor context cancellation.
+// the UI grants no access. Fetch implementations must honor context cancellation
+// and transfer an owned byte slice (never a shared/cache buffer) to the caller.
 type ApprovedSecretResolver struct {
 	bindings map[[4]string]string
 	fetch    func(context.Context, string) ([]byte, error)
@@ -68,7 +69,7 @@ func (r *ApprovedSecretResolver) resolve(ctx context.Context, tenant string, e M
 		return nil, errRuntimeUnavailable
 	}
 	// Copy ownership, then erase the fetch result; no value is retained in config.
-	if len(raw) > 4096 || !validCredential(string(raw)) {
+	if len(raw) > 4096 || !validModelSecret(e.Provider, string(raw)) {
 		for i := range raw {
 			raw[i] = 0
 		}
