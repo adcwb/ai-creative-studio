@@ -10,3 +10,15 @@ export function minorAmountInput(value: number, digits: number): string {
   const text = String(value).padStart(digits + 1, '0')
   return digits ? `${text.slice(0, -digits)}.${text.slice(-digits)}` : text
 }
+
+/** Format minor units exactly. Never divide a money integer using floating point. */
+export function formatMinorCurrency(minor: number, currency: string, digits: number, locale: string): string {
+  if (!Number.isSafeInteger(minor) || !Number.isInteger(digits) || digits < 0 || digits > 3) throw new RangeError('Invalid minor currency amount')
+  const value = BigInt(minor), absolute = value < 0n ? -value : value
+  const factor = 10n ** BigInt(digits), whole = absolute / factor
+  // Negative zero preserves the sign when the amount is between -1 and 0 major units.
+  const signedWhole = value < 0n ? whole === 0n ? -0 : -whole : whole
+  const fraction = digits ? new Intl.NumberFormat(locale, {useGrouping: false, minimumIntegerDigits: digits}).format(absolute % factor) : ''
+  return new Intl.NumberFormat(locale, {style: 'currency', currency, minimumFractionDigits: digits, maximumFractionDigits: digits})
+    .formatToParts(signedWhole).map(part => part.type === 'fraction' ? fraction : part.value).join('')
+}
