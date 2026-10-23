@@ -58,9 +58,9 @@ function ProjectEditor({space, id, onProject, onDirtyChange, requestLeave}: {
 }) {
   const [mediaDirty, setMediaDirty] = useState(false)
   const [toolsDirty, setToolsDirty] = useState(false)
-  const [creative, setCreative] = useState<{provider: string; mode: string; ready: boolean; message: string} | null>(null)
-  useEffect(() => {const controller = new AbortController(); void request<{provider: string; mode: string; ready: boolean; message: string}>('/creative-capabilities', {signal: controller.signal}).then(setCreative).catch(() => {if (!controller.signal.aborted) setCreative({provider: 'unavailable', mode: 'unavailable', ready: false, message: '无法读取创作配置，请刷新页面后重试。'})}); return () => controller.abort()}, [])
-  const editor = useDramaProject(space, id, onProject, creative?.provider)
+  const [creative, setCreative] = useState<{provider: string; model?: string; mode: string; ready: boolean; message: string} | null>(null)
+  useEffect(() => {const controller = new AbortController(); void request<{provider: string; model?: string; mode: string; ready: boolean; message: string}>('/creative-capabilities', {signal: controller.signal}).then(setCreative).catch(() => {if (!controller.signal.aborted) setCreative({provider: 'unavailable', mode: 'unavailable', ready: false, message: '无法读取创作配置，请刷新页面后重试。'})}); return () => controller.abort()}, [])
+  const editor = useDramaProject(space, id, onProject, creative?.provider, creative?.model)
   const allDirty = editor.dirty || mediaDirty || toolsDirty
   const [confirmGenerate, setConfirmGenerate] = useState(false)
   const [confirmStoryboard, setConfirmStoryboard] = useState(false)
@@ -97,8 +97,8 @@ function ProjectEditor({space, id, onProject, onDirtyChange, requestLeave}: {
       {editor.notice && <p className="notice" role="status"><Icon name="check" />{editor.notice}</p>}
       {editor.busy && <p className="notice" role="status">{editor.busy === 'generate' || editor.busy === 'generateStoryboard' ? '正在提交生成请求…' : '正在提交保存请求…'}请等待服务端确认。</p>}
       {id && editor.project && <>
-        <CreativeTools expectedProvider={creative?.provider} project={editor.project} space={space} disabled={editor.locked || editor.dirty || mediaDirty} onRestore={() => editor.reload(true)} onDirtyChange={setToolsDirty} />
-        {creative && <p className="drama-help">创作模式：{creative.provider} · {creative.message} {creative.mode === 'real' && '真实模式可能计费，模型效果与费用未验证。'}</p>}
+        <CreativeTools expectedProvider={creative?.provider} expectedModel={creative?.model} project={editor.project} space={space} disabled={editor.locked || editor.dirty || mediaDirty} onRestore={() => editor.reload(true)} onDirtyChange={setToolsDirty} />
+        {creative && <p className="drama-help">创作模式：{creative.provider}{creative.model ? ` / ${creative.model}` : ''} · {creative.message} {creative.mode === 'real' && '真实模式可能计费，模型效果与费用未验证。'}</p>}
         <section className="panel drama-generation" aria-labelledby="generation-heading"><div className="section-heading"><div><span className="eyebrow">02 / A FIRST DRAFT</span><h2 id="generation-heading">{creative?.mode === 'real' ? '生成 AI 剧本' : '生成模拟剧本'}</h2></div><span>2 位角色 / 3 个场景</span></div>
           <p>根据已保存简报，由后端生成结构化剧本；成功后替换当前稿，失败会保留已有剧本。</p>
           {generation && <div className="drama-generation-state"><span className={`status ${generation.status}`}><span />{generationLabels[generation.status]}</span>{active && <div className="progress-block"><progress aria-label="剧本生成进度" value={generation.progress} max="100" /><span>{generation.progress}% · 后端处理中，自动更新</span></div>}{generation.error && <div className="error" role="alert">{generation.error}{generation.error_code && <code>（{generation.error_code}）</code>}<p>已有剧本不会被覆盖。调整并保存简报后，可以再次生成。</p></div>}</div>}
