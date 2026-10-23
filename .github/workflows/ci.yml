@@ -138,6 +138,7 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build image (publish only on configured upstream pushes)
+        id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ./${{ matrix.component }}
@@ -146,3 +147,16 @@ jobs:
           push: ${{ env.PUBLISH_IMAGE == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+      - name: Record published image digest
+        if: env.PUBLISH_IMAGE == 'true'
+        env:
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          IMAGE_COMPONENT: ${{ matrix.component }}
+        shell: bash
+        run: |
+          {
+            printf '### Published %s image\n\n' "$IMAGE_COMPONENT"
+            printf -- '- Commit tag: `sha-%s`\n' "$GITHUB_SHA"
+            printf -- '- Digest: `%s`\n' "$IMAGE_DIGEST"
+            printf -- '- Repository name: `%s` (under configured Docker Hub namespace)\n' "$IMAGE_REPOSITORY"
+          } >> "$GITHUB_STEP_SUMMARY"
