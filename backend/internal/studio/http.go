@@ -32,6 +32,7 @@ func Handler(repo Repository, origin string) http.Handler {
 	if store, ok := repo.(*FileStore); ok {
 		registerMediaRoutes(mux, store)
 		registerCreativeRoutes(mux, store)
+		registerImageResumeRoute(mux, store)
 	}
 	mux.HandleFunc("GET /api/v1/tasks", func(w http.ResponseWriter, r *http.Request) {
 		space, ok := spaceID(w, r)

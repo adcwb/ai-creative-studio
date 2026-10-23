@@ -86,7 +86,7 @@ func openCreativeStore(dir string) (*creativeStore, error) {
 				return nil, errors.New("invalid creative job")
 			}
 			if j.Status == "running" {
-				if j.Kind == "video" && j.UpstreamID != "" {
+				if (j.Kind == "video" || (j.Kind == "image" && j.Provider == "jimeng-images")) && j.UpstreamID != "" {
 					j.Status = "queued"
 				} else {
 					j.Status = "failed"
@@ -210,13 +210,17 @@ func (c *creativeStore) mediaCaps() map[string]Capabilities {
 	if video.Provider == "" {
 		video = capFor(c.video)
 	}
-	return map[string]Capabilities{"image": c.imageCaps, "speech": speech, "video": video}
+	vision := c.caps
+	if _, ok := c.provider.(VisionProvider); !ok || c.provider == nil {
+		vision = Capabilities{Provider: "unavailable", Mode: "unavailable", Ready: false, Message: "请配置支持图像输入的文本模型；不会以本地模拟识别图片。"}
+	}
+	return map[string]Capabilities{"image": c.imageCaps, "speech": speech, "video": video, "vision": vision}
 }
 func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput) (CreativeJob, bool, error) {
 	if in.ExpectedVersion < 1 {
 		return CreativeJob{}, false, ErrInvalidProjectInput
 	}
-	if in.Kind != "analysis" && in.Kind != "image" && in.Kind != "speech" && in.Kind != "video" {
+	if in.Kind != "analysis" && in.Kind != "image" && in.Kind != "speech" && in.Kind != "video" && in.Kind != "vision" {
 		return CreativeJob{}, false, ErrInvalidProjectInput
 	}
 	if in.Kind != "analysis" {
@@ -281,8 +285,11 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	if !caps.Ready {
 		return CreativeJob{}, false, ErrProviderNotReady
 	}
+	if in.Kind == "vision" && in.ReferenceAssetID == "" {
+		return CreativeJob{}, false, projectInputError("图像理解需要选择项目图片")
+	}
 	if in.ReferenceAssetID != "" {
-		if in.Kind != "image" && in.Kind != "video" {
+		if in.Kind != "image" && in.Kind != "video" && in.Kind != "vision" {
 			return CreativeJob{}, false, ErrInvalidProjectInput
 		}
 		_, supportsImage := c.image.(ReferenceImageProvider)
@@ -402,6 +409,37 @@ func (c *creativeStore) updateJob(job CreativeJob) error {
 	}
 	return nil
 }
+
+// Persist an acknowledged upstream identity even when local cancellation won
+// the race. Keep the cancelled status and stop; a later resume only queries it.
+func (c *creativeStore) recordCreativeUpstream(job *CreativeJob, id string) error {
+	if id == "" {
+		return providerFailure("invalid_provider_response")
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	old, ok := c.data.Jobs[job.ID]
+	if !ok {
+		return ErrNotFound
+	}
+	if old.Provider != job.Provider || old.Model != job.Model || (old.Status != "running" && old.Status != "cancelled" && old.Status != "queued") || (old.UpstreamID != "" && old.UpstreamID != id) {
+		return ErrConflict
+	}
+	updated := old
+	updated.UpstreamID = id
+	updated.UpdatedAt = time.Now().UTC()
+	c.data.Jobs[job.ID] = updated
+	if err := c.saveLocked(); err != nil {
+		c.data.Jobs[job.ID] = old
+		return err
+	}
+	job.UpstreamID = id
+	if old.Status == "cancelled" {
+		return context.Canceled
+	}
+	return nil
+}
+
 func syntheticCreativePNG() []byte {
 	im := image.NewRGBA(image.Rect(0, 0, 640, 360))
 	for y := 0; y < 360; y++ {
@@ -502,6 +540,26 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 		return providerFailure("provider_unavailable")
 	}
 	switch job.Kind {
+	case "vision":
+		adapter, ok := c.provider.(VisionProvider)
+		if !ok {
+			return providerFailure("unsupported_capability")
+		}
+		path, refMIME, e := s.media.file(job.ProjectID, job.SpaceID, job.ReferenceAssetID, false, false)
+		if e != nil {
+			return e
+		}
+		ref, e := os.ReadFile(path)
+		if e != nil || len(ref) > 4<<20 {
+			return providerFailure("provider_rejected")
+		}
+		analysis, e := adapter.DescribeImage(ctx, job.Prompt, ref, refMIME)
+		if e != nil {
+			return e
+		}
+		analysis.SourceVersion = job.SourceVersion
+		job.Analysis = &analysis
+		return nil
 	case "image":
 		mime = "image/png"
 		role = "shot"
@@ -528,7 +586,25 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 				}
 				result, err = adapter.GenerateWithReference(ctx, input, ref, refMIME)
 			} else {
-				result, err = c.image.Generate(ctx, input)
+				if async, ok := c.image.(AsyncImageProvider); ok {
+					if job.UpstreamID == "" {
+						ack, e := async.SubmitImage(ctx, input)
+						if e != nil {
+							return e
+						}
+						if ack.ID == "" {
+							return providerFailure("invalid_provider_response")
+						}
+						if e = c.recordCreativeUpstream(job, ack.ID); e != nil {
+							return e
+						}
+					}
+					result, err = awaitAsyncImage(ctx, async, job.UpstreamID, 2*time.Second)
+				} else if job.UpstreamID != "" {
+					return providerFailure("provider_unavailable")
+				} else {
+					result, err = c.image.Generate(ctx, input)
+				}
 			}
 			data = result.Data
 		}
@@ -561,8 +637,7 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 			if err != nil {
 				return err
 			}
-			job.UpstreamID = v.ID
-			if err = c.updateJob(*job); err != nil {
+			if err = c.recordCreativeUpstream(job, v.ID); err != nil {
 				return err
 			}
 		}
@@ -631,10 +706,15 @@ func (s *FileStore) resumeCreativeJob(space, id, jid, key string) (CreativeJob, 
 	if _, running := c.cancels[jid]; running {
 		return CreativeJob{}, ErrGenerationActive
 	}
-	if job.Kind != "video" || job.UpstreamID == "" || (job.Status != "failed" && job.Status != "cancelled") {
+	if (job.Kind != "video" && !(job.Kind == "image" && job.Provider == "jimeng-images")) || job.UpstreamID == "" || (job.Status != "failed" && job.Status != "cancelled") {
 		return CreativeJob{}, ErrConflict
 	}
-	caps := c.mediaCaps()["video"]
+	caps := c.mediaCaps()[job.Kind]
+	if job.Kind == "image" {
+		if _, ok := c.image.(AsyncImageProvider); !ok {
+			return CreativeJob{}, ErrProviderNotReady
+		}
+	}
 	if !caps.Ready {
 		return CreativeJob{}, ErrProviderNotReady
 	}

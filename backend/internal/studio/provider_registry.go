@@ -21,12 +21,13 @@ type ProviderRegistration struct {
 // No registry entry asserts successful authentication, generation or pricing.
 func CreativeRegistry() []ProviderRegistration {
 	return []ProviderRegistration{
-		{"openai", "OpenAI", "native", map[string]string{"text": "adapter", "vision": "unsupported", "image": "adapter", "image_edit": "reference_adapter", "video": "adapter", "speech": "adapter"}, "显式模型与权限配置；真实效果和费用未验证；视频取消仅本地停止等待。", "https://platform.openai.com/docs/api-reference"},
-		{"anthropic", "Anthropic / Claude", "native-messages", map[string]string{"text": "adapter", "vision": "unsupported", "image": "unsupported", "image_edit": "unsupported", "video": "unsupported", "speech": "unsupported"}, "Claude 是 Anthropic 模型家族；本实现只接文本。", "https://platform.claude.com/docs/en/api/messages"},
-		{"google", "Google / Gemini / Nano Banana", "native-generateContent", map[string]string{"text": "adapter", "vision": "unsupported", "image": "adapter", "image_edit": "reference_adapter", "video": "not_implemented", "speech": "not_implemented"}, "Nano Banana 属于 Gemini 图像生态，并非独立供应商；本适配限generateContent兼容模型，Interactions-only模型不兼容。Veo 旧 preview 已关停，不能视作默认视频模型。", "https://ai.google.dev/gemini-api/docs/image-generation"},
-		{"ark", "字节 / 火山方舟 / Doubao / Seedream", "openai-compatible-chat/native-images/native-video", map[string]string{"text": "adapter", "vision": "unsupported", "image": "adapter", "image_edit": "reference_adapter", "video": "adapter", "speech": "unsupported"}, "Ark API Key 与即梦签名协议不同；模型或接入点需账户开通。", "https://docs.volcengine.com/docs/ark/chat-api?lang=zh"},
-		{"minimax", "MiniMax", "native-t2a/openai-compatible-chat", map[string]string{"text": "adapter", "vision": "unsupported", "image": "not_implemented", "image_edit": "unsupported", "video": "not_implemented", "speech": "adapter"}, "同步原生语音返回内联WAV；无自动重试，不获取返回URL。", "https://platform.minimax.io/docs/api-reference/speech-t2a-http"},
-		{"jimeng", "即梦 / 火山引擎视觉服务", "volcengine-signed-cv", map[string]string{"text": "unsupported", "vision": "unsupported", "image": "adapter", "image_edit": "not_implemented", "video": "not_implemented", "speech": "unsupported"}, "即梦消费产品与公开视觉API须区分；已实现独立签名图像协议，仍需账号授权；不能使用Ark Bearer冒充，视频旧版下线中不提供。", "https://docs.volcengine.com/docs/JimengAI/JimengAI-ImageGeneration46-InterfaceDocumentation?lang=zh"},
+		{"openai", "OpenAI", "native", map[string]string{"text": "adapter", "vision": "adapter", "image": "adapter", "image_edit": "reference_adapter", "video": "adapter", "speech": "adapter"}, "显式模型与权限配置；真实效果和费用未验证；视频取消仅本地停止等待。", "https://platform.openai.com/docs/api-reference"},
+		{"anthropic", "Anthropic / Claude", "native-messages", map[string]string{"text": "adapter", "vision": "adapter", "image": "unsupported", "image_edit": "unsupported", "video": "unsupported", "speech": "unsupported"}, "Claude 是 Anthropic 模型家族；支持文本及图片理解，不提供原生图像、视频或语音生成。", "https://platform.claude.com/docs/en/api/messages"},
+		{"google", "Google / Gemini / Nano Banana", "native-generateContent/native-interactions", map[string]string{"text": "adapter", "vision": "adapter", "image": "adapter", "image_edit": "reference_adapter", "video": "adapter", "speech": "adapter"}, "Nano Banana 属于 Gemini 图像生态，并非独立供应商；图像可选generateContent或独立Interactions适配；语音与视频使用Interactions。Veo 旧 preview 已关停，不能视作默认视频模型。", "https://ai.google.dev/gemini-api/docs/image-generation"},
+		{"ark", "字节 / 火山方舟 / Doubao / Seedream", "openai-compatible-chat/native-images/native-video", map[string]string{"text": "adapter", "vision": "adapter", "image": "adapter", "image_edit": "reference_adapter", "video": "adapter", "speech": "unsupported"}, "Ark API Key 与即梦签名协议不同；模型或接入点需账户开通。", "https://docs.volcengine.com/docs/ark/chat-api?lang=zh"},
+		{"minimax", "MiniMax", "native-t2a/native-images/native-video-v2/openai-compatible-chat", map[string]string{"text": "adapter", "vision": "adapter", "image": "adapter", "image_edit": "reference_adapter", "video": "adapter", "speech": "adapter"}, "同步原生语音返回内联WAV；无自动重试，不获取返回URL。", "https://platform.minimax.io/docs/api-reference/speech-t2a-http"},
+		{"bytedance-speech", "字节 / 豆包语音", "native-streaming-tts", map[string]string{"speech": "adapter"}, "独立X-Api-Key和资源ID，不沿用Ark认证；仅显式配置音色。", "https://docs.volcengine.com/docs/DoubaoVoice/unidirectional-streaming-text-to-speech-http?lang=zh"},
+		{"jimeng", "即梦 / 火山引擎视觉服务", "volcengine-signed-cv", map[string]string{"text": "unsupported", "vision": "unsupported", "image": "adapter", "image_edit": "requires_public_reference_bridge", "video": "legacy_api_retiring", "speech": "unsupported"}, "即梦消费产品与公开视觉API须区分；已实现独立签名图像协议，仍需账号授权；不能使用Ark Bearer冒充，任务ID落盘后可跨重启查询；参考图官方仅URL输入，尚无本地素材公网桥接；视频旧版下线中不提供。", "https://docs.volcengine.com/docs/JimengAI/JimengAI-ImageGeneration46-InterfaceDocumentation?lang=zh"},
 	}
 }
 func validCredential(key string) bool {
@@ -133,6 +134,24 @@ func ConfigureSpeechFromEnv() (CreativeProvider, Capabilities) {
 		return nil, c
 	}
 	switch name {
+	case "gemini-speech":
+		key := os.Getenv("GEMINI_API_KEY")
+		voice := os.Getenv("SPEECH_VOICE")
+		if !validCredential(key) || !configToken.MatchString(voice) {
+			c.ReasonCode = "missing_configuration"
+			return nil, c
+		}
+		c.Ready = true
+		return NewGoogleSpeechProvider(key, model, voice), c
+	case "bytedance-speech":
+		key := os.Getenv("BYTEDANCE_SPEECH_API_KEY")
+		voice := os.Getenv("SPEECH_VOICE")
+		if !validCredential(key) || !configToken.MatchString(voice) {
+			c.ReasonCode = "missing_configuration"
+			return nil, c
+		}
+		c.Ready = true
+		return NewByteDanceSpeechProvider(key, model, voice), c
 	case "minimax-speech":
 		key := os.Getenv("MINIMAX_API_KEY")
 		voice := os.Getenv("SPEECH_VOICE")
@@ -170,7 +189,7 @@ func ConfigureVideoFromEnv() (CreativeProvider, Capabilities) {
 		c.Message = "未配置视频模型；可上传MP4或用静帧在时间轴合成本地视频。"
 		return nil, c
 	}
-	if name != "openai-video" && name != "ark-video" {
+	if name != "openai-video" && name != "ark-video" && name != "minimax-video" && name != "gemini-video" {
 		c.Mode = "unavailable"
 		c.Provider = "unavailable"
 		c.ReasonCode = "unsupported_provider"
@@ -184,6 +203,12 @@ func ConfigureVideoFromEnv() (CreativeProvider, Capabilities) {
 	if name == "ark-video" {
 		key = os.Getenv("ARK_API_KEY")
 	}
+	if name == "minimax-video" {
+		key = os.Getenv("MINIMAX_API_KEY")
+	}
+	if name == "gemini-video" {
+		key = os.Getenv("GEMINI_API_KEY")
+	}
 	if !validCredential(key) {
 		c.ReasonCode = "missing_api_key"
 		return nil, c
@@ -191,6 +216,14 @@ func ConfigureVideoFromEnv() (CreativeProvider, Capabilities) {
 	if name == "ark-video" {
 		c.Ready = true
 		return NewArkVideoProvider(key, model), c
+	}
+	if name == "gemini-video" {
+		c.Ready = true
+		return NewGoogleVideoProvider(key, model), c
+	}
+	if name == "minimax-video" {
+		c.Ready = true
+		return NewMiniMaxVideoProvider(key, model), c
 	}
 	p := NewOpenAICreativeProvider(key)
 	p.SetModels("", "", model)

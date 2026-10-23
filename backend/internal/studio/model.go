@@ -44,8 +44,9 @@ func withDefaults(in Input) Input {
 }
 
 type Task struct {
-	ID      string `json:"id"`
-	SpaceID string `json:"space_id"`
+	UpstreamID string `json:"upstream_id,omitempty"`
+	ID         string `json:"id"`
+	SpaceID    string `json:"space_id"`
 	Input
 	Status       string    `json:"status"`
 	Progress     int       `json:"progress"`

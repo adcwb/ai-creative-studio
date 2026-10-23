@@ -47,6 +47,8 @@ func run() error {
 	video, videoCaps := studio.ConfigureVideoFromEnv()
 	studio.SetCreativeVideo(store, video, videoCaps)
 	studio.SetCreativeImage(store, provider, capabilities)
+	asr, asrCaps := studio.ConfigureAlignmentFromEnv()
+	studio.SetAlignmentProvider(store, asr, asrCaps)
 	scriptPipeline, err := studio.NewScriptPipeline(ctx, studio.CreativeScriptProvider(creative))
 	if err != nil {
 		return err

@@ -80,3 +80,49 @@ func TestRealImageQueueLimitPreservesIdempotentReplay(t *testing.T) {
 		t.Fatal("rate limit blocked safe replay", e)
 	}
 }
+
+func TestAdditionalMediaConfigurationUsesExplicitModelsAndKeys(t *testing.T) {
+	for _, key := range []string{"OPENAI_API_KEY", "GEMINI_API_KEY", "MINIMAX_API_KEY", "BYTEDANCE_SPEECH_API_KEY"} {
+		t.Setenv(key, "synthetic-fixture-key")
+	}
+	for _, name := range []string{"gemini-speech", "bytedance-speech", "minimax-speech"} {
+		t.Setenv("SPEECH_PROVIDER", name)
+		t.Setenv("SPEECH_MODEL", "fixture-model")
+		t.Setenv("SPEECH_VOICE", "fixture-voice")
+		p, c := ConfigureSpeechFromEnv()
+		if p == nil || !c.Ready || c.Provider != name || c.Model != "fixture-model" {
+			t.Fatal(name, c)
+		}
+		t.Setenv("SPEECH_VOICE", "")
+		if _, c = ConfigureSpeechFromEnv(); c.Ready {
+			t.Fatal("missing voice accepted", name)
+		}
+	}
+	for _, name := range []string{"gemini-video", "minimax-video"} {
+		t.Setenv("VIDEO_PROVIDER", name)
+		t.Setenv("VIDEO_MODEL", "fixture-model")
+		p, c := ConfigureVideoFromEnv()
+		if p == nil || !c.Ready || c.Model != "fixture-model" {
+			t.Fatal(name, c)
+		}
+		t.Setenv("VIDEO_MODEL", "")
+		if _, c = ConfigureVideoFromEnv(); c.Ready {
+			t.Fatal("missing model accepted", name)
+		}
+	}
+	for _, name := range []string{"gemini-interactions-images", "minimax-images"} {
+		t.Setenv("IMAGE_PROVIDER", name)
+		t.Setenv("IMAGE_MODEL", "fixture-model")
+		p, c := ConfigureImageFromEnv()
+		if p == nil || !c.Ready || c.Provider != name {
+			t.Fatal(name, c)
+		}
+		if _, ok := p.(ReferenceImageProvider); !ok {
+			t.Fatal("reference capability lost", name)
+		}
+		t.Setenv("IMAGE_MODEL", "")
+		if _, c = ConfigureImageFromEnv(); c.Ready {
+			t.Fatal("missing image model accepted", name)
+		}
+	}
+}

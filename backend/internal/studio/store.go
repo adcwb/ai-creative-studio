@@ -16,6 +16,7 @@ import (
 )
 
 type snapshot struct {
+	ImageResumeReceipts   map[string]string               `json:"image_resume_receipts,omitempty"`
 	History               map[string][]ProjectRevision    `json:"history,omitempty"`
 	StoryboardGenerations map[string]StoryboardGeneration `json:"storyboard_generations"`
 	Version               int                             `json:"version"`
@@ -208,7 +209,7 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 			t.ResultMIME = "image/svg+xml"
 		}
 		if t.Status == "running" {
-			if t.Provider == "mock-svg" {
+			if t.Provider == "mock-svg" || (t.Provider == "jimeng-images" && t.UpstreamID != "") {
 				t.Status = "queued"
 				t.Progress = 0
 			} else {
@@ -309,6 +310,10 @@ func (s *FileStore) clone() snapshot {
 		d.ProjectReceipts[k] = v
 	}
 	d.History = cloneHistory(s.data.History)
+	d.ImageResumeReceipts = map[string]string{}
+	for k, v := range s.data.ImageResumeReceipts {
+		d.ImageResumeReceipts[k] = v
+	}
 	return d
 }
 func (s *FileStore) commit(d snapshot) error {
@@ -511,7 +516,7 @@ func (s *FileStore) Finish(t Task, result GenerationResult, runErr error) error 
 			} else {
 				runErr = validatePNG(result.Data, width, height)
 			}
-		case "gemini-images", "ark-images", "jimeng-images":
+		case "gemini-images", "gemini-interactions-images", "ark-images", "jimeng-images", "minimax-images":
 			if result.MIMEType != "image/png" {
 				runErr = providerFailure("invalid_provider_response")
 			} else {

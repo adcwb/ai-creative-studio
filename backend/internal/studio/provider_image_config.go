@@ -7,7 +7,7 @@ import (
 )
 
 func realImageProvider(name string) bool {
-	return name == "openai-images" || name == "gemini-images" || name == "ark-images" || name == "jimeng-images"
+	return name == "openai-images" || name == "gemini-images" || name == "gemini-interactions-images" || name == "ark-images" || name == "jimeng-images" || name == "minimax-images"
 }
 func validateLargePNG(data []byte, width, height int) error {
 	if len(data) == 0 || len(data) > maxPNGBytes || width <= 0 || height <= 0 || width > 20_000_000/height {
@@ -51,7 +51,7 @@ func ConfigureImageFromEnv() (ImageProvider, Capabilities) {
 		c.Ready = true
 		return NewJimengImageProvider(ak, sk, model), c
 	}
-	keyName := map[string]string{"openai-images": "OPENAI_API_KEY", "gemini-images": "GEMINI_API_KEY", "ark-images": "ARK_API_KEY"}[name]
+	keyName := map[string]string{"openai-images": "OPENAI_API_KEY", "gemini-images": "GEMINI_API_KEY", "gemini-interactions-images": "GEMINI_API_KEY", "ark-images": "ARK_API_KEY", "minimax-images": "MINIMAX_API_KEY"}[name]
 	key := os.Getenv(keyName)
 	if !validCredential(key) {
 		c.ReasonCode = "missing_api_key"
@@ -59,6 +59,10 @@ func ConfigureImageFromEnv() (ImageProvider, Capabilities) {
 	}
 	c.Ready = true
 	switch name {
+	case "minimax-images":
+		return NewMiniMaxImageProvider(key, model), c
+	case "gemini-interactions-images":
+		return NewGoogleInteractionsImageProvider(key, model), c
 	case "gemini-images":
 		return NewGeminiImageProvider(key, model), c
 	case "ark-images":
