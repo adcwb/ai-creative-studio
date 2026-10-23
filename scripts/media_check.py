@@ -91,8 +91,9 @@ try:
     # Invalid content cannot become executable media or an external URL fetch.
     request(path + "/uploads" + QUERY, b"<svg onload=alert(1)></svg>", "media-invalid-svg", status=415, mime="image/svg+xml")
     request(path + "/uploads" + QUERY, b"https://127.0.0.1/private", "media-invalid-png", status=400, mime="image/png")
+    request(path + "/uploads" + QUERY, b"0" * (32 * 1024 * 1024 + 1), "media-oversized-upload", status=413, mime="image/png")
     assert request(path + QUERY)["assets"] == []
-    checks.append("upload MIME/content rejection; no asset persisted")
+    checks.append("upload MIME/content/32MiB limit rejection; no asset persisted")
     demo_body = {"expected_version": 1}
     media = request(path + "/demo" + QUERY, demo_body, "media-demo-acceptance")
     assert len(media["timeline"]["clips"]) > 0 and any(a["kind"] == "audio" for a in media["assets"])

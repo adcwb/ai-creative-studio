@@ -45,7 +45,7 @@ test('photo editing uploads new cropped and rotated pixels with reference metada
   await open(page, project)
   const data = await page.evaluate(() => {const canvas = document.createElement('canvas'); canvas.width = 80; canvas.height = 40; const c = canvas.getContext('2d')!; c.fillStyle = '#678060'; c.fillRect(0, 0, 80, 40); return canvas.toDataURL('image/png').split(',')[1]})
   await page.getByLabel('素材用途', {exact: true}).selectOption('reference')
-  await page.getByLabel('关联角色', {exact: true}).selectOption(project.script!.characters[0].name)
+  await page.locator('.media-studio').getByLabel('关联角色', {exact: true}).selectOption(project.script!.characters[0].name)
   await page.getByLabel('选择待编辑照片', {exact: true}).setInputFiles({name: 'synthetic-photo.png', mimeType: 'image/png', buffer: Buffer.from(data, 'base64')})
   await page.getByLabel('照片旋转', {exact: true}).selectOption('90')
   await page.getByLabel('居中裁剪为正方形', {exact: true}).check()
