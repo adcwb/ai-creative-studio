@@ -81,9 +81,9 @@ jobs:
       group: docker-${{ github.workflow }}-${{ github.ref }}-${{ matrix.component }}
       cancel-in-progress: false
     env:
-      # A namespace must be explicitly configured before any publication is enabled.
-      PUBLISH_IMAGE: ${{ github.event_name == 'push' && github.repository == 'adcwb/ai-creative-studio' && vars.DOCKERHUB_NAMESPACE != '' }}
-      IMAGE_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE || 'local' }}
+      # Keep the secret-backed namespace within this job; never forward it as a job output.
+      PUBLISH_IMAGE: ${{ github.event_name == 'push' && github.repository == 'adcwb/ai-creative-studio' }}
+      IMAGE_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE || vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME || 'local' }}
       IMAGE_REPOSITORY: ${{ matrix.component == 'backend' && (vars.DOCKERHUB_BACKEND_REPOSITORY || 'ai-creative-studio-backend') || (vars.DOCKERHUB_FRONTEND_REPOSITORY || 'ai-creative-studio-frontend') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -93,6 +93,10 @@ jobs:
         shell: bash
         run: |
           # Repository variables are data, never interpolated into shell source.
+          if [[ "$PUBLISH_IMAGE" == 'true' && "$IMAGE_NAMESPACE" == 'local' ]]; then
+            echo 'Configure DOCKERHUB_NAMESPACE or DOCKERHUB_USERNAME before publishing'
+            exit 1
+          fi
           [[ "$IMAGE_NAMESPACE" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || { echo 'Invalid Docker Hub namespace'; exit 1; }
           [[ "$IMAGE_REPOSITORY" =~ ^[a-z0-9]+([._-][a-z0-9]+)*$ ]] || { echo 'Use a repository name without registry or namespace'; exit 1; }
       - name: Set up Docker Buildx
