@@ -5,7 +5,7 @@
 | 角色 | 实际代理 | 文件与职责边界 |
 | --- | --- | --- |
 | 集成负责人 | `/root` | 总体编排、阶段推进、历史回滚实现、集成修复与最终验收 |
-| 产品 | `/root/product` | 本轮产品/协作文档、README及下一轮交接；核对实现与限制，不替测试背书 |
+| 产品 | `/root/product` | 本轮产品/协作文档、README及下一轮交接；后续按集成安排补位原生Anthropic/Gemini与MiniMax文本适配及fake上游测试；核对限制，不替独立测试背书 |
 | 架构 | `/root/architecture` | API契约、媒体与供应商边界、恢复和成本风险说明 |
 | 前端 | `/root/frontend` | `frontend/src`：既有品牌下的新创作、素材、时间轴和导出界面 |
 | 媒体后端 | `/root/backend_media` | 媒体资产、上传验证、关联、时间轴、FFmpeg合成、导出与取消 |
