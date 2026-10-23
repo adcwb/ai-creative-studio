@@ -133,7 +133,7 @@ func CancelQueuedPostgresTx(ctx context.Context, tx *sql.Tx, tenant, id, kind st
 	if err = tx.QueryRowContext(ctx, `SELECT state,kind FROM execution_jobs WHERE tenant_id=$1 AND id=$2`, tenant, id).Scan(&state, &actualKind); err != nil {
 		return err
 	}
-	if actualKind != kind {
+	if actualKind != kind && actualKind != kind+"_resume" {
 		return ErrConflict
 	}
 	key := kind + ":" + id
@@ -158,4 +158,68 @@ func CancelQueuedPostgresTx(ctx context.Context, tx *sql.Tx, tenant, id, kind st
 	d.Entries[key] = e
 	p := &postgresScope{name: "budget", ctx: ctx, tx: tx, before: before}
 	return p.write(d)
+}
+
+func OpenPostgresBudgetLedger(db *sql.DB) (*BudgetLedger, error) {
+	l := &BudgetLedger{data: costSnapshot{Version: 1, Limits: map[string]int64{}, Entries: map[string]CostEntry{}}}
+	var err error
+	l.pg, err = attachPostgres(db, "budget", &l.data, &l.mu)
+	return l, err
+}
+
+// WithPostgresBudgetMaintenance is an explicitly offline privileged operation.
+// The session lock excludes all normal domain transactions. Only this private
+// ledger bypasses the shared barrier, avoiding a lock upgrade deadlock.
+func WithPostgresBudgetMaintenance(ctx context.Context, db *sql.DB, fn func(*BudgetLedger) error, tenants ...string) error {
+	if fn == nil {
+		return errors.New("maintenance callback required")
+	}
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return errors.New("maintenance connection unavailable")
+	}
+	defer conn.Close()
+	var acquired bool
+	if err = conn.QueryRowContext(ctx, `SELECT pg_try_advisory_lock(728219117)`).Scan(&acquired); err != nil || !acquired {
+		return errors.New("stop all API and workers before maintenance")
+	}
+	defer conn.ExecContext(context.Background(), `SELECT pg_advisory_unlock(728219117)`)
+	l := &BudgetLedger{data: costSnapshot{Version: 1, Limits: map[string]int64{}, Entries: map[string]CostEntry{}}}
+	raw, _ := json.Marshal(l.data)
+	p := &postgresScope{db: db, name: "budget", target: &l.data, empty: raw, skipMigrationBarrier: true}
+	l.pg = p
+	l.mu.scope = p
+	l.mu.Lock()
+	err = p.err
+	l.mu.Unlock()
+	if err != nil {
+		return err
+	}
+
+	tenant := ""
+	if len(tenants) > 0 {
+		tenant = tenants[0]
+	}
+	var actor string
+	if err = conn.QueryRowContext(ctx, `SELECT current_user`).Scan(&actor); err != nil {
+		return errors.New("maintenance actor unavailable")
+	}
+	request := authRandom(16)
+	started := time.Now()
+	writeAudit := func(phase string, status int) error {
+		_, e := conn.ExecContext(ctx, `INSERT INTO studio_audit_events(request_id,phase,at,actor_id,tenant_id,role,method,status,duration_ms) VALUES($1,$2,$3,$4,$5,'database-operator','BUDGET_MAINTENANCE',$6,$7)`, request, phase, time.Now().UTC(), actor, tenant, status, time.Since(started).Milliseconds())
+		if e != nil {
+			return errors.New("maintenance audit unavailable")
+		}
+		return nil
+	}
+	if err = writeAudit("started", 0); err != nil {
+		return err
+	}
+	operationErr := fn(l)
+	status := 200
+	if operationErr != nil {
+		status = 500
+	}
+	return errors.Join(operationErr, writeAudit("finished", status))
 }

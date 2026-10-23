@@ -213,11 +213,7 @@ func ImportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 			return report, err
 		}
 		p := &postgresScope{name: name, ctx: ctx, tx: tx, before: map[string]map[string]json.RawMessage{}}
-		var value any
-		if err = json.Unmarshal(raw, &value); err != nil {
-			return report, err
-		}
-		if err = p.write(value); err != nil {
+		if err = p.write(json.RawMessage(raw)); err != nil {
 			return report, err
 		}
 		for field, rows := range records {
@@ -279,6 +275,11 @@ func ExportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(728219117)`); err != nil {
 		return report, err
 	}
+	uncertain, err := postgresExportUncertainJobs(ctx, tx)
+	if err != nil {
+		return report, err
+	}
+	report.Notes = append(report.Notes, "leased/dispatched/unknown and resume queue work is exported as failed, never automatically replayed")
 	templates := postgresTemplates()
 	names := make([]string, 0, len(templates))
 	for n := range templates {
@@ -287,6 +288,10 @@ func ExportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 	sort.Strings(names)
 	for _, name := range names {
 		raw, records, e := readPostgresScopeTx(ctx, tx, name, templates[name])
+		if e != nil {
+			return report, e
+		}
+		raw, e = sanitizePostgresExport(name, raw, uncertain)
 		if e != nil {
 			return report, e
 		}

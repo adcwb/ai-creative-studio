@@ -1,6 +1,7 @@
 package studio
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/base64"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/jobqueue"
@@ -44,16 +46,17 @@ func (m *stateMutex) Unlock() {
 }
 
 type postgresScope struct {
-	failures atomic.Uint64
-	db       *sql.DB
-	name     string
-	target   any
-	empty    []byte
-	tx       *sql.Tx
-	cancel   context.CancelFunc
-	ctx      context.Context
-	err      error
-	before   map[string]map[string]json.RawMessage
+	failures             atomic.Uint64
+	skipMigrationBarrier bool
+	db                   *sql.DB
+	name                 string
+	target               any
+	empty                []byte
+	tx                   *sql.Tx
+	cancel               context.CancelFunc
+	ctx                  context.Context
+	err                  error
+	before               map[string]map[string]json.RawMessage
 	// Atomic queue enqueue/fenced completion runs before the same commit.
 	beforeCommit func(context.Context, *sql.Tx) error
 	replace      func([]byte) error
@@ -107,6 +110,7 @@ func InitPostgres(ctx context.Context, db *sql.DB) error {
 	}
 	// Adding named constraints conditionally keeps migrations restartable.
 	constraints := map[string]string{
+		"studio_media_project_fk":      `ALTER TABLE studio_media_projects ADD CONSTRAINT studio_media_project_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
 		"studio_sessions_user_fk":      `ALTER TABLE studio_sessions ADD CONSTRAINT studio_sessions_user_fk FOREIGN KEY(parent_id) REFERENCES studio_users(entity_id) DEFERRABLE INITIALLY DEFERRED`,
 		"studio_organization_owner_fk": `ALTER TABLE studio_organizations ADD CONSTRAINT studio_organization_owner_fk FOREIGN KEY(parent_id) REFERENCES studio_users(entity_id) DEFERRABLE INITIALLY DEFERRED`,
 		"studio_creative_project_fk":   `ALTER TABLE studio_creative_jobs ADD CONSTRAINT studio_creative_project_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
@@ -118,6 +122,12 @@ func InitPostgres(ctx context.Context, db *sql.DB) error {
 		"studio_budget_bounds":         `ALTER TABLE studio_budget_limits ADD CONSTRAINT studio_budget_bounds CHECK(tenant_id<>'' AND amount>=0 AND currency IN ('USD','EUR','GBP','CNY','CAD','AUD','CHF','HKD','SGD','JPY','KRW','KWD','BHD'))`,
 		"studio_image_status":          `ALTER TABLE studio_image_tasks ADD CONSTRAINT studio_image_status CHECK(tenant_id<>'' AND state IN ('queued','running','succeeded','failed'))`,
 	}
+
+	for _, table := range []string{"studio_image_tasks", "studio_image_assets", "studio_projects", "studio_script_generations", "studio_storyboard_generations", "studio_creative_jobs", "studio_alignment_tasks"} {
+		name := table + "_identity_match"
+		constraints[name] = `ALTER TABLE ` + table + ` ADD CONSTRAINT ` + name + ` CHECK(tenant_id<>'' AND tenant_id=payload->>'space_id' AND entity_id=payload->>'id')`
+	}
+	constraints["studio_cost_identity_match"] = `ALTER TABLE studio_cost_entries ADD CONSTRAINT studio_cost_identity_match CHECK(tenant_id=payload->>'tenant' AND entity_id=payload->>'id' AND currency=payload->>'currency' AND reserved=(payload->>'reserved_minor')::bigint AND actual=(payload->>'actual_minor')::bigint AND state=payload->>'state')`
 	for name, ddl := range constraints {
 		var exists bool
 		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pg_constraint WHERE conname=$1 AND connamespace=current_schema()::regnamespace)`, name).Scan(&exists); err != nil {
@@ -166,7 +176,7 @@ func (p *postgresScope) begin() {
 	if p.err == nil {
 		_, p.err = p.tx.ExecContext(p.ctx, `SET LOCAL synchronous_commit = on`)
 	}
-	if p.err == nil {
+	if p.err == nil && !p.skipMigrationBarrier {
 		_, p.err = p.tx.ExecContext(p.ctx, `SELECT pg_advisory_xact_lock_shared(728219117)`)
 	}
 	if p.err == nil {
@@ -315,7 +325,12 @@ func recordColumns(scope, field, key string, raw json.RawMessage) (tenant, id, s
 		tenant = key
 	}
 	if scope == "media" {
-		tenant = strings.SplitN(key, ":", 2)[0]
+		parts := strings.SplitN(key, ":", 2)
+		tenant = parts[0]
+		if field == "projects" && len(parts) == 2 {
+			id = parts[1]
+			parent = parts[1]
+		}
 	}
 	if scope == "budget" && field == "limits" {
 		parts := strings.Split(key, "\x00")
@@ -339,11 +354,16 @@ func recordColumns(scope, field, key string, raw json.RawMessage) (tenant, id, s
 }
 func sameJSON(a, b []byte) bool {
 	var x, y any
-	if json.Unmarshal(a, &x) != nil || json.Unmarshal(b, &y) != nil {
+	left := json.NewDecoder(bytes.NewReader(a))
+	left.UseNumber()
+	right := json.NewDecoder(bytes.NewReader(b))
+	right.UseNumber()
+	if left.Decode(&x) != nil || right.Decode(&y) != nil {
 		return false
 	}
 	return reflect.DeepEqual(x, y)
 }
+
 func (p *postgresScope) write(value any) error {
 	if p.err != nil {
 		return p.err
@@ -425,13 +445,32 @@ func OpenPostgresStore(dir string, db *sql.DB, options ...Capabilities) (*FileSt
 	if err := os.MkdirAll(filepath.Join(dir, "results"), 0700); err != nil {
 		return nil, err
 	}
-	s := &FileStore{path: filepath.Join(dir, "state.json"), data: emptySnapshot(), capabilities: mockCapabilities()}
+	cacheLock, err := os.OpenFile(filepath.Join(dir, "store.lock"), os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
+	if err != nil {
+		return nil, err
+	}
+	if err = syscall.Flock(int(cacheLock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		cacheLock.Close()
+		return nil, errors.New("PostgreSQL cache already in use; each process requires a private cache")
+	}
+	marker, err := os.OpenFile(filepath.Join(dir, ".postgres-cache"), os.O_CREATE|os.O_WRONLY|syscall.O_NOFOLLOW, 0600)
+	if err != nil {
+		cacheLock.Close()
+		return nil, err
+	}
+	if err = marker.Sync(); err != nil {
+		marker.Close()
+		cacheLock.Close()
+		return nil, err
+	}
+	marker.Close()
+	s := &FileStore{lock: cacheLock, path: filepath.Join(dir, "state.json"), data: emptySnapshot(), capabilities: mockCapabilities()}
 	if len(options) > 0 {
 		s.capabilities = options[0]
 	}
-	var err error
 	s.results, err = os.OpenRoot(filepath.Join(dir, "results"))
 	if err != nil {
+		s.Close()
 		return nil, err
 	}
 	s.creative, err = openCreativeStore(dir, db)

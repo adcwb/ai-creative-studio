@@ -43,3 +43,11 @@
 - 实际 `pg_dump` 自定义格式备份，再 `pg_restore` 到全新合成数据库，逐域元数据比对一致，并检查任务幂等及 unknown 费用状态。
 
 这些测试使用显式 `STUDIO_POSTGRES_TEST_DSN`；native restore 另需 `STUDIO_POSTGRES_BIN_DIR` 与可选 `STUDIO_POSTGRES_LIB_DIR`。变量缺失会明确 skip，不能把 skip 算成实际集成通过。没有执行真实供应商调用，也没有创建正式服务器资源。
+
+## 离线费用对账
+
+`budget` CLI 显式区分文件和 PostgreSQL 后端。PostgreSQL 模式要求 `STORAGE_BACKEND=postgres`、已安全注入的 `DATABASE_URL` 和 `--confirm-stopped`，不会在缓存目录创建一个假的本地账本。文件模式要求现有 `state.json`，不能误用 PostgreSQL 缓存目录。
+
+停止全部 API/worker 后可使用 `--action report|limit|reserve|unknown|settle|release`、`--tenant`、`--currency`、`--id`、`--amount-minor` 和 `--evidence-ref`。settle/release 必须有非敏感账单证据引用；跨币种/跨租户拒绝，unknown 不会因进程重启自动释放。此工具不调用供应商、不抓取真实账单、不自动充值，操作员须自行核实证据。
+
+维护工具使用数据库维护锁协调领域事务，并把开始/结束写入审计；**这不是自动停服或全数据库冻结**，队列 Claim/Dispatch/Renew 等操作不依靠该锁。因此 `--confirm-stopped` 表示操作员已停止全部进程，不能拿该参数替代实际停服。数据库管理员权限本身就是离线管理边界，不等于网页组织管理员权限。

@@ -378,3 +378,196 @@ func TestPostgresMigrationRejectsPartialOrSymlinkSource(t *testing.T) {
 		t.Fatal("symlink metadata accepted")
 	}
 }
+
+func TestPostgresOfflineBudgetMaintenance(t *testing.T) {
+	db := postgresTestDB(t)
+	ledger, err := OpenPostgresBudgetLedger(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = ledger.SetLimit("tenant-a", "USD", 300); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = ledger.Reserve("synthetic-bill", "tenant-a", "synthetic", "synthetic", "USD", 100); err != nil {
+		t.Fatal(err)
+	}
+	if err = ledger.Resolve("synthetic-bill", "tenant-a", "USD", "unknown", 0, ""); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(`SELECT pg_advisory_xact_lock_shared(728219117)`); err != nil {
+		t.Fatal(err)
+	}
+	if err = WithPostgresBudgetMaintenance(context.Background(), db, func(*BudgetLedger) error { return nil }); err == nil {
+		t.Fatal("maintenance accepted active domain transaction")
+	}
+	tx.Rollback()
+	if err = WithPostgresBudgetMaintenance(context.Background(), db, func(l *BudgetLedger) error {
+		return l.Resolve("synthetic-bill", "tenant-a", "USD", "settled", 70, "synthetic-invoice-ref")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := ledger.Entries("tenant-a", "USD")
+	if err != nil || len(entries) != 1 || entries[0].State != "settled" || entries[0].Actual != 70 {
+		t.Fatal(entries, err)
+	}
+}
+
+func TestPostgresCreativeAcceptanceHoldsProjectReadLockAcrossCommit(t *testing.T) {
+	db := postgresTestDB(t)
+	a, b := postgresTestStore(t, db), postgresTestStore(t, db)
+	p, _, err := a.CreateProject("tenant-a", "atomic-project", projectInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Pause the actual INSERT to force an overlap at the acceptance commit. The
+	// other API must not change the source while its version check is in flight.
+	if _, err = db.Exec(`CREATE FUNCTION pause_creative_accept() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_xact_lock(7282992); RETURN NEW; END $$; CREATE TRIGGER pause_creative_accept BEFORE INSERT ON studio_creative_jobs FOR EACH ROW EXECUTE FUNCTION pause_creative_accept()`); err != nil {
+		t.Fatal(err)
+	}
+	guard, err := db.Conn(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer guard.Close()
+	if _, err = guard.ExecContext(context.Background(), `SELECT pg_advisory_lock(7282992)`); err != nil {
+		t.Fatal(err)
+	}
+	defer guard.ExecContext(context.Background(), `SELECT pg_advisory_unlock(7282992)`)
+	accepted := make(chan error, 1)
+	go func() {
+		_, _, err := a.createCreativeJob("tenant-a", p.ID, "atomic-creative", CreativeJobInput{Kind: "analysis", ExpectedVersion: p.Version})
+		accepted <- err
+	}()
+	deadline := time.Now().Add(3 * time.Second)
+	waiting := false
+	for time.Now().Before(deadline) {
+		if err = db.QueryRow(`SELECT EXISTS(SELECT 1 FROM pg_locks WHERE locktype='advisory' AND objid=7282992 AND NOT granted)`).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !waiting {
+		select {
+		case e := <-accepted:
+			t.Fatalf("acceptance failed before commit: %v", e)
+		default:
+			t.Fatal("acceptance did not reach database INSERT")
+		}
+	}
+	changed := make(chan error, 1)
+	go func() {
+		_, e := b.UpdateProject("tenant-a", p.ID, "concurrent-edit", ProjectUpdate{ExpectedVersion: p.Version, Title: "修改的项目", Brief: "并发修改项目简报用于测试"})
+		changed <- e
+	}()
+	select {
+	case err := <-changed:
+		t.Fatalf("source changed before acceptance commit: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	if _, err = guard.ExecContext(context.Background(), `SELECT pg_advisory_unlock(7282992)`); err != nil {
+		t.Fatal(err)
+	}
+	if err = <-accepted; err != nil {
+		t.Fatal(err)
+	}
+	if err = <-changed; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresExportDoesNotReplayDispatchedQueue(t *testing.T) {
+	db := postgresTestDB(t)
+	s := postgresTestStore(t, db)
+	task, _, err := s.Create("tenant-a", "unsafe-rollback", Input{Prompt: "synthetic rollback", Kind: "poster"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(`UPDATE execution_jobs SET state='dispatch_started' WHERE tenant_id=$1 AND id=$2`, "tenant-a", task.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.budget.SetLimit("tenant-a", "USD", 100); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.budget.Reserve("image:"+task.ID, "tenant-a", "synthetic", "synthetic", "USD", 60); err != nil {
+		t.Fatal(err)
+	}
+	target := t.TempDir() + "/rollback"
+	if _, err = ExportPostgresData(context.Background(), target, db); err != nil {
+		t.Fatal(err)
+	}
+	file, err := OpenStore(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	got, err := file.Get("tenant-a", task.ID)
+	if err != nil || got.Status != "failed" || got.ErrorCode != "execution_outcome_unknown" {
+		t.Fatal("rollback resurrected dispatch", got, err)
+	}
+	if _, ok, err := file.Next(); err != nil || ok {
+		t.Fatal("rollback queued uncertain request", err)
+	}
+	entries, err := file.budget.Entries("tenant-a", "USD")
+	if err != nil || len(entries) != 1 || entries[0].State != "unknown" {
+		t.Fatal(entries, err)
+	}
+	original, err := s.Get("tenant-a", task.ID)
+	if err != nil || original.Status != "queued" {
+		t.Fatal("export changed source DB", err)
+	}
+}
+
+func TestPostgresCacheCannotBecomeLocalStorage(t *testing.T) {
+	db := postgresTestDB(t)
+	dir := t.TempDir()
+	s, err := OpenPostgresStore(dir, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second, err := OpenPostgresStore(dir, db); err == nil {
+		second.Close()
+		t.Fatal("two processes share private cache")
+	}
+	s.Close()
+	if local, err := OpenStore(dir); err == nil {
+		local.Close()
+		t.Fatal("postgres cache silently became empty local store")
+	}
+	reopened, err := OpenPostgresStore(dir, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reopened.Close()
+}
+func TestPostgresMinorUnitsExactAboveFloatPrecision(t *testing.T) {
+	db := postgresTestDB(t)
+	ledger, err := OpenPostgresBudgetLedger(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const amount int64 = 9007199254740993
+	if err = ledger.SetLimit("tenant-a", "KWD", amount); err != nil {
+		t.Fatal(err)
+	}
+	if err = ledger.SetLimit("tenant-a", "KWD", amount+1); err != nil {
+		t.Fatal(err)
+	}
+	var stored int64
+	if err = db.QueryRow(`SELECT amount FROM studio_budget_limits WHERE tenant_id='tenant-a' AND currency='KWD'`).Scan(&stored); err != nil || stored != amount+1 {
+		t.Fatal("integer minor units rounded or update skipped", stored, err)
+	}
+	if _, err = ledger.Reserve("exact", "tenant-a", "synthetic", "synthetic", "KWD", amount); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := ledger.Entries("tenant-a", "KWD")
+	if err != nil || len(entries) != 1 || entries[0].Reserved != amount {
+		t.Fatal("reservation rounded", err)
+	}
+}
