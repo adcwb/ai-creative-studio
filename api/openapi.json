@@ -6696,6 +6696,10 @@
               "mock_script_failed",
               "invalid_script_output"
             ]
+          },
+          "model": {
+            "type": "string",
+            "description": "接受任务时冻结并持久化的服务端模型ID。兼容旧模拟记录时可省略；恢复执行必须匹配原供应商与模型，不能自动改用新模型。"
           }
         },
         "description": "持久化执行尝试及不可变需求快照。只保留尝试状态和来源，不提供历史剧本版本恢复。mock 执行中重启重新排队，不创建新 attempt；失败保留项目既有稿件。",
@@ -6874,6 +6878,10 @@
           "expected_provider": {
             "type": "string",
             "description": "客户端确认的创作供应商；真实模式必须匹配当前配置，避免旧模拟界面意外提交付费请求。"
+          },
+          "expected_model": {
+            "type": "string",
+            "description": "客户端确认的服务端模型ID；真实模式须同时匹配能力API的provider和model，避免排队或重启后切换同供应商模型导致意外付费。模拟模式可省略。"
           }
         }
       },
@@ -7121,6 +7129,10 @@
           "source_script_version": {
             "type": "integer",
             "minimum": 1
+          },
+          "model": {
+            "type": "string",
+            "description": "接受任务时冻结并持久化的服务端模型ID。兼容旧模拟记录时可省略；恢复执行必须匹配原供应商与模型，不能自动改用新模型。"
           }
         },
         "description": "持久化模拟分镜执行记录；来源是提交时已保存剧本的不可变快照，内部 source_script 不对外返回。运行中重启重新排队；失败保留旧计划。",
@@ -7533,6 +7545,10 @@
           "reference_asset_id": {
             "type": "string",
             "description": "同项目本地参考图片ID；图像参考或支持的镜头视频首帧，不支持此输入的适配器拒绝。"
+          },
+          "expected_model": {
+            "type": "string",
+            "description": "客户端确认的服务端模型ID；真实模式须同时匹配能力API的provider和model，避免排队或重启后切换同供应商模型导致意外付费。模拟模式可省略。"
           }
         },
         "required": [
@@ -7611,6 +7627,10 @@
           "reference_asset_id": {
             "type": "string",
             "description": "同项目本地参考图片ID；图像参考或支持的镜头视频首帧，不支持此输入的适配器拒绝。"
+          },
+          "model": {
+            "type": "string",
+            "description": "接受任务时冻结并持久化的服务端模型ID。兼容旧模拟记录时可省略；恢复执行必须匹配原供应商与模型，不能自动改用新模型。"
           }
         },
         "required": [
