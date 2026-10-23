@@ -18,6 +18,7 @@ type StoryboardShot struct {
 	Dialogue        string `json:"dialogue"`
 }
 type Storyboard struct {
+	Provider            string           `json:"provider,omitempty"`
 	SourceScriptVersion int              `json:"source_script_version"`
 	Shots               []StoryboardShot `json:"shots"`
 }
@@ -26,6 +27,7 @@ type StoryboardSaveInput struct {
 	Shots           []StoryboardShot `json:"shots"`
 }
 type StoryboardGeneration struct {
+	Model               string    `json:"model,omitempty"`
 	ID                  string    `json:"id"`
 	SpaceID             string    `json:"space_id"`
 	ProjectID           string    `json:"project_id"`

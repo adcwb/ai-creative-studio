@@ -21,6 +21,10 @@ func (e *StoryboardError) Error() string {
 	return "模拟分镜生成失败；请移除剧本动作中的 [mock-fail] 并保存后重试，已保存的计划仍保留。"
 }
 func safeStoryboardFailure(err error) (string, string) {
+	var pe *ProviderError
+	if errors.As(err, &pe) {
+		return creativeFailure(err)
+	}
 	code := "mock_storyboard_failed"
 	var e *StoryboardError
 	if errors.As(err, &e) && e.Code == "invalid_storyboard_output" {
@@ -54,7 +58,9 @@ func (p MockStoryboardProvider) Generate(ctx context.Context, script Script) ([]
 }
 
 type StoryboardPipeline struct {
-	run compose.Runnable[Script, []StoryboardShot]
+	provider string
+	model    string
+	run      compose.Runnable[Script, []StoryboardShot]
 }
 
 func NewStoryboardPipeline(ctx context.Context, provider StoryboardProvider) (*StoryboardPipeline, error) {
@@ -69,7 +75,13 @@ func NewStoryboardPipeline(ctx context.Context, provider StoryboardProvider) (*S
 	if err != nil {
 		return nil, err
 	}
-	return &StoryboardPipeline{run: run}, nil
+	name := "mock-storyboard"
+	model := ""
+	if a, ok := provider.(creativeStoryboardAdapter); ok {
+		name = creativeProviderName(a.p)
+		model = creativeProviderModel(a.p)
+	}
+	return &StoryboardPipeline{run: run, provider: name, model: model}, nil
 }
 func (p *StoryboardPipeline) Invoke(ctx context.Context, in Script) ([]StoryboardShot, error) {
 	return p.run.Invoke(ctx, in)
@@ -90,7 +102,13 @@ func RunStoryboardWorker(ctx context.Context, repo StoryboardRepository, pipelin
 		if !ok {
 			continue
 		}
-		shots, runErr := pipeline.Invoke(ctx, *g.SourceScript)
+		var shots []StoryboardShot
+		var runErr error
+		if g.Provider != pipeline.provider || (g.Provider != "mock-storyboard" && (g.Model == "" || g.Model != pipeline.model)) {
+			runErr = providerFailure("provider_unavailable")
+		} else {
+			shots, runErr = pipeline.Invoke(ctx, *g.SourceScript)
+		}
 		if ctx.Err() != nil {
 			return nil
 		}

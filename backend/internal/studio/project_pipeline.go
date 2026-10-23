@@ -23,6 +23,10 @@ func (e *ScriptError) Error() string {
 }
 
 func safeScriptFailure(err error) (string, string) {
+	var pe *ProviderError
+	if errors.As(err, &pe) {
+		return creativeFailure(err)
+	}
 	code := "mock_script_failed"
 	var scriptError *ScriptError
 	if errors.As(err, &scriptError) && scriptError.Code == "invalid_script_output" {
@@ -70,7 +74,9 @@ func (p MockScriptProvider) Generate(ctx context.Context, in ProjectInput) (Scri
 }
 
 type ScriptPipeline struct {
-	run compose.Runnable[ProjectInput, Script]
+	provider string
+	model    string
+	run      compose.Runnable[ProjectInput, Script]
 }
 
 func NewScriptPipeline(ctx context.Context, provider ScriptProvider) (*ScriptPipeline, error) {
@@ -88,7 +94,13 @@ func NewScriptPipeline(ctx context.Context, provider ScriptProvider) (*ScriptPip
 	if err != nil {
 		return nil, err
 	}
-	return &ScriptPipeline{run: run}, nil
+	name := "mock-script"
+	model := ""
+	if a, ok := provider.(creativeScriptAdapter); ok {
+		name = creativeProviderName(a.p)
+		model = creativeProviderModel(a.p)
+	}
+	return &ScriptPipeline{run: run, provider: name, model: model}, nil
 }
 
 func (p *ScriptPipeline) Invoke(ctx context.Context, in ProjectInput) (Script, error) {
@@ -111,7 +123,13 @@ func RunScriptWorker(ctx context.Context, repo ProjectRepository, pipeline *Scri
 		if !ok {
 			continue
 		}
-		script, runErr := pipeline.Invoke(ctx, ProjectInput{Title: generation.SourceTitle, Brief: generation.SourceBrief})
+		var script Script
+		var runErr error
+		if generation.Provider != pipeline.provider || (generation.Provider != "mock-script" && (generation.Model == "" || generation.Model != pipeline.model)) {
+			runErr = providerFailure("provider_unavailable")
+		} else {
+			script, runErr = pipeline.Invoke(ctx, ProjectInput{Title: generation.SourceTitle, Brief: generation.SourceBrief})
+		}
 		if ctx.Err() != nil {
 			return nil
 		}

@@ -49,6 +49,9 @@ func projectWriteScope(w http.ResponseWriter, r *http.Request) (string, string, 
 }
 
 func registerProjectRoutes(mux *http.ServeMux, repo ProjectRepository) {
+	if store, ok := repo.(*FileStore); ok {
+		registerHistoryRoutes(mux, store)
+	}
 	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, r *http.Request) {
 		space, ok := spaceID(w, r)
 		if !ok {

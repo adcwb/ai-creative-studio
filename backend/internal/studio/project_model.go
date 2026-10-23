@@ -20,7 +20,9 @@ type ProjectUpdate struct {
 }
 
 type ScriptGenerationInput struct {
-	ExpectedVersion int `json:"expected_version"`
+	ExpectedModel    string `json:"expected_model,omitempty"`
+	ExpectedProvider string `json:"expected_provider,omitempty"`
+	ExpectedVersion  int    `json:"expected_version"`
 }
 
 type ScriptSaveInput struct {
@@ -52,6 +54,7 @@ type ScriptDialogue struct {
 }
 
 type Project struct {
+	ScriptProvider               string                `json:"script_provider,omitempty"`
 	ScriptVersion                int                   `json:"script_version"`
 	Storyboard                   *Storyboard           `json:"storyboard,omitempty"`
 	StoryboardStale              bool                  `json:"storyboard_stale"`
@@ -71,6 +74,7 @@ type Project struct {
 }
 
 type ScriptGeneration struct {
+	Model       string    `json:"model,omitempty"`
 	ID          string    `json:"id"`
 	SpaceID     string    `json:"space_id"`
 	ProjectID   string    `json:"project_id"`

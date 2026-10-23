@@ -104,6 +104,7 @@ func safeFailure(err error, provider string) (string, string) {
 
 type OpenAIProvider struct {
 	key      string
+	model    string
 	endpoint string
 	client   *http.Client
 }
@@ -121,7 +122,7 @@ func NewOpenAIProvider(key string) *OpenAIProvider {
 func newOpenAIProvider(key, endpoint string, client *http.Client) *OpenAIProvider {
 	copyClient := *client
 	copyClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	return &OpenAIProvider{key: key, endpoint: endpoint, client: &copyClient}
+	return &OpenAIProvider{key: key, model: OpenAIModel, endpoint: endpoint, client: &copyClient}
 }
 
 func imageSize(ratio string) (string, int, int) {
@@ -151,7 +152,7 @@ func (p *OpenAIProvider) Generate(ctx context.Context, in Input) (GenerationResu
 		Quality      string `json:"quality"`
 		OutputFormat string `json:"output_format"`
 		Background   string `json:"background"`
-	}{OpenAIModel, prompt, size, 1, "low", "png", "opaque"})
+	}{p.model, prompt, size, 1, "low", "png", "opaque"})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return GenerationResult{}, providerFailure("provider_error")

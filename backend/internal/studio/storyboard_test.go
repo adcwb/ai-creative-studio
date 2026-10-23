@@ -27,7 +27,7 @@ func boardFixture(t *testing.T) []StoryboardShot {
 func boardProject(t *testing.T, s *FileStore) Project {
 	t.Helper()
 	p := makeScript(t, s, createProject(t, s))
-	g, _, e := s.CreateStoryboardGeneration(p.SpaceID, p.ID, "board-fixture-key", ScriptGenerationInput{p.Version})
+	g, _, e := s.CreateStoryboardGeneration(p.SpaceID, p.ID, "board-fixture-key", ScriptGenerationInput{ExpectedVersion: p.Version})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -68,7 +68,7 @@ func TestStoryboardVersionsStaleAndFailure(t *testing.T) {
 	}
 	before := *p.Storyboard
 	version := p.Version
-	g, _, e := s.CreateStoryboardGeneration(p.SpaceID, p.ID, "board-failed-run", ScriptGenerationInput{p.Version})
+	g, _, e := s.CreateStoryboardGeneration(p.SpaceID, p.ID, "board-failed-run", ScriptGenerationInput{ExpectedVersion: p.Version})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -134,7 +134,7 @@ func TestStoryboardRecoveryConcurrentAndIsolation(t *testing.T) {
 		t.Fatal(successes.Load())
 	}
 	p, _ = s.GetProject(p.SpaceID, p.ID)
-	in := ScriptGenerationInput{p.Version}
+	in := ScriptGenerationInput{ExpectedVersion: p.Version}
 	g, _, e := s.CreateStoryboardGeneration(p.SpaceID, p.ID, "restart-board-key", in)
 	if e != nil {
 		t.Fatal(e)
@@ -253,11 +253,11 @@ func TestStoryboardHTTPRequiredFieldsAndGuards(t *testing.T) {
 	path := "/projects/" + p.ID + "/storyboard-generations?space_id=personal-demo"
 	projectErrorCode(t, projectHTTP(t, s, "POST", path, "board-no-script", `{"expected_version":1}`, 409), "script_missing")
 	p = makeScript(t, s, p)
-	g := projectHTTP(t, s, "POST", path, "board-http-create", projectJSON(t, ScriptGenerationInput{p.Version}), 202)
+	g := projectHTTP(t, s, "POST", path, "board-http-create", projectJSON(t, ScriptGenerationInput{ExpectedVersion: p.Version}), 202)
 	if _, ok := g["source_script"]; ok {
 		t.Fatal("private source leaked")
 	}
-	projectErrorCode(t, projectHTTP(t, s, "POST", "/projects/"+p.ID+"/generations?space_id=personal-demo", "script-during-board", projectJSON(t, ScriptGenerationInput{p.Version}), 409), "generation_active")
+	projectErrorCode(t, projectHTTP(t, s, "POST", "/projects/"+p.ID+"/generations?space_id=personal-demo", "script-during-board", projectJSON(t, ScriptGenerationInput{ExpectedVersion: p.Version}), 409), "generation_active")
 	next, _, e := s.NextStoryboardGeneration()
 	if e != nil {
 		t.Fatal(e)

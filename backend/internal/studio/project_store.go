@@ -222,12 +222,15 @@ func (s *FileStore) CreateScriptGeneration(space, id, key string, in ScriptGener
 	if s.generationActiveLocked(project) {
 		return ScriptGeneration{}, false, ErrGenerationActive
 	}
+	if err := s.guardCreativeLocked(in.ExpectedProvider, in.ExpectedModel); err != nil {
+		return ScriptGeneration{}, false, err
+	}
 	generationID, err := newProjectID()
 	if err != nil {
 		return ScriptGeneration{}, false, err
 	}
 	now := time.Now().UTC()
-	generation := ScriptGeneration{ID: generationID, SpaceID: space, ProjectID: id, SourceTitle: project.Title, SourceBrief: project.Brief, BaseVersion: project.Version, Provider: "mock-script", Status: "queued", CreatedAt: now, UpdatedAt: now}
+	generation := ScriptGeneration{ID: generationID, SpaceID: space, ProjectID: id, SourceTitle: project.Title, SourceBrief: project.Brief, BaseVersion: project.Version, Provider: s.creativeGenerationProvider("mock-script"), Model: s.creativeGenerationModel(), Status: "queued", CreatedAt: now, UpdatedAt: now}
 	project.LatestGenerationID = generation.ID
 	project.UpdatedAt = now
 	receipt.GenerationID = generation.ID
@@ -366,6 +369,7 @@ func (s *FileStore) FinishScriptGeneration(generation ScriptGeneration, script S
 	} else {
 		current.Status = "succeeded"
 		project.Script = &script
+		project.ScriptProvider = current.Provider
 		project.ScriptVersion++
 		project.ScriptBrief = current.SourceBrief
 		project.Version++

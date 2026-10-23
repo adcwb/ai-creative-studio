@@ -44,13 +44,16 @@ func (s *FileStore) CreateStoryboardGeneration(space, id, key string, in ScriptG
 	if p.Script == nil {
 		return StoryboardGeneration{}, false, ErrScriptMissing
 	}
+	if err := s.guardCreativeLocked(in.ExpectedProvider, in.ExpectedModel); err != nil {
+		return StoryboardGeneration{}, false, err
+	}
 	gid, err := newProjectID()
 	if err != nil {
 		return StoryboardGeneration{}, false, err
 	}
 	now := time.Now().UTC()
 	script := cloneScript(*p.Script)
-	g := StoryboardGeneration{ID: gid, SpaceID: space, ProjectID: id, BaseVersion: p.Version, SourceScriptVersion: p.ScriptVersion, SourceScript: &script, Provider: "mock-storyboard", Status: "queued", CreatedAt: now, UpdatedAt: now}
+	g := StoryboardGeneration{ID: gid, SpaceID: space, ProjectID: id, BaseVersion: p.Version, SourceScriptVersion: p.ScriptVersion, SourceScript: &script, Provider: s.creativeGenerationProvider("mock-storyboard"), Model: s.creativeGenerationModel(), Status: "queued", CreatedAt: now, UpdatedAt: now}
 	p.LatestStoryboardGenerationID = gid
 	p.UpdatedAt = now
 	receipt.GenerationID = gid
@@ -186,7 +189,7 @@ func (s *FileStore) FinishStoryboardGeneration(g StoryboardGeneration, shots []S
 		current.ErrorCode, current.Error = safeStoryboardFailure(runErr)
 	} else {
 		current.Status = "succeeded"
-		p.Storyboard = &Storyboard{SourceScriptVersion: current.SourceScriptVersion, Shots: shots}
+		p.Storyboard = &Storyboard{Provider: current.Provider, SourceScriptVersion: current.SourceScriptVersion, Shots: shots}
 		p.Version++
 	}
 	d := s.clone()

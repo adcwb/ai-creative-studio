@@ -26,12 +26,7 @@ func main() {
 	}
 }
 func run() error {
-	providerName := env("IMAGE_PROVIDER", "mock-svg")
-	key := ""
-	if providerName == "openai-images" {
-		key = os.Getenv("OPENAI_API_KEY")
-	}
-	provider, capabilities := studio.ConfigureProvider(providerName, key)
+	provider, capabilities := studio.ConfigureImageFromEnv()
 	store, err := studio.OpenStore(env("DATA_DIR", "./data"), capabilities)
 	if err != nil {
 		return err
@@ -43,17 +38,28 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	scriptPipeline, err := studio.NewScriptPipeline(ctx, studio.MockScriptProvider{Delay: 900 * time.Millisecond})
+	creative, creativeCaps := studio.ConfigureCreativeFromEnv()
+	if err = studio.ConfigureCreative(store, creative, creativeCaps); err != nil {
+		return err
+	}
+	speech, speechCaps := studio.ConfigureSpeechFromEnv()
+	studio.SetCreativeSpeech(store, speech, speechCaps)
+	video, videoCaps := studio.ConfigureVideoFromEnv()
+	studio.SetCreativeVideo(store, video, videoCaps)
+	studio.SetCreativeImage(store, provider, capabilities)
+	scriptPipeline, err := studio.NewScriptPipeline(ctx, studio.CreativeScriptProvider(creative))
 	if err != nil {
 		return err
 	}
-	storyboardPipeline, err := studio.NewStoryboardPipeline(ctx, studio.MockStoryboardProvider{Delay: 900 * time.Millisecond})
+	storyboardPipeline, err := studio.NewStoryboardPipeline(ctx, studio.CreativeStoryboardProvider(creative))
 	if err != nil {
 		return err
 	}
 	srv := &http.Server{Addr: env("HTTP_ADDR", "127.0.0.1:8080"), Handler: studio.Handler(store, env("FRONTEND_ORIGIN", "http://localhost:5173")), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
-	errs := make(chan error, 4)
+	errs := make(chan error, 5)
 	workerDone := make(chan struct{})
+	creativeWorkerDone := make(chan struct{})
+	go func() { defer close(creativeWorkerDone); errs <- studio.RunCreativeWorker(ctx, store) }()
 	scriptWorkerDone := make(chan struct{})
 	storyboardWorkerDone := make(chan struct{})
 	go func() {
@@ -74,6 +80,7 @@ func run() error {
 	shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	shutdownErr := srv.Shutdown(shutdown)
+	<-creativeWorkerDone
 	<-workerDone
 	<-scriptWorkerDone
 	<-storyboardWorkerDone

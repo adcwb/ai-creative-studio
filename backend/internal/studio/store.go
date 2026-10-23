@@ -16,6 +16,7 @@ import (
 )
 
 type snapshot struct {
+	History               map[string][]ProjectRevision    `json:"history,omitempty"`
 	StoryboardGenerations map[string]StoryboardGeneration `json:"storyboard_generations"`
 	Version               int                             `json:"version"`
 	Tasks                 map[string]Task                 `json:"tasks"`
@@ -40,6 +41,8 @@ type Repository interface {
 	Finish(Task, GenerationResult, error) error
 }
 type FileStore struct {
+	creative     *creativeStore
+	media        *MediaStore
 	mu           sync.Mutex
 	path         string
 	data         snapshot
@@ -153,7 +156,7 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 	}
 	for id, g := range s.data.StoryboardGenerations {
 		p, ok := s.data.Projects[g.ProjectID]
-		if !ok || g.ID != id || p.SpaceID != g.SpaceID || g.SourceScript == nil || g.SourceScriptVersion < 1 || g.SourceScriptVersion > p.ScriptVersion || g.Provider != "mock-storyboard" {
+		if !ok || g.ID != id || p.SpaceID != g.SpaceID || g.SourceScript == nil || g.SourceScriptVersion < 1 || g.SourceScriptVersion > p.ScriptVersion || !validCreativeGenerationProvider(g.Provider, "mock-storyboard") {
 			s.Close()
 			return nil, fmt.Errorf("invalid storyboard generation")
 		}
@@ -178,6 +181,11 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 		if g.Status == "running" {
 			g.Status = "queued"
 			g.Progress = 0
+			if g.Provider != "mock-storyboard" {
+				g.Status = "failed"
+				g.Progress = 100
+				g.ErrorCode, g.Error = creativeFailure(providerFailure("execution_interrupted"))
+			}
 			g.UpdatedAt = time.Now().UTC()
 			s.data.StoryboardGenerations[id] = g
 		}
@@ -236,6 +244,11 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 	for id, generation := range s.data.ScriptGenerations {
 		if generation.Status == "running" {
 			generation.Status, generation.Progress = "queued", 0
+			if generation.Provider != "mock-script" {
+				generation.Status = "failed"
+				generation.Progress = 100
+				generation.ErrorCode, generation.Error = creativeFailure(providerFailure("execution_interrupted"))
+			}
 			generation.UpdatedAt = time.Now().UTC()
 			s.data.ScriptGenerations[id] = generation
 			if project, ok := s.data.Projects[generation.ProjectID]; ok && project.SpaceID == generation.SpaceID && project.LatestGenerationID == id {
@@ -248,9 +261,22 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 		s.Close()
 		return nil, err
 	}
+	s.creative, err = openCreativeStore(filepath.Dir(s.path))
+	if err != nil {
+		s.Close()
+		return nil, err
+	}
+	s.media, err = openMediaStore(filepath.Dir(s.path))
+	if err != nil {
+		s.Close()
+		return nil, err
+	}
 	return s, nil
 }
 func (s *FileStore) Close() error {
+	if s.media != nil {
+		s.media.close()
+	}
 	var resultErr error
 	if s.results != nil {
 		resultErr = s.results.Close()
@@ -282,9 +308,13 @@ func (s *FileStore) clone() snapshot {
 	for k, v := range s.data.ProjectReceipts {
 		d.ProjectReceipts[k] = v
 	}
+	d.History = cloneHistory(s.data.History)
 	return d
 }
 func (s *FileStore) commit(d snapshot) error {
+	if err := s.captureHistory(&d); err != nil {
+		return err
+	}
 	b, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
 		return err
@@ -358,6 +388,22 @@ func (s *FileStore) createLocked(space, key string, in Input, retryOf string, ex
 	}
 	if len(expectation) > 0 && (expectation[0].Provider != s.capabilities.Provider || expectation[0].Model != s.capabilities.Model) {
 		return Task{}, false, ErrProviderChanged
+	}
+	// Bound both queue pressure and costly real attempts, including failures.
+	if s.capabilities.Mode == "real" {
+		active, recent := 0, 0
+		since := time.Now().Add(-time.Hour)
+		for _, task := range s.data.Tasks {
+			if task.Status == "queued" || task.Status == "running" {
+				active++
+			}
+			if task.Provider != "mock-svg" && task.CreatedAt.After(since) {
+				recent++
+			}
+		}
+		if active >= 4 || recent >= 20 {
+			return Task{}, false, ErrProviderNotReady
+		}
 	}
 	raw := make([]byte, 16)
 	if _, err := rand.Read(raw); err != nil {
@@ -460,10 +506,16 @@ func (s *FileStore) Finish(t Task, result GenerationResult, runErr error) error 
 			}
 		case "openai-images":
 			_, width, height := imageSize(t.Ratio)
-			if t.Model != OpenAIModel || result.MIMEType != "image/png" || result.Width != width || result.Height != height {
+			if !configToken.MatchString(t.Model) || result.MIMEType != "image/png" || result.Width != width || result.Height != height {
 				runErr = providerFailure("invalid_provider_response")
 			} else {
 				runErr = validatePNG(result.Data, width, height)
+			}
+		case "gemini-images", "ark-images", "jimeng-images":
+			if result.MIMEType != "image/png" {
+				runErr = providerFailure("invalid_provider_response")
+			} else {
+				runErr = validateLargePNG(result.Data, result.Width, result.Height)
 			}
 		default:
 			runErr = providerFailure("provider_unavailable")
@@ -475,7 +527,7 @@ func (s *FileStore) Finish(t Task, result GenerationResult, runErr error) error 
 		t.Status = "failed"
 		t.ErrorCode, t.Error = safeFailure(runErr, t.Provider)
 	} else {
-		if t.Provider == "openai-images" {
+		if realImageProvider(t.Provider) {
 			name, err := resultName(t.ID)
 			if err != nil {
 				return err
@@ -551,7 +603,7 @@ func (s *FileStore) ReadResult(space, id string) (GenerationResult, error) {
 		return GenerationResult{Data: []byte(t.SVG), MIMEType: "image/svg+xml", Width: t.ResultWidth, Height: t.ResultHeight}, nil
 	}
 	name, err := resultName(id)
-	if err != nil || t.ID != id || t.ResultPath != name || t.Provider != "openai-images" || t.ResultMIME != "image/png" {
+	if err != nil || t.ID != id || t.ResultPath != name || !realImageProvider(t.Provider) || t.ResultMIME != "image/png" {
 		return GenerationResult{}, errors.New("invalid stored result metadata")
 	}
 	f, err := s.results.OpenFile(name, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
@@ -567,8 +619,17 @@ func (s *FileStore) ReadResult(space, id string) (GenerationResult, error) {
 	if err != nil {
 		return GenerationResult{}, err
 	}
-	_, width, height := imageSize(t.Ratio)
-	if t.ResultWidth != width || t.ResultHeight != height || validatePNG(data, width, height) != nil {
+	width, height := t.ResultWidth, t.ResultHeight
+	validation := validateLargePNG(data, width, height)
+	if t.Provider == "openai-images" {
+		_, expectedWidth, expectedHeight := imageSize(t.Ratio)
+		if width != expectedWidth || height != expectedHeight {
+			validation = providerFailure("invalid_provider_response")
+		} else {
+			validation = validatePNG(data, width, height)
+		}
+	}
+	if validation != nil {
 		return GenerationResult{}, errors.New("invalid stored PNG")
 	}
 	return GenerationResult{Data: data, MIMEType: "image/png", Width: width, Height: height}, nil
