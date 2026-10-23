@@ -54,6 +54,9 @@ func (p *NativeImageProvider) GenerateWithReference(ctx context.Context, in Inpu
 		return GenerationResult{}, providerFailure("provider_rejected")
 	}
 	if len(reference) > 0 {
+		if mime != "image/png" && mime != "image/jpeg" {
+			return GenerationResult{}, providerFailure("provider_rejected")
+		}
 		if _, err := nativeImage(reference, mime); err != nil {
 			return GenerationResult{}, providerFailure("provider_rejected")
 		}
@@ -160,6 +163,9 @@ func (p *NativeImageProvider) GenerateWithReference(ctx context.Context, in Inpu
 			return GenerationResult{}, providerFailure("invalid_provider_response")
 		}
 		b64 = out.Data[0].Base64
+	}
+	if p.kind == "gemini-images" && outMIME != "image/png" && outMIME != "image/jpeg" {
+		return GenerationResult{}, providerFailure("invalid_provider_response")
 	}
 	if b64 == "" || len(b64) > base64.StdEncoding.EncodedLen(maxPNGBytes) {
 		return GenerationResult{}, providerFailure("invalid_provider_response")

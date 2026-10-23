@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "映创 · Iteration 5 Creative Studio API",
-    "version": "0.5.0",
-    "description": "真实运行并持久化业务任务的本地工作室 API。默认使用 mock-svg；可由服务端显式配置 OpenAI Images generations 的 gpt-image-2-2026-04-21 固定协议适配器。能力就绪仅表示本地配置可提交，不代表已验证上游凭据或完成真实付费调用。任务和素材保留自身 provider；公开演示空间仍无生产认证或企业隔离，不可直接暴露公网。 第四轮增加独立 mock-script 短剧项目：创意需求、真实 Eino 异步结构化剧本生成、乐观版本编辑与持久幂等。剧本仅为确定性模拟，不调用文本模型、不依赖图像 provider 或凭据。 第五轮增加已保存剧本到当前可编辑分镜的独立 mock-storyboard 流程，真实持久化、版本冲突、过期来源提示与恢复，不生成音视频。"
+    "title": "映创 · Iteration 6 Creative Studio API",
+    "version": "0.6.0",
+    "description": "本地单进程创作工作室，保留图像、剧本、分镜持久化、幂等和乐观版本语义，新增可替换创作适配、项目媒体、时间轴、合成导出及历史恢复。默认无凭据模拟模式；真实协议适配不代表已验证真实模型效果、权限或费用。公开演示空间不是认证边界，不可暴露公网。"
   },
   "servers": [
     {
@@ -2993,6 +2993,2831 @@
         },
         "description": "全量保存镜头；必须已有计划。来源剧本版本由后端保留。过期计划可继续编辑但不会变成未过期。所有项目写操作共用持久幂等空间。"
       }
+    },
+    "/api/v1/projects/{id}/history": {
+      "get": {
+        "operationId": "listProjectHistory",
+        "summary": "读取保存过的旧剧本与分镜版本",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectHistoryEntry"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/history/{history_id}/restore": {
+      "post": {
+        "operationId": "restoreProjectHistory",
+        "summary": "按当前项目版本恢复历史稿，并保留被替换稿",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "所有项目写操作在同一空间共享项目域命名空间，与图像任务键独立。指纹含操作、目标项目和规范化完整请求（含 expected_version）。同一提交网络重试必须保留键和 body；同键不同操作/目标/body 返回 idempotency_conflict。"
+          },
+          {
+            "name": "history_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreProjectHistory"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/media": {
+      "get": {
+        "operationId": "getProjectMedia",
+        "summary": "读取项目媒体、独立媒体版本、时间轴和导出记录",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaState"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "媒体资源限额：单项目120素材/30导出，同时最多2个合成，以及全局容量上限。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/media/timeline": {
+      "put": {
+        "operationId": "saveMediaTimeline",
+        "summary": "按独立媒体版本保存完整时间轴",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "媒体域持久幂等键；项目+空间范围内共享，重试必须保留相同请求及标签。"
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaState"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "媒体资源限额：单项目120素材/30导出，同时最多2个合成，以及全局容量上限。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveMediaTimeline"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/media/demo": {
+      "post": {
+        "operationId": "createSyntheticMediaDemo",
+        "summary": "创建明确标识的合成图片与音轨演示，非模型生成",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "媒体域持久幂等键；项目+空间范围内共享，重试必须保留相同请求及标签。"
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaState"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "媒体资源限额：单项目120素材/30导出，同时最多2个合成，以及全局容量上限。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaVersionInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/media/uploads": {
+      "post": {
+        "operationId": "uploadProjectMedia",
+        "summary": "上传受限本地媒体，不接受外部URL",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "媒体域持久幂等键；项目+空间范围内共享，重试必须保留相同请求及标签。"
+          },
+          {
+            "name": "filename",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "character",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "shot_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaState"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "媒体资源限额：单项目120素材/30导出，同时最多2个合成，以及全局容量上限。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "单文件最大32MiB。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "audio/wav": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "audio/mpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "video/mp4": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/media/exports": {
+      "post": {
+        "operationId": "createMediaExport",
+        "summary": "持久化时间轴快照并排队执行本地FFmpeg合成",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "媒体域持久幂等键；项目+空间范围内共享，重试必须保留相同请求及标签。"
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaExport"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "媒体资源限额：单项目120素材/30导出，同时最多2个合成，以及全局容量上限。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaVersionInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/media/exports/{export_id}/cancel": {
+      "post": {
+        "operationId": "cancelMediaExport",
+        "summary": "取消本地导出；完成的导出不撤销",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "媒体域持久幂等键；项目+空间范围内共享，重试必须保留相同请求及标签。"
+          },
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaExport"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "媒体资源限额：单项目120素材/30导出，同时最多2个合成，以及全局容量上限。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/media/assets/{asset_id}/file": {
+      "get": {
+        "operationId": "downloadProjectMedia",
+        "summary": "按当前空间读取已保存的本地文件",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "本地媒体文件；不重定向至外部地址。",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/mpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "video/mp4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "媒体资源限额：单项目120素材/30导出，同时最多2个合成，以及全局容量上限。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Range 请求的部分文件内容。",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/mpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "video/mp4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "416": {
+            "description": "Range 超出文件范围。"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/media/exports/{export_id}/file": {
+      "get": {
+        "operationId": "downloadMediaExport",
+        "summary": "按当前空间读取已保存的本地文件",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "本地媒体文件；不重定向至外部地址。",
+            "content": {
+              "video/mp4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "媒体资源限额：单项目120素材/30导出，同时最多2个合成，以及全局容量上限。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Range 请求的部分文件内容。",
+            "content": {
+              "video/mp4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "416": {
+            "description": "Range 超出文件范围。"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/media/exports/{export_id}/subtitles": {
+      "get": {
+        "operationId": "downloadMediaSubtitles",
+        "summary": "按当前空间读取已保存的本地文件",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "本地媒体文件；不重定向至外部地址。",
+            "content": {
+              "application/x-subrip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "媒体资源限额：单项目120素材/30导出，同时最多2个合成，以及全局容量上限。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Range 请求的部分文件内容。",
+            "content": {
+              "application/x-subrip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "416": {
+            "description": "Range 超出文件范围。"
+          }
+        }
+      }
+    },
+    "/api/v1/creative-capabilities": {
+      "get": {
+        "operationId": "getCreativeCapabilities",
+        "summary": "读取当前文本适配器的本地配置状态；不探测远端",
+        "parameters": [],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeCapabilities"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/creative-media-capabilities": {
+      "get": {
+        "operationId": "getCreativeMediaCapabilities",
+        "summary": "按image/speech/video读取当前配置状态",
+        "parameters": [],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/CreativeCapabilities"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/creative-registry": {
+      "get": {
+        "operationId": "getCreativeRegistry",
+        "summary": "官方生态、原生或兼容协议与实际已实现能力清单",
+        "parameters": [],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderRegistration"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/creative-jobs": {
+      "get": {
+        "operationId": "listCreativeJobs",
+        "summary": "读取项目创作任务、分析结果与关联媒体ID",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CreativeJob"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createCreativeJob",
+        "summary": "持久化生成意图后异步执行，不自动重复远端提交",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeJob"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeJob"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreativeJobInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/analysis": {
+      "post": {
+        "operationId": "analyzeCreativeBrief",
+        "summary": "对已保存需求做分析澄清；返回异步创作任务",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeJob"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeJob"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateScript"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/creative-jobs/{jobId}/cancel": {
+      "post": {
+        "operationId": "cancelCreativeJob",
+        "summary": "停止本地等待；不承诺撤回上游请求或费用",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          },
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeJob"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/media/exports/{export_id}/subtitles.vtt": {
+      "get": {
+        "operationId": "downloadMediaWebVTT",
+        "summary": "按当前空间读取已保存的本地文件",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "本地媒体文件；不重定向至外部地址。",
+            "content": {
+              "text/vtt": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "媒体资源限额：单项目120素材/30导出，同时最多2个合成，以及全局容量上限。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Range 请求的部分文件内容。",
+            "content": {
+              "text/vtt": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "416": {
+            "description": "Range 超出文件范围。"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/creative-jobs/{jobId}/resume": {
+      "post": {
+        "operationId": "resumeCreativeVideo",
+        "summary": "仅对已有upstream_id的视频恢复查询与下载，不重新提交生成POST",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal-demo",
+                "team-demo"
+              ]
+            },
+            "description": "仅为演示数据归属选择，绝非身份验证或授权凭据。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          },
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "浏览器来源不允许。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeJob"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {}
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3052,11 +5877,7 @@
           },
           "provider": {
             "type": "string",
-            "enum": [
-              "mock-svg",
-              "openai-images"
-            ],
-            "description": "首次接受任务时绑定并持久化的实际 provider。历史记录不随当前配置重新标记。"
+            "description": "记录或配置绑定的图像供应商ID；mock-svg为模拟；openai-images、gemini-images、ark-images为真实协议。"
           },
           "result_url": {
             "type": "string",
@@ -3099,10 +5920,7 @@
           },
           "model": {
             "type": "string",
-            "enum": [
-              "gpt-image-2-2026-04-21"
-            ],
-            "description": "openai-images 任务创建时固定的模型版本；mock 记录省略。"
+            "description": "服务端配置的模型ID，接受任务时冻结；不代表模型可用性或权限已验证。"
           },
           "result_mime": {
             "type": "string",
@@ -3139,7 +5957,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "任务列表和详情共用完整结构。输入、provider/model 与重试关系提交后固定；同键重放返回原记录，即使当前配置不可用或模式改变。mock running 重启后恢复 queued；openai-images running 重启后变为 failed/execution_interrupted，绝不自动重发。内部密钥、路径、result_svg 和 idempotency_key 不公开。",
+        "description": "任务列表和详情共用完整结构。输入、provider/model 与重试关系提交后固定；同键重放返回原记录，即使当前配置不可用或模式改变。mock running 重启后恢复 queued；真实图像任务 running 重启后变为 failed/execution_interrupted，绝不自动重发。内部密钥、路径、result_svg 和 idempotency_key 不公开。",
         "example": {
           "id": "11111111111111111111111111111111",
           "space_id": "personal-demo",
@@ -3193,11 +6011,7 @@
           },
           "provider": {
             "type": "string",
-            "enum": [
-              "mock-svg",
-              "openai-images"
-            ],
-            "description": "首次接受任务时绑定并持久化的实际 provider。历史记录不随当前配置重新标记。"
+            "description": "记录或配置绑定的图像供应商ID；mock-svg为模拟；openai-images、gemini-images、ark-images为真实协议。"
           },
           "result_url": {
             "type": "string"
@@ -3229,10 +6043,7 @@
           },
           "model": {
             "type": "string",
-            "enum": [
-              "gpt-image-2-2026-04-21"
-            ],
-            "description": "openai-images 任务创建时固定的模型版本；mock 记录省略。"
+            "description": "服务端配置的模型ID，接受任务时冻结；不代表模型可用性或权限已验证。"
           },
           "result_mime": {
             "type": "string",
@@ -3317,17 +6128,16 @@
             "type": "string",
             "enum": [
               "mock-svg",
-              "openai-images"
+              "openai-images",
+              "gemini-images",
+              "ark-images",
+              "jimeng-images"
             ],
             "description": "与 expected_model 成对可选的提交前置条件。浏览器始终使用当前能力状态；不修改 provider，不写入业务 Input 或幂等身份。"
           },
           "expected_model": {
             "type": "string",
-            "enum": [
-              "",
-              "gpt-image-2-2026-04-21"
-            ],
-            "description": "必须和 expected_provider 同时给出：mock-svg 对应空字符串，openai-images 对应固定 snapshot。null、缺一项或无效组合返回 400。"
+            "description": "与expected_provider成对。mock-svg使用空字符串；真实供应商使用能力API给出的服务端配置模型ID。"
           }
         },
         "description": "创建和失败重试共用输入。prompt/kind/ratio/style 为业务输入；expected_provider/expected_model 是成对可选的 HTTP 提交前置条件，不进入持久化 Input 或幂等比较。浏览器必须提供；旧 API 客户端两项都省略时兼容原行为。后端绑定实际当前配置，不接受 endpoint、凭据或直接选择 provider/model。",
@@ -3374,13 +6184,15 @@
             "properties": {
               "expected_provider": {
                 "enum": [
-                  "openai-images"
+                  "openai-images",
+                  "gemini-images",
+                  "ark-images",
+                  "jimeng-images"
                 ]
               },
               "expected_model": {
-                "enum": [
-                  "gpt-image-2-2026-04-21"
-                ]
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
               }
             }
           }
@@ -3591,12 +6403,7 @@
         "properties": {
           "provider": {
             "type": "string",
-            "enum": [
-              "mock-svg",
-              "openai-images",
-              "unavailable"
-            ],
-            "description": "当前选中的 provider；未知配置返回 unavailable，绝不回退 mock，也不回显原配置字符串。"
+            "description": "记录或配置绑定的图像供应商ID；mock-svg为模拟；openai-images、gemini-images、ark-images为真实协议。"
           },
           "mode": {
             "type": "string",
@@ -3613,18 +6420,10 @@
           },
           "model": {
             "type": "string",
-            "enum": [
-              "gpt-image-2-2026-04-21"
-            ],
-            "description": "仅 openai-images 返回固定模型版本，不支持调用者任意选择模型。"
+            "description": "服务端配置的模型ID，接受任务时冻结；不代表模型可用性或权限已验证。"
           },
           "reason_code": {
             "type": "string",
-            "enum": [
-              "missing_api_key",
-              "invalid_provider",
-              "invalid_configuration"
-            ],
             "description": "未就绪的安全分类；就绪时省略。"
           },
           "message": {
@@ -3858,10 +6657,7 @@
           },
           "provider": {
             "type": "string",
-            "enum": [
-              "mock-script"
-            ],
-            "description": "固定模拟剧本 provider，与图像配置独立；不调用外部模型。"
+            "description": "接受尝试时冻结的供应商ID；mock-script/mock-storyboard为模拟，其他为对应真实协议。"
           },
           "status": {
             "type": "string",
@@ -3994,6 +6790,10 @@
           },
           "latest_storyboard_generation": {
             "$ref": "#/components/schemas/StoryboardGeneration"
+          },
+          "script_provider": {
+            "type": "string",
+            "description": "当前已保存剧本自身的生成来源；配置切换不修改此字段。"
           }
         },
         "description": "单项目只有一份当前剧本。无稿时省略 script/script_brief，无尝试时省略 latest_generation，不返回 null。生成活动期间拒绝内容修改和新生成，精确幂等重放仍返回当前投影。项目没有独立的伪状态字段。 第五轮每项目另有一份当前分镜；两种生成均锁定项目写操作。source_script_version 不随分镜编辑改变。",
@@ -4070,6 +6870,10 @@
             "type": "integer",
             "minimum": 1,
             "description": "提交者所编辑的项目内容版本，必须显式提供；已有精确幂等记录先于当前版本检查。该字段纳入提交身份，不可在网络重发时悄悄更新。"
+          },
+          "expected_provider": {
+            "type": "string",
+            "description": "客户端确认的创作供应商；真实模式必须匹配当前配置，避免旧模拟界面意外提交付费请求。"
           }
         }
       },
@@ -4177,6 +6981,10 @@
             "items": {
               "$ref": "#/components/schemas/StoryboardShot"
             }
+          },
+          "provider": {
+            "type": "string",
+            "description": "当前已保存分镜自身的生成来源。"
           }
         },
         "description": "每项目仅一份当前计划。来源版本由后端写入，编辑保存不能改写它；过期后仍允许编辑并保留过期提示。",
@@ -4270,9 +7078,7 @@
           },
           "provider": {
             "type": "string",
-            "enum": [
-              "mock-storyboard"
-            ]
+            "description": "接受尝试时冻结的供应商ID；mock-script/mock-storyboard为模拟，其他为对应真实协议。"
           },
           "status": {
             "type": "string",
@@ -4330,6 +7136,540 @@
           "updated_at": "2026-10-22T12:00:00Z",
           "source_script_version": 1
         }
+      },
+      "ProjectHistoryEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "script",
+              "storyboard"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "script_version": {
+            "type": "integer"
+          },
+          "script": {
+            "$ref": "#/components/schemas/Script"
+          },
+          "storyboard": {
+            "$ref": "#/components/schemas/Storyboard"
+          },
+          "script_brief": {
+            "type": "string"
+          },
+          "script_provider": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "created_at",
+          "script_version"
+        ]
+      },
+      "RestoreProjectHistory": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "expected_version"
+        ]
+      },
+      "MediaAsset": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "image",
+              "audio",
+              "video"
+            ]
+          },
+          "mime_type": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "character": {
+            "type": "string"
+          },
+          "shot_id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "file_url": {
+            "type": "string"
+          },
+          "duration": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "mime_type",
+          "name",
+          "role",
+          "character",
+          "shot_id",
+          "source",
+          "file_url",
+          "duration"
+        ]
+      },
+      "MediaClip": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "asset_id": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string"
+          },
+          "audio_asset_id": {
+            "type": "string"
+          },
+          "duration": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 30
+          },
+          "trim_start": {
+            "type": "number"
+          },
+          "audio_volume": {
+            "type": "number"
+          },
+          "crop_x": {
+            "type": "number"
+          },
+          "crop_y": {
+            "type": "number"
+          },
+          "crop_width": {
+            "type": "number"
+          },
+          "crop_height": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "asset_id",
+          "subtitle",
+          "audio_asset_id",
+          "duration",
+          "trim_start",
+          "audio_volume",
+          "crop_x",
+          "crop_y",
+          "crop_width",
+          "crop_height"
+        ]
+      },
+      "MediaTimeline": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "clips": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaClip"
+            }
+          },
+          "music_asset_id": {
+            "type": "string"
+          },
+          "music_volume": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "clips",
+          "music_asset_id",
+          "music_volume"
+        ]
+      },
+      "MediaExport": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "file_url": {
+            "type": "string"
+          },
+          "subtitle_url": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "duration": {
+            "type": "number"
+          },
+          "timeline": {
+            "$ref": "#/components/schemas/MediaTimeline"
+          },
+          "subtitle_vtt_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "file_url",
+          "subtitle_url",
+          "error",
+          "duration",
+          "timeline",
+          "subtitle_vtt_url"
+        ]
+      },
+      "MediaState": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaAsset"
+            }
+          },
+          "timeline": {
+            "$ref": "#/components/schemas/MediaTimeline"
+          },
+          "exports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaExport"
+            }
+          }
+        },
+        "required": [
+          "version",
+          "assets",
+          "timeline",
+          "exports"
+        ]
+      },
+      "SaveMediaTimeline": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "timeline": {
+            "$ref": "#/components/schemas/MediaTimeline"
+          }
+        },
+        "required": [
+          "expected_version",
+          "timeline"
+        ]
+      },
+      "MediaVersionInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "expected_version"
+        ]
+      },
+      "CreativeCapabilities": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "mock",
+              "real",
+              "unavailable"
+            ]
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "model": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason_code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "mode",
+          "ready",
+          "message"
+        ]
+      },
+      "BriefAnalysis": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "summary": {
+            "type": "string"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "provider": {
+            "type": "string"
+          },
+          "source_version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "summary",
+          "questions",
+          "suggestions",
+          "provider",
+          "source_version"
+        ]
+      },
+      "CreativeJobInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "analysis",
+              "image",
+              "speech",
+              "video"
+            ]
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expected_provider": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "shot_id": {
+            "type": "string"
+          },
+          "character": {
+            "type": "string"
+          },
+          "reference_asset_id": {
+            "type": "string",
+            "description": "同项目本地参考图片ID；图像参考或支持的镜头视频首帧，不支持此输入的适配器拒绝。"
+          }
+        },
+        "required": [
+          "kind",
+          "expected_version"
+        ]
+      },
+      "CreativeJob": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "space_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "shot_id": {
+            "type": "string"
+          },
+          "character": {
+            "type": "string"
+          },
+          "upstream_id": {
+            "type": "string"
+          },
+          "asset_id": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "source_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "analysis": {
+            "$ref": "#/components/schemas/BriefAnalysis"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source": {
+            "$ref": "#/components/schemas/CreateProject"
+          },
+          "reference_asset_id": {
+            "type": "string",
+            "description": "同项目本地参考图片ID；图像参考或支持的镜头视频首帧，不支持此输入的适配器拒绝。"
+          }
+        },
+        "required": [
+          "id",
+          "space_id",
+          "project_id",
+          "kind",
+          "provider",
+          "status",
+          "source_version",
+          "prompt",
+          "shot_id",
+          "character",
+          "created_at",
+          "updated_at",
+          "source"
+        ]
+      },
+      "ProviderRegistration": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "vendor": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "documentation": {
+            "type": "string"
+          },
+          "capabilities": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "adapter",
+                "unsupported",
+                "not_implemented",
+                "requires_signed_adapter",
+                "reference_adapter"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "vendor",
+          "protocol",
+          "notes",
+          "documentation",
+          "capabilities"
+        ]
       }
     }
   },

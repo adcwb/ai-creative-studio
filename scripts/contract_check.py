@@ -71,7 +71,7 @@ def main():
         with (temp / "server.log").open("w+") as log:
             def start(provider="mock-svg", key=""):
                 nonlocal proc
-                local_env = dict(env, IMAGE_PROVIDER=provider, OPENAI_API_KEY=key)
+                local_env = dict(env, IMAGE_PROVIDER=provider, OPENAI_API_KEY=key, IMAGE_MODEL="gpt-image-2-2026-04-21")
                 proc = subprocess.Popen([str(binary)], env=local_env, stdout=log, stderr=log)
                 deadline = time.monotonic() + 10
                 while time.monotonic() < deadline:
@@ -150,6 +150,65 @@ def main():
                         return project
                     time.sleep(.05)
                 raise RuntimeError("Storyboard generation did not reach a terminal state")
+
+            def check_creative():
+                caps = call("GET", "/api/v1/creative-capabilities", "/api/v1/creative-capabilities")
+                assert caps["provider"] == "mock-text" and caps["ready"]
+                media_caps = call("GET", "/api/v1/creative-media-capabilities", "/api/v1/creative-media-capabilities")
+                assert media_caps["image"]["ready"]
+                registry = call("GET", "/api/v1/creative-registry", "/api/v1/creative-registry")
+                assert {item["id"] for item in registry} >= {"openai", "anthropic", "google", "ark", "minimax", "jimeng"}
+                p = project_call("POST", body={"title": "创作合同", "brief": "两位旧友在车站交换一本书。"}, key="creative-contract-create", expected=201)
+                root = "/api/v1/projects/" + p["id"]
+                q = "?space_id=personal-demo"
+                route = "/api/v1/projects/{id}"
+                body = {"expected_version": p["version"], "expected_provider": caps["provider"]}
+                job = call("POST", root + "/analysis" + q, route + "/analysis", body, "creative-analysis", 202)
+                assert call("POST", root + "/analysis" + q, route + "/analysis", body, "creative-analysis")["id"] == job["id"]
+                deadline = time.monotonic() + 10
+                while time.monotonic() < deadline:
+                    jobs = call("GET", root + "/creative-jobs" + q, route + "/creative-jobs")
+                    if jobs[0]["status"] in ["succeeded", "failed"]:
+                        break
+                    time.sleep(.05)
+                assert jobs[0]["status"] == "succeeded" and jobs[0]["analysis"]["questions"]
+                call("GET", root + "/creative-jobs?space_id=team-demo", route + "/creative-jobs", expected=404)
+                conflict = call("POST", root + "/analysis" + q, route + "/analysis", dict(body, expected_version=999), "creative-analysis", 409)
+                assert conflict["error"]["code"] == "idempotency_conflict"
+                stop(); start()
+                assert call("POST", root + "/analysis" + q, route + "/analysis", body, "creative-analysis")["status"] == "succeeded"
+
+            def check_history():
+                project = project_call("POST", body={"title": "历史合同", "brief": "两位旧友在车站相遇并交换一本书。"}, key="history-create", expected=201)
+                pid = project["id"]
+                suffix = "/" + pid
+                history_route = "/api/v1/projects/{id}/history"
+                history_url = "/api/v1/projects/" + pid + "/history?space_id=personal-demo"
+                assert call("GET", history_url, history_route) == []
+                project_call("POST", suffix + "/generations", {"expected_version": 1}, "history-script", 202)
+                ready = wait_script(pid)
+                old = copy.deepcopy(ready["script"])
+                edited = copy.deepcopy(old)
+                edited["title"] = "手工修改后的历史合同"
+                saved = project_call("PUT", suffix + "/script", {"expected_version": ready["version"], "script": edited}, "history-edit")
+                revisions = call("GET", history_url, history_route)
+                assert len(revisions) == 1 and revisions[0]["script"] == old
+                rid = revisions[0]["id"]
+                restore_route = "/api/v1/projects/{id}/history/{history_id}/restore"
+                restore_url = "/api/v1/projects/" + pid + "/history/" + rid + "/restore?space_id=personal-demo"
+                body = {"expected_version": saved["version"]}
+                restored = call("POST", restore_url, restore_route, body, "history-restore")
+                assert restored["script"] == old and restored["version"] == saved["version"] + 1
+                assert restored["script_version"] == saved["script_version"] + 1
+                assert call("POST", restore_url, restore_route, body, "history-restore") == restored
+                assert call("POST", restore_url, restore_route, body, "history-stale", 409)["error"]["code"] == "version_conflict"
+                changed = {"expected_version": restored["version"]}
+                assert call("POST", restore_url, restore_route, changed, "history-restore", 409)["error"]["code"] == "idempotency_conflict"
+                assert len(call("GET", history_url, history_route)) == 2
+                call("GET", history_url.replace("personal-demo", "team-demo"), history_route, expected=404)
+                stop(); start()
+                assert call("POST", restore_url, restore_route, body, "history-restore") == restored
+                assert len(call("GET", history_url, history_route)) == 2
 
             def check_storyboards():
                 created = project_call("POST", body={"title": "分镜合同雨夜", "brief": "两位旧友在车站相遇，讨论一起举办摄影展。"}, key="board-project-create", expected=201)
@@ -410,11 +469,13 @@ def main():
                 assert final == listed
                 project_case = check_projects()
                 check_storyboards()
+                check_history()
+                check_creative()
                 stop()
                 configurations = [
                     ("openai-images", "", "missing_api_key"),
-                    ("bad-synthetic-secret-provider", "", "invalid_provider"),
-                    ("openai-images", "synthetic\ninvalid", "invalid_configuration"),
+                    ("bad-synthetic-secret-provider", "", "unsupported_provider"),
+                    ("openai-images", "synthetic\ninvalid", "missing_api_key"),
                 ]
                 for provider, key, reason in configurations:
                     start(provider, key)
@@ -439,7 +500,7 @@ def main():
                     assert project_call("POST", body=project_case["initial"], key="contract-original") == project_case["final"]
                     assert project_call("PUT", project_suffix + "/script", project_case["save"], "project-save-draft") == project_case["final"]
                     assert project_call("POST", project_suffix + "/generations", {"expected_version": 1}, "project-generate-first")["id"] == project_case["attempt"]["id"]
-                    if reason == "missing_api_key":
+                    if reason == "missing_api_key" and key == "":
                         independent = project_call("POST", body={"title": "独立模拟剧本", "brief": "图像配置不可用时仍能生成结构化模拟剧本"}, key="project-image-independent", expected=201)
                         project_call("POST", "/" + independent["id"] + "/generations", {"expected_version": 1}, "project-independent-run", 202)
                         assert wait_script(independent["id"])["latest_generation"]["status"] == "succeeded"
@@ -454,6 +515,7 @@ def main():
                 print("Verified: catalog/defaults, capability states, atomic provider guards, invalid expectation pairs, accepted-key replay before readiness/expectations, 503 without queueing, task/asset metadata, persistent search and historical results across restarts.")
                 print("Verified: real project create/detail/edit, Eino structured mock script, 400/404/409 paths, version/source preservation, failed generation keeps draft, all-write accepted-key replay across restarts, and script execution independent of unavailable image configuration.")
                 print("Verified: storyboard mock generation/editing, 400/404/409 guards, source script revision/staleness, failed generation keeps old plan, persisted receipts across restart and successful regeneration clears staleness.")
+                print("Verified: immutable script history restoration, monotonic versions, replay/conflict/cross-space/restart guards; asynchronous brief analysis, provider registry and creative job persistence.")
                 print("No real credential was read and no external provider was enabled; all runtime data and processes were temporary.")
             finally:
                 stop()
