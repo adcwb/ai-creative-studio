@@ -1,0 +1,22 @@
+# Load explicitly into an operator-owned Prometheus. No service is deployed here.
+groups:
+  - name: studio-local
+    rules:
+      - alert: StudioAuditUnavailable
+        expr: studio_audit_available == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: Studio audit persistence unavailable; mutations are blocked
+      - alert: StudioHTTPErrorRate
+        expr: rate(studio_http_requests_total{class="5xx"}[5m]) / clamp_min(sum(rate(studio_http_requests_total[5m])), 0.001) > 0.05
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: Studio HTTP 5xx ratio above five percent
+      - alert: StudioMetricsMissing
+        expr: absent(studio_audit_available)
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: Studio metrics target is missing
