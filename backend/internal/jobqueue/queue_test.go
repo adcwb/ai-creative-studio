@@ -253,3 +253,101 @@ func TestQueueIndependentProcessesAndCrash(t *testing.T) {
 		t.Fatalf("expected unknown %+v %v", got, e)
 	}
 }
+
+func TestQueueExplicitRecoveryAndFencedSideEffects(t *testing.T) {
+	q := testQueue(t)
+	ctx := context.Background()
+	id := fmt.Sprintf("recovery-%d", time.Now().UnixNano())
+	j := Job{TenantID: id, ID: id, Kind: "creative", IdempotencyKey: id, Payload: json.RawMessage(`{"task_id":"synthetic"}`)}
+	t.Cleanup(func() { q.DB.Exec(`DELETE FROM execution_jobs WHERE tenant_id=$1`, id) })
+	enqueue(t, q, j)
+	lease, ok, e := q.Claim(ctx, "creative")
+	if e != nil || !ok {
+		t.Fatal(e)
+	}
+	if lease.ID != id {
+		t.Fatal("test database contains unrelated creative work")
+	}
+	if e = q.Dispatch(ctx, lease); e != nil {
+		t.Fatal(e)
+	}
+	if e = q.Finish(ctx, lease, "unknown", nil); e != nil {
+		t.Fatal(e)
+	}
+	tx, _ := q.DB.BeginTx(ctx, nil)
+	if e = CheckLeaseTx(ctx, tx, lease); !errors.Is(e, ErrLeaseLost) {
+		t.Fatal("old token admitted domain side effect")
+	}
+	tx.Rollback()
+	recovery := j
+	recovery.Kind = "creative_resume"
+	recovery.IdempotencyKey = "explicit-recovery"
+	tx, _ = q.DB.BeginTx(ctx, nil)
+	if e = ResumeTx(ctx, tx, recovery); e != nil {
+		t.Fatal(e)
+	}
+	tx.Rollback()
+	got, _ := q.Get(ctx, id, id)
+	if got.State != "unknown" {
+		t.Fatal("resume leaked before commit")
+	}
+	tx, _ = q.DB.BeginTx(ctx, nil)
+	if e = ResumeTx(ctx, tx, recovery); e != nil {
+		t.Fatal(e)
+	}
+	if e = tx.Commit(); e != nil {
+		t.Fatal(e)
+	}
+	resumed, ok, e := q.Claim(ctx, "creative_resume")
+	if e != nil || !ok || resumed.ID != id || resumed.Attempt != 2 {
+		t.Fatalf("explicit query claim %+v %v", resumed, e)
+	}
+	tx, _ = q.DB.BeginTx(ctx, nil)
+	if e = CheckLeaseTx(ctx, tx, resumed); e != nil {
+		t.Fatal(e)
+	}
+	if e = FinishTx(ctx, tx, resumed, "succeeded", nil); e != nil {
+		t.Fatal(e)
+	}
+	if e = tx.Commit(); e != nil {
+		t.Fatal(e)
+	}
+	tx, _ = q.DB.BeginTx(ctx, nil)
+	if e = ResumeTx(ctx, tx, recovery); !errors.Is(e, ErrLeaseLost) {
+		t.Fatal("completed recovery was requeued")
+	}
+	tx.Rollback()
+}
+
+func TestWorkerContinuesAfterCrossProcessCancellation(t *testing.T) {
+	q := testQueue(t)
+	kind := fmt.Sprintf("cancel-loop-%d", time.Now().UnixNano())
+	t.Cleanup(func() { q.DB.Exec(`DELETE FROM execution_jobs WHERE kind=$1`, kind) })
+	for i := range 2 {
+		id := fmt.Sprintf("%s-%d", kind, i)
+		enqueue(t, q, Job{TenantID: kind, ID: id, Kind: kind, IdempotencyKey: id, Payload: json.RawMessage(`{}`)})
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	calls := 0
+	err := Run(ctx, q, kind, func(ctx context.Context, q Queue, j Job) error {
+		calls++
+		if e := q.Dispatch(ctx, j); e != nil {
+			return e
+		}
+		if calls == 1 {
+			if e := q.Cancel(ctx, j.TenantID, j.ID); e != nil {
+				return e
+			}
+			return context.Canceled
+		}
+		if e := q.Finish(ctx, j, "succeeded", nil); e != nil {
+			return e
+		}
+		cancel()
+		return nil
+	})
+	if err != nil || calls != 2 {
+		t.Fatalf("cancellation stopped worker: calls=%d err=%v", calls, err)
+	}
+}

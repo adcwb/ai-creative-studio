@@ -30,7 +30,8 @@ const Schema = `CREATE TABLE IF NOT EXISTS execution_jobs (
  updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
  PRIMARY KEY (tenant_id,id), UNIQUE (tenant_id,kind,idempotency_key)
 );
-CREATE INDEX IF NOT EXISTS execution_jobs_claim ON execution_jobs(kind,created_at) WHERE state IN ('queued','leased');`
+CREATE INDEX IF NOT EXISTS execution_jobs_claim ON execution_jobs(kind,created_at) WHERE state IN ('queued','leased');
+CREATE INDEX IF NOT EXISTS execution_jobs_expired ON execution_jobs(kind,lease_until) WHERE state='dispatch_started';`
 
 type Job struct {
 	TenantID       string          `json:"tenant_id"`

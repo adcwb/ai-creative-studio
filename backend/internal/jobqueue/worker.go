@@ -63,6 +63,12 @@ func Run(ctx context.Context, q Queue, kind string, handler Handler) error {
 		if errors.Is(err, ErrLeaseLost) || (errors.Is(err, context.Canceled) && errors.Is(renewErr, ErrLeaseLost) && ctx.Err() == nil) {
 			continue
 		}
+		if errors.Is(err, context.Canceled) && ctx.Err() == nil {
+			current, readErr := q.Get(ctx, j.TenantID, j.ID)
+			if readErr == nil && (current.State == "unknown" || current.State == "canceled") {
+				continue
+			}
+		}
 		if err != nil {
 			return err
 		}

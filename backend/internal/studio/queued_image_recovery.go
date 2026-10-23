@@ -48,11 +48,16 @@ func RunQueuedImageRecoveryWorker(ctx context.Context, q jobqueue.Queue, s *File
 		if t.UpstreamID == "" || t.RuntimeSelection == nil || t.Provider != "jimeng-images" {
 			return s.FinishQueued(ctx, j, GenerationResult{}, ErrExecutionGovernance)
 		}
+		if err := s.markQueuedRunning(ctx, j); err != nil {
+			return err
+		}
 		if err = q.Dispatch(ctx, j); err != nil {
 			return err
 		}
 		var result GenerationResult
-		runErr := s.execution.ExecuteRecovery(ctx, s.runtime, imageExecutionRequest(t), func(ctx context.Context, providers RuntimeProviders) error {
+		request := imageExecutionRequest(t)
+		request.UpstreamID = t.UpstreamID
+		runErr := s.execution.ExecuteRecovery(ctx, s.runtime, request, func(ctx context.Context, providers RuntimeProviders) error {
 			async, ok := providers.Image.(AsyncImageProvider)
 			if !ok {
 				return ErrExecutionGovernance

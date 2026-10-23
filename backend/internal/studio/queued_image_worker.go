@@ -37,6 +37,11 @@ func RunQueuedImageWorker(ctx context.Context, q jobqueue.Queue, repo QueuedImag
 		if t.SpaceID != j.TenantID || t.ID != j.ID {
 			return errors.New("queued image tenant mismatch")
 		}
+		if store, ok := repo.(*FileStore); ok {
+			if err := store.markQueuedRunning(ctx, j); err != nil {
+				return err
+			}
+		}
 		if err = q.Dispatch(ctx, j); err != nil {
 			return err
 		}

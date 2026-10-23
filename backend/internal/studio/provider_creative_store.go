@@ -653,23 +653,10 @@ func RunCreativeWorker(ctx context.Context, s *FileStore) error {
 }
 func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) error {
 	if job.RuntimeSelection != nil {
-		request := ExecutionRequest{ID: "creative:" + job.ID, Tenant: job.SpaceID, Provider: job.Provider, Model: job.Model, Capability: job.RuntimeSelection.Capability, Text: job.Prompt + "\n" + job.Source.Title + "\n" + job.Source.Brief, Selection: job.RuntimeSelection}
-		for _, id := range []string{job.ReferenceAssetID, job.ComparisonAssetID, job.MaskAssetID, job.AudioAssetID} {
-			if id == "" {
-				continue
-			}
-			path, mime, e := s.media.file(job.ProjectID, job.SpaceID, id, false, false)
-			if e != nil {
-				return e
-			}
-			data, e := os.ReadFile(path)
-			if e != nil || len(data) > 32<<20 {
-				return ErrExecutionGovernance
-			}
-			request.HasMedia = true
-			request.Media = append(request.Media, ExecutionMedia{Data: data, MIME: mime})
+		request, err := s.creativeExecutionRequest(*job)
+		if err != nil {
+			return err
 		}
-		request.Parameters, _ = json.Marshal(struct{ Kind, Shot, Character string }{job.Kind, job.ShotID, job.Character})
 		return s.executeManaged(ctx, request, func(ctx context.Context, p RuntimeProviders) error { return s.executeCreativeJobWith(ctx, job, &p) })
 	}
 	return s.executeCreativeJobWith(ctx, job, nil)
@@ -985,7 +972,7 @@ func (s *FileStore) resumeCreativeJob(space, id, jid, key string) (CreativeJob, 
 		if (job.Kind != "video" && !(job.Kind == "image" && job.Provider == "jimeng-images")) || job.RuntimeSelection == nil {
 			return CreativeJob{}, ErrExecutionGovernance
 		}
-		request := ExecutionRequest{ID: "creative:" + job.ID, Tenant: job.SpaceID, Provider: job.Provider, Model: job.Model, Capability: job.RuntimeSelection.Capability, Selection: job.RuntimeSelection}
+		request := ExecutionRequest{ID: "creative:" + job.ID, Tenant: job.SpaceID, Provider: job.Provider, Model: job.Model, Capability: job.RuntimeSelection.Capability, Selection: job.RuntimeSelection, UpstreamID: job.UpstreamID}
 		if err := s.execution.RecoveryReady(context.Background(), s.runtime, request); err != nil {
 			return CreativeJob{}, err
 		}

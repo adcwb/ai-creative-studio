@@ -51,6 +51,11 @@ func RunQueuedScriptWorker(ctx context.Context, q jobqueue.Queue, repo QueuedScr
 		if g == nil {
 			return errors.New("queued script not found")
 		}
+		if store, ok := repo.(*FileStore); ok {
+			if err := store.markQueuedRunning(ctx, j); err != nil {
+				return err
+			}
+		}
 		if e = q.Dispatch(ctx, j); e != nil {
 			return e
 		}
@@ -119,6 +124,11 @@ func RunQueuedStoryboardWorker(ctx context.Context, q jobqueue.Queue, repo Queue
 				g = &full
 			}
 			store.mu.Unlock()
+		}
+		if store, ok := repo.(*FileStore); ok {
+			if err := store.markQueuedRunning(ctx, j); err != nil {
+				return err
+			}
 		}
 		if e = q.Dispatch(ctx, j); e != nil {
 			return e

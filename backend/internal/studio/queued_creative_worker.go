@@ -31,7 +31,7 @@ func runQueuedCreative(ctx context.Context, q jobqueue.Queue, s *FileStore, kind
 			c.mu.Unlock()
 			return errors.New("queued creative job not found")
 		}
-		if job.Status != "queued" {
+		if job.Status != "queued" && job.Status != "running" {
 			c.mu.Unlock()
 			return jobqueue.ErrLeaseLost
 		}
@@ -55,7 +55,7 @@ func runQueuedCreative(ctx context.Context, q jobqueue.Queue, s *FileStore, kind
 			if (job.Kind != "video" && !(job.Kind == "image" && job.Provider == "jimeng-images")) || job.UpstreamID == "" || job.RuntimeSelection == nil {
 				err = ErrExecutionGovernance
 			} else {
-				request := ExecutionRequest{ID: "creative:" + job.ID, Tenant: job.SpaceID, Provider: job.Provider, Model: job.Model, Capability: job.RuntimeSelection.Capability, Selection: job.RuntimeSelection}
+				request := ExecutionRequest{ID: "creative:" + job.ID, Tenant: job.SpaceID, Provider: job.Provider, Model: job.Model, Capability: job.RuntimeSelection.Capability, Selection: job.RuntimeSelection, UpstreamID: job.UpstreamID}
 				err = s.execution.ExecuteRecovery(runCtx, s.runtime, request, func(ctx context.Context, providers RuntimeProviders) error {
 					return s.executeCreativeJobWith(ctx, &job, &providers)
 				})

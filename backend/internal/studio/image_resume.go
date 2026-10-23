@@ -59,7 +59,9 @@ func (s *FileStore) ResumeImageTask(space, id, key string) (Task, error) {
 		if t.RuntimeSelection == nil {
 			return Task{}, ErrExecutionGovernance
 		}
-		if err := s.execution.RecoveryReady(context.Background(), s.runtime, imageExecutionRequest(t)); err != nil {
+		request := imageExecutionRequest(t)
+		request.UpstreamID = t.UpstreamID
+		if err := s.execution.RecoveryReady(context.Background(), s.runtime, request); err != nil {
 			return Task{}, err
 		}
 	} else if !s.capabilities.Ready || s.capabilities.Provider != t.Provider || s.capabilities.Model != t.Model {
