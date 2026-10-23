@@ -223,6 +223,9 @@ func validMediaBlobName(name string) bool {
 func ConfigureBlobStorageFromEnv(s *FileStore) error {
 	mode := os.Getenv("BLOB_STORE")
 	if mode == "" || mode == "file" {
+		if s.pg != nil {
+			return errors.New("PostgreSQL mode requires explicit shared-file or S3 blob storage")
+		}
 		return nil
 	}
 	if mode == "shared-file" {

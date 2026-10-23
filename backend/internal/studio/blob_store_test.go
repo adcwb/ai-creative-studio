@@ -368,3 +368,14 @@ func TestBlobHTTPRangeOwnershipAndCorruption(t *testing.T) {
 		t.Fatalf("corruption response %d %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestBlobPostgresRejectsImplicitLocalStorage(t *testing.T) {
+	t.Setenv("BLOB_STORE", "")
+	if e := ConfigureBlobStorageFromEnv(&FileStore{pg: &postgresScope{}}); e == nil {
+		t.Fatal("postgres accepted isolated per-process media")
+	}
+	t.Setenv("BLOB_STORE", "file")
+	if e := ConfigureBlobStorageFromEnv(&FileStore{pg: &postgresScope{}}); e == nil {
+		t.Fatal("postgres accepted local file mode")
+	}
+}

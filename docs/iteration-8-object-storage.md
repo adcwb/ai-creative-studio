@@ -4,7 +4,7 @@
 
 ## 模式和信任边界
 
-- `BLOB_STORE=file`（默认）：原有单目录文件兼容模式。
+- `BLOB_STORE=file`（默认）：原有单目录文件兼容模式。PostgreSQL 启动必须明确选择 shared-file 或 s3，拒绝把每进程本地文件误作共享存储。
 - `BLOB_STORE=shared-file`：显式 `BLOB_FILE_ROOT` 绝对路径，使用不可变共享文件 BlobStore。多个 API／worker 使用不同 `DATA_DIR` 作为私有 cache，配合 PostgreSQL manifest。它可用于本机真实多进程验收，但不是 S3 互操作验收。
 - `BLOB_STORE=s3`：固定部署 endpoint，path-style S3 一般用途 bucket。变量：`BLOB_S3_ENDPOINT`、`BLOB_S3_BUCKET`、`BLOB_S3_REGION`、`BLOB_S3_ACCESS_KEY`、`BLOB_S3_SECRET_KEY`，可选 `BLOB_S3_SESSION_TOKEN`。不读取 AWS profile、实例元数据或 `.env`，不创建 bucket 或凭据。
 
