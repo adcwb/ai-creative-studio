@@ -1,3 +1,4 @@
+import { translate as t, useI18n } from "./i18n"
 import { useEffect, useRef, useState } from 'react'
 import { errorMessage, request, type Capabilities, type Space, type Task, type TaskInput, type Template } from './api'
 import { AssetLibrary } from './components/AssetLibrary'
@@ -12,11 +13,18 @@ import { useCapabilities } from './hooks/useCapabilities'
 import { useWorkspace } from './hooks/useWorkspace'
 import { DramaWorkspace } from './components/DramaWorkspace'
 import { ConfirmDialog } from './components/ConfirmDialog'
+import { AuthGate, type Session } from './components/AuthGate'
+import { OrganizationPanel } from './components/OrganizationPanel'
 import './drama.css'
 
 const blankDraft: TaskInput = {prompt: '', kind: 'poster', ratio: '4:5', style: 'natural'}
 
 export default function App() {
+  useI18n()
+ return <AuthGate>{(session, logout) => <AuthenticatedApp session={session} logout={logout} />}</AuthGate> }
+function AuthenticatedApp({session, logout}: {session: Session; logout: () => void}) {
+  useI18n()
+
   const provider = useCapabilities()
   const [space, setSpace] = useState('')
   const [spaces, setSpaces] = useState<Space[]>([])
@@ -35,18 +43,21 @@ export default function App() {
       .then(result => {
         if (controller.signal.aborted) return
         setSpaces(result); setSpace(previous => result.some(item => item.id === previous) ? previous : result[0]?.id ?? '')
-        setError(result.length ? '' : '服务未提供可用演示空间。')
+        setError(result.length ? '' : t("没有可用组织，请创建组织或联系组织管理员。"))
       })
-      .catch(reason => {if (!controller.signal.aborted) setError(errorMessage(reason, '空间加载失败'))})
+      .catch(reason => {if (!controller.signal.aborted) setError(errorMessage(reason, t("空间加载失败")))})
     return () => controller.abort()
   }, [revision])
-  return <StudioShell spaces={spaces} space={space} workbench={workbench} onWorkbenchChange={next => {if (next !== workbench) requestLeave(() => setWorkbench(next))}} capability={provider.capability} capabilityError={provider.error} onSpaceChange={next => {if (next !== space) requestLeave(() => setSpace(next))}}>
-    {error ? <div className="error space-error" role="alert">无法加载演示空间：{error} <button onClick={() => setRevision(value => value + 1)}>重新加载空间</button></div> : space ? <><div hidden={workbench !== 'image'}><Workspace key={space} space={space} capability={provider.capability} capabilityError={provider.error} onCapabilityRefresh={provider.refresh} /></div>{workbench === 'drama' && <DramaWorkspace key={space} space={space} onDirtyChange={setDramaDirty} requestLeave={requestLeave} />}</> : <div className="loading-block" role="status">正在加载演示空间…</div>}
-    {pendingLeave && <ConfirmDialog title="离开当前编辑？" message="未保存的本地草稿将丢失。如果有请求正在提交或结果尚未确认，服务端可能已保存，离开不会撤销请求。" confirmLabel="放弃本地草稿并继续" onCancel={() => setPendingLeave(null)} onConfirm={() => {const action = pendingLeave.action; setPendingLeave(null); action()}} />}
+  return <StudioShell session={session} onLogout={() => requestLeave(logout)} spaces={spaces} space={space} workbench={workbench} onWorkbenchChange={next => {if (next !== workbench) requestLeave(() => setWorkbench(next))}} capability={provider.capability} capabilityError={provider.error} onSpaceChange={next => {if (next !== space) requestLeave(() => setSpace(next))}}>
+    {session.mode === 'secure' && <OrganizationPanel space={spaces.find(item => item.id === space)} onChange={() => setRevision(value => value + 1)} />}
+    {error ? <div className="error space-error" role="alert">{t("无法加载工作空间：")}{error} <button onClick={() => setRevision(value => value + 1)}>{t("重新加载空间")}</button></div> : space ? <><div hidden={workbench !== 'image'}><Workspace key={space} space={space} capability={provider.capability} capabilityError={provider.error} onCapabilityRefresh={provider.refresh} /></div>{workbench === 'drama' && <DramaWorkspace key={space} space={space} onDirtyChange={setDramaDirty} requestLeave={requestLeave} />}</> : <div className="loading-block" role="status">{t("正在加载工作空间…")}</div>}
+    {pendingLeave && <ConfirmDialog title={t("离开当前编辑？")} message={t("未保存的本地草稿将丢失。如果有请求正在提交或结果尚未确认，服务端可能已保存，离开不会撤销请求。")} confirmLabel={t("放弃本地草稿并继续")} onCancel={() => setPendingLeave(null)} onConfirm={() => {const action = pendingLeave.action; setPendingLeave(null); action()}} />}
   </StudioShell>
 }
 
 function Workspace({space, capability, capabilityError, onCapabilityRefresh}: {space: string; capability: Capabilities | null; capabilityError: string; onCapabilityRefresh: () => void}) {
+  useI18n()
+
   const studio = useWorkspace(space)
   const [tab, setTab] = useState<'create' | 'assets'>('create')
   const [draft, setDraft] = useState<TaskInput>(blankDraft)
@@ -82,10 +93,10 @@ function Workspace({space, capability, capabilityError, onCapabilityRefresh}: {s
   }
 
   return <>
-    <section className="intro"><div><div className="eyebrow">A SPACE FOR YOUR NEXT IDEA</div><h1>把灵感，变成画面<span>。</span></h1><p>一点想法，一些探索。让下一张好画面，从这里开始。</p></div><div className="intro-count"><strong>{String(studio.tasks.length).padStart(2, '0')}</strong><span>次创作探索{running > 0 && <small>{running} 个任务进行中</small>}</span></div></section>
+    <section className="intro"><div><div className="eyebrow">A SPACE FOR YOUR NEXT IDEA</div><h1>{t("把灵感，变成画面")}<span>。</span></h1><p>{t("一点想法，一些探索。让下一张好画面，从这里开始。")}</p></div><div className="intro-count"><strong>{String(studio.tasks.length).padStart(2, '0')}</strong><span>{t("次创作探索")}{running > 0 && <small>{running} {t("个任务进行中")}</small>}</span></div></section>
     <ProviderBanner capability={capability} error={capabilityError} onRefresh={onCapabilityRefresh} />
-    <nav className="tabs" aria-label="工作室功能"><button type="button" aria-current={tab === 'create' ? 'page' : undefined} onClick={() => setTab('create')}><Icon name="spark" />图像创作</button><button type="button" aria-current={tab === 'assets' ? 'page' : undefined} onClick={() => setTab('assets')}><Icon name="grid" />素材库 <span className="count">{studio.assets.length}</span></button></nav>
-    {studio.connectionError && <div role="alert" className="error">无法同步服务：{studio.connectionError} <button onClick={studio.reconnect}>重新连接</button></div>}
+    <nav className="tabs" aria-label={t("工作室功能")}><button type="button" aria-current={tab === 'create' ? 'page' : undefined} onClick={() => setTab('create')}><Icon name="spark" />{t("图像创作")}</button><button type="button" aria-current={tab === 'assets' ? 'page' : undefined} onClick={() => setTab('assets')}><Icon name="grid" />{t("素材库")}<span className="count">{studio.assets.length}</span></button></nav>
+    {studio.connectionError && <div role="alert" className="error">{t("无法同步服务：")}{studio.connectionError} <button onClick={studio.reconnect}>{t("重新连接")}</button></div>}
     {studio.actionError && !detailId && <div role="alert" className="error">{studio.actionError}</div>}
     {studio.notice && !detailId && <p role="status" className="notice"><Icon name="check" />{studio.notice}</p>}
     {tab === 'create' ? <>
