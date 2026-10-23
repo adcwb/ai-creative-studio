@@ -3,19 +3,21 @@ package studio
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/adcwb/ai-creative-studio/backend/internal/jobqueue"
 	"image"
 	"image/color"
 	"image/png"
 	"os"
 	"path/filepath"
 	"sort"
-	"sync"
 	"time"
 )
 
 type CreativeJobInput struct {
+	ModelRequest
 	AudioAssetID      string `json:"audio_asset_id,omitempty"`
 	ComparisonAssetID string `json:"comparison_asset_id,omitempty"`
 	MaskAssetID       string `json:"mask_asset_id,omitempty"`
@@ -29,29 +31,31 @@ type CreativeJobInput struct {
 	Character         string `json:"character,omitempty"`
 }
 type CreativeJob struct {
-	AudioAssetID      string         `json:"audio_asset_id,omitempty"`
-	ComparisonAssetID string         `json:"comparison_asset_id,omitempty"`
-	MaskAssetID       string         `json:"mask_asset_id,omitempty"`
-	Model             string         `json:"model,omitempty"`
-	ReferenceAssetID  string         `json:"reference_asset_id,omitempty"`
-	ID                string         `json:"id"`
-	SpaceID           string         `json:"space_id"`
-	ProjectID         string         `json:"project_id"`
-	Kind              string         `json:"kind"`
-	Provider          string         `json:"provider"`
-	Status            string         `json:"status"`
-	SourceVersion     int            `json:"source_version"`
-	Prompt            string         `json:"prompt"`
-	ShotID            string         `json:"shot_id"`
-	Character         string         `json:"character"`
-	UpstreamID        string         `json:"upstream_id,omitempty"`
-	AssetID           string         `json:"asset_id,omitempty"`
-	Analysis          *BriefAnalysis `json:"analysis,omitempty"`
-	Error             string         `json:"error,omitempty"`
-	ErrorCode         string         `json:"error_code,omitempty"`
-	CreatedAt         time.Time      `json:"created_at"`
-	UpdatedAt         time.Time      `json:"updated_at"`
-	Source            ProjectInput   `json:"source"`
+	lease             *jobqueue.Job
+	RuntimeSelection  *RuntimeSelection `json:"runtime_selection,omitempty"`
+	AudioAssetID      string            `json:"audio_asset_id,omitempty"`
+	ComparisonAssetID string            `json:"comparison_asset_id,omitempty"`
+	MaskAssetID       string            `json:"mask_asset_id,omitempty"`
+	Model             string            `json:"model,omitempty"`
+	ReferenceAssetID  string            `json:"reference_asset_id,omitempty"`
+	ID                string            `json:"id"`
+	SpaceID           string            `json:"space_id"`
+	ProjectID         string            `json:"project_id"`
+	Kind              string            `json:"kind"`
+	Provider          string            `json:"provider"`
+	Status            string            `json:"status"`
+	SourceVersion     int               `json:"source_version"`
+	Prompt            string            `json:"prompt"`
+	ShotID            string            `json:"shot_id"`
+	Character         string            `json:"character"`
+	UpstreamID        string            `json:"upstream_id,omitempty"`
+	AssetID           string            `json:"asset_id,omitempty"`
+	Analysis          *BriefAnalysis    `json:"analysis,omitempty"`
+	Error             string            `json:"error,omitempty"`
+	ErrorCode         string            `json:"error_code,omitempty"`
+	CreatedAt         time.Time         `json:"created_at"`
+	UpdatedAt         time.Time         `json:"updated_at"`
+	Source            ProjectInput      `json:"source"`
 }
 type creativeReceipt struct {
 	Fingerprint string `json:"fingerprint"`
@@ -63,6 +67,7 @@ type creativeDisk struct {
 	Receipts map[string]creativeReceipt `json:"receipts"`
 }
 type creativeStore struct {
+	pg                    *postgresScope
 	soundEffect           MusicProvider
 	soundEffectCaps       Capabilities
 	lipSync               LipSyncProvider
@@ -70,7 +75,7 @@ type creativeStore struct {
 	music                 MusicProvider
 	musicCaps             Capabilities
 	speechCaps, videoCaps Capabilities
-	mu                    sync.Mutex
+	mu                    stateMutex
 	path                  string
 	data                  creativeDisk
 	provider              CreativeProvider
@@ -82,13 +87,18 @@ type creativeStore struct {
 	cancels               map[string]context.CancelFunc
 }
 
-func openCreativeStore(dir string) (*creativeStore, error) {
+func openCreativeStore(dir string, database ...*sql.DB) (*creativeStore, error) {
 	c := &creativeStore{path: filepath.Join(dir, "creative.json"), data: creativeDisk{Version: 1, Jobs: map[string]CreativeJob{}, Receipts: map[string]creativeReceipt{}}, cancels: map[string]context.CancelFunc{}}
 	_, c.caps = ConfigureCreativeProvider("mock-text", "")
 	c.imageCaps = Capabilities{Provider: "local-synthetic", Mode: "mock", Ready: true, Message: "合成色卡图片，不是AI生成。"}
 	c.musicCaps = Capabilities{Provider: "unavailable", Mode: "unavailable", Message: "未配置音乐生成。"}
 	c.lipSyncCaps = Capabilities{Provider: "unavailable", Mode: "unavailable", Message: "未配置口型同步模型。"}
 	c.soundEffectCaps = Capabilities{Provider: "unavailable", Mode: "unavailable", Message: "未配置音效生成模型。"}
+	if len(database) > 0 {
+		var err error
+		c.pg, err = attachPostgres(database[0], "creative", &c.data, &c.mu)
+		return c, err
+	}
 	b, err := os.ReadFile(c.path)
 	if err == nil {
 		var d creativeDisk
@@ -120,6 +130,9 @@ func openCreativeStore(dir string) (*creativeStore, error) {
 	return c, nil
 }
 func (c *creativeStore) saveLocked() error {
+	if c.pg != nil {
+		return c.pg.save(c.data)
+	}
 	b, err := json.Marshal(c.data)
 	if err != nil {
 		return err
@@ -176,11 +189,14 @@ func (s *FileStore) creativeGenerationProvider(mock string) string {
 	}
 	return s.creative.caps.Provider
 }
-func (s *FileStore) guardCreativeLocked(expected, expectedModel string) error {
+func (s *FileStore) guardCreativeLocked(expected, expectedModel string, selected ...Capabilities) error {
 	if s.creative == nil {
 		return nil
 	}
 	caps := s.creative.caps
+	if len(selected) > 0 {
+		caps = selected[0]
+	}
 	if !caps.Ready {
 		return ErrProviderNotReady
 	}
@@ -297,6 +313,9 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	if in.Kind != "analysis" {
 		caps = c.mediaCaps()[in.Kind]
 	}
+	if in.selection != nil {
+		caps = in.selectedCaps
+	}
 	if !caps.Ready {
 		return CreativeJob{}, false, ErrProviderNotReady
 	}
@@ -312,11 +331,18 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		}
 		_, supportsImage := c.image.(ReferenceImageProvider)
 		_, supportsVideo := c.video.(referenceVideoProvider)
+		if in.selection != nil {
+			supportsImage = runtimeImageReferenceSupported(caps.Provider)
+			supportsVideo = caps.Provider == "gemini-video" || caps.Provider == "ark-video" || caps.Provider == "minimax-video"
+		}
 		if (in.Kind == "image" && !supportsImage) || (in.Kind == "video" && !supportsVideo) {
 			return CreativeJob{}, false, projectInputError("当前图像适配器不支持参考图；不会忽略参考素材生成")
 		}
 		path, mime, e := s.media.file(id, space, in.ReferenceAssetID, false, false)
 		_, supportsVideoEdit := c.video.(editVideoProvider)
+		if in.selection != nil {
+			supportsVideoEdit = caps.Provider == "gemini-video"
+		}
 		if e != nil || path == "" || (mime != "image/png" && mime != "image/jpeg" && !((in.Kind == "video" && supportsVideoEdit || in.Kind == "lip_sync") && mime == "video/mp4")) {
 			return CreativeJob{}, false, ErrInvalidProjectInput
 		}
@@ -351,7 +377,11 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		if in.Kind != "image" || in.ReferenceAssetID == "" {
 			return CreativeJob{}, false, ErrInvalidProjectInput
 		}
-		if _, ok := c.image.(MaskImageProvider); !ok {
+		_, supportsMask := c.image.(MaskImageProvider)
+		if in.selection != nil {
+			supportsMask = caps.Provider == "openai-images"
+		}
+		if !supportsMask {
 			return CreativeJob{}, false, projectInputError("当前供应商不支持局部蒙版编辑")
 		}
 		path, mime, e := s.media.file(id, space, in.MaskAssetID, false, false)
@@ -375,7 +405,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		}
 	}
 
-	if (in.ExpectedProvider != "" && in.ExpectedProvider != caps.Provider) || (caps.Mode == "real" && (in.ExpectedProvider != caps.Provider || caps.Model == "" || in.ExpectedModel != caps.Model)) {
+	if (in.ExpectedProvider != "" && in.ExpectedProvider != caps.Provider) || (caps.Mode == "real" && in.selection == nil && (in.ExpectedProvider != caps.Provider || caps.Model == "" || in.ExpectedModel != caps.Model)) || (in.ExpectedModel != "" && in.ExpectedModel != caps.Model) {
 		return CreativeJob{}, false, ErrProviderChanged
 	}
 	recent := 0
@@ -399,9 +429,22 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		return CreativeJob{}, false, err
 	}
 	now := time.Now().UTC()
-	job := CreativeJob{AudioAssetID: in.AudioAssetID, ComparisonAssetID: in.ComparisonAssetID, MaskAssetID: in.MaskAssetID, ReferenceAssetID: in.ReferenceAssetID, ID: jid, SpaceID: space, ProjectID: id, Kind: in.Kind, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Prompt: in.Prompt, ShotID: in.ShotID, Character: in.Character, Source: ProjectInput{Title: p.Title, Brief: p.Brief}, CreatedAt: now, UpdatedAt: now}
+	job := CreativeJob{RuntimeSelection: cloneRuntimeSelection(in.selection), AudioAssetID: in.AudioAssetID, ComparisonAssetID: in.ComparisonAssetID, MaskAssetID: in.MaskAssetID, ReferenceAssetID: in.ReferenceAssetID, ID: jid, SpaceID: space, ProjectID: id, Kind: in.Kind, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Prompt: in.Prompt, ShotID: in.ShotID, Character: in.Character, Source: ProjectInput{Title: p.Title, Brief: p.Brief}, CreatedAt: now, UpdatedAt: now}
 	c.data.Jobs[jid] = job
 	c.data.Receipts[rk] = creativeReceipt{Fingerprint: fingerprint, JobID: jid}
+	if c.pg != nil {
+		payload, _ := json.Marshal(map[string]string{"task_id": jid, "project_id": id})
+		c.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error {
+			if job.RuntimeSelection != nil {
+				sel := job.RuntimeSelection
+				if err := ReservePostgresTx(ctx, tx, "creative:"+job.ID, space, job.Provider, job.Model, sel.Currency, sel.MaximumMinor); err != nil {
+					return err
+				}
+			}
+			return jobqueue.EnqueueTx(ctx, tx, jobqueue.Job{TenantID: space, ID: jid, Kind: "creative", IdempotencyKey: key, Payload: payload})
+		}
+		defer func() { c.pg.beforeCommit = nil }()
+	}
 	if err = c.saveLocked(); err != nil {
 		delete(c.data.Jobs, jid)
 		delete(c.data.Receipts, rk)
@@ -456,6 +499,12 @@ func (s *FileStore) cancelCreativeJob(space, id, jid, key string) (CreativeJob, 
 	job.Error = "已停止本地处理；不能撤销已发送的供应商请求，费用可能已产生。"
 	c.data.Jobs[jid] = job
 	c.data.Receipts[rk] = creativeReceipt{Fingerprint: fingerprint, JobID: jid}
+	if c.pg != nil && old.Status != "cancelled" {
+		c.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error {
+			return CancelQueuedPostgresTx(ctx, tx, space, jid, "creative")
+		}
+		defer func() { c.pg.beforeCommit = nil }()
+	}
 	if err := c.saveLocked(); err != nil {
 		c.data.Jobs[jid] = old
 		delete(c.data.Receipts, rk)
@@ -475,6 +524,16 @@ func (c *creativeStore) updateJob(job CreativeJob) error {
 	}
 	job.UpdatedAt = time.Now().UTC()
 	c.data.Jobs[job.ID] = job
+	if job.lease != nil && c.pg != nil {
+		state := "succeeded"
+		if job.Status != "succeeded" {
+			state = "failed"
+		}
+		c.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error {
+			return jobqueue.FinishTx(ctx, tx, *job.lease, state, json.RawMessage(`{}`))
+		}
+		defer func() { c.pg.beforeCommit = nil }()
+	}
 	if err := c.saveLocked(); err != nil {
 		c.data.Jobs[job.ID] = old
 		return err
@@ -501,6 +560,10 @@ func (c *creativeStore) recordCreativeUpstream(job *CreativeJob, id string) erro
 	updated.UpstreamID = id
 	updated.UpdatedAt = time.Now().UTC()
 	c.data.Jobs[job.ID] = updated
+	if job.lease != nil && c.pg != nil {
+		c.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error { return jobqueue.CheckLeaseTx(ctx, tx, *job.lease) }
+		defer func() { c.pg.beforeCommit = nil }()
+	}
 	if err := c.saveLocked(); err != nil {
 		c.data.Jobs[job.ID] = old
 		return err
@@ -589,31 +652,65 @@ func RunCreativeWorker(ctx context.Context, s *FileStore) error {
 	}
 }
 func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) error {
+	if job.RuntimeSelection != nil {
+		request := ExecutionRequest{ID: "creative:" + job.ID, Tenant: job.SpaceID, Provider: job.Provider, Model: job.Model, Capability: job.RuntimeSelection.Capability, Text: job.Prompt + "\n" + job.Source.Title + "\n" + job.Source.Brief, Selection: job.RuntimeSelection}
+		for _, id := range []string{job.ReferenceAssetID, job.ComparisonAssetID, job.MaskAssetID, job.AudioAssetID} {
+			if id == "" {
+				continue
+			}
+			path, mime, e := s.media.file(job.ProjectID, job.SpaceID, id, false, false)
+			if e != nil {
+				return e
+			}
+			data, e := os.ReadFile(path)
+			if e != nil || len(data) > 32<<20 {
+				return ErrExecutionGovernance
+			}
+			request.HasMedia = true
+			request.Media = append(request.Media, ExecutionMedia{Data: data, MIME: mime})
+		}
+		request.Parameters, _ = json.Marshal(struct{ Kind, Shot, Character string }{job.Kind, job.ShotID, job.Character})
+		return s.executeManaged(ctx, request, func(ctx context.Context, p RuntimeProviders) error { return s.executeCreativeJobWith(ctx, job, &p) })
+	}
+	return s.executeCreativeJobWith(ctx, job, nil)
+}
+func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob, managed *RuntimeProviders) error {
 	c := s.creative
+	textProvider, imageProvider, speechProvider, videoProvider, musicProvider := c.provider, c.image, c.speech, c.video, c.music
+	caps := c.mediaCaps()[job.Kind]
+	textCaps := c.caps
+	if managed != nil {
+		textProvider, imageProvider, speechProvider, videoProvider, musicProvider = managed.Creative, managed.Image, managed.Creative, managed.Creative, managed.Music
+		caps = Capabilities{Ready: true, Mode: "real", Provider: job.Provider, Model: job.Model}
+		textCaps = caps
+	}
 	var data []byte
 	var mime, role string
 	var err error
 	if job.Kind == "analysis" {
-		if !c.caps.Ready || job.Provider != c.caps.Provider || (job.Provider != "mock-text" && (job.Model == "" || job.Model != c.caps.Model || c.provider == nil)) {
+		if !textCaps.Ready || job.Provider != textCaps.Provider || (job.Provider != "mock-text" && (job.Model == "" || job.Model != textCaps.Model || textProvider == nil)) {
 			return providerFailure("provider_unavailable")
 		}
 		var a BriefAnalysis
-		if c.caps.Provider == "mock-text" {
+		if textCaps.Provider == "mock-text" {
 			a = localBriefAnalysis(job.Source)
 		} else {
-			a, err = c.provider.Analyze(ctx, job.Source)
+			a, err = textProvider.Analyze(ctx, job.Source)
 		}
 		a.SourceVersion = job.SourceVersion
 		job.Analysis = &a
+		if err == nil && managed != nil {
+			raw, _ := json.Marshal(a)
+			err = s.execution.ReviewResult(ctx, ExecutionRequest{ID: "creative:" + job.ID, Selection: job.RuntimeSelection, Tenant: job.SpaceID, Provider: job.Provider, Model: job.Model, Capability: "text", Text: string(raw)})
+		}
 		return err
 	}
-	caps := c.mediaCaps()[job.Kind]
 	if job.Provider != caps.Provider || !caps.Ready || (caps.Mode == "real" && (job.Model == "" || job.Model != caps.Model)) {
 		return providerFailure("provider_unavailable")
 	}
 	switch job.Kind {
 	case "vision", "consistency":
-		adapter, ok := c.provider.(VisionProvider)
+		adapter, ok := textProvider.(VisionProvider)
 		if !ok {
 			return providerFailure("unsupported_capability")
 		}
@@ -648,6 +745,12 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 		}
 		analysis.SourceVersion = job.SourceVersion
 		job.Analysis = &analysis
+		if managed != nil {
+			raw, _ := json.Marshal(analysis)
+			if e = s.execution.ReviewResult(ctx, ExecutionRequest{ID: "creative:" + job.ID, Selection: job.RuntimeSelection, Tenant: job.SpaceID, Provider: job.Provider, Model: job.Model, Capability: "text", Text: string(raw)}); e != nil {
+				return e
+			}
+		}
 		return nil
 	case "image":
 		mime = "image/png"
@@ -655,13 +758,13 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 		if job.Character != "" {
 			role = "reference"
 		}
-		if c.image == nil {
+		if imageProvider == nil {
 			data = syntheticCreativePNG()
 		} else {
 			var result GenerationResult
 			input := Input{Kind: "general", Prompt: job.Prompt, Ratio: "16:9", Style: "natural"}
 			if job.ReferenceAssetID != "" {
-				adapter, ok := c.image.(ReferenceImageProvider)
+				adapter, ok := imageProvider.(ReferenceImageProvider)
 				if !ok {
 					return providerFailure("unsupported_capability")
 				}
@@ -674,7 +777,7 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 					return providerFailure("invalid_provider_response")
 				}
 				if job.MaskAssetID != "" {
-					maskAdapter, ok := c.image.(MaskImageProvider)
+					maskAdapter, ok := imageProvider.(MaskImageProvider)
 					if !ok {
 						return providerFailure("unsupported_capability")
 					}
@@ -687,7 +790,7 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 						return e
 					}
 					result, err = maskAdapter.GenerateWithMask(ctx, input, ref, refMIME, mask)
-				} else if async, ok := c.image.(asyncReferenceImageProvider); ok {
+				} else if async, ok := imageProvider.(asyncReferenceImageProvider); ok {
 					if job.UpstreamID == "" {
 						ack, e := async.SubmitImageWithReference(ctx, input, ref, refMIME)
 						if e != nil {
@@ -705,7 +808,7 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 					result, err = adapter.GenerateWithReference(ctx, input, ref, refMIME)
 				}
 			} else {
-				if async, ok := c.image.(AsyncImageProvider); ok {
+				if async, ok := imageProvider.(AsyncImageProvider); ok {
 					if job.UpstreamID == "" {
 						ack, e := async.SubmitImage(ctx, input)
 						if e != nil {
@@ -722,7 +825,7 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 				} else if job.UpstreamID != "" {
 					return providerFailure("provider_unavailable")
 				} else {
-					result, err = c.image.Generate(ctx, input)
+					result, err = imageProvider.Generate(ctx, input)
 				}
 			}
 			data = result.Data
@@ -760,21 +863,21 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 	case "music":
 		mime = "audio/mpeg"
 		role = "music"
-		if c.music == nil {
+		if musicProvider == nil {
 			return providerFailure("unsupported_capability")
 		}
-		data, err = c.music.Music(ctx, job.Prompt)
+		data, err = musicProvider.Music(ctx, job.Prompt)
 	case "speech":
 		mime = "audio/wav"
 		role = "voice"
-		data, err = c.speech.Speech(ctx, job.Prompt)
+		data, err = speechProvider.Speech(ctx, job.Prompt)
 	case "video":
 		mime = "video/mp4"
 		role = "shot"
 		var v VideoJob
 		if job.UpstreamID == "" {
 			if job.ReferenceAssetID != "" {
-				adapter, ok := c.video.(referenceVideoProvider)
+				adapter, ok := videoProvider.(referenceVideoProvider)
 				if !ok {
 					return providerFailure("unsupported_capability")
 				}
@@ -787,7 +890,7 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 					return providerFailure("invalid_provider_response")
 				}
 				if refMIME == "video/mp4" {
-					editor, ok := c.video.(editVideoProvider)
+					editor, ok := videoProvider.(editVideoProvider)
 					if !ok {
 						return providerFailure("unsupported_capability")
 					}
@@ -796,7 +899,7 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 					v, err = adapter.SubmitVideoWithImage(ctx, job.Prompt, ref, refMIME)
 				}
 			} else {
-				v, err = c.video.SubmitVideo(ctx, job.Prompt)
+				v, err = videoProvider.SubmitVideo(ctx, job.Prompt)
 			}
 			if err != nil {
 				return err
@@ -806,7 +909,7 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 			}
 		}
 		for {
-			v, err = c.video.PollVideo(ctx, job.UpstreamID)
+			v, err = videoProvider.PollVideo(ctx, job.UpstreamID)
 			if err != nil {
 				return err
 			}
@@ -824,7 +927,7 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 			case <-timer.C:
 			}
 		}
-		data, err = c.video.DownloadVideo(ctx, job.UpstreamID)
+		data, err = videoProvider.DownloadVideo(ctx, job.UpstreamID)
 	}
 	if err != nil {
 		return err
@@ -832,9 +935,14 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 	if err = ctx.Err(); err != nil {
 		return err
 	}
+	if managed != nil {
+		if err = s.execution.ReviewResult(ctx, ExecutionRequest{ID: "creative:" + job.ID, Selection: job.RuntimeSelection, Tenant: job.SpaceID, Provider: job.Provider, Model: job.Model, Capability: job.Kind, HasMedia: true, Media: []ExecutionMedia{{Data: data, MIME: mime}}}); err != nil {
+			return err
+		}
+	}
 	// Asset ingest has its own persistent idempotency receipt. Restart cannot
 	// publish duplicate assets even if ingestion succeeded before job completion.
-	_, err = s.media.AddAsset(job.ProjectID, job.SpaceID, "creative-"+job.ID, "创作素材 · "+job.Kind, role, job.Character, job.ShotID, job.Provider, data, mime)
+	_, err = s.media.AddAsset(job.ProjectID, job.SpaceID, "creative-"+job.ID, "创作素材 · "+job.Kind, role, job.Character, job.ShotID, job.Provider, data, mime, job.lease)
 	if err != nil {
 		return err
 	}
@@ -873,17 +981,27 @@ func (s *FileStore) resumeCreativeJob(space, id, jid, key string) (CreativeJob, 
 	if (job.Kind != "video" && !(job.Kind == "image" && job.Provider == "jimeng-images")) || job.UpstreamID == "" || (job.Status != "failed" && job.Status != "cancelled") {
 		return CreativeJob{}, ErrConflict
 	}
-	caps := c.mediaCaps()[job.Kind]
-	if job.Kind == "image" {
-		if _, ok := c.image.(AsyncImageProvider); !ok {
+	if c.pg != nil {
+		if (job.Kind != "video" && !(job.Kind == "image" && job.Provider == "jimeng-images")) || job.RuntimeSelection == nil {
+			return CreativeJob{}, ErrExecutionGovernance
+		}
+		request := ExecutionRequest{ID: "creative:" + job.ID, Tenant: job.SpaceID, Provider: job.Provider, Model: job.Model, Capability: job.RuntimeSelection.Capability, Selection: job.RuntimeSelection}
+		if err := s.execution.RecoveryReady(context.Background(), s.runtime, request); err != nil {
+			return CreativeJob{}, err
+		}
+	} else {
+		caps := c.mediaCaps()[job.Kind]
+		if job.Kind == "image" {
+			if _, ok := c.image.(AsyncImageProvider); !ok {
+				return CreativeJob{}, ErrProviderNotReady
+			}
+		}
+		if !caps.Ready {
 			return CreativeJob{}, ErrProviderNotReady
 		}
-	}
-	if !caps.Ready {
-		return CreativeJob{}, ErrProviderNotReady
-	}
-	if caps.Provider != job.Provider || job.Model == "" || caps.Model != job.Model {
-		return CreativeJob{}, ErrProviderChanged
+		if caps.Provider != job.Provider || job.Model == "" || caps.Model != job.Model {
+			return CreativeJob{}, ErrProviderChanged
+		}
 	}
 	for _, active := range c.data.Jobs {
 		if active.ProjectID == id && active.SpaceID == space && (active.Status == "queued" || active.Status == "running") {
@@ -900,6 +1018,13 @@ func (s *FileStore) resumeCreativeJob(space, id, jid, key string) (CreativeJob, 
 	job.UpdatedAt = time.Now().UTC()
 	c.data.Jobs[jid] = job
 	c.data.Receipts[rk] = creativeReceipt{Fingerprint: fingerprint, JobID: jid}
+	if c.pg != nil {
+		payload, _ := json.Marshal(map[string]string{"task_id": jid, "project_id": id})
+		c.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error {
+			return jobqueue.ResumeTx(ctx, tx, jobqueue.Job{TenantID: space, ID: jid, Kind: "creative_resume", IdempotencyKey: key, Payload: payload})
+		}
+		defer func() { c.pg.beforeCommit = nil }()
+	}
 	if err := c.saveLocked(); err != nil {
 		c.data.Jobs[jid] = old
 		delete(c.data.Receipts, rk)

@@ -1,6 +1,10 @@
 package studio
 
 import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"github.com/adcwb/ai-creative-studio/backend/internal/jobqueue"
 	"net/http"
 	"regexp"
 	"time"
@@ -51,7 +55,14 @@ func (s *FileStore) ResumeImageTask(space, id, key string) (Task, error) {
 	if t.Provider != "jimeng-images" || t.UpstreamID == "" || t.Status != "failed" {
 		return Task{}, ErrConflict
 	}
-	if !s.capabilities.Ready || s.capabilities.Provider != t.Provider || s.capabilities.Model != t.Model {
+	if s.pg != nil {
+		if t.RuntimeSelection == nil {
+			return Task{}, ErrExecutionGovernance
+		}
+		if err := s.execution.RecoveryReady(context.Background(), s.runtime, imageExecutionRequest(t)); err != nil {
+			return Task{}, err
+		}
+	} else if !s.capabilities.Ready || s.capabilities.Provider != t.Provider || s.capabilities.Model != t.Model {
 		return Task{}, ErrProviderChanged
 	}
 	t.Status = "queued"
@@ -62,6 +73,13 @@ func (s *FileStore) ResumeImageTask(space, id, key string) (Task, error) {
 	d := s.clone()
 	d.Tasks[id] = t
 	d.ImageResumeReceipts[rk] = id
+	if s.pg != nil {
+		payload, _ := json.Marshal(map[string]string{"task_id": id})
+		s.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error {
+			return jobqueue.ResumeTx(ctx, tx, jobqueue.Job{TenantID: space, ID: id, Kind: "image_resume", IdempotencyKey: key, Payload: payload})
+		}
+		defer func() { s.pg.beforeCommit = nil }()
+	}
 	if err := s.commit(d); err != nil {
 		return Task{}, err
 	}

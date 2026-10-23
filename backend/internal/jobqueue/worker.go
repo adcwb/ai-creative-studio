@@ -24,6 +24,9 @@ func Run(ctx context.Context, q Queue, kind string, handler Handler) error {
 		case <-tick.C:
 		}
 		j, ok, err := q.Claim(ctx, kind)
+		if ctx.Err() != nil {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -52,8 +55,14 @@ func Run(ctx context.Context, q Queue, kind string, handler Handler) error {
 		err = handler(runCtx, q, j)
 		cancel()
 		renewErr := <-done
+		if ctx.Err() != nil {
+			return nil
+		}
 		// A completed handler clears the token; renewal racing its commit can observe
 		// ErrLeaseLost. The fenced domain transaction is authoritative in that case.
+		if errors.Is(err, ErrLeaseLost) || (errors.Is(err, context.Canceled) && errors.Is(renewErr, ErrLeaseLost) && ctx.Err() == nil) {
+			continue
+		}
 		if err != nil {
 			return err
 		}

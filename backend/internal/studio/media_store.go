@@ -4,10 +4,12 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/adcwb/ai-creative-studio/backend/internal/jobqueue"
 	"math"
 	"os"
 	"path/filepath"
@@ -92,9 +94,11 @@ type mediaDisk struct {
 	Receipts map[string]mediaReceipt `json:"receipts"`
 }
 type MediaStore struct {
+	pg        *postgresScope
+	blobs     *managedBlobs
 	alignment *AlignmentStore
 	failure   error
-	mu        sync.Mutex
+	mu        stateMutex
 	dir       string
 	data      mediaDisk
 	cancels   map[string]context.CancelFunc
@@ -120,10 +124,18 @@ func mediaKey(space, project string) string { return space + ":" + project }
 func mediaURL(space, project, path string) string {
 	return "/api/v1/projects/" + project + "/media/" + path + "?space_id=" + space
 }
-func openMediaStore(dir string) (*MediaStore, error) {
+func openMediaStore(dir string, database ...*sql.DB) (*MediaStore, error) {
 	m := &MediaStore{dir: filepath.Join(dir, "media"), data: mediaDisk{Version: 1, Projects: map[string]MediaState{}, Receipts: map[string]mediaReceipt{}}, cancels: map[string]context.CancelFunc{}}
 	if err := os.MkdirAll(m.dir, 0700); err != nil {
 		return nil, err
+	}
+	if len(database) > 0 {
+		var err error
+		m.pg, err = attachPostgres(database[0], "media", &m.data, &m.mu)
+		if err == nil {
+			m.alignment, err = openAlignmentStore(m.dir, database[0])
+		}
+		return m, err
 	}
 	b, err := os.ReadFile(filepath.Join(m.dir, "state.json"))
 	if err == nil {
@@ -182,6 +194,13 @@ func (m *MediaStore) clone() mediaDisk {
 	return d
 }
 func (m *MediaStore) commit(d mediaDisk) (resultErr error) {
+	if m.pg != nil {
+		if err := m.pg.save(d); err != nil {
+			return err
+		}
+		m.data = d
+		return nil
+	}
 	defer func() {
 		if resultErr != nil {
 			m.failure = resultErr
@@ -247,11 +266,22 @@ func mediaAsset(p MediaState, id string) (MediaAsset, bool) {
 	}
 	return MediaAsset{}, false
 }
-func (m *MediaStore) AddAsset(project, space, key, name, role, character, shotID, source string, data []byte, mime string) (MediaState, error) {
+func (m *MediaStore) AddAsset(project, space, key, name, role, character, shotID, source string, data []byte, mime string, leases ...*jobqueue.Job) (MediaState, error) {
 	digest := mediaDigest([]string{"upload", name, role, character, shotID, source, mime, mediaDigest(data)})
 	k := mediaKey(space, project)
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if len(leases) > 0 && leases[0] != nil {
+		if m.pg == nil {
+			return MediaState{}, errors.New("fenced media write requires postgres")
+		}
+		j := *leases[0]
+		if j.TenantID != space {
+			return MediaState{}, ErrNotFound
+		}
+		m.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error { return jobqueue.CheckLeaseTx(ctx, tx, j) }
+		defer func() { m.pg.beforeCommit = nil }()
+	}
 	d := m.clone()
 	p := mediaState(d, k)
 	if replay, err := m.check(d, k, key, digest); err != nil || replay {
@@ -267,6 +297,10 @@ func (m *MediaStore) AddAsset(project, space, key, name, role, character, shotID
 	}
 	kind, duration, err := validateMedia(path, mime)
 	if err != nil {
+		os.Remove(path)
+		return p, err
+	}
+	if err = m.storeBlob(space, project, id); err != nil {
 		os.Remove(path)
 		return p, err
 	}
@@ -397,19 +431,22 @@ func (m *MediaStore) file(project, space, id string, export, subtitles bool) (st
 	p := mediaState(m.data, mediaKey(space, project))
 	if !export {
 		if a, ok := mediaAsset(p, id); ok {
-			return filepath.Join(m.dir, a.ID), a.MIMEType, nil
+			path, err := m.localBlob(space, project, a.ID)
+			return path, a.MIMEType, err
 		}
 	} else {
 		for _, e := range p.Exports {
 			if e.ID == id && e.Status == "succeeded" {
 				if subtitles {
-					return filepath.Join(m.dir, e.ID+".srt"), "application/x-subrip", nil
+					path, err := m.localBlob(space, project, e.ID+".srt")
+					return path, "application/x-subrip", err
 				}
-				return filepath.Join(m.dir, e.ID+".mp4"), "video/mp4", nil
+				path, err := m.localBlob(space, project, e.ID+".mp4")
+				return path, "video/mp4", err
 			}
 		}
 	}
-	return "", "", fmt.Errorf("media not found")
+	return "", "", ErrNotFound
 }
 
 // Includes export and scratch files; reserve room before accepting new work.

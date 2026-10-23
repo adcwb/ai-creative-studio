@@ -3,9 +3,11 @@ package studio
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/adcwb/ai-creative-studio/backend/internal/jobqueue"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
@@ -140,6 +142,26 @@ func (m *MediaStore) StartExport(project, space, key string, version int) (Media
 	if err := validateTimeline(p, p.Timeline); err != nil {
 		return MediaExport{}, err
 	}
+	if m.blobs != nil {
+		ids := map[string]bool{}
+		for _, clip := range p.Timeline.Clips {
+			ids[clip.AssetID] = true
+			if clip.AudioAssetID != "" {
+				ids[clip.AudioAssetID] = true
+			}
+		}
+		if p.Timeline.MusicAssetID != "" {
+			ids[p.Timeline.MusicAssetID] = true
+		}
+		for _, track := range p.Timeline.AudioTracks {
+			ids[track.AssetID] = true
+		}
+		for id := range ids {
+			if _, err := m.localBlob(space, project, id); err != nil {
+				return MediaExport{}, err
+			}
+		}
+	}
 	active := 0
 	for _, pp := range d.Projects {
 		for _, e := range pp.Exports {
@@ -152,14 +174,27 @@ func (m *MediaStore) StartExport(project, space, key string, version int) (Media
 		return MediaExport{}, errMediaLimit
 	}
 	e := MediaExport{ID: mediaID(), Status: "running", Timeline: p.Timeline}
+	if m.pg != nil {
+		e.Status = "queued"
+	}
 	for _, c := range e.Timeline.Clips {
 		e.Duration += c.Duration
 	}
 	p.Exports = append(p.Exports, e)
 	d.Projects[k] = p
 	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest, ExportID: e.ID}
+	if m.pg != nil {
+		payload, _ := json.Marshal(map[string]string{"task_id": e.ID, "project_id": project})
+		m.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error {
+			return jobqueue.EnqueueTx(ctx, tx, jobqueue.Job{TenantID: space, ID: e.ID, Kind: "export", IdempotencyKey: project + ":" + key, Payload: payload})
+		}
+		defer func() { m.pg.beforeCommit = nil }()
+	}
 	if err := m.commit(d); err != nil {
 		return MediaExport{}, err
+	}
+	if m.pg != nil {
+		return e, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	m.cancels[e.ID] = cancel
@@ -168,6 +203,13 @@ func (m *MediaStore) StartExport(project, space, key string, version int) (Media
 		defer m.wg.Done()
 		defer cancel()
 		err := m.render(ctx, p, e)
+		if err == nil && m.blobs != nil {
+			for _, ext := range []string{".mp4", ".srt", ".vtt"} {
+				if err = m.storeBlob(space, project, e.ID+ext); err != nil {
+					break
+				}
+			}
+		}
 		m.finishExport(k, e.ID, space, project, err)
 	}()
 	return e, nil
@@ -175,6 +217,11 @@ func (m *MediaStore) StartExport(project, space, key string, version int) (Media
 func (m *MediaStore) finishExport(k, id, space, project string, renderErr error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if err := m.finishExportLocked(k, id, space, project, renderErr); err != nil {
+		slog.Error("media export state persistence failed; restart required", "export_id", id)
+	}
+}
+func (m *MediaStore) finishExportLocked(k, id, space, project string, renderErr error) error {
 	delete(m.cancels, id)
 	d := m.clone()
 	p := d.Projects[k]
@@ -194,11 +241,7 @@ func (m *MediaStore) finishExport(k, id, space, project string, renderErr error)
 		}
 	}
 	d.Projects[k] = p
-	if err := m.commit(d); err != nil {
-		slog.Error("media export state persistence failed; restart required", "export_id", id, "error", err)
-		// Keep the persisted running state; restart reports interruption rather than success.
-		return
-	}
+	return m.commit(d)
 }
 func (m *MediaStore) CancelExport(project, space, key, id string) (MediaExport, error) {
 	m.mu.Lock()
@@ -220,6 +263,12 @@ func (m *MediaStore) CancelExport(project, space, key, id string) (MediaExport, 
 			return *e, nil
 		}
 		if e.Status == "running" || e.Status == "queued" {
+			if m.pg != nil {
+				m.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error {
+					return CancelQueuedPostgresTx(ctx, tx, space, id, "export")
+				}
+				defer func() { m.pg.beforeCommit = nil }()
+			}
 			e.Status = "cancelled"
 			e.Error = "已取消本地合成"
 		}

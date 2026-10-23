@@ -43,8 +43,9 @@ type Job struct {
 	Attempt        int64           `json:"attempt"`
 }
 type Queue struct {
-	DB    *sql.DB
-	Lease time.Duration
+	DB          *sql.DB
+	Lease       time.Duration
+	BeforeClaim func(context.Context) error
 }
 
 func (q Queue) Init(ctx context.Context) error { _, err := q.DB.ExecContext(ctx, Schema); return err }
@@ -73,6 +74,11 @@ func (q Queue) lease() time.Duration {
 // Claim recovers only work that has not crossed the durable dispatch boundary.
 // Expired dispatched work is unknown and never submitted a second time.
 func (q Queue) Claim(ctx context.Context, kind string) (Job, bool, error) {
+	if q.BeforeClaim != nil {
+		if err := q.BeforeClaim(ctx); err != nil {
+			return Job{}, false, err
+		}
+	}
 	if kind == "" {
 		return Job{}, false, errors.New("job kind required")
 	}
@@ -147,12 +153,24 @@ func (q Queue) Finish(ctx context.Context, j Job, state string, result json.RawM
 }
 
 // Cancellation after dispatch records uncertainty, never implies a refund.
-func (q Queue) Cancel(ctx context.Context, tenant, id string) error {
+func CancelTx(ctx context.Context, tx *sql.Tx, tenant, id string) error {
 	if tenant == "" || id == "" {
 		return errors.New("tenant and job required")
 	}
-	return affected(q.DB.ExecContext(ctx, `UPDATE execution_jobs SET state=CASE WHEN state='dispatch_started' THEN 'unknown' ELSE 'canceled' END,lease_token='',lease_until=NULL,updated_at=clock_timestamp() WHERE tenant_id=$1 AND id=$2 AND state IN ('queued','leased','dispatch_started')`, tenant, id))
+	return affected(tx.ExecContext(ctx, `UPDATE execution_jobs SET state=CASE WHEN state='dispatch_started' THEN 'unknown' ELSE 'canceled' END,lease_token='',lease_until=NULL,updated_at=clock_timestamp() WHERE tenant_id=$1 AND id=$2 AND state IN ('queued','leased','dispatch_started')`, tenant, id))
 }
+func (q Queue) Cancel(ctx context.Context, tenant, id string) error {
+	tx, err := q.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err = CancelTx(ctx, tx, tenant, id); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (q Queue) Get(ctx context.Context, tenant, id string) (Job, error) {
 	var j Job
 	if tenant == "" || id == "" {
@@ -160,4 +178,27 @@ func (q Queue) Get(ctx context.Context, tenant, id string) (Job, error) {
 	}
 	err := q.DB.QueryRowContext(ctx, `SELECT tenant_id,id,kind,idempotency_key,payload,state,attempt FROM execution_jobs WHERE tenant_id=$1 AND id=$2`, tenant, id).Scan(&j.TenantID, &j.ID, &j.Kind, &j.IdempotencyKey, &j.Payload, &j.State, &j.Attempt)
 	return j, err
+}
+
+// CheckLeaseTx fences a domain side effect without ending the job. The row lock
+// is retained until the caller commits; revocation and completion serialize with
+// that commit, so a stale worker cannot publish an asset or upstream ID.
+func CheckLeaseTx(ctx context.Context, tx *sql.Tx, j Job) error {
+	var id string
+	err := tx.QueryRowContext(ctx, `SELECT id FROM execution_jobs WHERE tenant_id=$1 AND id=$2 AND lease_token=$3 AND state IN ('leased','dispatch_started') AND lease_until>clock_timestamp() FOR UPDATE`, j.TenantID, j.ID, j.Token).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrLeaseLost
+	}
+	return err
+}
+
+// ResumeTx schedules an explicitly requested read-only recovery attempt. The
+// caller must validate a durable upstream ID and free-query policy before this
+// transaction. It never authorizes another generation submission.
+func ResumeTx(ctx context.Context, tx *sql.Tx, j Job) error {
+	if j.TenantID == "" || j.ID == "" || (j.Kind != "creative_resume" && j.Kind != "image_resume") || j.IdempotencyKey == "" || !json.Valid(j.Payload) || len(j.Payload) > 65536 {
+		return errors.New("invalid recovery job")
+	}
+	r, err := tx.ExecContext(ctx, `UPDATE execution_jobs SET kind=$3,idempotency_key=$4,payload=$5,state='queued',lease_token='',lease_until=NULL,updated_at=clock_timestamp() WHERE tenant_id=$1 AND id=$2 AND state IN ('unknown','failed','canceled')`, j.TenantID, j.ID, j.Kind, j.IdempotencyKey, []byte(j.Payload))
+	return affected(r, err)
 }

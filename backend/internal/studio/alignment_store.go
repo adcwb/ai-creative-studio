@@ -2,8 +2,10 @@ package studio
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/adcwb/ai-creative-studio/backend/internal/jobqueue"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -14,6 +16,7 @@ import (
 )
 
 type AlignmentInput struct {
+	ModelRequest
 	ClipID           string `json:"clip_id"`
 	AudioAssetID     string `json:"audio_asset_id,omitempty"`
 	Mode             string `json:"mode"`
@@ -23,28 +26,29 @@ type AlignmentInput struct {
 	ExpectedModel    string `json:"expected_model,omitempty"`
 }
 type AlignmentTask struct {
-	ID            string        `json:"id"`
-	ProjectID     string        `json:"project_id"`
-	SpaceID       string        `json:"space_id"`
-	ClipID        string        `json:"clip_id"`
-	AudioAssetID  string        `json:"audio_asset_id"`
-	AudioMIME     string        `json:"audio_mime"`
-	AudioDuration float64       `json:"audio_duration"`
-	Mode          string        `json:"mode"`
-	Provider      string        `json:"provider"`
-	Model         string        `json:"model,omitempty"`
-	Status        string        `json:"status"`
-	SourceVersion int           `json:"source_version"`
-	Duration      float64       `json:"duration"`
-	TrimStart     float64       `json:"trim_start"`
-	Text          string        `json:"text"`
-	Cues          []SubtitleCue `json:"cues"`
-	Warnings      []string      `json:"warnings"`
-	TimingBasis   string        `json:"timing_basis"`
-	Error         string        `json:"error,omitempty"`
-	ErrorCode     string        `json:"error_code,omitempty"`
-	CreatedAt     time.Time     `json:"created_at"`
-	UpdatedAt     time.Time     `json:"updated_at"`
+	RuntimeSelection *RuntimeSelection `json:"runtime_selection,omitempty"`
+	ID               string            `json:"id"`
+	ProjectID        string            `json:"project_id"`
+	SpaceID          string            `json:"space_id"`
+	ClipID           string            `json:"clip_id"`
+	AudioAssetID     string            `json:"audio_asset_id"`
+	AudioMIME        string            `json:"audio_mime"`
+	AudioDuration    float64           `json:"audio_duration"`
+	Mode             string            `json:"mode"`
+	Provider         string            `json:"provider"`
+	Model            string            `json:"model,omitempty"`
+	Status           string            `json:"status"`
+	SourceVersion    int               `json:"source_version"`
+	Duration         float64           `json:"duration"`
+	TrimStart        float64           `json:"trim_start"`
+	Text             string            `json:"text"`
+	Cues             []SubtitleCue     `json:"cues"`
+	Warnings         []string          `json:"warnings"`
+	TimingBasis      string            `json:"timing_basis"`
+	Error            string            `json:"error,omitempty"`
+	ErrorCode        string            `json:"error_code,omitempty"`
+	CreatedAt        time.Time         `json:"created_at"`
+	UpdatedAt        time.Time         `json:"updated_at"`
 }
 type alignmentReceipt struct {
 	Digest string `json:"digest"`
@@ -56,9 +60,12 @@ type alignmentDisk struct {
 	Receipts map[string]alignmentReceipt `json:"receipts"`
 }
 type AlignmentStore struct {
+	pg         *postgresScope
+	execution  *ExecutionGovernor
+	runtime    *ModelRuntime
 	forced     AlignmentProvider
 	forcedCaps Capabilities
-	mu         sync.Mutex
+	mu         stateMutex
 	path       string
 	data       alignmentDisk
 	provider   AlignmentProvider
@@ -72,9 +79,14 @@ type AlignmentStore struct {
 func estimateAlignmentCapabilities() Capabilities {
 	return Capabilities{Provider: "local-text-estimate", Mode: "mock", Ready: true, Message: "按文本估算：仅按句子字数分配时长，不识别音频、停顿或说话人；必须试听并人工校准。"}
 }
-func openAlignmentStore(dir string) (*AlignmentStore, error) {
+func openAlignmentStore(dir string, database ...*sql.DB) (*AlignmentStore, error) {
 	a := &AlignmentStore{path: filepath.Join(dir, "alignments.json"), data: alignmentDisk{Version: 1, Tasks: map[string]AlignmentTask{}, Receipts: map[string]alignmentReceipt{}}, cancels: map[string]context.CancelFunc{}, caps: Capabilities{Provider: "unavailable", Mode: "unavailable", Message: "未配置ASR；可按文本估算并人工校准。"}}
 	a.forcedCaps = Capabilities{Provider: "unavailable", Mode: "unavailable", Message: "未配置强制对齐模型。"}
+	if len(database) > 0 {
+		var err error
+		a.pg, err = attachPostgres(database[0], "alignment", &a.data, &a.mu)
+		return a, err
+	}
 	b, err := os.ReadFile(a.path)
 	if err == nil {
 		var d alignmentDisk
@@ -117,6 +129,13 @@ func (a *AlignmentStore) cloneLocked() alignmentDisk {
 	return d
 }
 func (a *AlignmentStore) commitLocked(d alignmentDisk) (err error) {
+	if a.pg != nil {
+		if err := a.pg.save(d); err != nil {
+			return err
+		}
+		a.data = d
+		return nil
+	}
 	defer func() {
 		if err != nil {
 			a.failure = err
@@ -231,10 +250,13 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 	if in.Mode == "forced" {
 		caps = a.forcedCaps
 	}
-	if !caps.Ready || (in.Mode == "asr" && a.provider == nil) || (in.Mode == "forced" && a.forced == nil) {
+	if in.selection != nil {
+		caps = in.selectedCaps
+	}
+	if !caps.Ready || (in.selection == nil && ((in.Mode == "asr" && a.provider == nil) || (in.Mode == "forced" && a.forced == nil))) {
 		return AlignmentTask{}, false, ErrProviderNotReady
 	}
-	if (in.ExpectedProvider != "" && in.ExpectedProvider != caps.Provider) || (in.Mode != "estimate" && (in.ExpectedProvider != caps.Provider || in.ExpectedModel == "" || in.ExpectedModel != caps.Model)) {
+	if (in.ExpectedProvider != "" && in.ExpectedProvider != caps.Provider) || (in.Mode != "estimate" && in.selection == nil && (in.ExpectedProvider != caps.Provider || in.ExpectedModel == "" || in.ExpectedModel != caps.Model)) || (in.ExpectedModel != "" && in.ExpectedModel != caps.Model) {
 		return AlignmentTask{}, false, ErrProviderChanged
 	}
 	recent, paid, active := 0, 0, 0
@@ -261,12 +283,28 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 		}
 	}
 	now := time.Now().UTC()
-	task := AlignmentTask{ID: mediaID(), ProjectID: project, SpaceID: space, ClipID: clip.ID, AudioAssetID: clip.AudioAssetID, AudioMIME: audio.MIMEType, AudioDuration: audio.Duration, Mode: in.Mode, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Duration: clip.Duration, TrimStart: clip.TrimStart, Text: in.Text, Cues: []SubtitleCue{}, Warnings: []string{}, CreatedAt: now, UpdatedAt: now}
+	task := AlignmentTask{RuntimeSelection: cloneRuntimeSelection(in.selection), ID: mediaID(), ProjectID: project, SpaceID: space, ClipID: clip.ID, AudioAssetID: clip.AudioAssetID, AudioMIME: audio.MIMEType, AudioDuration: audio.Duration, Mode: in.Mode, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Duration: clip.Duration, TrimStart: clip.TrimStart, Text: in.Text, Cues: []SubtitleCue{}, Warnings: []string{}, CreatedAt: now, UpdatedAt: now}
 	d := a.cloneLocked()
 	d.Tasks[task.ID] = task
 	d.Receipts[rk] = alignmentReceipt{Digest: digest, TaskID: task.ID}
+	if a.pg != nil {
+		payload, _ := json.Marshal(map[string]string{"task_id": task.ID, "project_id": project})
+		a.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error {
+			if task.RuntimeSelection != nil {
+				sel := task.RuntimeSelection
+				if err := ReservePostgresTx(ctx, tx, "alignment:"+task.ID, space, task.Provider, task.Model, sel.Currency, sel.MaximumMinor); err != nil {
+					return err
+				}
+			}
+			return jobqueue.EnqueueTx(ctx, tx, jobqueue.Job{TenantID: space, ID: task.ID, Kind: "alignment", IdempotencyKey: project + ":" + key, Payload: payload})
+		}
+		defer func() { a.pg.beforeCommit = nil }()
+	}
 	if err := a.commitLocked(d); err != nil {
 		return AlignmentTask{}, false, err
+	}
+	if a.pg != nil {
+		return task, true, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	a.cancels[task.ID] = cancel
@@ -321,6 +359,12 @@ func (a *AlignmentStore) cancel(project, space, key, id string) (AlignmentTask, 
 	d := a.cloneLocked()
 	d.Tasks[id] = t
 	d.Receipts[rk] = alignmentReceipt{Digest: digest, TaskID: id}
+	if a.pg != nil {
+		a.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error {
+			return CancelQueuedPostgresTx(ctx, tx, space, id, "alignment")
+		}
+		defer func() { a.pg.beforeCommit = nil }()
+	}
 	if err := a.commitLocked(d); err != nil {
 		return AlignmentTask{}, err
 	}
@@ -330,21 +374,31 @@ func (a *AlignmentStore) cancel(project, space, key, id string) (AlignmentTask, 
 	return cloneAlignmentTask(t), nil
 }
 func (a *AlignmentStore) run(ctx context.Context, m *MediaStore, id string) {
+	_ = a.runTask(ctx, m, id, nil)
+}
+func (a *AlignmentStore) runTask(ctx context.Context, m *MediaStore, id string, lease *jobqueue.Job) error {
 	a.mu.Lock()
 	task := a.data.Tasks[id]
 	if task.Status != "queued" || a.closed {
 		delete(a.cancels, id)
 		a.mu.Unlock()
-		return
+		return context.Canceled
 	}
 	task.Status = "running"
 	task.UpdatedAt = time.Now().UTC()
 	d := a.cloneLocked()
 	d.Tasks[id] = task
-	if err := a.commitLocked(d); err != nil {
+	if lease != nil {
+		a.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error { return jobqueue.CheckLeaseTx(ctx, tx, *lease) }
+	}
+	initialErr := a.commitLocked(d)
+	if a.pg != nil {
+		a.pg.beforeCommit = nil
+	}
+	if initialErr != nil {
 		delete(a.cancels, id)
 		a.mu.Unlock()
-		return
+		return initialErr
 	}
 	provider, caps := a.provider, a.caps
 	if task.Mode == "forced" {
@@ -356,7 +410,7 @@ func (a *AlignmentStore) run(ctx context.Context, m *MediaStore, id string) {
 		task.Cues, err = estimateSubtitleCues(task.Text, task.Duration)
 		task.TimingBasis = "text-estimate"
 		task.Warnings = []string{"按文本估算，不识别音频；停顿、语速和说话人均未检测，请试听并人工调整。"}
-	} else if provider == nil || !caps.Ready || caps.Provider != task.Provider || caps.Model == "" || caps.Model != task.Model {
+	} else if task.RuntimeSelection == nil && (provider == nil || !caps.Ready || caps.Provider != task.Provider || caps.Model == "" || caps.Model != task.Model) {
 		err = providerFailure("provider_unavailable")
 	} else {
 		var path, mime string
@@ -373,7 +427,24 @@ func (a *AlignmentStore) run(ctx context.Context, m *MediaStore, id string) {
 			}
 			if err == nil {
 				var result AlignmentResult
-				if task.Mode == "forced" {
+				if task.RuntimeSelection != nil {
+					parameters, _ := json.Marshal(struct {
+						Mode                               string
+						AudioDuration, Duration, TrimStart float64
+					}{task.Mode, task.AudioDuration, task.Duration, task.TrimStart})
+					err = a.execution.ExecuteRuntime(ctx, a.runtime, ExecutionRequest{ID: "alignment:" + task.ID, Tenant: task.SpaceID, Provider: task.Provider, Model: task.Model, Capability: "asr", Text: task.Text, Parameters: parameters, HasMedia: true, Media: []ExecutionMedia{{Data: data, MIME: mime}}, Selection: task.RuntimeSelection}, func(ctx context.Context, p RuntimeProviders) error {
+						if p.Alignment == nil {
+							return ErrExecutionGovernance
+						}
+						var runErr error
+						result, runErr = p.Alignment.Transcribe(ctx, data, mime, task.AudioDuration)
+						if runErr == nil {
+							raw, _ := json.Marshal(result)
+							runErr = a.execution.ReviewResult(ctx, ExecutionRequest{ID: "alignment:" + task.ID, Selection: task.RuntimeSelection, Tenant: task.SpaceID, Provider: task.Provider, Model: task.Model, Capability: "text", Text: string(raw)})
+						}
+						return runErr
+					})
+				} else if task.Mode == "forced" {
 					aligner, ok := provider.(ForcedAlignmentProvider)
 					if !ok {
 						err = providerFailure("unsupported_capability")
@@ -414,11 +485,14 @@ func (a *AlignmentStore) run(ctx context.Context, m *MediaStore, id string) {
 	if err == nil {
 		err = ctx.Err()
 	}
+	if lease != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	defer delete(a.cancels, id)
 	if a.data.Tasks[id].Status == "cancelled" || a.closed {
-		return
+		return context.Canceled
 	}
 	task.UpdatedAt = time.Now().UTC()
 	if err != nil {
@@ -430,7 +504,17 @@ func (a *AlignmentStore) run(ctx context.Context, m *MediaStore, id string) {
 	}
 	d = a.cloneLocked()
 	d.Tasks[id] = task
-	_ = a.commitLocked(d)
+	if lease != nil {
+		state := "succeeded"
+		if err != nil {
+			state = "failed"
+		}
+		a.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error {
+			return jobqueue.FinishTx(ctx, tx, *lease, state, json.RawMessage(`{}`))
+		}
+		defer func() { a.pg.beforeCommit = nil }()
+	}
+	return a.commitLocked(d)
 }
 
 // Called while media.mu is held. Alignment workers never hold alignment.mu
