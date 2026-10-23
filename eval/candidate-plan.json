@@ -1,0 +1,191 @@
+{
+  "version": 1,
+  "status": "awaiting_credentials_and_transport_confirmation",
+  "selection_source": "parent task official-document review; not independently live verified",
+  "live_authorized": false,
+  "retry_policy": "never automatically retry paid requests",
+  "default_currency": "USD",
+  "budgets": [
+    {
+      "currency": "USD",
+      "proposed_micros": 3000000,
+      "approved_micros": 3000000,
+      "approved_minor": 300
+    },
+    {
+      "currency": "CNY",
+      "proposed_micros": 5000000,
+      "approved_micros": 5000000,
+      "approved_minor": 500
+    }
+  ],
+  "currency_policy": "separate ledgers; no exchange, transfer or top-up",
+  "cases": [
+    {
+      "provider": "openai-text",
+      "model": "gpt-6.1-sol",
+      "kind": "analysis",
+      "calls": 1,
+      "max_input_tokens": 2000,
+      "max_output_tokens_including_thinking": 500,
+      "adapter_status": "token_limits_require_harness_support"
+    },
+    {
+      "provider": "anthropic-text",
+      "model": "claude-sonnet-5-5",
+      "kind": "analysis",
+      "calls": 1,
+      "max_input_tokens": 2000,
+      "max_output_tokens_including_thinking": 500,
+      "forbidden_parameters": [
+        "temperature",
+        "top_p",
+        "top_k"
+      ],
+      "adapter_status": "token_limits_require_harness_support"
+    },
+    {
+      "provider": "gemini-text",
+      "model": "gemini-3.8-flash",
+      "kind": "analysis",
+      "calls": 1,
+      "max_input_tokens": 2000,
+      "max_output_tokens_including_thinking": 500,
+      "adapter_status": "model_protocol_and_token_limits_require_review"
+    },
+    {
+      "provider": "minimax-text",
+      "model": "MiniMax-M3.1-Flash",
+      "kind": "analysis",
+      "calls": 1,
+      "max_input_tokens": 2000,
+      "max_output_tokens_including_thinking": 500,
+      "adapter_status": "token_limits_require_harness_support"
+    },
+    {
+      "provider": "ark-text",
+      "model": "doubao-seed-2-1-lite-260915",
+      "kind": "analysis",
+      "calls": 1,
+      "max_input_tokens": 2000,
+      "max_output_tokens_including_thinking": 500,
+      "adapter_status": "token_limits_require_harness_support"
+    },
+    {
+      "provider": "openai-images",
+      "model": "gpt-image-2.5-sunburst",
+      "kind": "image",
+      "calls": 2,
+      "scenarios": [
+        "original",
+        "reference"
+      ],
+      "adapter_status": "model_parameters_require_review; reference_harness_pending"
+    },
+    {
+      "provider": "gemini-interactions-images",
+      "model": "gemini-nano-banana-2.1",
+      "kind": "image",
+      "calls": 2,
+      "scenarios": [
+        "original",
+        "reference"
+      ],
+      "adapter_status": "reference_harness_pending"
+    },
+    {
+      "provider": "ark-images",
+      "model": "doubao-seedream-5-0-flash-260915",
+      "kind": "image",
+      "calls": 2,
+      "scenarios": [
+        "original",
+        "reference"
+      ],
+      "adapter_status": "model_parameters_require_review; reference_harness_pending"
+    },
+    {
+      "provider": "jimeng-images",
+      "model": "jimeng_seedream46_cvtob",
+      "configuration_field": "JIMENG_REQ_KEY",
+      "kind": "image",
+      "calls": 2,
+      "scenarios": [
+        "original",
+        "reference"
+      ],
+      "adapter_status": "reference_bridge_needs_authorized_public_object_origin; reference_harness_pending"
+    },
+    {
+      "provider": "gemini-video",
+      "model": "gemini-omni-1.1-flash",
+      "kind": "video",
+      "calls": 1,
+      "seconds": 10,
+      "resolution": "720p",
+      "adapter_status": "duration_parameter_requires_review"
+    },
+    {
+      "provider": "minimax-video",
+      "model": "MiniMax-H3-Lite",
+      "kind": "video",
+      "calls": 1,
+      "seconds": 4,
+      "resolution": "480p",
+      "adapter_status": "current_adapter_5s_768p_must_not_execute_this_plan"
+    },
+    {
+      "provider": "ark-video",
+      "model": "doubao-seedance-2-0-mini-260615",
+      "kind": "video",
+      "calls": 1,
+      "seconds": 5,
+      "resolution": "480p",
+      "adapter_status": "resolution_and_model_require_review"
+    },
+    {
+      "provider": "minimax-speech",
+      "model": "speech-2.8-turbo",
+      "kind": "speech",
+      "calls": 1,
+      "max_characters": 200,
+      "adapter_status": "voice_and_model_require_review"
+    },
+    {
+      "provider": "openai-asr",
+      "model": "gpt-transcribe",
+      "kind": "asr",
+      "calls": 1,
+      "max_seconds": 30,
+      "adapter_status": "unsupported_current_adapter_whisper_1_verbose_json_only; do_not_substitute"
+    }
+  ],
+  "excluded": [
+    {
+      "provider": "openai-video",
+      "reason": "parent official review: Sora retired"
+    },
+    {
+      "provider": "openai-speech",
+      "reason": "parent official review: deprecated; excluded from initial acceptance"
+    },
+    {
+      "provider": "jimeng-video",
+      "reason": "no verified available official interface"
+    }
+  ],
+  "official_sources_supplied_by_parent": [
+    "https://developers.openai.com/api/docs/pricing",
+    "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
+    "https://ai.google.dev/gemini-api/docs/pricing",
+    "https://platform.minimax.io/docs/pricing/overview",
+    "https://console.volcengine.com/ark/region:cn-beijing/docs/model-pricing",
+    "https://docs.volcengine.com/docs/JimengAI/JimengAI-imagegenerationbillinginstructions?lang=zh"
+  ],
+  "execution_authorized": false,
+  "blockers": [
+    "credentials_missing",
+    "secure_authentication_transport_not_confirmed",
+    "per_case_adapter_compatibility_checks_pending"
+  ]
+}
