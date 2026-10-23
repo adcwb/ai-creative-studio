@@ -6,9 +6,9 @@ export function TaskMetadata({task, catalog}: {task: Pick<Task, 'kind' | 'ratio'
   return <div className="metadata"><span>{kindLabels[task.kind]}</span><span>{task.ratio}</span><span>{catalog?.styles.find(style => style.value === task.style)?.label ?? task.style}</span></div>
 }
 
-export function TaskList({tasks, catalog, loading, error, savedIds, saving, busy, onSave, onDetail, onEdit}: {
+export function TaskList({tasks, catalog, loading, error, savedIds, saving, busy, onSave, onDetail, onEdit, onResume}: {
   tasks: Task[]; catalog: Catalog | null; loading: boolean; error: string; savedIds: Set<string>; saving: string | null; busy: boolean
-  onSave: (task: Task) => void; onDetail: (task: Task) => void; onEdit: (task: Task) => void
+  onSave: (task: Task) => void; onDetail: (task: Task) => void; onEdit: (task: Task) => void; onResume: (task: Task) => Promise<void>
 }) {
   return <section className="panel results" aria-labelledby="results-title">
     <div className="section-heading"><div><span className="eyebrow">YOUR CREATIVE JOURNEY</span><h2 id="results-title">创作记录 <span className="count">{tasks.length}</span></h2></div><span className="live-label"><span />自动更新</span></div>
@@ -19,7 +19,7 @@ export function TaskList({tasks, catalog, loading, error, savedIds, saving, busy
       {(task.status === 'queued' || task.status === 'running') && <div className="progress-block"><progress aria-label="任务进度" max="100" value={task.progress} /><span>任务进度 {task.progress}% · 请稍候</span></div>}
       {task.error && <p className="error task-error">{task.error}</p>}
       {task.retry_of && <p className="retry-reference">重试自 <code>{task.retry_of}</code></p>}
-      <div className="task-bottom"><button type="button" className="text-button" onClick={() => onDetail(task)}>查看详情<Icon name="arrow" /></button>{task.status === 'succeeded' && <button type="button" className="save-button" disabled={saving !== null || savedIds.has(task.id)} onClick={() => onSave(task)}>{savedIds.has(task.id) ? <><Icon name="check" />已保存</> : saving === task.id ? '保存中…' : '保存到素材库'}</button>}{task.status === 'failed' && <button type="button" disabled={busy} onClick={() => onEdit(task)}><Icon name="refresh" />编辑后重试</button>}</div>
+      <div className="task-bottom"><button type="button" className="text-button" onClick={() => onDetail(task)}>查看详情<Icon name="arrow" /></button>{task.status === 'succeeded' && <button type="button" className="save-button" disabled={saving !== null || savedIds.has(task.id)} onClick={() => onSave(task)}>{savedIds.has(task.id) ? <><Icon name="check" />已保存</> : saving === task.id ? '保存中…' : '保存到素材库'}</button>}{task.status === 'failed' && task.upstream_id && <button type="button" disabled={busy} onClick={() => {void onResume(task)}}>继续查询原任务</button>}{task.status === 'failed' && <button type="button" disabled={busy} onClick={() => onEdit(task)}><Icon name="refresh" />编辑后重试</button>}</div>
     </article>)}</div>}
   </section>
 }

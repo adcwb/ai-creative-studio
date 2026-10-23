@@ -4,9 +4,9 @@ import { resultImageAlt, resultOriginLabel, resultProviderLabel, taskStatusLabel
 import { Icon } from './Icon'
 import { TaskMetadata } from './TaskList'
 
-export function TaskDetail({id, space, catalog, saved, saving, busy, actionError, notice, onClose, onUpdate, onSave, onEdit}: {
+export function TaskDetail({id, space, catalog, saved, saving, busy, actionError, notice, onClose, onUpdate, onSave, onEdit, onResume}: {
   id: string; space: string; catalog: Catalog | null; saved: boolean; saving: string | null; busy: boolean; actionError: string; notice: string
-  onClose: () => void; onUpdate: (task: Task) => void; onSave: (task: Task) => void; onEdit: (task: Task) => void
+  onClose: () => void; onUpdate: (task: Task) => void; onSave: (task: Task) => void; onEdit: (task: Task) => void; onResume: (task: Task) => Promise<void>
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [task, setTask] = useState<Task | null>(null)
@@ -53,7 +53,7 @@ export function TaskDetail({id, space, catalog, saved, saving, busy, actionError
         <dl><div><dt>任务编号</dt><dd><code>{task.id}</code></dd></div><div><dt>创建时间</dt><dd>{new Date(task.created_at).toLocaleString('zh-CN')}</dd></div><div><dt>图像提供方</dt><dd>{resultProviderLabel(task)}</dd></div>{task.model && <div><dt>模型</dt><dd>{task.model}</dd></div>}{task.result_mime && <div><dt>结果格式</dt><dd>{task.result_mime}</dd></div>}{task.result_width && task.result_height && <div><dt>实际尺寸</dt><dd>{task.result_width} × {task.result_height} px</dd></div>}{task.error_code && <div><dt>失败代码</dt><dd><code>{task.error_code}</code></dd></div>}{task.retry_of && <div><dt>原任务编号</dt><dd><code>{task.retry_of}</code></dd></div>}</dl>
       </div></div>
       {actionError && <div className="error" role="alert">{actionError}</div>}{notice && <p className="notice" role="status">{notice}</p>}
-      <div className="dialog-actions"><span>{task.provider === 'mock-svg' ? '模拟流程演示' : '来源按任务记录保留'} · 结果持久化保存</span>{task.status === 'succeeded' && <button type="button" className="primary" disabled={saved || saving !== null} onClick={() => onSave(task)}>{saved ? <><Icon name="check" />已保存</> : saving === task.id ? '保存中…' : '保存到素材库'}</button>}{task.status === 'failed' && <button type="button" className="primary" disabled={busy} onClick={() => onEdit(task)}><Icon name="refresh" />编辑后重试</button>}</div>
+      <div className="dialog-actions"><span>{task.provider === 'mock-svg' ? '模拟流程演示' : '来源按任务记录保留'} · 结果持久化保存</span>{task.status === 'succeeded' && <button type="button" className="primary" disabled={saved || saving !== null} onClick={() => onSave(task)}>{saved ? <><Icon name="check" />已保存</> : saving === task.id ? '保存中…' : '保存到素材库'}</button>}{task.status === 'failed' && task.upstream_id && <button type="button" disabled={busy} onClick={() => {void onResume(task).then(() => setRevision(value => value + 1))}}>继续查询原任务</button>}{task.status === 'failed' && <button type="button" className="primary" disabled={busy} onClick={() => onEdit(task)}><Icon name="refresh" />编辑后重试</button>}</div>
     </>}
   </dialog>
 }

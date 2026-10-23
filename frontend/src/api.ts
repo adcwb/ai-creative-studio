@@ -1,17 +1,17 @@
 export type Kind = 'poster' | 'portrait' | 'general'
 export type Ratio = '1:1' | '4:5' | '16:9'
 export type Style = 'natural' | 'studio' | 'illustration'
-export type Provider = 'mock-svg' | 'openai-images'
+export type Provider = 'mock-svg' | 'openai-images' | 'gemini-images' | 'ark-images' | 'jimeng-images' | 'minimax-images'
 export interface Capabilities {
   provider: Provider | 'unavailable'; mode: 'mock' | 'real' | 'unavailable'; ready: boolean
-  model?: string; reason_code?: 'missing_api_key' | 'invalid_provider' | 'invalid_configuration'; message: string
+  model?: string; reason_code?: string; message: string
 }
 export interface ResultSource { provider: Provider; model?: string; result_mime?: string; result_width?: number; result_height?: number }
 export interface TaskInput { prompt: string; kind: Kind; ratio: Ratio; style: Style }
 export interface Task extends TaskInput, ResultSource {
   id: string; space_id: string
   status: 'queued' | 'running' | 'succeeded' | 'failed'; progress: number
-  result_url?: string; error?: string; error_code?: string; created_at: string; retry_of?: string
+  result_url?: string; error?: string; error_code?: string; created_at: string; retry_of?: string; upstream_id?: string
 }
 export interface Asset extends TaskInput, ResultSource { id: string; task_id: string; space_id: string; result_url: string }
 export interface Template extends TaskInput { id: string; name: string; description: string }

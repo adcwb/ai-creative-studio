@@ -11,7 +11,7 @@ export function ProviderBanner({capability, error, onRefresh}: {capability: Capa
     <div><strong>{!ready ? '图像服务暂不可用' : mock ? '模拟演示模式' : '真实图像服务 · 配置就绪'}</strong><p>{capability.message}</p>
       {ready && !mock && <p>配置就绪不代表远端凭据与额度已验证。提交会请求真实图像服务，可能产生费用。</p>}
       {!ready && <p>创建与重试已暂停；历史记录仍可使用，草稿会保留至服务恢复。</p>}
-      {capability.model && <p className="provider-model">模型：{capability.model}</p>}
+      <p className="provider-model">供应商：{capability.provider}</p>{capability.model && <p className="provider-model">模型：{capability.model}</p>}
     </div><div className="banner-controls"><span className="banner-tag">{ready ? mock ? '无需模型凭据' : '可能产生费用' : '等待服务配置'}</span><button type="button" className="text-button" onClick={onRefresh}>重新检查图像服务</button></div>
   </div>
 }

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, baseURL, errorMessage, request } from '../api'
+import { SubtitleAlignment, type AlignmentCapability, type AlignmentTask, type SubtitleFields } from './SubtitleAlignment'
 import { ConfirmDialog } from './ConfirmDialog'
 import type { DramaProject } from '../drama'
 
 interface MediaAsset { id: string; kind: 'image' | 'audio' | 'video'; mime_type: string; name: string; role: string; character: string; shot_id: string; duration: number; source: string; file_url: string }
-interface Clip { id: string; asset_id: string; duration: number; trim_start: number; subtitle: string; audio_asset_id: string; audio_volume: number }
+interface Clip extends SubtitleFields { id: string; asset_id: string; duration: number; trim_start: number; subtitle: string; audio_asset_id: string; audio_volume: number }
 interface Timeline { clips: Clip[]; music_asset_id: string; music_volume: number }
 interface Export { id: string; status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'; file_url?: string; subtitle_url?: string; subtitle_vtt_url?: string; error?: string; duration?: number }
 interface MediaState { version: number; assets: MediaAsset[]; timeline: Timeline; exports: Export[] }
@@ -13,6 +14,9 @@ const emptyTimeline: Timeline = {clips: [], music_asset_id: '', music_volume: 0.
 function mediaURL(url: string) { return url.startsWith('/') ? `${baseURL}${url}` : '' }
 
 export function MediaStudio({project, space, onDirtyChange}: {project: DramaProject; space: string; onDirtyChange: (dirty: boolean) => void}) {
+  const [alignmentError, setAlignmentError] = useState('')
+  const [alignments, setAlignments] = useState<AlignmentTask[]>([])
+  const [alignmentCaps, setAlignmentCaps] = useState<Partial<Record<'estimate' | 'asr', AlignmentCapability>>>({})
   const [state, setState] = useState<MediaState | null>(null)
   const [baselineVersion, setBaselineVersion] = useState(0)
   const [timeline, setTimeline] = useState<Timeline>(emptyTimeline)
@@ -41,9 +45,11 @@ export function MediaStudio({project, space, onDirtyChange}: {project: DramaProj
     if (!alive.current) return
     setState(result)
     if (replace || !dirtyRef.current) {setTimeline(result.timeline); setBaselineVersion(result.version)}
+    try {const tasks = await request<AlignmentTask[]>(`${path}/alignments?${query}`); if (alive.current) {setAlignments(tasks); setAlignmentError('')}} catch (failure) {if (alive.current) setAlignmentError(errorMessage(failure, '字幕对齐记录读取失败'))}
   }, [path, query])
   useEffect(() => {
     alive.current = true
+    void request<Partial<Record<'estimate' | 'asr', AlignmentCapability>>>('/alignment-capabilities').then(result => {if (alive.current) setAlignmentCaps(result)}).catch(() => {if (alive.current) setAlignmentCaps({asr: {provider: 'unavailable', mode: 'unavailable', ready: false, message: '无法读取识别配置，请刷新后重试'}})})
     void load().catch(failure => {if (alive.current) setError(errorMessage(failure, '媒体读取失败'))})
     const timer = setInterval(() => {if (!inFlight.current) void load().catch(() => {})}, 2000)
     return () => {alive.current = false; clearInterval(timer)}
@@ -93,7 +99,10 @@ export function MediaStudio({project, space, onDirtyChange}: {project: DramaProj
       upload(blob, `edited-${photo.name.replace(/\.[^.]+$/, '')}.png`)
     } catch (failure) {setError(errorMessage(failure, '照片编辑失败'))}
   }
-  function updateClip(index: number, patch: Partial<Clip>) {setTimeline({...timeline, clips: timeline.clips.map((clip, i) => i === index ? {...clip, ...patch} : clip)})}
+  function updateClip(index: number, patch: Partial<Clip>) {
+    const affectsTiming = 'duration' in patch || 'trim_start' in patch || 'audio_asset_id' in patch
+    setTimeline({...timeline, clips: timeline.clips.map((clip, i) => i === index ? {...clip, ...patch, ...(affectsTiming && clip.subtitle_cues?.length ? {subtitle_source: 'manual' as const} : {})} : clip)})
+  }
   function move(index: number, delta: number) {const clips = [...timeline.clips]; [clips[index], clips[index + delta]] = [clips[index + delta], clips[index]]; setTimeline({...timeline, clips})}
   const locked = busy || uncertain
   const visual = state?.assets.filter(asset => asset.kind !== 'audio') ?? []
@@ -115,12 +124,14 @@ export function MediaStudio({project, space, onDirtyChange}: {project: DramaProj
       <div className="media-assets">{state.assets.map(asset => <article key={asset.id}>{asset.kind === 'image' ? <img src={mediaURL(asset.file_url)} alt={asset.name} loading="lazy" /> : asset.kind === 'video' ? <video src={mediaURL(asset.file_url)} controls preload="metadata" /> : <audio src={mediaURL(asset.file_url)} controls preload="metadata" />}<strong>{asset.name}</strong><p>{asset.role} {asset.character} · {asset.source}</p>{asset.shot_id && <p>已关联镜头 {(project.storyboard?.shots.findIndex(shot => shot.id === asset.shot_id) ?? -1) + 1}</p>}{asset.kind !== 'audio' && <button disabled={locked || timeline.clips.length >= 30} onClick={() => setTimeline({...timeline, clips: [...timeline.clips, {id: crypto.randomUUID(), asset_id: asset.id, duration: Math.min(asset.duration || 3, 30), trim_start: 0, subtitle: '', audio_asset_id: '', audio_volume: 1}]})}>加入时间轴</button>}</article>)}</div>
       {state.assets.length === 0 && <p className="drama-help">还没有媒体。上传素材，或使用明确标注的合成演示验证本地成片。</p>}
       <button disabled={locked || dirty} onClick={() => {if (timeline.clips.length) setConfirmDemo(true); else mutate('/demo', {expected_version: state.version})}}>创建合成演示素材与时间轴</button>
+      {alignmentError && <p className="error" role="alert">字幕对齐记录读取失败：{alignmentError}。媒体编辑仍可使用，正在自动重试读取。</p>}
       <h3>可编辑时间轴 <small>{timeline.clips.reduce((total, clip) => total + clip.duration, 0)} 秒</small></h3>
-      <p className="drama-help">按顺序拼接镜头；配音从镜头起点播放，字幕持续整个镜头，背景音乐覆盖成片。视频原音不自动保留，请单独上传配音或音效。保存后再导出。</p>
+      <p className="drama-help">按顺序拼接镜头；配音从镜头起点播放，整镜字幕持续整个镜头，逐句字幕按设定时间显示，背景音乐覆盖成片。视频原音不自动保留，请单独上传配音或音效。保存后再导出。</p>
       <fieldset disabled={locked}><div className="media-timeline">{timeline.clips.map((clip, index) => <article key={clip.id}>
         <div className="media-actions"><strong>片段 {index + 1}</strong><button disabled={index === 0 || locked} onClick={() => move(index, -1)}>上移片段 {index + 1}</button><button disabled={index === timeline.clips.length - 1 || locked} onClick={() => move(index, 1)}>下移片段 {index + 1}</button><button onClick={() => setTimeline({...timeline, clips: timeline.clips.filter((_, i) => i !== index)})}>移除片段 {index + 1}</button></div>
         <div className="storyboard-fields"><label>画面素材<select aria-label={`片段 ${index + 1} 画面素材`} value={clip.asset_id} onChange={event => updateClip(index, {asset_id: event.target.value})}>{visual.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</select></label><label>时长（秒）<input aria-label={`片段 ${index + 1} 时长`} type="number" min="0.5" max="30" step="0.1" value={clip.duration} onChange={event => updateClip(index, {duration: Number(event.target.value)})} /></label><label>视频起点（秒）<input aria-label={`片段 ${index + 1} 起点`} type="number" min="0" step="0.1" value={clip.trim_start} onChange={event => updateClip(index, {trim_start: Number(event.target.value)})} /></label><label>配音 / 音效<select aria-label={`片段 ${index + 1} 音频`} value={clip.audio_asset_id} onChange={event => updateClip(index, {audio_asset_id: event.target.value})}><option value="">无</option>{audio.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</select></label><label>配音音量<input aria-label={`片段 ${index + 1} 音量`} type="number" min="0" max="1" step="0.1" value={clip.audio_volume} onChange={event => updateClip(index, {audio_volume: Number(event.target.value)})} /></label></div>
         <label>字幕<textarea aria-label={`片段 ${index + 1} 字幕`} maxLength={300} value={clip.subtitle} onChange={event => updateClip(index, {subtitle: event.target.value})} /></label>
+        <SubtitleAlignment index={index} clip={clip} tasks={alignments.filter(task => task.clip_id === clip.id)} capabilities={alignmentCaps} locked={locked} dirty={dirty} version={state.version} onChange={patch => updateClip(index, patch)} onCreate={mode => {const caps = alignmentCaps[mode]; if (caps?.ready) mutate('/alignments', {clip_id: clip.id, audio_asset_id: clip.audio_asset_id, mode, text: clip.subtitle, expected_version: baselineVersion, expected_provider: caps.provider, expected_model: caps.model ?? ''})}} onCancel={task => mutate(`/alignments/${task.id}/cancel`, {})} onApply={task => {if (task.source_version === state.version && task.clip_id === clip.id) updateClip(index, {subtitle_cues: structuredClone(task.cues), subtitle_source: task.mode === 'asr' ? 'asr' : 'estimated', subtitle_alignment_id: task.id})}} />
       </article>)}</div>
       <div className="storyboard-fields"><label>背景音乐<select value={timeline.music_asset_id} onChange={event => setTimeline({...timeline, music_asset_id: event.target.value})}><option value="">无背景音乐</option>{audio.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</select></label><label>音乐音量<input type="number" min="0" max="1" step="0.1" value={timeline.music_volume} onChange={event => setTimeline({...timeline, music_volume: Number(event.target.value)})} /></label></div></fieldset>
       <div className="media-actions"><button disabled={locked || !dirty} onClick={() => {setTimeline(state.timeline); setBaselineVersion(state.version)}}>取消时间轴编辑</button><button disabled={locked || !dirty} onClick={() => mutate('/timeline', {expected_version: baselineVersion, timeline}, 'PUT')}>保存时间轴</button><button className="primary" disabled={locked || dirty || timeline.clips.length === 0} onClick={() => mutate('/exports', {expected_version: state.version})}>合成并导出 MP4</button></div>

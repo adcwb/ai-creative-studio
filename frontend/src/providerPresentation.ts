@@ -1,15 +1,17 @@
-import type { Capabilities, ResultSource, Task } from './api'
+import type { Capabilities, Provider, ResultSource, Task } from './api'
+
+const names: Record<Provider, string> = {'mock-svg': 'mock-svg', 'openai-images': 'OpenAI', 'gemini-images': 'Gemini', 'ark-images': '火山方舟', 'jimeng-images': '即梦', 'minimax-images': 'MiniMax'}
 
 export function resultOriginLabel(source: ResultSource) {
-  return source.provider === 'mock-svg' ? '模拟图像 · 非 AI 生成' : 'OpenAI 图像服务返回'
+  return source.provider === 'mock-svg' ? '模拟图像 · 非 AI 生成' : `${names[source.provider] ?? source.provider} 图像服务返回`
 }
 
 export function resultImageAlt(source: ResultSource) {
-  return source.provider === 'mock-svg' ? '程序绘制的模拟图像，非真实 AI 生成' : 'OpenAI 图像服务返回的图像'
+  return source.provider === 'mock-svg' ? '程序绘制的模拟图像，非真实 AI 生成' : `${names[source.provider] ?? source.provider} 图像服务返回的图像`
 }
 
 export function resultProviderLabel(source: ResultSource) {
-  return source.provider === 'mock-svg' ? 'mock-svg · 程序绘图' : 'OpenAI Images'
+  return source.provider === 'mock-svg' ? 'mock-svg · 程序绘图' : source.provider === 'openai-images' ? 'OpenAI Images' : names[source.provider] ?? source.provider
 }
 
 export function taskStatusLabel(task: Pick<Task, 'status' | 'provider'>) {
@@ -27,9 +29,9 @@ export function capabilityLabel(capability: Capabilities | null, error: string) 
 }
 
 export function retryCostNotice(task: Task, capability: Capabilities | null) {
-  const previousMayHaveCharged = task.provider === 'openai-images' && ['provider_timeout', 'execution_interrupted', 'provider_error', 'invalid_provider_response'].includes(task.error_code ?? '')
+  const previousMayHaveCharged = task.provider !== 'mock-svg' && ['provider_timeout', 'execution_interrupted', 'provider_error', 'invalid_provider_response'].includes(task.error_code ?? '')
   const previous = previousMayHaveCharged ? '上次真实服务请求的结果未确认，可能已经计费。' : ''
   if (capability?.mode === 'real') return `${previous}本次重试会重新请求真实图像服务，可能产生新的费用。`
-  if (task.provider === 'openai-images' && capability?.mode === 'mock') return `${previous}当前为模拟模式，本次重试会生成模拟 SVG，原任务记录保留。`
+  if (task.provider !== 'mock-svg' && capability?.mode === 'mock') return `${previous}当前为模拟模式，本次重试会生成模拟 SVG，原任务记录保留。`
   return previous
 }

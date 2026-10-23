@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Capabilities, Task } from './api'
+import type { Capabilities, Provider, Task } from './api'
 import { capabilityLabel, resultImageAlt, resultOriginLabel, resultProviderLabel, retryCostNotice, taskStatusLabel } from './providerPresentation'
 const real = { provider: 'openai-images', mode: 'real', ready: true, model: 'gpt-image-2-2026-04-21', message: 'local config only' } satisfies Capabilities
 const mock = { provider: 'mock-svg', mode: 'mock', ready: true, message: 'synthetic SVG' } satisfies Capabilities
@@ -13,6 +13,15 @@ describe('historical provider presentation and cost uncertainty', () => {
     expect(resultImageAlt(task)).not.toContain('模拟')
     expect(taskStatusLabel({ provider: 'mock-svg', status: 'succeeded' })).toBe('模拟完成')
     expect(taskStatusLabel({ provider: 'openai-images', status: 'succeeded' })).toBe('生成完成')
+  })
+  it('preserves provenance and charge uncertainty for every real provider', () => {
+    for (const provider of ['gemini-images', 'ark-images', 'jimeng-images', 'minimax-images'] satisfies Provider[]) {
+      const historical = {...task, provider}
+      expect(resultOriginLabel(historical)).not.toContain('OpenAI')
+      expect(resultImageAlt(historical)).not.toContain('模拟')
+      expect(retryCostNotice(historical, mock)).toContain('可能已经计费')
+      expect(retryCostNotice(historical, {...real, provider})).toContain('新的费用')
+    }
   })
   it('does not equate local readiness with remote credential verification', () => {
     expect(capabilityLabel(real, '')).toContain('配置就绪')

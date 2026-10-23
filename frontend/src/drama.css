@@ -144,3 +144,14 @@
 .creative-analysis { margin-top: 20px; padding: 16px; background: var(--surface-soft); border-radius: var(--radius-sm); }
 .creative-analysis h3, .creative-analysis h4 { font-size: 13px; margin: 12px 0; }
 .creative-analysis li { font-size: 12px; line-height: 1.9; }
+.subtitle-alignment { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); }
+.subtitle-alignment h4 { margin: 0; font-size: 13px; }
+.subtitle-cue { background: var(--surface-soft); border-radius: var(--radius-sm); padding: 14px; margin: 14px 0; }
+.subtitle-cue textarea { min-height: 70px; }
+.subtitle-cue > button { font-size: 12px; margin-top: 10px; }
+.subtitle-methods { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 20px; }
+.subtitle-methods strong { font-size: 12px; }
+.subtitle-methods button { margin-top: 12px; font-size: 12px; }
+.alignment-task { padding: 12px 0; border-top: 1px solid var(--border); margin-top: 18px; }
+.alignment-task > p { font-size: 12px; line-height: 1.8; }
+@media (max-width: 700px) { .subtitle-methods { grid-template-columns: minmax(0, 1fr); } }

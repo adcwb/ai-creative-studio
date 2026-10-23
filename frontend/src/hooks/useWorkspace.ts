@@ -19,6 +19,7 @@ export function useWorkspace(space: string) {
   const inFlight = useRef(false)
   const saveInFlight = useRef(false)
   const mutation = useRef(0)
+  const resumeAttempts = useRef(new Map<string, string>())
   const attempt = useRef<{fingerprint: string; key: string} | null>(null)
 
   useEffect(() => {
@@ -103,6 +104,22 @@ export function useWorkspace(space: string) {
     }
   }
 
+  async function resume(task: Task) {
+    if (inFlight.current || !task.upstream_id || task.status !== 'failed') return
+    const key = resumeAttempts.current.get(task.id) ?? crypto.randomUUID()
+    resumeAttempts.current.set(task.id, key)
+    const controller = new AbortController(); pending.current.add(controller)
+    inFlight.current = true; setBusy(true); clearFeedback()
+    try {
+      const result = await request<Task>(`/tasks/${encodeURIComponent(task.id)}/resume${query}`, {method: 'POST', signal: controller.signal, headers: {'Content-Type': 'application/json', 'Idempotency-Key': key}, body: '{}'})
+      if (!active.current || controller.signal.aborted) return
+      resumeAttempts.current.delete(task.id); mutation.current += 1
+      updateTask(result); setNotice('继续查询原上游任务，不重新提交图像生成。')
+    } catch (error) {
+      if (active.current && !controller.signal.aborted) setActionError(`继续查询未确认：${errorMessage(error, '请重试')}。再次点击将复用同一请求标识。`)
+    } finally {pending.current.delete(controller); inFlight.current = false; if (active.current) setBusy(false)}
+  }
+
   async function save(task: Task) {
     if (saveInFlight.current) return
     const controller = new AbortController()
@@ -127,5 +144,5 @@ export function useWorkspace(space: string) {
   }
 
   return {catalog, catalogError, tasks, assets, loading, connectionError, actionError, notice, busy, saving,
-    create, save, newAttempt, clearFeedback, updateTask, reconnect: () => setRevision(value => value + 1)}
+    create, resume, save, newAttempt, clearFeedback, updateTask, reconnect: () => setRevision(value => value + 1)}
 }
