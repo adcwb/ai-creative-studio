@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"sync"
 	"syscall"
 	"time"
 )
@@ -42,11 +41,15 @@ type Repository interface {
 	Finish(Task, GenerationResult, error) error
 }
 type FileStore struct {
+	pg           *postgresScope
+	blobs        *managedBlobs
+	execution    *ExecutionGovernor
+	runtime      *ModelRuntime
 	budget       *BudgetLedger
 	exchange     ExchangeProvider
 	creative     *creativeStore
 	media        *MediaStore
-	mu           sync.Mutex
+	mu           stateMutex
 	path         string
 	data         snapshot
 	lock         *os.File
@@ -55,6 +58,11 @@ type FileStore struct {
 }
 
 func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
+	if _, err := os.Lstat(filepath.Join(dir, ".postgres-cache")); err == nil {
+		return nil, errors.New("PostgreSQL cache cannot be opened as file storage; restore to a new directory")
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
@@ -286,10 +294,18 @@ func (s *FileStore) Close() error {
 		s.media.close()
 	}
 	var resultErr error
-	if s.results != nil {
-		resultErr = s.results.Close()
+	if s.blobs != nil {
+		if closer, ok := s.blobs.store.(io.Closer); ok {
+			resultErr = closer.Close()
+		}
 	}
-	return errors.Join(resultErr, s.lock.Close())
+	if s.results != nil {
+		resultErr = errors.Join(resultErr, s.results.Close())
+	}
+	if s.lock != nil {
+		return errors.Join(resultErr, s.lock.Close())
+	}
+	return resultErr
 }
 
 func (s *FileStore) Capabilities() Capabilities { return s.capabilities }
@@ -326,6 +342,16 @@ func (s *FileStore) clone() snapshot {
 func (s *FileStore) commit(d snapshot) error {
 	if err := s.captureHistory(&d); err != nil {
 		return err
+	}
+	if s.pg != nil {
+		if err := s.enqueueNewPostgres(d); err != nil {
+			return err
+		}
+		if err := s.pg.save(d); err != nil {
+			return err
+		}
+		s.data = d
+		return nil
 	}
 	b, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
@@ -386,6 +412,10 @@ func (s *FileStore) Retry(space, parentID, key string, in Input, expectation ...
 // createLocked keeps a retry's parent check and idempotency decision in the
 // same critical section as the durable write. The original task is unchanged.
 func (s *FileStore) createLocked(space, key string, in Input, retryOf string, expectation ...Expectation) (Task, bool, error) {
+	traceParent := in.traceParent
+	in.traceParent = ""
+	selection, selectedCaps := in.selection, in.selectedCaps
+	in.selection, in.selectedCaps = nil, Capabilities{}
 	for _, t := range s.data.Tasks {
 		if t.SpaceID == space && t.Key == key {
 			storedInput, err := Normalize(t.Input)
@@ -395,14 +425,18 @@ func (s *FileStore) createLocked(space, key string, in Input, retryOf string, ex
 			return t, false, nil
 		}
 	}
-	if !s.capabilities.Ready {
+	caps := s.capabilities
+	if selection != nil {
+		caps = selectedCaps
+	}
+	if !caps.Ready {
 		return Task{}, false, ErrProviderNotReady
 	}
-	if len(expectation) > 0 && (expectation[0].Provider != s.capabilities.Provider || expectation[0].Model != s.capabilities.Model) {
+	if len(expectation) > 0 && (expectation[0].Provider != caps.Provider || expectation[0].Model != caps.Model) {
 		return Task{}, false, ErrProviderChanged
 	}
 	// Bound both queue pressure and costly real attempts, including failures.
-	if s.capabilities.Mode == "real" {
+	if caps.Mode == "real" {
 		active, recent := 0, 0
 		since := time.Now().Add(-time.Hour)
 		for _, task := range s.data.Tasks {
@@ -423,7 +457,7 @@ func (s *FileStore) createLocked(space, key string, in Input, retryOf string, ex
 	}
 	id := hex.EncodeToString(raw)
 	now := time.Now().UTC()
-	t := Task{ID: id, SpaceID: space, Input: in, Status: "queued", Provider: s.capabilities.Provider, Model: s.capabilities.Model, RetryOf: retryOf, CreatedAt: now, UpdatedAt: now, Key: key}
+	t := Task{TraceParent: traceParent, RuntimeSelection: cloneRuntimeSelection(selection), ID: id, SpaceID: space, Input: in, Status: "queued", Provider: caps.Provider, Model: caps.Model, RetryOf: retryOf, CreatedAt: now, UpdatedAt: now, Key: key}
 	d := s.clone()
 	d.Tasks[id] = t
 	return t, true, s.commit(d)
@@ -501,6 +535,9 @@ func (s *FileStore) Next() (Task, bool, error) {
 func (s *FileStore) Finish(t Task, result GenerationResult, runErr error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.finishLocked(t, result, runErr)
+}
+func (s *FileStore) finishLocked(t Task, result GenerationResult, runErr error) error {
 	current, ok := s.data.Tasks[t.ID]
 	if !ok || current.SpaceID != t.SpaceID {
 		return ErrNotFound
@@ -546,6 +583,14 @@ func (s *FileStore) Finish(t Task, result GenerationResult, runErr error) error 
 			}
 			if err := s.writePNG(name, result.Data); err != nil {
 				return err
+			}
+			if s.blobs != nil {
+				ctx, cancel := blobContext()
+				err := s.blobs.put(ctx, blobKey(t.SpaceID, "results", name), result.Data)
+				cancel()
+				if err != nil {
+					return err
+				}
 			}
 			t.ResultPath = name
 		} else {
@@ -617,6 +662,13 @@ func (s *FileStore) ReadResult(space, id string) (GenerationResult, error) {
 	name, err := resultName(id)
 	if err != nil || t.ID != id || t.ResultPath != name || !realImageProvider(t.Provider) || t.ResultMIME != "image/png" {
 		return GenerationResult{}, errors.New("invalid stored result metadata")
+	}
+	if s.blobs != nil {
+		ctx, cancel := blobContext()
+		defer cancel()
+		if _, err = s.blobs.materialize(ctx, blobKey(space, "results", name), filepath.Join(filepath.Dir(s.path), "results", name)); err != nil {
+			return GenerationResult{}, err
+		}
 	}
 	f, err := s.results.OpenFile(name, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {

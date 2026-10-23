@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/adcwb/ai-creative-studio/backend/internal/jobqueue"
+	"github.com/adcwb/ai-creative-studio/backend/internal/tracing"
 	"image"
 	"image/color"
 	"image/png"
@@ -31,6 +32,7 @@ type CreativeJobInput struct {
 	Character         string `json:"character,omitempty"`
 }
 type CreativeJob struct {
+	TraceParent       string `json:"trace_parent,omitempty"`
 	lease             *jobqueue.Job
 	RuntimeSelection  *RuntimeSelection `json:"runtime_selection,omitempty"`
 	AudioAssetID      string            `json:"audio_asset_id,omitempty"`
@@ -429,7 +431,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		return CreativeJob{}, false, err
 	}
 	now := time.Now().UTC()
-	job := CreativeJob{RuntimeSelection: cloneRuntimeSelection(in.selection), AudioAssetID: in.AudioAssetID, ComparisonAssetID: in.ComparisonAssetID, MaskAssetID: in.MaskAssetID, ReferenceAssetID: in.ReferenceAssetID, ID: jid, SpaceID: space, ProjectID: id, Kind: in.Kind, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Prompt: in.Prompt, ShotID: in.ShotID, Character: in.Character, Source: ProjectInput{Title: p.Title, Brief: p.Brief}, CreatedAt: now, UpdatedAt: now}
+	job := CreativeJob{TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), AudioAssetID: in.AudioAssetID, ComparisonAssetID: in.ComparisonAssetID, MaskAssetID: in.MaskAssetID, ReferenceAssetID: in.ReferenceAssetID, ID: jid, SpaceID: space, ProjectID: id, Kind: in.Kind, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Prompt: in.Prompt, ShotID: in.ShotID, Character: in.Character, Source: ProjectInput{Title: p.Title, Brief: p.Brief}, CreatedAt: now, UpdatedAt: now}
 	c.data.Jobs[jid] = job
 	c.data.Receipts[rk] = creativeReceipt{Fingerprint: fingerprint, JobID: jid}
 	if c.pg != nil {
@@ -441,7 +443,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 					return err
 				}
 			}
-			return jobqueue.EnqueueTx(ctx, tx, jobqueue.Job{TenantID: space, ID: jid, Kind: "creative", IdempotencyKey: key, Payload: payload})
+			return jobqueue.EnqueueTx(ctx, tx, jobqueue.Job{TenantID: space, ID: jid, TraceParent: job.TraceParent, Kind: "creative", IdempotencyKey: key, Payload: payload})
 		}
 		defer func() { c.pg.beforeCommit = nil }()
 	}
@@ -616,7 +618,7 @@ func RunCreativeWorker(ctx context.Context, s *FileStore) error {
 			c.mu.Unlock()
 			return err
 		}
-		runCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+		runCtx, cancel := context.WithTimeout(tracing.WithParent(ctx, job.TraceParent), 10*time.Minute)
 		c.cancels[job.ID] = cancel
 		c.mu.Unlock()
 		err := s.executeCreativeJob(runCtx, &job)

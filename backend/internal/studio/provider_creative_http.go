@@ -30,11 +30,17 @@ func registerCreativeRoutes(mux *http.ServeMux, s *FileStore) {
 				if !decodeProject(w, r, &a) {
 					return
 				}
-				in = CreativeJobInput{Kind: "analysis", ExpectedVersion: a.ExpectedVersion, ExpectedProvider: a.ExpectedProvider, ExpectedModel: a.ExpectedModel}
+				in = CreativeJobInput{ModelRequest: a.ModelRequest, Kind: "analysis", ExpectedVersion: a.ExpectedVersion, ExpectedProvider: a.ExpectedProvider, ExpectedModel: a.ExpectedModel}
 			} else {
 				if !decodeProject(w, r, &in) {
 					return
 				}
+			}
+			if !resolveModelRequest(w, r, s, &in.ModelRequest, creativeRuntimeCapability(in.Kind)) {
+				return
+			}
+			if !validateModelPreview(w, r, s, in.ModelRequest, "creative", r.PathValue("id"), in) {
+				return
 			}
 			job, created, err := s.createCreativeJob(space, r.PathValue("id"), key, in)
 			if err != nil {

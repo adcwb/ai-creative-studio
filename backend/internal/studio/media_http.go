@@ -2,6 +2,7 @@ package studio
 
 import (
 	"errors"
+	"github.com/adcwb/ai-creative-studio/backend/internal/tracing"
 	"io"
 	"net/http"
 	"strings"
@@ -146,7 +147,7 @@ func registerMediaRoutes(mux *http.ServeMux, s *FileStore) {
 		if !decodeProject(w, r, &in) {
 			return
 		}
-		e, err := m.StartExport(r.PathValue("id"), space, key, in.ExpectedVersion)
+		e, err := m.StartExport(r.PathValue("id"), space, key, in.ExpectedVersion, tracing.Parent(r.Context()))
 		if err != nil {
 			mediaError(w, err)
 			return
@@ -181,11 +182,19 @@ func registerMediaRoutes(mux *http.ServeMux, s *FileStore) {
 			}
 			path, mime, err := m.file(r.PathValue("id"), space, id, export, subtitles)
 			if err != nil {
-				problem(w, 404, "not_found", "素材或导出不存在")
+				if errors.Is(err, ErrNotFound) {
+					problem(w, 404, "not_found", "素材或导出不存在")
+				} else {
+					mediaError(w, err)
+				}
 				return
 			}
 			if subtitles && strings.HasSuffix(r.URL.Path, ".vtt") {
-				path = strings.TrimSuffix(path, ".srt") + ".vtt"
+				path, err = m.localBlob(space, r.PathValue("id"), id+".vtt")
+				if err != nil {
+					mediaError(w, err)
+					return
+				}
 				mime = "text/vtt; charset=utf-8"
 			}
 			w.Header().Set("Content-Type", mime)

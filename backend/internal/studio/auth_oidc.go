@@ -3,6 +3,7 @@ package studio
 import (
 	"context"
 	"crypto/subtle"
+	"database/sql"
 	"errors"
 	"net/http"
 	"net/mail"
@@ -21,6 +22,7 @@ type oidcPending struct {
 	Expires                  time.Time
 }
 type OIDCLogin struct {
+	db       *sql.DB
 	mu       sync.Mutex
 	pending  map[string]oidcPending
 	config   oauth2.Config
@@ -84,7 +86,14 @@ func (o *OIDCLogin) start(w http.ResponseWriter, r *http.Request, secure bool) {
 	}
 	state := authRandom(32)
 	p := oidcPending{Nonce: authRandom(32), Verifier: oauth2.GenerateVerifier(), Binding: authRandom(32), Expires: now.Add(5 * time.Minute)}
-	o.pending[state] = p
+	if o.db != nil {
+		if err := postgresPutOIDC(o.db, state, p); err != nil {
+			problem(w, 503, "sso_unavailable", "SSO暂不可用")
+			return
+		}
+	} else {
+		o.pending[state] = p
+	}
 	http.SetCookie(w, &http.Cookie{Name: "studio_oidc", Value: p.Binding, Path: "/api/v1/auth/sso", Secure: secure, HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: 300})
 	location := o.config.AuthCodeURL(state, oauth2.S256ChallengeOption(p.Verifier), oidc.Nonce(p.Nonce))
 	respond(w, 200, map[string]string{"authorization_url": location})
@@ -104,6 +113,9 @@ func (o *OIDCLogin) callback(w http.ResponseWriter, r *http.Request, auth *AuthS
 		ok = false
 	}
 	o.mu.Unlock()
+	if o.db != nil {
+		p, ok = postgresTakeOIDC(o.db, state, cookie.Value)
+	}
 	if !ok || time.Now().After(p.Expires) || r.URL.Query().Get("code") == "" {
 		problem(w, 400, "sso_state_denied", "SSO会话无效，请重新开始")
 		return

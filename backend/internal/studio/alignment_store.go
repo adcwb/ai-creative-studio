@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/adcwb/ai-creative-studio/backend/internal/jobqueue"
+	"github.com/adcwb/ai-creative-studio/backend/internal/tracing"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -26,6 +27,7 @@ type AlignmentInput struct {
 	ExpectedModel    string `json:"expected_model,omitempty"`
 }
 type AlignmentTask struct {
+	TraceParent      string            `json:"trace_parent,omitempty"`
 	RuntimeSelection *RuntimeSelection `json:"runtime_selection,omitempty"`
 	ID               string            `json:"id"`
 	ProjectID        string            `json:"project_id"`
@@ -283,7 +285,7 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 		}
 	}
 	now := time.Now().UTC()
-	task := AlignmentTask{RuntimeSelection: cloneRuntimeSelection(in.selection), ID: mediaID(), ProjectID: project, SpaceID: space, ClipID: clip.ID, AudioAssetID: clip.AudioAssetID, AudioMIME: audio.MIMEType, AudioDuration: audio.Duration, Mode: in.Mode, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Duration: clip.Duration, TrimStart: clip.TrimStart, Text: in.Text, Cues: []SubtitleCue{}, Warnings: []string{}, CreatedAt: now, UpdatedAt: now}
+	task := AlignmentTask{TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), ID: mediaID(), ProjectID: project, SpaceID: space, ClipID: clip.ID, AudioAssetID: clip.AudioAssetID, AudioMIME: audio.MIMEType, AudioDuration: audio.Duration, Mode: in.Mode, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Duration: clip.Duration, TrimStart: clip.TrimStart, Text: in.Text, Cues: []SubtitleCue{}, Warnings: []string{}, CreatedAt: now, UpdatedAt: now}
 	d := a.cloneLocked()
 	d.Tasks[task.ID] = task
 	d.Receipts[rk] = alignmentReceipt{Digest: digest, TaskID: task.ID}
@@ -296,7 +298,7 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 					return err
 				}
 			}
-			return jobqueue.EnqueueTx(ctx, tx, jobqueue.Job{TenantID: space, ID: task.ID, Kind: "alignment", IdempotencyKey: project + ":" + key, Payload: payload})
+			return jobqueue.EnqueueTx(ctx, tx, jobqueue.Job{TenantID: space, ID: task.ID, TraceParent: task.TraceParent, Kind: "alignment", IdempotencyKey: project + ":" + key, Payload: payload})
 		}
 		defer func() { a.pg.beforeCommit = nil }()
 	}
@@ -306,7 +308,7 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 	if a.pg != nil {
 		return task, true, nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(tracing.WithParent(context.Background(), task.TraceParent), 3*time.Minute)
 	a.cancels[task.ID] = cancel
 	a.wg.Add(1)
 	go func() { defer a.wg.Done(); defer cancel(); a.run(ctx, m, task.ID) }()
@@ -428,11 +430,7 @@ func (a *AlignmentStore) runTask(ctx context.Context, m *MediaStore, id string, 
 			if err == nil {
 				var result AlignmentResult
 				if task.RuntimeSelection != nil {
-					parameters, _ := json.Marshal(struct {
-						Mode                               string
-						AudioDuration, Duration, TrimStart float64
-					}{task.Mode, task.AudioDuration, task.Duration, task.TrimStart})
-					err = a.execution.ExecuteRuntime(ctx, a.runtime, ExecutionRequest{ID: "alignment:" + task.ID, Tenant: task.SpaceID, Provider: task.Provider, Model: task.Model, Capability: "asr", Text: task.Text, Parameters: parameters, HasMedia: true, Media: []ExecutionMedia{{Data: data, MIME: mime}}, Selection: task.RuntimeSelection}, func(ctx context.Context, p RuntimeProviders) error {
+					err = a.execution.ExecuteRuntime(ctx, a.runtime, alignmentExecutionRequest(task, data, mime), func(ctx context.Context, p RuntimeProviders) error {
 						if p.Alignment == nil {
 							return ErrExecutionGovernance
 						}

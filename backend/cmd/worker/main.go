@@ -60,9 +60,9 @@ func run() error {
 			return err
 		}
 	}
- if err = studio.CheckPostgres(ctx, db); err != nil {
- return errors.New("postgres schema unavailable; run explicit migration")
- }
+	if err = studio.CheckPostgres(ctx, db); err != nil {
+		return errors.New("postgres schema unavailable; run explicit migration")
+	}
 	concurrency, err := workerConcurrency(os.Getenv("WORKER_CONCURRENCY"))
 	if err != nil {
 		return err

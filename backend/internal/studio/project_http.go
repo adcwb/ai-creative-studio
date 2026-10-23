@@ -128,6 +128,12 @@ func registerProjectRoutes(mux *http.ServeMux, repo ProjectRepository) {
 		if !decodeProject(w, r, &in) {
 			return
 		}
+		if !resolveModelRequest(w, r, repo, &in.ModelRequest, "text") {
+			return
+		}
+		if !validateModelPreview(w, r, repo, in.ModelRequest, "script", r.PathValue("id"), in) {
+			return
+		}
 		generation, created, err := repo.CreateScriptGeneration(space, r.PathValue("id"), key, in)
 		if err != nil {
 			storeError(w, err)

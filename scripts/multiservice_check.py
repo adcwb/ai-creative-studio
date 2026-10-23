@@ -34,7 +34,7 @@ def main():
     assert args.pg_user.isalnum() and 0 < args.pg_port < 65536
     dbname = 'studio_integration_' + uuid.uuid4().hex[:16]
     evidence = Path(tempfile.mkdtemp(prefix='studio-multiservice-'))
-    env = {'PATH': os.environ['PATH']}
+    env = {'PATH': os.environ['PATH'], 'PGPASSFILE': '/dev/null', 'PGSERVICEFILE': '/dev/null'}
     pg_env = dict(env)
     if args.pg_lib:
         pg_env['LD_LIBRARY_PATH'] = str(args.pg_lib)
@@ -54,7 +54,7 @@ def main():
                 ports.append(sock.getsockname()[1])
         origin = f'http://127.0.0.1:{ports[0]}'
         common = {**env, 'STORAGE_BACKEND': 'postgres', 'QUEUE_BACKEND': 'postgres',
-                  'STORAGE_AUTO_MIGRATE': 'true', 'DATABASE_URL': f'host={args.pg_socket} port={args.pg_port} user={args.pg_user} dbname={dbname} sslmode=disable',
+                  'STORAGE_AUTO_MIGRATE': 'true', 'DATABASE_URL': f'host={args.pg_socket} port={args.pg_port} user={args.pg_user} dbname={dbname} sslmode=disable passfile=/dev/null',
                   'BLOB_STORE': 'shared-file', 'BLOB_FILE_ROOT': str(evidence / 'objects'),
                   'AUTH_MODE': 'secure', 'AUTH_ALLOW_REGISTRATION': 'true', 'AUTH_COOKIE_SECURE': 'false',
                   'FRONTEND_ORIGIN': origin, 'IMAGE_PROVIDER': 'mock-svg', 'TEXT_PROVIDER': 'mock-text'}
@@ -122,6 +122,50 @@ def main():
             repeats = list(pool.map(replay, range(12)))
         assert all(item['id'] == task['id'] for item in repeats)
         checks.append('two independent workers, shared result and cross-API idempotency')
+        # Bounded creative workload, not a health-only benchmark. Two tenants,
+        # eight concurrent acceptances per batch, four independent worker slots.
+        # Synthetic SVG inference does not measure real model/provider capacity.
+        accepted_latencies, completion_latencies = [], []
+        load_started = time.monotonic()
+        for batch in range(2):
+            def submit_load(index):
+                opener, session = (alice, a) if index % 2 == 0 else (bob, b)
+                scope = '?space_id=' + session['spaces'][0]['id']
+                started = time.monotonic()
+                item = call(opener, index % 2, 'POST', '/api/v1/tasks' + scope,
+                            {**body, 'prompt': f'Synthetic load {batch}-{index}'},
+                            session['csrf_token'], f'bounded-load-{batch}-{index}', 202)
+                return opener, scope, item, started, time.monotonic() - started
+            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+                pending = list(pool.map(submit_load, range(8)))
+            deadline = time.monotonic() + 60
+            while pending:
+                assert time.monotonic() < deadline, 'bounded creative workload timed out'
+                remaining = []
+                for opener, scope, item, started, accepted in pending:
+                    value = call(opener, 1, 'GET', '/api/v1/tasks/' + item['id'] + scope)
+                    assert value['status'] != 'failed', value
+                    if value['status'] == 'succeeded':
+                        assert call(opener, 0, 'GET', value['result_url']) == call(opener, 1, 'GET', value['result_url'])
+                        accepted_latencies.append(accepted)
+                        completion_latencies.append(time.monotonic() - started)
+                    else:
+                        remaining.append((opener, scope, item, started, accepted))
+                pending = remaining
+                if pending:
+                    time.sleep(.05)
+        def percentile_ms(values, percentile):
+            return round(sorted(values)[min(len(values) - 1, int((len(values) - 1) * percentile))] * 1000, 2)
+        load_report = {'kind': 'synthetic SVG creation through real PostgreSQL and independent workers',
+                       'tasks': len(completion_latencies), 'tenants': 2, 'concurrent_clients': 8,
+                       'failures': 0, 'wall_seconds': round(time.monotonic() - load_started, 3),
+                       'accept_p50_ms': percentile_ms(accepted_latencies, .5),
+                       'accept_p95_ms': percentile_ms(accepted_latencies, .95),
+                       'completion_p50_ms': percentile_ms(completion_latencies, .5),
+                       'completion_p95_ms': percentile_ms(completion_latencies, .95),
+                       'production_capacity_claim': False}
+        (evidence / 'creative-load.json').write_text(json.dumps(load_report, indent=2) + '\n')
+        checks.append('16 synthetic creative tasks under eight concurrent clients across two tenants')
         project = call(alice, 0, 'POST', '/api/v1/projects' + query,
                        {'title': 'Synthetic distributed film', 'brief': 'A courier delivers a synthetic letter to a clockmaker.'}, csrf, 'multi-project-create', 201)
         project_path = '/api/v1/projects/' + project['id']
@@ -221,7 +265,7 @@ def main():
         checks.append('cross-instance session revocation')
         print(json.dumps({'result': 'passed', 'checks': checks, 'api_processes': 2, 'worker_processes': 2,
                           'postgres': 'real', 'blob_store': 'shared-file', 'real_s3_verified': False,
-                          'live_model_calls': 0, 'evidence': str(evidence)}))
+                          'live_model_calls': 0, 'creative_load': load_report, 'evidence': str(evidence)}))
     finally:
         for proc in reversed(processes):
             proc.terminate()

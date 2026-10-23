@@ -1,3 +1,5 @@
+> 当前状态以[第八轮交付矩阵](iteration-8-delivery.md)为准：PostgreSQL、独立worker、模型运行时及费用审核已实现本地闭环；本文旧阶段项保留历史，不能据此认定代码缺失或生产已就绪。
+
 # 产品路线与能力边界
 
 当前本地迭代见 [第七轮逐项交付矩阵](iteration-7-delivery.md)，最新授权见 [交接](next-iteration.md)。旧轮次说明为历史快照。

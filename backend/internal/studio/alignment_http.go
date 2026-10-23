@@ -56,6 +56,12 @@ func registerAlignmentRoutes(mux *http.ServeMux, s *FileStore) {
 		if !decodeProject(w, r, &in) {
 			return
 		}
+		if !resolveModelRequest(w, r, s, &in.ModelRequest, in.Mode) {
+			return
+		}
+		if !validateModelPreview(w, r, s, in.ModelRequest, "alignment", r.PathValue("id"), in) {
+			return
+		}
 		task, created, err := s.media.CreateAlignment(r.PathValue("id"), space, key, in)
 		if err != nil {
 			alignmentError(w, err)

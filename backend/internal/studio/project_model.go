@@ -20,6 +20,7 @@ type ProjectUpdate struct {
 }
 
 type ScriptGenerationInput struct {
+	ModelRequest
 	ExpectedModel    string `json:"expected_model,omitempty"`
 	ExpectedProvider string `json:"expected_provider,omitempty"`
 	ExpectedVersion  int    `json:"expected_version"`
@@ -74,20 +75,22 @@ type Project struct {
 }
 
 type ScriptGeneration struct {
-	Model       string    `json:"model,omitempty"`
-	ID          string    `json:"id"`
-	SpaceID     string    `json:"space_id"`
-	ProjectID   string    `json:"project_id"`
-	SourceTitle string    `json:"source_title"`
-	SourceBrief string    `json:"source_brief"`
-	BaseVersion int       `json:"base_version"`
-	Provider    string    `json:"provider"`
-	Status      string    `json:"status"`
-	Progress    int       `json:"progress"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	Error       string    `json:"error,omitempty"`
-	ErrorCode   string    `json:"error_code,omitempty"`
+	TraceParent      string            `json:"trace_parent,omitempty"`
+	RuntimeSelection *RuntimeSelection `json:"runtime_selection,omitempty"`
+	Model            string            `json:"model,omitempty"`
+	ID               string            `json:"id"`
+	SpaceID          string            `json:"space_id"`
+	ProjectID        string            `json:"project_id"`
+	SourceTitle      string            `json:"source_title"`
+	SourceBrief      string            `json:"source_brief"`
+	BaseVersion      int               `json:"base_version"`
+	Provider         string            `json:"provider"`
+	Status           string            `json:"status"`
+	Progress         int               `json:"progress"`
+	CreatedAt        time.Time         `json:"created_at"`
+	UpdatedAt        time.Time         `json:"updated_at"`
+	Error            string            `json:"error,omitempty"`
+	ErrorCode        string            `json:"error_code,omitempty"`
 }
 
 type projectReceipt struct {

@@ -2,8 +2,10 @@ package studio
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/adcwb/ai-creative-studio/backend/internal/tracing"
 	"github.com/cloudwego/eino/compose"
 	"strings"
 	"time"
@@ -102,9 +104,32 @@ func RunStoryboardWorker(ctx context.Context, repo StoryboardRepository, pipelin
 		if !ok {
 			continue
 		}
+		ctx := tracing.WithParent(ctx, g.TraceParent)
 		var shots []StoryboardShot
 		var runErr error
-		if g.Provider != pipeline.provider || (g.Provider != "mock-storyboard" && (g.Model == "" || g.Model != pipeline.model)) {
+		if g.RuntimeSelection != nil {
+			store, exists := repo.(*FileStore)
+			if !exists || g.SourceScript == nil {
+				runErr = ErrExecutionGovernance
+			} else {
+				input, _ := json.Marshal(g.SourceScript)
+				runErr = store.executeManaged(ctx, ExecutionRequest{ID: "storyboard:" + g.ID, Tenant: g.SpaceID, Provider: g.Provider, Model: g.Model, Capability: "text", Text: string(input), Selection: g.RuntimeSelection}, func(ctx context.Context, providers RuntimeProviders) error {
+					if providers.Creative == nil {
+						return ErrExecutionGovernance
+					}
+					p, e := NewStoryboardPipeline(ctx, CreativeStoryboardProvider(providers.Creative))
+					if e != nil {
+						return e
+					}
+					shots, e = p.Invoke(ctx, *g.SourceScript)
+					if e == nil {
+						output, _ := json.Marshal(shots)
+						e = store.execution.ReviewResult(ctx, ExecutionRequest{ID: g.ID, Selection: g.RuntimeSelection, Tenant: g.SpaceID, Provider: g.Provider, Model: g.Model, Capability: "text", Text: string(output)})
+					}
+					return e
+				})
+			}
+		} else if g.Provider != pipeline.provider || (g.Provider != "mock-storyboard" && (g.Model == "" || g.Model != pipeline.model)) {
 			runErr = providerFailure("provider_unavailable")
 		} else {
 			shots, runErr = pipeline.Invoke(ctx, *g.SourceScript)

@@ -3,14 +3,20 @@ package studio
 import (
 	"context"
 	"errors"
+	"github.com/adcwb/ai-creative-studio/backend/internal/tracing"
 	"net/http"
+	"regexp"
 )
+
+var executionDigestPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
 // ModelRequest contains only an explicit, reviewable model choice. Identity and
 // effective provider settings are derived on the server, never from JSON.
 // An omitted choice retains the existing explicitly configured mock/local mode;
 // merely saving a default model must not silently start spending money.
 type ModelRequest struct {
+	traceParent        string
+	QuoteRequestDigest string `json:"quote_request_sha256,omitempty"`
 	ModelConfigID      string `json:"model_config_id,omitempty"`
 	ModelConfigVersion int64  `json:"model_config_version,omitempty"`
 	Voice              string `json:"voice,omitempty"`
@@ -40,7 +46,8 @@ func creativeRuntimeCapability(kind string) string {
 }
 
 func resolveModelRequest(w http.ResponseWriter, r *http.Request, repo any, in *ModelRequest, capability string) bool {
-	if in.ModelConfigID == "" && in.ModelConfigVersion == 0 && in.Voice == "" && in.BudgetCurrency == "" && in.BudgetMaximumMinor == 0 {
+	in.traceParent = tracing.Parent(r.Context())
+	if in.ModelConfigID == "" && in.ModelConfigVersion == 0 && in.Voice == "" && in.BudgetCurrency == "" && in.BudgetMaximumMinor == 0 && in.QuoteRequestDigest == "" {
 		return true
 	}
 	if in.ModelConfigID == "" || in.ModelConfigVersion < 1 || (capability == "speech" && !configToken.MatchString(in.Voice)) || len(in.Voice) > 128 || (in.Voice != "" && capability != "speech") {
@@ -74,6 +81,11 @@ func resolveModelRequest(w http.ResponseWriter, r *http.Request, repo any, in *M
 		problem(w, 400, "invalid_input", "必须确认本次执行的币种与整数最小单位费用上限")
 		return false
 	}
+	if !executionDigestPattern.MatchString(in.QuoteRequestDigest) {
+		problem(w, 400, "invalid_input", "请先获取并确认当前请求的费用报价")
+		return false
+	}
+	selection.RequestDigest = in.QuoteRequestDigest
 	selection.Currency, selection.MaximumMinor = in.BudgetCurrency, in.BudgetMaximumMinor
 	selection.Voice = in.Voice
 	in.selection = &selection

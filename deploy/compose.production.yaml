@@ -1,0 +1,85 @@
+# Reviewable template only; never invoked automatically or published by CI.
+# PostgreSQL schema and private S3 bucket must already be provisioned and tested.
+# Inject real values through the deployment's secret manager, not a committed .env.
+x-runtime: &runtime
+  STORAGE_BACKEND: postgres
+  QUEUE_BACKEND: postgres
+  STORAGE_AUTO_MIGRATE: "false"
+  DATABASE_URL: ${DATABASE_URL:?Inject the runtime PostgreSQL DSN}
+  DATA_DIR: /app/data
+  BLOB_STORE: s3
+  BLOB_S3_ENDPOINT: ${BLOB_S3_ENDPOINT:?Provide a contract-tested private S3 endpoint}
+  BLOB_S3_BUCKET: ${BLOB_S3_BUCKET:?Provide the private bucket}
+  BLOB_S3_REGION: ${BLOB_S3_REGION:?Provide the signing region}
+  BLOB_S3_ACCESS_KEY: ${BLOB_S3_ACCESS_KEY:?Inject the object credential}
+  BLOB_S3_SECRET_KEY: ${BLOB_S3_SECRET_KEY:?Inject the object credential}
+  BLOB_S3_SESSION_TOKEN: ${BLOB_S3_SESSION_TOKEN:-}
+  MODEL_CONFIG_KEK_BASE64: ${MODEL_CONFIG_KEK_BASE64:-}
+  EXECUTION_POLICY_FILE: ${EXECUTION_POLICY_FILE:-}
+  TRACE_MODE: ${TRACE_MODE:-off}
+  # When enabled, supply a fresh private absolute path on every process restart.
+  TRACE_JSON_PATH: ${TRACE_JSON_PATH:-}
+  AUTH_MODE: secure
+  AUTH_ALLOW_REGISTRATION: "false"
+  AUTH_COOKIE_SECURE: "true"
+  IMAGE_PROVIDER: mock-svg
+  TEXT_PROVIDER: mock-text
+
+services:
+  backend:
+    image: ${STUDIO_BACKEND_IMAGE:-studio-backend-local:iteration8}
+    build: ../backend
+    environment:
+      <<: *runtime
+      HTTP_ADDR: 0.0.0.0:8080
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?Provide the reviewed HTTPS frontend origin}
+      AUTH_TRUSTED_PROXY_CIDRS: ${STUDIO_FRONTEND_IP:-172.30.90.3}/32
+    # An anonymous cache volume per replica; shared data lives in DB/S3.
+    volumes: [/app/data]
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+  worker:
+    image: ${STUDIO_BACKEND_IMAGE:-studio-backend-local:iteration8}
+    build: ../backend
+    entrypoint: [/app/worker]
+    environment:
+      <<: *runtime
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+    volumes: [/app/data]
+    # The API image's HTTP healthcheck cannot check a process with no HTTP listener.
+    healthcheck:
+      disable: true
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+  frontend:
+    image: ${STUDIO_FRONTEND_IMAGE:-studio-frontend-local:iteration8}
+    build: ../frontend
+    ports: ["127.0.0.1:${STUDIO_PORT:-8080}:8080"]
+    networks:
+      default:
+        ipv4_address: ${STUDIO_FRONTEND_IP:-172.30.90.3}
+    depends_on:
+      backend:
+        condition: service_healthy
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${STUDIO_INTERNAL_SUBNET:-172.30.90.0/24}

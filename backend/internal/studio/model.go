@@ -8,6 +8,7 @@ import (
 )
 
 type Input struct {
+	ModelRequest
 	Prompt string `json:"prompt"`
 	Kind   string `json:"kind"`
 	Ratio  string `json:"ratio"`
@@ -44,9 +45,11 @@ func withDefaults(in Input) Input {
 }
 
 type Task struct {
-	UpstreamID string `json:"upstream_id,omitempty"`
-	ID         string `json:"id"`
-	SpaceID    string `json:"space_id"`
+	TraceParent      string            `json:"trace_parent,omitempty"`
+	RuntimeSelection *RuntimeSelection `json:"runtime_selection,omitempty"`
+	UpstreamID       string            `json:"upstream_id,omitempty"`
+	ID               string            `json:"id"`
+	SpaceID          string            `json:"space_id"`
 	Input
 	Status       string    `json:"status"`
 	Progress     int       `json:"progress"`
@@ -66,7 +69,13 @@ type Task struct {
 	ResultPath   string    `json:"result_path,omitempty"`
 }
 
-func (t Task) Public() Task { t.SVG = ""; t.Key = ""; t.ResultPath = ""; return t }
+func (t Task) Public() Task {
+	t.RuntimeSelection = nil
+	t.SVG = ""
+	t.Key = ""
+	t.ResultPath = ""
+	return t
+}
 
 type Asset struct {
 	ID           string    `json:"id"`

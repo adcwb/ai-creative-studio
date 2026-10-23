@@ -99,9 +99,72 @@ jobs:
           python3 scripts/docker_check.py --no-build
           --backend-image studio-docker-check-backend:latest
           --frontend-image studio-docker-check-frontend:latest
+  durable-smoke:
+    name: PostgreSQL workers and restore
+    runs-on: ubuntu-24.04
+    env:
+      PGPASSFILE: /dev/null
+      PGSERVICEFILE: /dev/null
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Start disposable local PostgreSQL
+        run: |
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get install -y --no-install-recommends postgresql-16 postgresql-client-16 ffmpeg fonts-noto-cjk
+          mkdir -m 700 /tmp/studio-ci-pg-socket
+          /usr/lib/postgresql/16/bin/initdb -D /tmp/studio-ci-pg-data --encoding=UTF8 --auth-local=trust --auth-host=reject
+          /usr/lib/postgresql/16/bin/pg_ctl -D /tmp/studio-ci-pg-data -l /tmp/studio-ci-pg.log -o '-k /tmp/studio-ci-pg-socket -p 55439 -h 127.0.0.1' start
+          /usr/lib/postgresql/16/bin/createdb -h /tmp/studio-ci-pg-socket -p 55439 studio_ci
+          /usr/lib/postgresql/16/bin/createdb -h /tmp/studio-ci-pg-socket -p 55439 studio_backup_source
+          /usr/lib/postgresql/16/bin/createdb -h /tmp/studio-ci-pg-socket -p 55439 studio_backup_target
+      - name: Real database transactions, leases, isolation and native restore
+        working-directory: backend
+        run: |
+          export STUDIO_POSTGRES_TEST_DSN="host=/tmp/studio-ci-pg-socket port=55439 user=$(id -un) dbname=studio_ci sslmode=disable passfile=/dev/null"
+          export JOBQUEUE_TEST_DSN="$STUDIO_POSTGRES_TEST_DSN"
+          export STUDIO_BLOB_TEST_DSN="$STUDIO_POSTGRES_TEST_DSN"
+          export STUDIO_WORKER_TEST_DSN="$STUDIO_POSTGRES_TEST_DSN"
+          export STUDIO_AUDIT_TEST_DSN="$STUDIO_POSTGRES_TEST_DSN"
+          export STUDIO_POSTGRES_BIN_DIR=/usr/lib/postgresql/16/bin
+          export STUDIO_BACKUP_TEST_DSN="postgresql://$(id -un)@/studio_backup_source?host=/tmp/studio-ci-pg-socket&port=55439&sslmode=disable"
+          export STUDIO_BACKUP_TARGET_DSN="postgresql://$(id -un)@/studio_backup_target?host=/tmp/studio-ci-pg-socket&port=55439&sslmode=disable"
+          export STUDIO_TEST_PG_DUMP=/usr/lib/postgresql/16/bin/pg_dump
+          export STUDIO_TEST_PG_RESTORE=/usr/lib/postgresql/16/bin/pg_restore
+          go test -race ./...
+          go build ./cmd/...
+          python3 ../scripts/test_scheduled_backup.py
+      - name: Two APIs, two workers and actual media
+        run: >-
+          python3 scripts/multiservice_check.py --pg-bin /usr/lib/postgresql/16/bin
+          --pg-socket /tmp/studio-ci-pg-socket --pg-port 55439 --pg-user "$(id -un)"
+      - name: PostgreSQL desktop and mobile workflow
+        run: |
+          cd frontend
+          npm ci
+          npx playwright install --with-deps chrome
+          cd ..
+          python3 scripts/postgres_browser_check.py --pg-bin /usr/lib/postgresql/16/bin --pg-socket /tmp/studio-ci-pg-socket --pg-port 55439 --pg-user "$(id -un)" --chromium "$(command -v google-chrome)"
+          python3 scripts/postgres_browser_check.py --pg-bin /usr/lib/postgresql/16/bin --pg-socket /tmp/studio-ci-pg-socket --pg-port 55439 --pg-user "$(id -un)" --chromium "$(command -v google-chrome)" --quote-fixture
+      - name: Stop disposable PostgreSQL
+        if: always()
+        run: /usr/lib/postgresql/16/bin/pg_ctl -D /tmp/studio-ci-pg-data -m fast stop || true
   docker:
     name: Docker / ${{ matrix.component }}
-    needs: [verify, container-smoke]
+    needs: [verify, container-smoke, durable-smoke]
     runs-on: ubuntu-24.04
     permissions:
       contents: read

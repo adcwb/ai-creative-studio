@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"github.com/adcwb/ai-creative-studio/backend/internal/tracing"
 	"html"
 	"strings"
 	"time"
@@ -138,9 +139,27 @@ func RunWorker(ctx context.Context, repo Repository, p *Pipeline) error {
 		if !ok {
 			continue
 		}
+		ctx := tracing.WithParent(ctx, t.TraceParent)
 		var result GenerationResult
 		var runErr error
-		if !p.capabilities.Ready || t.Provider != p.capabilities.Provider || t.Model != p.capabilities.Model {
+		if t.RuntimeSelection != nil {
+			store, exists := repo.(*FileStore)
+			if !exists {
+				runErr = ErrExecutionGovernance
+			} else {
+				runErr = store.executeManaged(ctx, imageExecutionRequest(t), func(ctx context.Context, providers RuntimeProviders) error {
+					if providers.Image == nil {
+						return ErrExecutionGovernance
+					}
+					var e error
+					result, e = providers.Image.Generate(ctx, t.Input)
+					if e == nil {
+						e = store.execution.ReviewResult(ctx, ExecutionRequest{ID: "image:" + t.ID, Selection: t.RuntimeSelection, Tenant: t.SpaceID, Provider: t.Provider, Model: t.Model, Capability: "image", HasMedia: true, Media: []ExecutionMedia{{Data: result.Data, MIME: result.MIMEType}}})
+					}
+					return e
+				})
+			}
+		} else if !p.capabilities.Ready || t.Provider != p.capabilities.Provider || t.Model != p.capabilities.Model {
 			runErr = providerFailure("provider_unavailable")
 		} else {
 			if async, ok := p.provider.(AsyncImageProvider); ok {

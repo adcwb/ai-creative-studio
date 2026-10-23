@@ -48,9 +48,12 @@ async function capture(page: Page, path: string, fullPage = true) {
 }
 
 test('backend catalog drives parameters; duplicate submission preserves one real task', async ({ page, request }, testInfo) => {
-  const catalogResponse = page.waitForResponse(response => response.url().endsWith('/api/v1/templates') && response.ok())
+  // StrictMode may cancel the first browser fetch after its headers arrive.
+  // Read the expected catalog independently, then assert the UI applies it.
+  const catalogResponse = await request.get(`${apiBase}/templates`)
+  expect(catalogResponse.ok()).toBeTruthy()
   await page.goto('/')
-  const catalog = await (await catalogResponse).json() as {
+  const catalog = await catalogResponse.json() as {
     templates: Array<Input & { id: string; name: string }>
   }
   expect(catalog.templates).toHaveLength(3)

@@ -26,12 +26,30 @@ func main() {
 	}
 }
 func run() error {
+	flushTraces, traceErr := studio.ConfigureTracingFromEnv("api")
+	if traceErr != nil {
+		return traceErr
+	}
+	defer func() {
+		if flushTraces() != nil {
+			slog.Warn("trace export incomplete")
+		}
+	}()
 	provider, capabilities := studio.ConfigureImageFromEnv()
-	store, err := studio.OpenStore(env("DATA_DIR", "./data"), capabilities)
+	store, db, err := openStorage(capabilities)
 	if err != nil {
 		return err
 	}
+	if db != nil {
+		defer db.Close()
+	}
 	defer store.Close()
+	if err := studio.ConfigureBlobStorageFromEnv(store); err != nil {
+		return err
+	}
+	if err := studio.ConfigureExecutionFromEnv(store); err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	pipeline, err := studio.NewPipeline(ctx, provider, capabilities)
@@ -72,12 +90,17 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	ops, err := studio.OpenOperations(env("DATA_DIR", "./data"))
+	var ops *studio.Operations
+	if db != nil {
+		ops, err = studio.OpenPostgresOperations(db)
+	} else {
+		ops, err = studio.OpenOperations(env("DATA_DIR", "./data"))
+	}
 	if err != nil {
 		return err
 	}
 	defer ops.Close()
-	handler = ops.Wrap(handler)
+	handler = ops.Wrap(store.GuardPersistence(handler))
 	srv := &http.Server{Addr: env("HTTP_ADDR", "127.0.0.1:8080"), Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
 	metrics, listener, err := metricsServer(os.Getenv("METRICS_ADDR"), ops.MetricsHandler())
 	if err != nil {
@@ -92,15 +115,25 @@ func run() error {
 	}
 	workerDone := make(chan struct{})
 	creativeWorkerDone := make(chan struct{})
-	go func() { defer close(creativeWorkerDone); errs <- studio.RunCreativeWorker(ctx, store) }()
+	if db == nil {
+		go func() { defer close(creativeWorkerDone); errs <- studio.RunCreativeWorker(ctx, store) }()
+	} else {
+		close(creativeWorkerDone)
+	}
 	scriptWorkerDone := make(chan struct{})
 	storyboardWorkerDone := make(chan struct{})
-	go func() {
-		defer close(storyboardWorkerDone)
-		errs <- studio.RunStoryboardWorker(ctx, store, storyboardPipeline)
-	}()
-	go func() { defer close(workerDone); errs <- studio.RunWorker(ctx, store, pipeline) }()
-	go func() { defer close(scriptWorkerDone); errs <- studio.RunScriptWorker(ctx, store, scriptPipeline) }()
+	if db == nil {
+		go func() {
+			defer close(storyboardWorkerDone)
+			errs <- studio.RunStoryboardWorker(ctx, store, storyboardPipeline)
+		}()
+		go func() { defer close(workerDone); errs <- studio.RunWorker(ctx, store, pipeline) }()
+		go func() { defer close(scriptWorkerDone); errs <- studio.RunScriptWorker(ctx, store, scriptPipeline) }()
+	} else {
+		close(storyboardWorkerDone)
+		close(workerDone)
+		close(scriptWorkerDone)
+	}
 	go func() {
 		slog.Info("studio API listening", "address", srv.Addr, "provider", capabilities.Provider, "provider_ready", capabilities.Ready)
 		errs <- srv.ListenAndServe()

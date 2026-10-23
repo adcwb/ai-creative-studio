@@ -222,7 +222,7 @@ func (s *FileStore) CreateScriptGeneration(space, id, key string, in ScriptGener
 	if s.generationActiveLocked(project) {
 		return ScriptGeneration{}, false, ErrGenerationActive
 	}
-	if err := s.guardCreativeLocked(in.ExpectedProvider, in.ExpectedModel); err != nil {
+	if err := s.guardModelRequestLocked(in.ModelRequest, in.ExpectedProvider, in.ExpectedModel); err != nil {
 		return ScriptGeneration{}, false, err
 	}
 	generationID, err := newProjectID()
@@ -230,7 +230,10 @@ func (s *FileStore) CreateScriptGeneration(space, id, key string, in ScriptGener
 		return ScriptGeneration{}, false, err
 	}
 	now := time.Now().UTC()
-	generation := ScriptGeneration{ID: generationID, SpaceID: space, ProjectID: id, SourceTitle: project.Title, SourceBrief: project.Brief, BaseVersion: project.Version, Provider: s.creativeGenerationProvider("mock-script"), Model: s.creativeGenerationModel(), Status: "queued", CreatedAt: now, UpdatedAt: now}
+	generation := ScriptGeneration{TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), ID: generationID, SpaceID: space, ProjectID: id, SourceTitle: project.Title, SourceBrief: project.Brief, BaseVersion: project.Version, Provider: s.creativeGenerationProvider("mock-script"), Model: s.creativeGenerationModel(), Status: "queued", CreatedAt: now, UpdatedAt: now}
+	if in.selection != nil {
+		generation.Provider, generation.Model = in.selectedCaps.Provider, in.selectedCaps.Model
+	}
 	project.LatestGenerationID = generation.ID
 	project.UpdatedAt = now
 	receipt.GenerationID = generation.ID
@@ -340,6 +343,9 @@ func (s *FileStore) NextScriptGeneration() (ScriptGeneration, bool, error) {
 func (s *FileStore) FinishScriptGeneration(generation ScriptGeneration, script Script, runErr error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.finishScriptLocked(generation, script, runErr)
+}
+func (s *FileStore) finishScriptLocked(generation ScriptGeneration, script Script, runErr error) error {
 	current, ok := s.data.ScriptGenerations[generation.ID]
 	if !ok || current.SpaceID != generation.SpaceID || current.ProjectID != generation.ProjectID {
 		return ErrNotFound

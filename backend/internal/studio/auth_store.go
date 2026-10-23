@@ -13,15 +13,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 )
 
 // AuthStore is intentionally local and protected by the enclosing FileStore lock.
 // Its file must be backed up with the entire DATA_DIR. It is not a multi-instance store.
 type AuthStore struct {
+	pg       *postgresScope
 	models   *ModelConfigStore
-	mu       sync.Mutex
+	mu       stateMutex
 	path     string
 	data     authSnapshot
 	failed   error
@@ -138,6 +138,14 @@ func (s *AuthStore) commit(d authSnapshot) error {
 	if s.failed != nil {
 		return s.failed
 	}
+	if s.pg != nil {
+		if err := s.pg.save(d); err != nil {
+			return err
+		}
+		s.cancelChangedRuntimeLocked(s.data, d)
+		s.data = d
+		return nil
+	}
 	b, err := json.Marshal(d)
 	if err != nil {
 		return err
@@ -170,6 +178,7 @@ func (s *AuthStore) commit(d authSnapshot) error {
 		s.failed = err
 		return err
 	}
+	s.cancelChangedRuntimeLocked(s.data, d)
 	s.data = d
 	return nil
 }
@@ -184,6 +193,9 @@ func (s *AuthStore) authenticate(token string) (AuthUser, authSession, bool) {
 	return u.AuthUser, ss, ok && exists && time.Now().Before(ss.Expires)
 }
 func (s *AuthStore) allowAttempt(ip string) bool {
+	if s.pg != nil {
+		return postgresAllowAttempt(s.pg.db, ip)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()

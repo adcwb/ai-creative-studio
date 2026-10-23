@@ -44,7 +44,7 @@ func (s *FileStore) CreateStoryboardGeneration(space, id, key string, in ScriptG
 	if p.Script == nil {
 		return StoryboardGeneration{}, false, ErrScriptMissing
 	}
-	if err := s.guardCreativeLocked(in.ExpectedProvider, in.ExpectedModel); err != nil {
+	if err := s.guardModelRequestLocked(in.ModelRequest, in.ExpectedProvider, in.ExpectedModel); err != nil {
 		return StoryboardGeneration{}, false, err
 	}
 	gid, err := newProjectID()
@@ -53,7 +53,10 @@ func (s *FileStore) CreateStoryboardGeneration(space, id, key string, in ScriptG
 	}
 	now := time.Now().UTC()
 	script := cloneScript(*p.Script)
-	g := StoryboardGeneration{ID: gid, SpaceID: space, ProjectID: id, BaseVersion: p.Version, SourceScriptVersion: p.ScriptVersion, SourceScript: &script, Provider: s.creativeGenerationProvider("mock-storyboard"), Model: s.creativeGenerationModel(), Status: "queued", CreatedAt: now, UpdatedAt: now}
+	g := StoryboardGeneration{TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), ID: gid, SpaceID: space, ProjectID: id, BaseVersion: p.Version, SourceScriptVersion: p.ScriptVersion, SourceScript: &script, Provider: s.creativeGenerationProvider("mock-storyboard"), Model: s.creativeGenerationModel(), Status: "queued", CreatedAt: now, UpdatedAt: now}
+	if in.selection != nil {
+		g.Provider, g.Model = in.selectedCaps.Provider, in.selectedCaps.Model
+	}
 	p.LatestStoryboardGenerationID = gid
 	p.UpdatedAt = now
 	receipt.GenerationID = gid
@@ -161,6 +164,9 @@ func (s *FileStore) NextStoryboardGeneration() (StoryboardGeneration, bool, erro
 func (s *FileStore) FinishStoryboardGeneration(g StoryboardGeneration, shots []StoryboardShot, runErr error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.finishStoryboardLocked(g, shots, runErr)
+}
+func (s *FileStore) finishStoryboardLocked(g StoryboardGeneration, shots []StoryboardShot, runErr error) error {
 	current, ok := s.data.StoryboardGenerations[g.ID]
 	if !ok || current.SpaceID != g.SpaceID || current.ProjectID != g.ProjectID {
 		return ErrNotFound

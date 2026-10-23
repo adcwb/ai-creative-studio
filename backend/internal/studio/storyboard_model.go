@@ -27,20 +27,22 @@ type StoryboardSaveInput struct {
 	Shots           []StoryboardShot `json:"shots"`
 }
 type StoryboardGeneration struct {
-	Model               string    `json:"model,omitempty"`
-	ID                  string    `json:"id"`
-	SpaceID             string    `json:"space_id"`
-	ProjectID           string    `json:"project_id"`
-	BaseVersion         int       `json:"base_version"`
-	SourceScriptVersion int       `json:"source_script_version"`
-	Provider            string    `json:"provider"`
-	Status              string    `json:"status"`
-	Progress            int       `json:"progress"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
-	Error               string    `json:"error,omitempty"`
-	ErrorCode           string    `json:"error_code,omitempty"`
-	SourceScript        *Script   `json:"source_script,omitempty"`
+	TraceParent         string            `json:"trace_parent,omitempty"`
+	RuntimeSelection    *RuntimeSelection `json:"runtime_selection,omitempty"`
+	Model               string            `json:"model,omitempty"`
+	ID                  string            `json:"id"`
+	SpaceID             string            `json:"space_id"`
+	ProjectID           string            `json:"project_id"`
+	BaseVersion         int               `json:"base_version"`
+	SourceScriptVersion int               `json:"source_script_version"`
+	Provider            string            `json:"provider"`
+	Status              string            `json:"status"`
+	Progress            int               `json:"progress"`
+	CreatedAt           time.Time         `json:"created_at"`
+	UpdatedAt           time.Time         `json:"updated_at"`
+	Error               string            `json:"error,omitempty"`
+	ErrorCode           string            `json:"error_code,omitempty"`
+	SourceScript        *Script           `json:"source_script,omitempty"`
 }
 
 var ErrStoryboardMissing = errors.New("请先成功生成一份模拟分镜计划")

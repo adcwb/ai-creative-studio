@@ -34,6 +34,8 @@ func Handler(repo Repository, origin string) http.Handler {
 	registerStoryboardRoutes(mux, repo)
 	if store, ok := repo.(*FileStore); ok {
 		registerGovernanceRoutes(mux, store)
+		registerRuntimeCatalog(mux, store)
+		registerRuntimeQuote(mux, store)
 		registerMediaRoutes(mux, store)
 		registerCreativeRoutes(mux, store)
 		registerImageResumeRoute(mux, store)
@@ -157,6 +159,7 @@ func createTask(w http.ResponseWriter, r *http.Request, repo Repository, parentI
 		return
 	}
 	var body struct {
+		ModelRequest
 		Prompt           string          `json:"prompt"`
 		Kind             string          `json:"kind"`
 		Ratio            json.RawMessage `json:"ratio"`
@@ -167,7 +170,7 @@ func createTask(w http.ResponseWriter, r *http.Request, repo Repository, parentI
 	if !decode(w, r, &body) {
 		return
 	}
-	in := Input{Prompt: body.Prompt, Kind: body.Kind}
+	in := Input{ModelRequest: body.ModelRequest, Prompt: body.Prompt, Kind: body.Kind}
 	if !inputOption(w, "ratio", body.Ratio, &in.Ratio) || !inputOption(w, "style", body.Style, &in.Style) {
 		return
 	}
@@ -181,7 +184,7 @@ func createTask(w http.ResponseWriter, r *http.Request, repo Repository, parentI
 		if !inputOption(w, "expected_provider", body.ExpectedProvider, &expected.Provider) || !inputOption(w, "expected_model", body.ExpectedModel, &expected.Model) {
 			return
 		}
-		if !((expected.Provider == "mock-svg" && expected.Model == "") || (expected.Provider == "openai-images" && expected.Model == OpenAIModel)) {
+		if in.ModelConfigID == "" && !((expected.Provider == "mock-svg" && expected.Model == "") || (expected.Provider == "openai-images" && expected.Model == OpenAIModel)) {
 			problem(w, 400, "invalid_input", "生成模式确认参数无效")
 			return
 		}
@@ -190,6 +193,12 @@ func createTask(w http.ResponseWriter, r *http.Request, repo Repository, parentI
 	in, err := Normalize(in)
 	if err != nil {
 		problem(w, 400, "invalid_input", err.Error())
+		return
+	}
+	if !resolveModelRequest(w, r, repo, &in.ModelRequest, "image") {
+		return
+	}
+	if !validateModelPreview(w, r, repo, in.ModelRequest, "image", "", in) {
 		return
 	}
 	var t Task
@@ -263,7 +272,7 @@ func decodeLimited(w http.ResponseWriter, r *http.Request, v any, limit int64) b
 func respond(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	_ = json.NewEncoder(w).Encode(publicExecutionResponse(v))
 }
 func problem(w http.ResponseWriter, status int, code, message string) {
 	respond(w, status, map[string]any{"error": map[string]string{"code": code, "message": message}})

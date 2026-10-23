@@ -43,7 +43,13 @@ func HandlerFromEnv(repo Repository, origin, dir string) (http.Handler, error) {
 	if mode != "" && mode != "secure" {
 		return nil, errors.New("AUTH_MODE must be secure or demo")
 	}
-	s, err := OpenAuthStore(dir)
+	var s *AuthStore
+	var err error
+	if fs, ok := repo.(*FileStore); ok && fs.pg != nil {
+		s, err = OpenPostgresAuthStore(dir, fs.pg.db)
+	} else {
+		s, err = OpenAuthStore(dir)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +57,11 @@ func HandlerFromEnv(repo Repository, origin, dir string) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.models, err = OpenModelConfigStore(dir, modelKey)
+	if s.pg != nil {
+		s.models, err = OpenPostgresModelConfigStore(dir, s.pg.db, modelKey)
+	} else {
+		s.models, err = OpenModelConfigStore(dir, modelKey)
+	}
 	for i := range modelKey {
 		modelKey[i] = 0
 	}
@@ -61,6 +71,9 @@ func HandlerFromEnv(repo Repository, origin, dir string) (http.Handler, error) {
 	oidcLogin, err := oidcFromEnv()
 	if err != nil {
 		return nil, err
+	}
+	if oidcLogin != nil && s.pg != nil {
+		oidcLogin.db = s.pg.db
 	}
 	trustedProxies, err := parseTrustedAuthProxies(os.Getenv("AUTH_TRUSTED_PROXY_CIDRS"))
 	if err != nil {
@@ -73,6 +86,9 @@ func authWrite(r *http.Request) bool {
 	return r.Method != "GET" && r.Method != "HEAD" && r.Method != "OPTIONS"
 }
 func SecureHandler(repo Repository, origin string, auth *AuthStore, options AuthOptions) http.Handler {
+	if s, ok := repo.(*FileStore); ok {
+		ConfigureManagedRuntime(s, auth)
+	}
 	next := Handler(repo, origin)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")

@@ -4,13 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -18,10 +16,18 @@ import (
 // running against local files. Configured-but-unavailable real providers remain
 // inspectable. Ready real execution is closed until every worker is accounted.
 func ValidateRuntimeFromEnv(capabilities ...Capabilities) error {
-	for key, supported := range map[string]string{"STORAGE_BACKEND": "file", "QUEUE_BACKEND": "inprocess", "MEDIA_BACKEND": "local"} {
-		if value := os.Getenv(key); value != "" && value != supported {
-			return fmt.Errorf("%s=%s is not integrated; refusing silent local fallback", key, value)
-		}
+	storage, queue := os.Getenv("STORAGE_BACKEND"), os.Getenv("QUEUE_BACKEND")
+	if storage == "" {
+		storage = "file"
+	}
+	if queue == "" {
+		queue = "inprocess"
+	}
+	if (storage != "file" || queue != "inprocess") && (storage != "postgres" || queue != "postgres") {
+		return errors.New("unsupported storage/queue pair; refusing silent fallback")
+	}
+	if media := os.Getenv("MEDIA_BACKEND"); media != "" && media != "local" {
+		return errors.New("MEDIA_BACKEND is not integrated")
 	}
 	for _, caps := range capabilities {
 		if caps.Mode == "real" && caps.Ready && !caps.localExecution {
@@ -85,7 +91,8 @@ type costSnapshot struct {
 	Entries map[string]CostEntry `json:"entries"`
 }
 type BudgetLedger struct {
-	mu   sync.Mutex
+	pg   *postgresScope
+	mu   stateMutex
 	path string
 	data costSnapshot
 }
@@ -162,6 +169,13 @@ func (l *BudgetLedger) clone() costSnapshot {
 	return n
 }
 func (l *BudgetLedger) persist(data costSnapshot) error {
+	if l.pg != nil {
+		if err := l.pg.save(data); err != nil {
+			return err
+		}
+		l.data = data
+		return nil
+	}
 	raw, err := json.Marshal(data)
 	if err != nil {
 		return err
@@ -232,6 +246,15 @@ func (l *BudgetLedger) SetLimit(tenant, currency string, limit int64) error {
 	return l.persist(n)
 }
 func (l *BudgetLedger) Reserve(id, tenant, provider, model, currency string, amount int64) (CostEntry, error) {
+	return l.reserve(id, tenant, provider, model, currency, amount, false)
+}
+
+// ClaimDispatch atomically reserves and records intent before network I/O. Any
+// existing ID refuses a second dispatch, even if another governor owns it.
+func (l *BudgetLedger) ClaimDispatch(id, tenant, provider, model, currency string, amount int64) (CostEntry, error) {
+	return l.reserve(id, tenant, provider, model, currency, amount, true)
+}
+func (l *BudgetLedger) reserve(id, tenant, provider, model, currency string, amount int64, dispatch bool) (CostEntry, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	currency, err := normalizeCurrency(currency)
@@ -246,6 +269,17 @@ func (l *BudgetLedger) Reserve(id, tenant, provider, model, currency string, amo
 		return CostEntry{}, errors.New("reservation requires identity and positive bound")
 	}
 	if e, ok := l.data.Entries[id]; ok {
+		if dispatch {
+			if e.State != "reserved" || e.Tenant != tenant || e.Provider != provider || e.Model != model || e.Currency != currency || e.Reserved < amount {
+				return CostEntry{}, errors.New("dispatch already claimed or reservation mismatch")
+			}
+			e.State = "unknown"
+			e.Evidence = "dispatch_started"
+			e.UpdatedAt = time.Now().UTC()
+			n := l.clone()
+			n.Entries[id] = e
+			return e, l.persist(n)
+		}
 		if e.Tenant != tenant || e.Provider != provider || e.Model != model || e.Currency != currency || e.Reserved != amount {
 			return CostEntry{}, errors.New("reservation conflict")
 		}
@@ -260,6 +294,10 @@ func (l *BudgetLedger) Reserve(id, tenant, provider, model, currency string, amo
 		return CostEntry{}, errors.New("budget exhausted or missing")
 	}
 	e := CostEntry{ID: id, Tenant: tenant, Provider: provider, Model: model, Currency: currency, Reserved: amount, State: "reserved", UpdatedAt: time.Now().UTC()}
+	if dispatch {
+		e.State = "unknown"
+		e.Evidence = "dispatch_started"
+	}
 	n := l.clone()
 	n.Entries[id] = e
 	return e, l.persist(n)
@@ -362,4 +400,21 @@ func GetExchangeQuote(ctx context.Context, provider ExchangeProvider, from, to s
 	}
 	quote.Stale = quote.Stale || now.Sub(quote.AsOf) > maxAge
 	return quote, nil
+}
+
+// ReleaseUndispatched only changes reserved entries under the same ledger lock.
+// An attempted/in-flight/ambiguous dispatch can never be released by this path.
+func (l *BudgetLedger) ReleaseUndispatched(id, tenant, currency string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	e, ok := l.data.Entries[id]
+	if !ok || e.Tenant != tenant || e.Currency != currency || e.State != "reserved" {
+		return nil
+	}
+	e.State = "released"
+	e.Evidence = "local:never_dispatched"
+	e.UpdatedAt = time.Now().UTC()
+	n := l.clone()
+	n.Entries[id] = e
+	return l.persist(n)
 }

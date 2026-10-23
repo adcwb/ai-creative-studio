@@ -2,7 +2,9 @@ package studio
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"github.com/adcwb/ai-creative-studio/backend/internal/tracing"
 	"strings"
 	"time"
 
@@ -123,9 +125,31 @@ func RunScriptWorker(ctx context.Context, repo ProjectRepository, pipeline *Scri
 		if !ok {
 			continue
 		}
+		ctx := tracing.WithParent(ctx, generation.TraceParent)
 		var script Script
 		var runErr error
-		if generation.Provider != pipeline.provider || (generation.Provider != "mock-script" && (generation.Model == "" || generation.Model != pipeline.model)) {
+		if generation.RuntimeSelection != nil {
+			store, exists := repo.(*FileStore)
+			if !exists {
+				runErr = ErrExecutionGovernance
+			} else {
+				runErr = store.executeManaged(ctx, ExecutionRequest{ID: "script:" + generation.ID, Tenant: generation.SpaceID, Provider: generation.Provider, Model: generation.Model, Capability: "text", Text: generation.SourceTitle + "\n" + generation.SourceBrief, Selection: generation.RuntimeSelection}, func(ctx context.Context, providers RuntimeProviders) error {
+					if providers.Creative == nil {
+						return ErrExecutionGovernance
+					}
+					p, e := NewScriptPipeline(ctx, CreativeScriptProvider(providers.Creative))
+					if e != nil {
+						return e
+					}
+					script, e = p.Invoke(ctx, ProjectInput{Title: generation.SourceTitle, Brief: generation.SourceBrief})
+					if e == nil {
+						output, _ := json.Marshal(script)
+						e = store.execution.ReviewResult(ctx, ExecutionRequest{ID: "script:" + generation.ID, Selection: generation.RuntimeSelection, Tenant: generation.SpaceID, Provider: generation.Provider, Model: generation.Model, Capability: "text", Text: string(output)})
+					}
+					return e
+				})
+			}
+		} else if generation.Provider != pipeline.provider || (generation.Provider != "mock-script" && (generation.Model == "" || generation.Model != pipeline.model)) {
 			runErr = providerFailure("provider_unavailable")
 		} else {
 			script, runErr = pipeline.Invoke(ctx, ProjectInput{Title: generation.SourceTitle, Brief: generation.SourceBrief})

@@ -2,18 +2,18 @@
 
 React / TypeScript / Vite 前端与 Go / Eino 后端分离的视觉创作工作室。支持图像任务、项目简报、剧本、分镜、素材、历史、时间轴、字幕、混音与 MP4。默认模拟素材始终保留来源；假上游与合成媒体验证不代表真实模型质量或费用验证。
 
-本轮基线为 `5c6060b09d3cc7d054e57f5b0dc7dfcf3c98fe7d`。**本轮只本地提交，不推送、不触发镜像发布、不部署。** 已获批首轮测试预算 USD 3 与 CNY 5，分别封顶、不兑换、不充值；凭据与认证传输确认仍未就绪，没有执行真实模型调用。完整范围、测试和缺口见 [第七轮交付矩阵](docs/iteration-7-delivery.md)。
+本轮基线为 `5c6060b09d3cc7d054e57f5b0dc7dfcf3c98fe7d`。**本轮只本地提交，不推送、不触发镜像发布、不部署。** 已获批首轮测试预算 USD 3 与 CNY 5，分别封顶、不兑换、不充值；凭据与认证传输确认仍未就绪，没有执行真实模型调用。当前生产执行链与剩余范围见 [第八轮交付矩阵](docs/iteration-8-delivery.md)，[第七轮矩阵](docs/iteration-7-delivery.md)保留历史快照。
 
 ## 当前能力与边界
 
 - 默认安全模式：注册开关、密码哈希、HttpOnly 会话、CSRF、组织成员与 owner/admin/editor/viewer 服务端授权。资源读写、下载和幂等记录按组织隔离；旧演示数据不会自动归给新账户。OIDC 支持授权码、PKCE、state、nonce 和签名校验；外部 SSO 尚未配置或验证。[身份与迁移](docs/authentication.md)
 - 界面支持简体中文和英文、持久化语言选择与浏览器语言回退；日期和数字按语言格式化。币种独立于语言，默认 USD；预算账本按币种整数最小单位隔离，不做隐式换算。[国际化](docs/internationalization.md)
-- 组织 owner 可配置预算，成员查看账本；费用原语支持预留、结算与未知状态占用，重启不会释放未知费用。**尚未将所有供应商 worker 接入金额与审核约束，因此服务启动会拒绝已配置就绪的真实远端生成。设置预算不会解除此限制。** [治理](docs/production-foundations.md) / [预算 API](docs/iteration-7-governance-api.md)
-- 原子文件持久化、排他锁、完整停服备份与恢复；本地审计和独立回环指标端口。**数据库、外部队列、独立 worker 与多实例仍未完成**，配置未知存储模式会拒绝启动，不能把示例设施容器当作应用已接入。
+- 组织 owner 配置原币种预算；托管模型执行接入预留、dispatch、审核和费用证据处理，未知费用继续占用。缺少明确报价、审核或授权时拒绝执行；旧全局远端环境配置不能绕过治理。[执行治理](docs/execution-governance.md) / [预算 API](docs/iteration-7-governance-api.md)
+- 保留原子文件模式，新增 PostgreSQL 业务/身份/治理存储与数据库任务队列、独立 worker、共享对象存储及多实例授权。采用数据库直接队列替代 Redis 双写；实际两 API/两 worker 与本地媒体演练通过。部署与容量仍需专门验收。[独立 worker](docs/postgres-workers.md) / [对象存储](docs/iteration-8-object-storage.md)
 - 360p / 720p / 1080p、16:9 / 9:16 / 1:1、软字幕或烧录、源视频音轨显式保留与混音、最多 8 条定位音轨及黑场淡入淡出。[媒体规格与限制](docs/iteration-7-media.md)
 - mask 绘制与 OpenAI 局部编辑协议、Google 首帧与视频编辑、即梦短期对象 URL 桥接、双图角色一致性反馈、MiniMax 存量账户器乐协议，以及可替换本地强制对齐／口型／音效适配。没有安装或验证实际本地模型；人物反馈不保证锁脸。[适配与官方依据](docs/iteration-7-provider-enhancements.md)
 
-模型接入管理支持租户管理与脱敏配置；配置验证与真实请求分开。凭据只能服务端加密或引用允许的 secret 名称，部署密钥没有默认值。当前配置不会自动改动 worker 的有效模型；正式接入与真实调用保持关闭，管理页面不代表已经获得供应商权限。
+模型接入管理支持租户管理与脱敏配置；配置验证与真实请求分开。凭据只能服务端加密或引用允许的 secret 名称，部署密钥没有默认值。用户必须显式选择配置版本并确认原币种费用上限；worker 再次授权、解密并应用配置，撤销会阻止继续发送。保存默认模型不会把原模拟操作静默变成收费请求，管理页面也不代表已取得供应商权限。[运行时选择](docs/runtime-model-selection.md)
 
 ## 供应商状态
 
@@ -61,11 +61,11 @@ Docker 使用 `docker compose build` 和 `docker compose up -d`；前端仅绑�
 
 ## 数据、迁移与恢复
 
-主快照仍为兼容 v1/v2 升级的 v3 JSON，其他媒体、创作、身份、预算与配置文件位于同一 `DATA_DIR`。必须备份整个目录；不是只备份 `state.json`。文件锁阻止同目录双实例，损坏状态拒绝启动，不清空重建。
+默认文件模式主快照仍为兼容 v1/v2 升级的 v3 JSON，其他媒体、创作、身份、预算与配置文件位于同一 `DATA_DIR`。必须备份整个目录；不是只备份 `state.json`。文件锁阻止同目录双实例，损坏状态拒绝启动，不清空重建。
 
 使用 `python3 scripts/backup.py --help` 查看停服备份、校验和恢复操作；恢复至新目录，验证后再切换。新增身份不会自动认领旧演示资产；回滚旧程序应恢复其匹配版本完整备份，而不是修改快照版本号。加密凭据恢复还需要部署方安全保管的原 KEK，备份包不包含该环境密钥。
 
-没有承诺高可用、全文件跨模块事务、异地容灾或生产容量。真实恢复演练与负载测试覆盖范围见交付矩阵。
+PostgreSQL 模式使用 `STORAGE_BACKEND=postgres`、`QUEUE_BACKEND=postgres`、部署注入的 `DATABASE_URL` 与显式共享 BlobStore；API 和 worker 使用各自私有 `DATA_DIR`。先离线执行 `store-migrate --mode init --confirm-stopped`，启动不默认建表。数据迁移及反向恢复必须停写、使用空目标并匹配媒体与 KEK，不能只改环境变量承诺回滚。[数据库＋媒体备份包与调度](docs/postgres-backup.md)要求停止全部 API/worker，并提供匹配 PostgreSQL 客户端；模板未安装。可选[跨进程追踪与告警配置](docs/tracing.md)默认关闭，只导出有界脱敏数据。真实数据库恢复与多进程演练覆盖范围见第八轮矩阵；没有承诺异地容灾或生产容量。
 
 ## 检查与验收
 
