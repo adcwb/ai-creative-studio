@@ -48,7 +48,7 @@ Compose 使用 `studio-data` 命名卷保存完整`/app/data`；Docker实际卷�
 
 ## CI 与 Docker Hub
 
-工作流`.github/workflows/ci.yml`对所有分支push及pull request执行。`container-smoke`在`verify`通过后构建并验证双容器代理、持久化和合成媒体；`docker`发布矩阵依赖这两个任务成功，分别以`./backend`与`./frontend`构建`linux/amd64`镜像。
+工作流`.github/workflows/ci.yml`对所有分支push及pull request执行。`container-smoke`与`verify`并行，构建并验证双容器代理、持久化和合成媒体；`docker`发布矩阵依赖这两个任务成功，分别以`./backend`与`./frontend`构建`linux/amd64`镜像。
 
 - Pull request仅构建，不登录Docker Hub、不发布；fork仓库不发布。
 - 已配置凭据的上游`adcwb/ai-creative-studio`分支push可以发布；默认分支还更新`latest`。
