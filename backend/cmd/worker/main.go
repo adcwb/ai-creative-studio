@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/jobqueue"
@@ -55,7 +56,11 @@ func run() error {
 			return errors.New("postgres schema unavailable; run explicit migration")
 		}
 	}
-	queue := jobqueue.Queue{DB: db, BeforeClaim: func(ctx context.Context) error { return studio.ReconcilePostgresJobs(ctx, db) }}
+	concurrency, err := workerConcurrency(os.Getenv("WORKER_CONCURRENCY"))
+	if err != nil {
+		return err
+	}
+	queue := jobqueue.Queue{DB: db, Slots: make(chan struct{}, concurrency), BeforeClaim: func(ctx context.Context) error { return studio.ReconcilePostgresJobs(ctx, db) }}
 
 	store, err := studio.OpenPostgresStore(dir, db)
 	if err != nil {
@@ -106,4 +111,15 @@ func run() error {
 		return nil
 	}
 	return err
+}
+
+func workerConcurrency(raw string) (int, error) {
+	if raw == "" {
+		return 2, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 1 || n > 16 {
+		return 0, errors.New("WORKER_CONCURRENCY must be an integer from 1 to 16")
+	}
+	return n, nil
 }

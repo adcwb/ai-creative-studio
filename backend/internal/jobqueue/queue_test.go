@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -349,5 +350,86 @@ func TestWorkerContinuesAfterCrossProcessCancellation(t *testing.T) {
 	})
 	if err != nil || calls != 2 {
 		t.Fatalf("cancellation stopped worker: calls=%d err=%v", calls, err)
+	}
+}
+
+func TestDistributedTenantAdmissionAcrossKinds(t *testing.T) {
+	q := testQueue(t)
+	q.Lease = time.Minute
+	ctx := context.Background()
+	tenant := fmt.Sprintf("admission-%d", time.Now().UnixNano())
+	t.Cleanup(func() { q.DB.Exec(`DELETE FROM execution_jobs WHERE tenant_id=$1`, tenant) })
+	kinds := make([]string, 8)
+	for i := range kinds {
+		kinds[i] = fmt.Sprintf("%s-%d", tenant, i)
+		enqueue(t, q, Job{TenantID: tenant, ID: kinds[i], Kind: kinds[i], IdempotencyKey: kinds[i], Payload: json.RawMessage(`{}`)})
+	}
+	var wg sync.WaitGroup
+	claims := make(chan bool, 8)
+	errs := make(chan error, 8)
+	for _, kind := range kinds {
+		wg.Add(1)
+		go func(kind string) { defer wg.Done(); _, ok, e := q.Claim(ctx, kind); claims <- ok; errs <- e }(kind)
+	}
+	wg.Wait()
+	close(claims)
+	close(errs)
+	for e := range errs {
+		if e != nil {
+			t.Fatal(e)
+		}
+	}
+	count := 0
+	for ok := range claims {
+		if ok {
+			count++
+		}
+	}
+	if count != 4 {
+		t.Fatalf("distributed tenant cap: %d", count)
+	}
+}
+func TestWorkerSharedSlotsBoundConcurrentHandlers(t *testing.T) {
+	q := testQueue(t)
+	q.Slots = make(chan struct{}, 1)
+	tenant := fmt.Sprintf("slots-%d", time.Now().UnixNano())
+	t.Cleanup(func() { q.DB.Exec(`DELETE FROM execution_jobs WHERE tenant_id=$1`, tenant) })
+	kinds := make([]string, 3)
+	for i := range kinds {
+		kinds[i] = fmt.Sprintf("%s-%d", tenant, i)
+		enqueue(t, q, Job{TenantID: tenant, ID: kinds[i], Kind: kinds[i], IdempotencyKey: kinds[i], Payload: json.RawMessage(`{}`)})
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var active, maxSeen, finished atomic.Int64
+	done := make(chan error, 3)
+	for _, kind := range kinds {
+		go func(kind string) {
+			done <- Run(ctx, q, kind, func(ctx context.Context, q Queue, j Job) error {
+				n := active.Add(1)
+				defer active.Add(-1)
+				for old := maxSeen.Load(); n > old && !maxSeen.CompareAndSwap(old, n); old = maxSeen.Load() {
+				}
+				if e := q.Dispatch(ctx, j); e != nil {
+					return e
+				}
+				time.Sleep(40 * time.Millisecond)
+				if e := q.Finish(ctx, j, "succeeded", nil); e != nil {
+					return e
+				}
+				if finished.Add(1) == 3 {
+					cancel()
+				}
+				return nil
+			})
+		}(kind)
+	}
+	for range 3 {
+		if e := <-done; e != nil {
+			t.Fatal(e)
+		}
+	}
+	if finished.Load() != 3 || maxSeen.Load() != 1 {
+		t.Fatalf("handlers finished=%d max=%d", finished.Load(), maxSeen.Load())
 	}
 }

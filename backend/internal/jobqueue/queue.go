@@ -47,6 +47,7 @@ type Queue struct {
 	DB          *sql.DB
 	Lease       time.Duration
 	BeforeClaim func(context.Context) error
+	Slots       chan struct{}
 }
 
 func (q Queue) Init(ctx context.Context) error { _, err := q.DB.ExecContext(ctx, Schema); return err }
@@ -93,12 +94,17 @@ func (q Queue) Claim(ctx context.Context, kind string) (Job, bool, error) {
 		return Job{}, false, err
 	}
 	defer tx.Rollback()
+	// Serialize only admission, not execution, across every worker process.
+	// Counts therefore cannot race when instances claim different job kinds.
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(728219118)`); err != nil {
+		return Job{}, false, err
+	}
 	_, err = tx.ExecContext(ctx, `UPDATE execution_jobs SET state='unknown',lease_token='',updated_at=clock_timestamp() WHERE kind=$1 AND state='dispatch_started' AND lease_until<=clock_timestamp()`, kind)
 	if err != nil {
 		return Job{}, false, err
 	}
 	var j Job
-	err = tx.QueryRowContext(ctx, `WITH candidate AS (SELECT tenant_id,id FROM execution_jobs WHERE kind=$1 AND (state='queued' OR (state='leased' AND lease_until<=clock_timestamp())) ORDER BY created_at,tenant_id,id FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE execution_jobs j SET state='leased',lease_token=$2,lease_until=clock_timestamp()+($3 * interval '1 millisecond'),attempt=attempt+1,updated_at=clock_timestamp() FROM candidate c WHERE j.tenant_id=c.tenant_id AND j.id=c.id RETURNING j.tenant_id,j.id,j.kind,j.idempotency_key,j.payload,j.state,j.lease_token,j.attempt`, kind, token, q.lease().Milliseconds()).Scan(&j.TenantID, &j.ID, &j.Kind, &j.IdempotencyKey, &j.Payload, &j.State, &j.Token, &j.Attempt)
+	err = tx.QueryRowContext(ctx, `WITH active AS MATERIALIZED (SELECT tenant_id,kind FROM execution_jobs WHERE state IN ('leased','dispatch_started') AND lease_until>clock_timestamp()), candidate AS (SELECT tenant_id,id FROM execution_jobs qj WHERE kind=$1 AND (state='queued' OR (state='leased' AND lease_until<=clock_timestamp())) AND (SELECT count(*) FROM active)<8 AND (SELECT count(*) FROM active WHERE kind=$1)<$4 AND (SELECT count(*) FROM active WHERE tenant_id=qj.tenant_id)<4 ORDER BY created_at,tenant_id,id FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE execution_jobs j SET state='leased',lease_token=$2,lease_until=clock_timestamp()+($3 * interval '1 millisecond'),attempt=attempt+1,updated_at=clock_timestamp() FROM candidate c WHERE j.tenant_id=c.tenant_id AND j.id=c.id RETURNING j.tenant_id,j.id,j.kind,j.idempotency_key,j.payload,j.state,j.lease_token,j.attempt`, kind, token, q.lease().Milliseconds(), kindActiveLimit(kind)).Scan(&j.TenantID, &j.ID, &j.Kind, &j.IdempotencyKey, &j.Payload, &j.State, &j.Token, &j.Attempt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Job{}, false, tx.Commit()
 	}
@@ -202,4 +208,11 @@ func ResumeTx(ctx context.Context, tx *sql.Tx, j Job) error {
 	}
 	r, err := tx.ExecContext(ctx, `UPDATE execution_jobs SET kind=$3,idempotency_key=$4,payload=$5,state='queued',lease_token='',lease_until=NULL,updated_at=clock_timestamp() WHERE tenant_id=$1 AND id=$2 AND state IN ('unknown','failed','canceled')`, j.TenantID, j.ID, j.Kind, j.IdempotencyKey, []byte(j.Payload))
 	return affected(r, err)
+}
+
+func kindActiveLimit(kind string) int {
+	if kind == "export" || kind == "alignment" {
+		return 2
+	}
+	return 4
 }

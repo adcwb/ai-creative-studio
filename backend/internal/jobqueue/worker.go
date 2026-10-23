@@ -52,7 +52,22 @@ func Run(ctx context.Context, q Queue, kind string, handler Handler) error {
 				}
 			}
 		}()
-		err = handler(runCtx, q, j)
+		acquired := false
+		if q.Slots != nil {
+			select {
+			case q.Slots <- struct{}{}:
+				acquired = true
+			case <-runCtx.Done():
+			}
+		}
+		if q.Slots == nil || acquired {
+			err = handler(runCtx, q, j)
+		} else {
+			err = runCtx.Err()
+		}
+		if acquired {
+			<-q.Slots
+		}
 		cancel()
 		renewErr := <-done
 		if ctx.Err() != nil {

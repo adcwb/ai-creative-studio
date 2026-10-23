@@ -29,4 +29,4 @@ worker 不监听 HTTP。它加载与 API 一致的本地/演示适配默认值�
 
 `JOBQUEUE_TEST_DSN` 指向专用合成测试库时，`go test -race ./internal/jobqueue` 实测跨进程竞争、dispatch 后进程退出、租约失效、旧 token 拒绝、事务回滚和跨租户访问。`STUDIO_WORKER_TEST_DSN` 启用 `TestPostgresQueuedCreationAndWorkers`：两个独立 store/cache、共享 BlobStore、六条创作执行链和真实 FFmpeg 导出。
 
-上述测试不代表供应商 live 调用或 S3 服务互操作已经验证。实际 API/worker 多进程、恢复与对象服务结果应以最终验收记录为准。队列按 kind 分别消费，单 worker 进程可同时执行多个种类；具体创作容量须在目标资源限制下测量。未知费用必须由有证据的账单核对解决，不能自动归零。
+上述测试不代表供应商 live 调用或 S3 服务互操作已经验证。实际 API/worker 多进程、恢复与对象服务结果应以最终验收记录为准。队列按 kind 分别消费，`WORKER_CONCURRENCY` 控制单进程共享执行槽位（默认 2，严格 1–16）；等待槽位的任务仍续租，但尚不进入 dispatch。PostgreSQL 领取事务使用全局 advisory 锁计数，所有实例合计最多 8 个有效租约、每租户最多 4 个；export/alignment 每种最多 2 个，其他种类最多 4 个。已过期的租约不占槽位，已 dispatch 的工作仍禁止重发。这些是任务数量约束，不是共享 CPU、显存或对象存储字节配额；具体创作容量须在目标资源限制下测量。未知费用必须由有证据的账单核对解决，不能自动归零。
