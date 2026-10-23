@@ -46,11 +46,20 @@ func run() error {
 	studio.SetCreativeSpeech(store, speech, speechCaps)
 	music, musicCaps := studio.ConfigureMusicFromEnv()
 	studio.SetCreativeMusic(store, music, musicCaps)
+	effects, effectCaps := studio.ConfigureSoundEffectFromEnv()
+	studio.SetCreativeSoundEffect(store, effects, effectCaps)
 	video, videoCaps := studio.ConfigureVideoFromEnv()
 	studio.SetCreativeVideo(store, video, videoCaps)
 	studio.SetCreativeImage(store, provider, capabilities)
 	asr, asrCaps := studio.ConfigureAlignmentFromEnv()
 	studio.SetAlignmentProvider(store, asr, asrCaps)
+	forced, forcedCaps := studio.ConfigureForcedAlignmentFromEnv()
+	studio.SetForcedAlignmentProvider(store, forced, forcedCaps)
+	lipSync, lipSyncCaps := studio.ConfigureLipSyncFromEnv()
+	studio.SetCreativeLipSync(store, lipSync, lipSyncCaps)
+	if err := studio.ValidateRuntimeFromEnv(capabilities, creativeCaps, speechCaps, videoCaps, asrCaps, musicCaps, forcedCaps, lipSyncCaps, effectCaps); err != nil {
+		return err
+	}
 	scriptPipeline, err := studio.NewScriptPipeline(ctx, studio.CreativeScriptProvider(creative))
 	if err != nil {
 		return err
@@ -63,6 +72,12 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	ops, err := studio.OpenOperations(env("DATA_DIR", "./data"))
+	if err != nil {
+		return err
+	}
+	defer ops.Close()
+	handler = ops.Wrap(handler)
 	srv := &http.Server{Addr: env("HTTP_ADDR", "127.0.0.1:8080"), Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
 	errs := make(chan error, 5)
 	workerDone := make(chan struct{})

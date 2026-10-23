@@ -17,6 +17,7 @@ type authScope struct{ UserID, SpaceID, Role string }
 type AuthOptions struct {
 	AllowRegistration bool
 	SecureCookie      bool
+	OIDC              *OIDCLogin
 }
 
 // SSOAuthenticator is a trusted server-side adapter boundary, never a client identity header.
@@ -43,8 +44,12 @@ func HandlerFromEnv(repo Repository, origin, dir string) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	oidcLogin, err := oidcFromEnv()
+	if err != nil {
+		return nil, err
+	}
 	secure := os.Getenv("AUTH_COOKIE_SECURE") != "false"
-	return SecureHandler(repo, origin, s, AuthOptions{AllowRegistration: os.Getenv("AUTH_ALLOW_REGISTRATION") == "true", SecureCookie: secure}), nil
+	return SecureHandler(repo, origin, s, AuthOptions{AllowRegistration: os.Getenv("AUTH_ALLOW_REGISTRATION") == "true", SecureCookie: secure, OIDC: oidcLogin}), nil
 }
 func authWrite(r *http.Request) bool {
 	return r.Method != "GET" && r.Method != "HEAD" && r.Method != "OPTIONS"
@@ -80,7 +85,7 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 		}
 		user, session, logged := auth.authenticate(token)
 		sessionResponse := func() map[string]any {
-			out := map[string]any{"mode": "secure", "authenticated": logged, "registration_enabled": options.AllowRegistration, "sso_available": false}
+			out := map[string]any{"mode": "secure", "authenticated": logged, "registration_enabled": options.AllowRegistration, "sso_available": options.OIDC != nil}
 			if logged {
 				out["user"] = user
 				out["csrf_token"] = session.CSRF
@@ -92,8 +97,16 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 			respond(w, 200, sessionResponse())
 			return
 		}
+		if options.OIDC != nil && r.URL.Path == "/api/v1/auth/sso/callback" && r.Method == "GET" {
+			options.OIDC.callback(w, r, auth, options, origin)
+			return
+		}
 		if authWrite(r) && r.Header.Get("Origin") != origin {
 			problem(w, 403, "origin_required", "写操作需要可信 Origin")
+			return
+		}
+		if options.OIDC != nil && r.URL.Path == "/api/v1/auth/sso/start" && r.Method == "POST" {
+			options.OIDC.start(w, r, options.SecureCookie)
 			return
 		}
 		if (r.URL.Path == "/api/v1/auth/login" || r.URL.Path == "/api/v1/auth/register") && r.Method == "POST" {

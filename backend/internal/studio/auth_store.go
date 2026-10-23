@@ -38,6 +38,8 @@ type authAccount struct {
 	AuthUser
 	Salt         string `json:"salt"`
 	PasswordHash string `json:"password_hash"`
+	Issuer       string `json:"issuer,omitempty"`
+	Subject      string `json:"subject,omitempty"`
 }
 type AuthOrganization struct {
 	ID      string            `json:"id"`
@@ -76,7 +78,9 @@ func OpenAuthStore(dir string) (*AuthStore, error) {
 	for id, u := range s.data.Users {
 		salt, e := hex.DecodeString(u.Salt)
 		hash, h := hex.DecodeString(u.PasswordHash)
-		if id != u.ID || u.Email == "" || e != nil || h != nil || len(salt) != 16 || len(hash) != 32 {
+		validPassword := e == nil && h == nil && len(salt) == 16 && len(hash) == 32 && u.Issuer == "" && u.Subject == ""
+		validSSO := u.Issuer != "" && u.Subject != "" && u.Salt == "" && u.PasswordHash == ""
+		if id != u.ID || u.Email == "" || (!validPassword && !validSSO) {
 			return nil, errors.New("invalid authentication account")
 		}
 	}
@@ -227,7 +231,7 @@ func (s *AuthStore) login(email, password string, register bool) (AuthUser, stri
 			salt = strings.Repeat("0", 32)
 		}
 		actual := authPassword(password, salt)
-		if !found || subtle.ConstantTimeCompare([]byte(actual), []byte(account.PasswordHash)) != 1 {
+		if !found || account.Issuer != "" || subtle.ConstantTimeCompare([]byte(actual), []byte(account.PasswordHash)) != 1 {
 			return AuthUser{}, "", authSession{}, errors.New("invalid credentials")
 		}
 	}
