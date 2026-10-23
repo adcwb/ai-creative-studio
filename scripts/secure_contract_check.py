@@ -117,7 +117,7 @@ def main():
                 call(alice, 'POST', model_route + '/live' + query, model_route + '/live', {}, aq, status=403)
                 call(alice, 'POST', '/api/v1/auth/logout', '/api/v1/auth/logout', {}, aq)
                 assert call(alice, 'GET', session_route, session_route)['authenticated'] is False
-                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed'], 'live_provider_calls': 0}))
+                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused'], 'live_provider_calls': 0}))
             finally:
                 process.terminate()
                 process.wait(timeout=15)
