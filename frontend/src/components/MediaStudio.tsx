@@ -79,6 +79,7 @@ export function MediaStudio({project, space, onDirtyChange}: {project: DramaProj
   }
   async function editPhoto() {
     if (!photo) return
+    if (photo.size > 32 * 1024 * 1024) {setError('照片不能超过 32 MiB。'); return}
     try {
       const bitmap = await createImageBitmap(photo)
       if (bitmap.width * bitmap.height > 24000000) {bitmap.close(); throw new Error('图片像素过大，请选择不超过 2400 万像素的照片。')}

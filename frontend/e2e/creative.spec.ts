@@ -30,7 +30,7 @@ test('analysis and synthetic image generation persist through actual asynchronou
   await open(page, project)
   await page.getByRole('button', {name: '分析已保存需求', exact: true}).click()
   await expect(page.locator('.creative-analysis')).toContainText('待澄清问题')
-  await expect(page.locator('.creative-analysis')).toContainText('mock-text')
+  await expect(page.locator('.creative-analysis')).toContainText('local-rules')
   await page.getByLabel('生成提示或配音文本', {exact: true}).fill('合成演示：雨夜钟楼色卡')
   await page.getByRole('button', {name: '生成合成演示图片', exact: true}).click()
   await expect(page.locator('.media-assets img')).toHaveCount(1)
