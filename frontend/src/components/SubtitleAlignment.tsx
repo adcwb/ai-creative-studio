@@ -17,7 +17,7 @@ export function SubtitleAlignment({index, clip, tasks, capabilities, locked, dir
   const active = tasks.some(task => task.status === 'queued' || task.status === 'running')
   return <section className="subtitle-alignment" aria-label={`片段 ${index + 1} 逐句字幕`}>
     <h4>逐句字幕与对白对齐</h4>
-    <p className="drama-help">时间相对本片段起点，以秒为单位；逐句字幕存在时优先于整镜字幕。修改配音或片段时长后，请重新检查时间。</p>
+    <p className="drama-help">时间相对本片段起点，以秒为单位；逐句字幕存在时优先于整镜字幕；清空逐句后恢复使用整镜字幕。修改配音或片段时长后，请重新检查时间。</p>
     <p className="drama-source">字幕来源：{clip.subtitle_source === 'asr' ? '语音识别结果（需人工校正）' : clip.subtitle_source === 'estimated' ? '按文本估算 · 未识别音频' : '人工编辑'}{clip.subtitle_alignment_id && ` · 来源任务 ${clip.subtitle_alignment_id}`}</p>
     <div className="subtitle-cues">{cues.map((cue, cueIndex) => <div className="subtitle-cue" key={cueIndex}>
       <div className="storyboard-fields"><label>第 {cueIndex + 1} 句开始（秒）<input aria-label={`片段 ${index + 1} 第 ${cueIndex + 1} 句开始`} type="number" min="0" max={clip.duration} step="0.01" value={cue.start} onChange={event => edit(cueIndex, {start: Number(event.target.value)})} /></label><label>结束（秒）<input aria-label={`片段 ${index + 1} 第 ${cueIndex + 1} 句结束`} type="number" min="0" max={clip.duration} step="0.01" value={cue.end} onChange={event => edit(cueIndex, {end: Number(event.target.value)})} /></label></div>

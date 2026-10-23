@@ -67,3 +67,24 @@ test('alignment results cannot overwrite a newer saved timeline', async ({page, 
   await expect(apply).toBeDisabled()
   await expect(page.getByRole('region', {name: '片段 1 逐句字幕', exact: true})).toContainText('来源版本已变化')
 })
+
+test('ASR UI sends saved audio without estimate text (intercepted request only, no recognition)', async ({page, request}, info) => {
+  await page.route('**/api/v1/alignment-capabilities', async route => {
+    await route.fulfill({json: {estimate: {provider: 'local-text-estimate', mode: 'mock', ready: true, message: '文本估算'}, asr: {provider: 'openai-asr', model: 'ui-fixture-model', mode: 'real', ready: true, message: '仅拦截请求体测试，不调用识别服务'}}})
+  })
+  const {project, media} = await fixture(page, request, `ASR请求体-${info.project.name}`)
+  const audio = media.assets.find((asset: {kind: string}) => asset.kind === 'audio')
+  await page.getByLabel('片段 1 音频', {exact: true}).selectOption(audio.id)
+  await page.getByLabel('片段 1 字幕', {exact: true}).fill('这些已保存文字不得作为实际ASR的识别结果输入。')
+  await page.getByRole('button', {name: '保存时间轴', exact: true}).click()
+  await expect(page.getByRole('button', {name: '保存时间轴', exact: true})).toBeDisabled()
+  await page.route(`**/api/v1/projects/${project.id}/media/alignments?*`, async route => {
+    if (route.request().method() !== 'POST') {await route.continue(); return}
+    await route.fulfill({status: 202, json: {id: 'ui-intercept-only', status: 'queued', mode: 'asr', provider: 'openai-asr', model: 'ui-fixture-model', source_version: media.version + 1, clip_id: media.timeline.clips[0].id, audio_asset_id: audio.id, duration: 2, cues: [], warnings: []}})
+  })
+  const sent = page.waitForRequest(r => r.method() === 'POST' && r.url().includes(`/projects/${project.id}/media/alignments?`))
+  await page.getByRole('button', {name: '识别片段 1 配音并对齐', exact: true}).click()
+  const body = (await sent).postDataJSON()
+  expect(body).toMatchObject({mode: 'asr', audio_asset_id: audio.id, clip_id: media.timeline.clips[0].id, expected_version: media.version + 1, expected_provider: 'openai-asr', expected_model: 'ui-fixture-model'})
+  expect(body).not.toHaveProperty('text')
+})
