@@ -78,6 +78,7 @@ def main():
                 time.sleep(.2)
         raise AssertionError('container proxy health timeout')
     checks = []
+    print(json.dumps({'evidence': str(evidence), 'compose_project': project, 'model_validation': False}), flush=True)
     try:
         if not args.no_build:
             compose('build')
