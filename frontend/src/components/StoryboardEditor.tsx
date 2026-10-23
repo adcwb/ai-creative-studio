@@ -15,7 +15,7 @@ export function StoryboardEditor({shots, provider, editing, disabled, dirty, sou
   }
   return <section className="panel drama-storyboard" aria-labelledby="storyboard-heading">
     <div className="section-heading"><div><span className="eyebrow">THE SHOT PLAN</span><h2 id="storyboard-heading">{translate("当前分镜计划")}</h2></div><span>{editing ? translate("编辑中 · 尚未保存") : translate("已持久保存")}</span></div>
-    <p className="drama-source">{!provider || provider.startsWith('mock') ? translate("mock-storyboard · 程序生成的模拟分镜，非真实 AI 创作。") : translate("{p0} · 模型生成来源，可能包含人工编辑；真实效果与费用未验证。", {p0: provider})}{translate("来源：剧本版本")}{sourceVersion}。</p>
+    <p className="drama-source">{!provider || provider.startsWith('mock') ? translate("mock-storyboard · 程序生成的模拟分镜，非真实 AI 创作。") : translate("{p0} · 模型生成来源，可能包含人工编辑；真实效果与费用未验证。", {p0: provider})}{' '}{translate("来源：剧本版本 {p0}。", {p0: sourceVersion})}</p>
     {stale && <div className="editing-note storyboard-stale" role="status"><strong>{translate("分镜已过期")}</strong><p>{translate("已保存剧本发生变化。下方场景编号仍引用来源剧本，可能与当前内容不同；编辑保存不会消除过期状态。重新生成成功后才会更新来源。")}</p></div>}
     {!editing && <button type="button" className="drama-edit-button" disabled={disabled} onClick={onEdit}>{translate("编辑分镜")}</button>}
     <fieldset disabled={disabled}>

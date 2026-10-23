@@ -218,6 +218,7 @@ const messages: Record<string, string> = {
   "请填写 3–1000 个字符的画面描述。": "Enter a visual description of 3–1,000 characters."
 }
 Object.assign(messages, {
+ "来源：剧本版本 {p0}。": "Source script version {p0}.",
   "第 {p0} 场": "Scene {p0}",
   "第 {p0} 场标题": "Scene {p0} title",
   "第 {p0} 场动作": "Scene {p0} action",
