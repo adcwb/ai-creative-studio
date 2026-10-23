@@ -107,7 +107,11 @@ func TestBlobPostgresMetadataFailureLeavesUnreachableOrphan(t *testing.T) {
 		t.Fatal(e)
 	}
 	tenant := "failure-" + mediaID()
-	project := mediaID()
+	created, _, e := s.CreateProject(tenant, "failure-project-"+mediaID(), ProjectInput{Title: "Blob failure fixture", Brief: "Synthetic metadata transaction test"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	project := created.ID
 	s.media.pg.beforeCommit = func(context.Context, *sql.Tx) error { return fmt.Errorf("synthetic transaction failure") }
 	if _, e = s.media.AddAsset(project, tenant, "same-key", "asset", "", "", "", "synthetic", syntheticPNG(0), "image/png"); e == nil {
 		t.Fatal("accepted metadata transaction failure")

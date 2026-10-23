@@ -37,8 +37,41 @@ go run ./cmd/blob-migrate -data-dir /absolute/stopped/data -direction to-file
 
 `TestBlob*` 覆盖本地/S3协议合同、不可变写、签名字段、路径/endpoint、跨租户先拒绝、哈希校验、停服迁移、包含新增写入的回滚、真实 FFmpeg 输入重建及 MP4/SRT/VTT 回读、PNG结果重启回读。`STUDIO_BLOB_TEST_DSN` 显式注入合成测试 PostgreSQL，另测两实例同时写、独立cache、重启可见性、DB约束及manifest导入导出。
 
-S3 HTTP fixture 不等于实际 S3 服务。2026-10-23 从官方 `https://dl.min.io/server/minio/release/linux-amd64/minio` 正常下载返回 HTTP 403（curl exit 22），没有启动 MinIO，没有改网络安全配置。前轮 DockerHub DNS 拉取失败亦未构成真实 S3 验收。真实 S3 互操作仍待运行。
+S3 HTTP fixture 不等于实际 S3 服务。2026-10-23 从官方 `https://dl.min.io/server/minio/release/linux-amd64/minio` 正常下载返回 HTTP 403（curl exit 22），没有启动 MinIO，没有改网络安全配置。前轮 DockerHub DNS 拉取失败亦未构成真实 S3 验收。真实 S3 互操作尚未通过；后续独立 rclone 服务演练见下节。
 
 远端存储保留经过校验的私有本地 cache；现有 2 GiB scratch/cache 限制为每实例，不能宣称是 bucket 总容量配额。无自动 cache 淘汰、孤儿清理、对象版本恢复、远程备份或多区域容灾；部署需另设对象生命周期、容量与备份策略，不会由本工具擅自创建外部资源。
 
 官方协议依据：[PutObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html)、[GetObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html)。
+
+## 独立 S3 服务兼容性演练：rclone
+
+除 fixture 外，本轮另安装上游 **rclone v1.75.2**，仅启动 loopback 的独立 `serve s3` 服务。上游下载来源为 [GitHub 官方 release binary](https://github.com/rclone/rclone/releases/download/v1.75.2/rclone-v1.75.2-linux-amd64.zip)，按同一 release 的 [SHA256SUMS](https://github.com/rclone/rclone/releases/download/v1.75.2/SHA256SUMS) 核验，ZIP SHA256：`349ac8fba6ff65d6247043f1750cdcb518ec5d500ef91463a10d37c0ccdf3702`。服务使用空 `--config`、独立临时数据/cache 目录、只含 PATH 的环境及合成 `--auth-key`，未读取已有 rclone 配置或任何真实 S3 凭据。
+
+官方直接下载站返回 HTTP403；Debian sid 的 1.75.2-2 包虽然 SHA 核验成功，但构建未包含 `serve s3` 子命令，故未作为服务使用。上游 GitHub release 可正常获取，没有改动任何网络安全配置。
+
+**当前 rclone 服务不兼容，不能作为本应用部署后端。** 实际应用适配器向既有 key 发送 `If-None-Match: *` 和不同内容时，服务接受写入，未提供所需的原子“不存在才写”约束。测试不会改为 HEAD 后再 PUT，这存在竞争窗口，不能替代原子条件写。`TestBlobS3Service` 为显式集成门禁；该合同未通过时不运行后续真实服务媒体测试，也不将其计作 S3 验收成功。
+
+新 S3 兼容服务必须先以隔离测试 bucket 和合成数据运行服务合同（immutable PUT、SHA metadata、Range、SigV4、匿名拒绝、删除），全部通过后才能连接应用业务写入。名称宣称“S3兼容”或配置可保存不代表这些条件已获保证。
+
+本次精确结果（`TestBlobS3Service`，exit 1）：
+
+| 检查 | 实际响应／结果 |
+| --- | --- |
+| Signed PUT、HEAD SHA metadata、完整 GET | 通过 |
+| Range `bytes=2-7` | HTTP 200，未满足要求的 206，适配器拒绝 |
+| 错误 SigV4 secret | HTTP 403，拒绝 |
+| 匿名 GET | HTTP 400，拒绝且无对象内容；与门禁期望的 401/403 不同，不是数据泄露 |
+| 条件覆盖 PUT | HTTP 200，实际覆盖，严重不兼容 |
+| DELETE 后 HEAD | 404 |
+| 实际服务媒体导出 | 因合同失败未运行 |
+
+条件覆盖前 SHA-256：`b6a01915659b4cdbf3e853c2bc68ef5877aad97c9b4b863179dff9c143888a85`；覆盖后 SHA-256：`3a988af6899a7eb8bdec4eb9d599b5e31de1bd8b4c862c53ee7d6bfdb14b5a0f`。仅含合成测试内容。完整本地日志 `/tmp/studio-s3-service-compat.log`。
+
+测试入口（使用已启动且带固定合成凭据的 loopback 服务，bucket 为 `studio`）：
+
+```sh
+cd backend
+STUDIO_S3_SERVICE_ENDPOINT=http://127.0.0.1:55480 go test -race ./internal/studio -run '^TestBlobS3Service$' -count=1 -v
+```
+
+此入口仅允许 loopback HTTP 合成测试，默认未指定 endpoint 则明确 skip；不会读取真实 S3 凭据。云 S3 的真实账户验证仍需另外明确授权和安全配置，不能把本次独立软件实测或其他 fixture 结果算成云验收。

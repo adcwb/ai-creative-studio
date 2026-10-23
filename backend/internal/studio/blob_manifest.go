@@ -306,6 +306,23 @@ type blobSQLExecutor interface {
 }
 
 func insertBlobInfo(ctx context.Context, db blobSQLExecutor, i BlobInfo) error {
+	if pool, ok := db.(*sql.DB); ok {
+		tx, e := pool.BeginTx(ctx, nil)
+		if e != nil {
+			return errors.New("blob manifest transaction unavailable")
+		}
+		defer tx.Rollback()
+		if e = insertBlobInfo(ctx, tx, i); e != nil {
+			return e
+		}
+		if e = tx.Commit(); e != nil {
+			return errors.New("blob manifest commit outcome uncertain")
+		}
+		return nil
+	}
+	if _, e := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock_shared(728219117)"); e != nil {
+		return errors.New("blob manifest migration barrier unavailable")
+	}
 	if !validBlobInfo(i) {
 		return ErrBlobIntegrity
 	}
