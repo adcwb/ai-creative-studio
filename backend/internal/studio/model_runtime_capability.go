@@ -40,13 +40,13 @@ func (p runtimeCreative) SubmitVideo(ctx context.Context, in string) (VideoJob, 
 	return p.p.SubmitVideo(ctx, in)
 }
 func (p runtimeCreative) PollVideo(ctx context.Context, in string) (VideoJob, error) {
-	if p.capability != "video" {
+	if p.capability != "video" || (executionReadOnly(ctx) && (in == "" || in != executionRecoveryUpstream(ctx))) {
 		return VideoJob{}, errRuntimeDenied
 	}
 	return p.p.PollVideo(ctx, in)
 }
 func (p runtimeCreative) DownloadVideo(ctx context.Context, in string) ([]byte, error) {
-	if p.capability != "video" {
+	if p.capability != "video" || (executionReadOnly(ctx) && (in == "" || in != executionRecoveryUpstream(ctx))) {
 		return nil, errRuntimeDenied
 	}
 	return p.p.DownloadVideo(ctx, in)

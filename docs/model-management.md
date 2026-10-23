@@ -37,4 +37,4 @@ model-config.json为0600，临时文件写入、fsync、rename及目录fsync，�
 
 运行时使用`RuntimeNoDispatchError`标识可证明没有进入任何HTTP transport的本地失败，治理层可据此释放预留。连接失败、请求取消和下载尝试后错误均不能使用这个证据，保守保留未知费用，不推测供应商实际计费。
 
-已知上游任务恢复仍要求操作策略明确确认查询免费，且不新预留、不释放旧未知费用。运行时仅放行GET，以及原生即梦adapter的固定POST查询：`https://visual.volcengineapi.com/`、`CVSync2AsyncGetResult`、固定版本和完整查询body严格校验；创建动作、其他endpoint、其他req_key或额外body字段拒绝。POST查询没有伪装成通用可写授权。
+已知上游任务恢复仍要求操作策略明确确认查询免费，且不新预留、不释放旧未知费用。运行时仅放行GET，以及原生即梦adapter的固定POST查询：`https://visual.volcengineapi.com/`、`CVSync2AsyncGetResult`、固定版本和完整查询body严格校验，task_id必须等于服务端持久任务的上游ID。视频GET的厂商、路径、query同样精确绑定原上游ID，不能用相同配置查询另一任务；创建动作、其他endpoint、其他req_key或额外body字段拒绝。POST查询没有伪装成通用可写授权。

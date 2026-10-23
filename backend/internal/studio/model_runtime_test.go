@@ -15,6 +15,11 @@ import (
 
 type runtimeFixtureTransport func(*http.Request) (*http.Response, error)
 
+func runtimeRecoveryContext(upstream string) context.Context {
+	p := &executionPermit{upstream: upstream, active: true, expires: time.Now().Add(time.Minute)}
+	return context.WithValue(context.WithValue(context.Background(), executionPermitKey{}, p), executionReadOnlyKey{}, true)
+}
+
 func (f runtimeFixtureTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func runtimeFixture(t *testing.T) (*ModelRuntime, RuntimeSelection, ModelConfigInput) {
@@ -315,13 +320,13 @@ func TestModelRuntimeNoDispatchEvidenceAndDynamicReadiness(t *testing.T) {
 }
 
 func TestModelRuntimeRecoveryTransportRejectsCreation(t *testing.T) {
-	ctx := context.WithValue(context.Background(), executionReadOnlyKey{}, true)
+	ctx := runtimeRecoveryContext("synthetic-job")
 	var attempts int
-	transport := runtimeTransport{lifetime: ctx, guard: func(context.Context) error { return nil }, onDispatch: func() { attempts++ }, base: runtimeFixtureTransport(func(*http.Request) (*http.Response, error) {
+	transport := runtimeTransport{allowReadOnly: videoReadOnlyRequest("gemini-video"), lifetime: ctx, guard: func(context.Context) error { return nil }, onDispatch: func() { attempts++ }, base: runtimeFixtureTransport(func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("{}"))}, nil
 	})}
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete} {
-		req, _ := http.NewRequestWithContext(ctx, method, "https://api.openai.com/v1/synthetic", nil)
+		req, _ := http.NewRequestWithContext(ctx, method, "https://generativelanguage.googleapis.com/v1beta/files/synthetic-job", nil)
 		if _, err := transport.RoundTrip(req); !errors.Is(err, errRuntimeDenied) {
 			t.Fatal("read-only permit accepted mutation", method)
 		}
@@ -329,7 +334,7 @@ func TestModelRuntimeRecoveryTransportRejectsCreation(t *testing.T) {
 	if attempts != 0 {
 		t.Fatal("recovery sent a mutation")
 	}
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.openai.com/v1/synthetic", nil)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://generativelanguage.googleapis.com/v1beta/files/synthetic-job", nil)
 	resp, err := transport.RoundTrip(req)
 	if err != nil || attempts != 1 {
 		t.Fatal("recovery GET denied", err)
@@ -338,12 +343,18 @@ func TestModelRuntimeRecoveryTransportRejectsCreation(t *testing.T) {
 }
 
 func TestModelRuntimeJimengReadOnlyRecoveryIsStrict(t *testing.T) {
-	ctx := context.WithValue(context.Background(), executionReadOnlyKey{}, true)
+	ctx := runtimeRecoveryContext("synthetic-job")
 	providers, err := buildRuntimeProviders(ctx, ModelConfigEntry{Provider: "jimeng-images", Model: "jimeng_seedream46_cvtob", Capability: "image"}, `{"access_key":"synthetic-ak","secret_key":"synthetic-sk"}`, "", func(context.Context) error { return nil }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := providers.Image.(*JimengImageProvider)
+	p := providers.Image.(runtimeJimengImage).p
+	if _, err := providers.Image.Generate(ctx, Input{}); !errors.Is(err, errRuntimeDenied) {
+		t.Fatal("recovery may generate")
+	}
+	if _, err := providers.Image.(ReferenceImageProvider).GenerateWithReference(ctx, Input{}, nil, "image/png"); !errors.Is(err, errRuntimeDenied) {
+		t.Fatal("recovery may upload a reference before submit")
+	}
 	transport := p.client.Transport.(runtimeTransport)
 	calls := 0
 	transport.base = runtimeFixtureTransport(func(req *http.Request) (*http.Response, error) {
@@ -356,6 +367,9 @@ func TestModelRuntimeJimengReadOnlyRecoveryIsStrict(t *testing.T) {
 	p.client.Transport = transport
 	if _, err = p.PollImage(ctx, "synthetic-job"); err != nil || calls != 1 {
 		t.Fatal("documented query failed", err, calls)
+	}
+	if _, err = p.PollImage(ctx, "other-tenant-job"); err == nil || calls != 1 {
+		t.Fatal("same credential queried unrelated upstream")
 	}
 	if _, err = p.request(ctx, "CVSync2AsyncSubmitTask", map[string]string{"req_key": p.reqKey, "prompt": "synthetic"}); err == nil || calls != 1 {
 		t.Fatal("read-only permit submitted new work")
@@ -395,12 +409,50 @@ func TestModelRuntimeJimengCredentialPairEncryptedAndValidated(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err = r.Execute(context.Background(), selection, func(ctx context.Context, p RuntimeProviders) error {
-		jimeng, ok := p.Image.(*JimengImageProvider)
+		wrapped, ok := p.Image.(runtimeJimengImage)
+		jimeng := wrapped.p
 		if !ok || jimeng.accessKey != "synthetic-pair-ak" || jimeng.secretKey != "synthetic-pair-sk" {
 			t.Fatal("encrypted credential pair not applied")
 		}
 		return nil
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestModelRuntimeRecoveryVideoUpstreamBinding(t *testing.T) {
+	for _, tc := range []struct{ provider, id, url string }{
+		{"ark-video", "cgt-known", "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks/cgt-known"},
+		{"minimax-video", "12345", "https://api.minimax.io/v2/query/video_generation/12345"},
+		{"gemini-video", "known-file", "https://generativelanguage.googleapis.com/v1beta/files/known-file"},
+	} {
+		t.Run(tc.provider, func(t *testing.T) {
+			ctx := runtimeRecoveryContext(tc.id)
+			predicate := videoReadOnlyRequest(tc.provider)
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, tc.url, nil)
+			if !predicate(req) {
+				t.Fatal("bound query denied")
+			}
+			for _, target := range []string{tc.url + "-other", tc.url + "?task_id=other", strings.Replace(tc.url, "https://", "https://evil.example/", 1)} {
+				req, _ := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+				if predicate(req) {
+					t.Fatal("unbound task/origin accepted")
+				}
+			}
+			req, _ = http.NewRequestWithContext(runtimeRecoveryContext("other-upstream"), http.MethodGet, tc.url, nil)
+			if predicate(req) {
+				t.Fatal("same adapter credential used for other task")
+			}
+			providers, err := buildRuntimeProviders(ctx, ModelConfigEntry{Provider: tc.provider, Model: "synthetic-model", Capability: "video"}, "synthetic-secret", "", func(context.Context) error { return nil }, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = providers.Creative.PollVideo(ctx, "other-upstream"); !errors.Is(err, errRuntimeDenied) {
+				t.Fatal("poll wrapper ignored binding", err)
+			}
+			if _, err = providers.Creative.DownloadVideo(ctx, "other-upstream"); !errors.Is(err, errRuntimeDenied) {
+				t.Fatal("download wrapper ignored binding", err)
+			}
+		})
 	}
 }

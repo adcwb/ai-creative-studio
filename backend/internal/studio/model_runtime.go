@@ -13,14 +13,15 @@ import (
 // RuntimeSelection is persisted with the accepted task. ModelID identifies a
 // tenant configuration, not a vendor model. ActorID must come from authentication.
 type RuntimeSelection struct {
-	TenantID     string `json:"tenant_id"`
-	ActorID      string `json:"actor_id"`
-	ModelID      string `json:"model_config_id"`
-	Version      int64  `json:"model_config_version"`
-	Capability   string `json:"capability"`
-	Voice        string `json:"voice,omitempty"`
-	Currency     string `json:"budget_currency,omitempty"`
-	MaximumMinor int64  `json:"budget_maximum_minor,omitempty"`
+	RequestDigest string `json:"request_sha256,omitempty"`
+	TenantID      string `json:"tenant_id"`
+	ActorID       string `json:"actor_id"`
+	ModelID       string `json:"model_config_id"`
+	Version       int64  `json:"model_config_version"`
+	Capability    string `json:"capability"`
+	Voice         string `json:"voice,omitempty"`
+	Currency      string `json:"budget_currency,omitempty"`
+	MaximumMinor  int64  `json:"budget_maximum_minor,omitempty"`
 }
 
 type RuntimeProviders struct {
@@ -272,7 +273,7 @@ type runtimeTransport struct {
 }
 
 func (t runtimeTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if executionReadOnly(req.Context()) && req.Method != http.MethodGet && (t.allowReadOnly == nil || !t.allowReadOnly(req)) {
+	if executionReadOnly(req.Context()) && (t.allowReadOnly == nil || !t.allowReadOnly(req)) {
 		return nil, errRuntimeDenied
 	}
 	if err := t.guard(req.Context()); err != nil {
@@ -365,20 +366,23 @@ func buildRuntimeProviders(lifetime context.Context, e ModelConfigEntry, secret,
 		transport := p.client.Transport.(runtimeTransport)
 		transport.allowReadOnly = jimengReadOnlyRequest(e.Model)
 		p.client.Transport = transport
-		out.Image = p
+		out.Image = runtimeJimengImage{p: p}
 	case "gemini-video":
 		p := NewGoogleVideoProvider(secret, e.Model)
 		guardRuntimeClient(p.client, lifetime, guard, onDispatch)
+		setRuntimeReadOnly(p.client, videoReadOnlyRequest(e.Provider))
 		p.download = guardRuntimeDownload(lifetime, p.download, guard, onDispatch)
 		out.Creative = p
 	case "ark-video":
 		p := NewArkVideoProvider(secret, e.Model)
 		guardRuntimeClient(p.api.client, lifetime, guard, onDispatch)
+		setRuntimeReadOnly(p.api.client, videoReadOnlyRequest(e.Provider))
 		p.download = guardRuntimeDownload(lifetime, p.download, guard, onDispatch)
 		out.Creative = p
 	case "minimax-video":
 		p := NewMiniMaxVideoProvider(secret, e.Model)
 		guardRuntimeClient(p.api.client, lifetime, guard, onDispatch)
+		setRuntimeReadOnly(p.api.client, videoReadOnlyRequest(e.Provider))
 		p.download = guardRuntimeDownload(lifetime, p.download, guard, onDispatch)
 		out.Creative = p
 	case "openai-asr":

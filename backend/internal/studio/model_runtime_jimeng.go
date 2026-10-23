@@ -2,11 +2,51 @@ package studio
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
 )
+
+type runtimeJimengImage struct{ p *JimengImageProvider }
+
+func (p runtimeJimengImage) Generate(ctx context.Context, in Input) (GenerationResult, error) {
+	if executionReadOnly(ctx) {
+		return GenerationResult{}, errRuntimeDenied
+	}
+	return p.p.Generate(ctx, in)
+}
+func (p runtimeJimengImage) GenerateWithReference(ctx context.Context, in Input, data []byte, mime string) (GenerationResult, error) {
+	if executionReadOnly(ctx) {
+		return GenerationResult{}, errRuntimeDenied
+	}
+	return p.p.GenerateWithReference(ctx, in, data, mime)
+}
+func (p runtimeJimengImage) SubmitImage(ctx context.Context, in Input) (AsyncImageJob, error) {
+	if executionReadOnly(ctx) {
+		return AsyncImageJob{}, errRuntimeDenied
+	}
+	return p.p.SubmitImage(ctx, in)
+}
+func (p runtimeJimengImage) SubmitImageWithReference(ctx context.Context, in Input, data []byte, mime string) (AsyncImageJob, error) {
+	if executionReadOnly(ctx) {
+		return AsyncImageJob{}, errRuntimeDenied
+	}
+	return p.p.SubmitImageWithReference(ctx, in, data, mime)
+}
+func (p runtimeJimengImage) PollImage(ctx context.Context, id string) (AsyncImageJob, error) {
+	if executionReadOnly(ctx) && (id == "" || id != executionRecoveryUpstream(ctx)) {
+		return AsyncImageJob{}, errRuntimeDenied
+	}
+	return p.p.PollImage(ctx, id)
+}
+func (p runtimeJimengImage) DownloadImage(ctx context.Context, id string) (GenerationResult, error) {
+	if executionReadOnly(ctx) && (id == "" || id != executionRecoveryUpstream(ctx)) {
+		return GenerationResult{}, errRuntimeDenied
+	}
+	return p.p.DownloadImage(ctx, id)
+}
 
 type jimengCredentialPair struct {
 	AccessKey string `json:"access_key"`
@@ -59,7 +99,13 @@ func jimengReadOnlyRequest(reqKey string) func(*http.Request) bool {
 		}
 		d := json.NewDecoder(bytes.NewReader(raw))
 		d.DisallowUnknownFields()
-		if d.Decode(&body) != nil || body.ReqKey != reqKey || !jimengTaskPattern.MatchString(body.TaskID) || body.ReqJSON != `{"return_url":false,"logo_info":{"add_logo":true}}` {
+		if d.Decode(&body) != nil || body.ReqKey != reqKey || !jimengTaskPattern.MatchString(body.TaskID) || body.TaskID != executionRecoveryUpstream(req.Context()) || body.ReqJSON != `{"return_url":false,"logo_info":{"add_logo":true}}` {
+			return false
+		}
+		// Match the exact envelope produced by the trusted adapter, excluding
+		// duplicate JSON keys whose interpretation could differ upstream.
+		expected, _ := json.Marshal(map[string]string{"req_key": reqKey, "task_id": body.TaskID, "req_json": body.ReqJSON})
+		if !bytes.Equal(raw, expected) {
 			return false
 		}
 		var extra any
