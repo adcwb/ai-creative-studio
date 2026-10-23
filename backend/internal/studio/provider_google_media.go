@@ -249,8 +249,41 @@ func (p *GoogleMediaProvider) SubmitVideo(ctx context.Context, prompt string) (V
 	if err != nil {
 		return VideoJob{}, err
 	}
-	body := map[string]any{"model": p.model, "input": prompt, "response_format": map[string]string{"type": "video", "delivery": "uri", "resolution": "720p", "aspect_ratio": "16:9"}, "background": false, "store": false, "stream": false}
-	res, err := p.request(ctx, "POST", "/v1beta/interactions", body)
+	return p.submitVideoInput(ctx, prompt)
+}
+
+// SubmitVideoWithImage uses the documented first-frame control, not a claim of identity preservation.
+func (p *GoogleMediaProvider) SubmitVideoWithImage(ctx context.Context, prompt string, data []byte, mime string) (VideoJob, error) {
+	if len(data) > 10<<20 || (mime != "image/png" && mime != "image/jpeg") {
+		return VideoJob{}, providerFailure("provider_rejected")
+	}
+	if _, err := nativeImage(data, mime); err != nil {
+		return VideoJob{}, providerFailure("provider_rejected")
+	}
+	return p.submitVideoReference(ctx, "[# Sources <FIRST_FRAME>@Image1] "+prompt+" Use this image as the starting frame.", data, mime, "image")
+}
+
+// SubmitVideoWithVideo edits an already validated local MP4. No caller-controlled remote URI is accepted.
+func (p *GoogleMediaProvider) SubmitVideoWithVideo(ctx context.Context, prompt string, data []byte, mime string) (VideoJob, error) {
+	if mime != "video/mp4" || len(data) < 12 || len(data) > 10<<20 || string(data[4:8]) != "ftyp" {
+		return VideoJob{}, providerFailure("provider_rejected")
+	}
+	return p.submitVideoReference(ctx, "[# Sources <VIDEO_0>@Video1] "+prompt, data, mime, "video")
+}
+func (p *GoogleMediaProvider) submitVideoReference(ctx context.Context, prompt string, data []byte, mime, kind string) (VideoJob, error) {
+	prompt, err := normalizeProjectText(prompt, "video", 3, 2200)
+	if err != nil {
+		return VideoJob{}, err
+	}
+	input := []map[string]any{{"type": "user_input", "content": []map[string]string{{"type": kind, "mime_type": mime, "data": base64.StdEncoding.EncodeToString(data)}, {"type": "text", "text": prompt}}}}
+	return p.submitVideoInput(ctx, input)
+}
+func (p *GoogleMediaProvider) submitVideoInput(ctx context.Context, input any) (VideoJob, error) {
+	if p.kind != "gemini-video" {
+		return VideoJob{}, providerFailure("unsupported_capability")
+	}
+	body := map[string]any{"model": p.model, "input": input, "response_format": map[string]string{"type": "video", "delivery": "uri", "resolution": "720p", "aspect_ratio": "16:9"}, "background": false, "store": false, "stream": false}
+	res, err := p.requestLimit(ctx, "POST", "/v1beta/interactions", body, 15<<20)
 	if err != nil {
 		return VideoJob{}, err
 	}

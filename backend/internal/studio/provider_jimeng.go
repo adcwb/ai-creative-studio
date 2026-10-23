@@ -15,13 +15,18 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"net/url"
+	urlpkg "net/url"
 	"regexp"
 	"strings"
 	"time"
 )
 
+type ReferenceURLBridge interface {
+	ReferenceURL(context.Context, []byte, string) (string, error)
+}
+
 type JimengImageProvider struct {
+	bridge                                 ReferenceURLBridge
 	accessKey, secretKey, reqKey, endpoint string
 	client                                 *http.Client
 	pollInterval                           time.Duration
@@ -81,7 +86,7 @@ func (p *JimengImageProvider) request(ctx context.Context, action string, body a
 	if err != nil || len(data) > 64<<10 {
 		return out, providerFailure("provider_rejected")
 	}
-	q := url.Values{"Action": {action}, "Version": {"2022-08-31"}}
+	q := urlpkg.Values{"Action": {action}, "Version": {"2022-08-31"}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.endpoint+"/?"+q.Encode(), bytes.NewReader(data))
 	if err != nil {
 		return out, providerFailure("provider_error")
@@ -123,6 +128,47 @@ func (p *JimengImageProvider) request(ctx context.Context, action string, body a
 var jimengTaskPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 
 func (p *JimengImageProvider) SubmitImage(ctx context.Context, in Input) (AsyncImageJob, error) {
+	return p.submitImage(ctx, in, "")
+}
+
+// SetReferenceBridge is configured once before workers start. It never makes objects public.
+func (p *JimengImageProvider) SetReferenceBridge(bridge ReferenceURLBridge) { p.bridge = bridge }
+func (p *JimengImageProvider) SubmitImageWithReference(ctx context.Context, in Input, reference []byte, mime string) (AsyncImageJob, error) {
+	if p.bridge == nil {
+		return AsyncImageJob{}, providerFailure("reference_bridge_unavailable")
+	}
+	ref, err := nativeImage(reference, mime)
+	if err != nil || len(reference) > 15<<20 || ref.Width > 4096 || ref.Height > 4096 {
+		return AsyncImageJob{}, providerFailure("provider_rejected")
+	}
+	if !validCredential(p.accessKey) || !validCredential(p.secretKey) || !nativeModelPattern.MatchString(p.reqKey) {
+		return AsyncImageJob{}, providerFailure("provider_unavailable")
+	}
+	in, err = Normalize(in)
+	if err != nil {
+		return AsyncImageJob{}, err
+	}
+	if len([]rune("Create one image. Style: "+in.Style+". Aspect ratio: "+in.Ratio+". Brief: "+in.Prompt)) > 800 {
+		return AsyncImageJob{}, providerFailure("provider_rejected")
+	}
+	url, err := p.bridge.ReferenceURL(ctx, reference, mime)
+	if err != nil {
+		return AsyncImageJob{}, providerFailure("reference_bridge_unavailable")
+	}
+	u, err := urlpkg.Parse(url)
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Fragment != "" {
+		return AsyncImageJob{}, providerFailure("unsafe_media_url")
+	}
+	return p.submitImage(ctx, in, url)
+}
+func (p *JimengImageProvider) GenerateWithReference(ctx context.Context, in Input, reference []byte, mime string) (GenerationResult, error) {
+	job, err := p.SubmitImageWithReference(ctx, in, reference, mime)
+	if err != nil {
+		return GenerationResult{}, err
+	}
+	return awaitAsyncImage(ctx, p, job.ID, p.pollInterval)
+}
+func (p *JimengImageProvider) submitImage(ctx context.Context, in Input, referenceURL string) (AsyncImageJob, error) {
 	if !validCredential(p.accessKey) || !validCredential(p.secretKey) || !nativeModelPattern.MatchString(p.reqKey) {
 		return AsyncImageJob{}, providerFailure("provider_unavailable")
 	}
@@ -135,7 +181,11 @@ func (p *JimengImageProvider) SubmitImage(ctx context.Context, in Input) (AsyncI
 		return AsyncImageJob{}, providerFailure("provider_rejected")
 	}
 	_, w, h := imageSize(in.Ratio)
-	out, err := p.request(ctx, "CVSync2AsyncSubmitTask", map[string]any{"req_key": p.reqKey, "prompt": prompt, "force_single": true, "width": w, "height": h})
+	body := map[string]any{"req_key": p.reqKey, "prompt": prompt, "force_single": true, "width": w, "height": h}
+	if referenceURL != "" {
+		body["image_urls"] = []string{referenceURL}
+	}
+	out, err := p.request(ctx, "CVSync2AsyncSubmitTask", body)
 	if err != nil {
 		return AsyncImageJob{}, err
 	}

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"image/png"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -18,6 +19,51 @@ import (
 // Only the fixed official /images/edits endpoint is used in production. No
 // uploaded filename, asset URL or model output URL is interpreted as a path.
 func (p *OpenAIProvider) GenerateWithReference(ctx context.Context, in Input, reference []byte, mime string) (GenerationResult, error) {
+	return p.generateEdit(ctx, in, reference, mime, nil)
+}
+
+type MaskImageProvider interface {
+	GenerateWithMask(context.Context, Input, []byte, string, []byte) (GenerationResult, error)
+}
+
+func validateEditMask(reference []byte, mime string, mask []byte) error {
+	if len(mask) == 0 || len(mask) > 4<<20 {
+		return providerFailure("provider_rejected")
+	}
+	ref, err := nativeImage(reference, mime)
+	if err != nil {
+		return providerFailure("provider_rejected")
+	}
+	cfg, err := png.DecodeConfig(bytes.NewReader(mask))
+	if err != nil || cfg.Width != ref.Width || cfg.Height != ref.Height {
+		return providerFailure("provider_rejected")
+	}
+	img, err := png.Decode(bytes.NewReader(mask))
+	if err != nil {
+		return providerFailure("provider_rejected")
+	}
+	transparent, opaque := false, false
+	for y := 0; y < cfg.Height; y++ {
+		for x := 0; x < cfg.Width; x++ {
+			_, _, _, a := img.At(x, y).RGBA()
+			transparent = transparent || a == 0
+			opaque = opaque || a == 65535
+		}
+	}
+	if !transparent || !opaque {
+		return providerFailure("provider_rejected")
+	}
+	return nil
+}
+
+// GenerateWithMask requires a same-size PNG with transparent edit regions and opaque preserved regions.
+func (p *OpenAIProvider) GenerateWithMask(ctx context.Context, in Input, reference []byte, mime string, mask []byte) (GenerationResult, error) {
+	if err := validateEditMask(reference, mime, mask); err != nil {
+		return GenerationResult{}, err
+	}
+	return p.generateEdit(ctx, in, reference, mime, mask)
+}
+func (p *OpenAIProvider) generateEdit(ctx context.Context, in Input, reference []byte, mime string, mask []byte) (GenerationResult, error) {
 	in, err := Normalize(in)
 	if err != nil {
 		return GenerationResult{}, providerFailure("provider_rejected")
@@ -50,6 +96,18 @@ func (p *OpenAIProvider) GenerateWithReference(ctx context.Context, in Input, re
 	}
 	if _, err = part.Write(reference); err != nil {
 		return GenerationResult{}, providerFailure("provider_error")
+	}
+	if mask != nil {
+		headers := textproto.MIMEHeader{}
+		headers.Set("Content-Disposition", `form-data; name="mask"; filename="mask.png"`)
+		headers.Set("Content-Type", "image/png")
+		part, e := writer.CreatePart(headers)
+		if e != nil {
+			return GenerationResult{}, providerFailure("provider_error")
+		}
+		if _, e = part.Write(mask); e != nil {
+			return GenerationResult{}, providerFailure("provider_error")
+		}
 	}
 	if err = writer.Close(); err != nil {
 		return GenerationResult{}, providerFailure("provider_error")

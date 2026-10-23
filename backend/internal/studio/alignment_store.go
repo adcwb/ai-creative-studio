@@ -56,15 +56,17 @@ type alignmentDisk struct {
 	Receipts map[string]alignmentReceipt `json:"receipts"`
 }
 type AlignmentStore struct {
-	mu       sync.Mutex
-	path     string
-	data     alignmentDisk
-	provider AlignmentProvider
-	caps     Capabilities
-	cancels  map[string]context.CancelFunc
-	wg       sync.WaitGroup
-	failure  error
-	closed   bool
+	forced     AlignmentProvider
+	forcedCaps Capabilities
+	mu         sync.Mutex
+	path       string
+	data       alignmentDisk
+	provider   AlignmentProvider
+	caps       Capabilities
+	cancels    map[string]context.CancelFunc
+	wg         sync.WaitGroup
+	failure    error
+	closed     bool
 }
 
 func estimateAlignmentCapabilities() Capabilities {
@@ -72,6 +74,7 @@ func estimateAlignmentCapabilities() Capabilities {
 }
 func openAlignmentStore(dir string) (*AlignmentStore, error) {
 	a := &AlignmentStore{path: filepath.Join(dir, "alignments.json"), data: alignmentDisk{Version: 1, Tasks: map[string]AlignmentTask{}, Receipts: map[string]alignmentReceipt{}}, cancels: map[string]context.CancelFunc{}, caps: Capabilities{Provider: "unavailable", Mode: "unavailable", Message: "未配置ASR；可按文本估算并人工校准。"}}
+	a.forcedCaps = Capabilities{Provider: "unavailable", Mode: "unavailable", Message: "未配置强制对齐模型。"}
 	b, err := os.ReadFile(a.path)
 	if err == nil {
 		var d alignmentDisk
@@ -80,7 +83,7 @@ func openAlignmentStore(dir string) (*AlignmentStore, error) {
 		}
 		a.data = d
 		for id, t := range d.Tasks {
-			if t.ID != id || !mediaFileID(id) || t.SourceVersion < 1 || t.ProjectID == "" || t.SpaceID == "" || t.Cues == nil || t.Warnings == nil || (t.Mode != "estimate" && t.Mode != "asr") {
+			if t.ID != id || !mediaFileID(id) || t.SourceVersion < 1 || t.ProjectID == "" || t.SpaceID == "" || t.Cues == nil || t.Warnings == nil || (t.Mode != "estimate" && t.Mode != "asr" && t.Mode != "forced") {
 				return nil, errors.New("invalid alignment task")
 			}
 			if t.Status != "queued" && t.Status != "running" && t.Status != "succeeded" && t.Status != "failed" && t.Status != "cancelled" {
@@ -153,7 +156,7 @@ func SetAlignmentProvider(s *FileStore, p AlignmentProvider, caps Capabilities) 
 func (a *AlignmentStore) capabilities() map[string]Capabilities {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return map[string]Capabilities{"estimate": estimateAlignmentCapabilities(), "asr": a.caps}
+	return map[string]Capabilities{"estimate": estimateAlignmentCapabilities(), "asr": a.caps, "forced": a.forcedCaps}
 }
 func (a *AlignmentStore) close() {
 	a.mu.Lock()
@@ -165,11 +168,11 @@ func (a *AlignmentStore) close() {
 	a.wg.Wait()
 }
 func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInput) (AlignmentTask, bool, error) {
-	if in.ExpectedVersion < 1 || !shotIDPattern.MatchString(in.ClipID) || (in.Mode != "estimate" && in.Mode != "asr") {
+	if in.ExpectedVersion < 1 || !shotIDPattern.MatchString(in.ClipID) || (in.Mode != "estimate" && in.Mode != "asr" && in.Mode != "forced") {
 		return AlignmentTask{}, false, mediaInvalid("字幕对齐输入无效")
 	}
 	in.Text = strings.TrimSpace(in.Text)
-	if len([]rune(in.Text)) > 2000 || (in.Mode == "estimate" && in.Text == "") {
+	if len([]rune(in.Text)) > 2000 || (in.Mode != "asr" && in.Text == "") {
 		return AlignmentTask{}, false, mediaInvalid("估算文本需1–2000字")
 	}
 	if in.Mode == "asr" && in.Text != "" {
@@ -218,17 +221,20 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 	if clip.AudioAssetID != "" {
 		audio, _ = mediaAsset(p, clip.AudioAssetID)
 	}
-	if in.Mode == "asr" && (in.AudioAssetID == "" || audio.ID == "" || audio.Kind != "audio") {
+	if in.Mode != "estimate" && (in.AudioAssetID == "" || audio.ID == "" || audio.Kind != "audio") {
 		return AlignmentTask{}, false, mediaInvalid("ASR需要绑定当前镜头的WAV/MP3配音素材")
 	}
 	caps := estimateAlignmentCapabilities()
 	if in.Mode == "asr" {
 		caps = a.caps
 	}
-	if !caps.Ready || (in.Mode == "asr" && a.provider == nil) {
+	if in.Mode == "forced" {
+		caps = a.forcedCaps
+	}
+	if !caps.Ready || (in.Mode == "asr" && a.provider == nil) || (in.Mode == "forced" && a.forced == nil) {
 		return AlignmentTask{}, false, ErrProviderNotReady
 	}
-	if (in.ExpectedProvider != "" && in.ExpectedProvider != caps.Provider) || (in.Mode == "asr" && (in.ExpectedProvider != caps.Provider || in.ExpectedModel == "" || in.ExpectedModel != caps.Model)) {
+	if (in.ExpectedProvider != "" && in.ExpectedProvider != caps.Provider) || (in.Mode != "estimate" && (in.ExpectedProvider != caps.Provider || in.ExpectedModel == "" || in.ExpectedModel != caps.Model)) {
 		return AlignmentTask{}, false, ErrProviderChanged
 	}
 	recent, paid, active := 0, 0, 0
@@ -341,6 +347,9 @@ func (a *AlignmentStore) run(ctx context.Context, m *MediaStore, id string) {
 		return
 	}
 	provider, caps := a.provider, a.caps
+	if task.Mode == "forced" {
+		provider, caps = a.forced, a.forcedCaps
+	}
 	a.mu.Unlock()
 	var err error
 	if task.Mode == "estimate" {
@@ -364,7 +373,16 @@ func (a *AlignmentStore) run(ctx context.Context, m *MediaStore, id string) {
 			}
 			if err == nil {
 				var result AlignmentResult
-				result, err = provider.Transcribe(ctx, data, mime, task.AudioDuration)
+				if task.Mode == "forced" {
+					aligner, ok := provider.(ForcedAlignmentProvider)
+					if !ok {
+						err = providerFailure("unsupported_capability")
+					} else {
+						result, err = aligner.Align(ctx, data, mime, task.AudioDuration, task.Text)
+					}
+				} else {
+					result, err = provider.Transcribe(ctx, data, mime, task.AudioDuration)
+				}
 				if err == nil {
 					task.Cues = []SubtitleCue{}
 					task.TimingBasis = result.TimingBasis
@@ -383,7 +401,7 @@ func (a *AlignmentStore) run(ctx context.Context, m *MediaStore, id string) {
 					if clipped {
 						task.Warnings = append(task.Warnings, "已按镜头时长裁切超出范围的识别字幕；配音也会按此镜头时长结束。")
 					}
-					task.Warnings = append(task.Warnings, "真实ASR协议结果仍需试听校验；本项目尚未验证真实模型准确率及费用。")
+					task.Warnings = append(task.Warnings, "模型对齐结果仍需试听校验；本项目尚未验证实际模型准确率及费用。")
 					if len(task.Cues) == 0 {
 						err = mediaInvalid("镜头时间范围内没有识别字幕")
 					} else {
@@ -422,11 +440,11 @@ func (m *MediaStore) validateAlignmentSources(project, space string, t MediaTime
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for _, clip := range t.Clips {
-		if clip.SubtitleSource != "" && clip.SubtitleSource != "manual" && clip.SubtitleSource != "estimated" && clip.SubtitleSource != "asr" {
+		if clip.SubtitleSource != "" && clip.SubtitleSource != "manual" && clip.SubtitleSource != "estimated" && clip.SubtitleSource != "asr" && clip.SubtitleSource != "forced" {
 			return mediaInvalid("字幕来源无效")
 		}
 		if clip.SubtitleAlignmentID == "" {
-			if clip.SubtitleSource == "estimated" || clip.SubtitleSource == "asr" {
+			if clip.SubtitleSource == "estimated" || clip.SubtitleSource == "asr" || clip.SubtitleSource == "forced" {
 				return mediaInvalid("估算或ASR来源必须引用成功对齐任务")
 			}
 			continue
@@ -435,10 +453,10 @@ func (m *MediaStore) validateAlignmentSources(project, space string, t MediaTime
 		if !ok || task.ProjectID != project || task.SpaceID != space || task.Status != "succeeded" || task.ClipID != clip.ID {
 			return mediaInvalid("字幕来源任务无效")
 		}
-		if clip.SubtitleSource == "estimated" || clip.SubtitleSource == "asr" {
+		if clip.SubtitleSource == "estimated" || clip.SubtitleSource == "asr" || clip.SubtitleSource == "forced" {
 			mode := "estimate"
-			if clip.SubtitleSource == "asr" {
-				mode = "asr"
+			if clip.SubtitleSource == "asr" || clip.SubtitleSource == "forced" {
+				mode = clip.SubtitleSource
 			}
 			if task.Mode != mode || task.Duration != clip.Duration || task.TrimStart != clip.TrimStart || task.AudioAssetID != clip.AudioAssetID || !reflect.DeepEqual(task.Cues, clip.SubtitleCues) {
 				return mediaInvalid("时间、音频或字幕已修改，请将字幕来源设为manual并人工确认")

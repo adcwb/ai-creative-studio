@@ -41,6 +41,7 @@ type CreativeProvider interface {
 	DownloadVideo(context.Context, string) ([]byte, error)
 }
 type OpenAICreativeProvider struct {
+	videoRetired                       bool
 	key, endpoint                      string
 	textModel, speechModel, videoModel string
 	client                             *http.Client
@@ -49,7 +50,9 @@ type OpenAICreativeProvider struct {
 func NewOpenAICreativeProvider(key string) *OpenAICreativeProvider {
 	t := http.DefaultTransport.(*http.Transport).Clone()
 	t.Proxy = nil
-	return newCreativeProvider(key, "https://api.openai.com/v1", &http.Client{Transport: t, Timeout: 120 * time.Second})
+	p := newCreativeProvider(key, "https://api.openai.com/v1", &http.Client{Transport: t, Timeout: 120 * time.Second})
+	p.videoRetired = true
+	return p
 }
 func newCreativeProvider(key, endpoint string, client *http.Client) *OpenAICreativeProvider {
 	c := *client
@@ -251,6 +254,9 @@ func decodeVideoJob(b []byte) (VideoJob, error) {
 	return v, nil
 }
 func (p *OpenAICreativeProvider) SubmitVideo(ctx context.Context, prompt string) (VideoJob, error) {
+	if p.videoRetired {
+		return VideoJob{}, providerFailure("provider_retired")
+	}
 	if p.videoModel == "" {
 		return VideoJob{}, providerFailure("provider_unavailable")
 	}
@@ -265,6 +271,9 @@ func (p *OpenAICreativeProvider) SubmitVideo(ctx context.Context, prompt string)
 	return decodeVideoJob(b)
 }
 func (p *OpenAICreativeProvider) PollVideo(ctx context.Context, id string) (VideoJob, error) {
+	if p.videoRetired {
+		return VideoJob{}, providerFailure("provider_retired")
+	}
 	if !videoIDPattern.MatchString(id) {
 		return VideoJob{}, providerFailure("provider_rejected")
 	}
@@ -279,6 +288,9 @@ func (p *OpenAICreativeProvider) PollVideo(ctx context.Context, id string) (Vide
 	return v, err
 }
 func (p *OpenAICreativeProvider) DownloadVideo(ctx context.Context, id string) ([]byte, error) {
+	if p.videoRetired {
+		return nil, providerFailure("provider_retired")
+	}
 	if !videoIDPattern.MatchString(id) {
 		return nil, providerFailure("provider_rejected")
 	}

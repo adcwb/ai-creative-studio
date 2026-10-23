@@ -49,7 +49,17 @@ func ConfigureImageFromEnv() (ImageProvider, Capabilities) {
 			return unavailableProvider{}, c
 		}
 		c.Ready = true
-		return NewJimengImageProvider(ak, sk, model), c
+		p := NewJimengImageProvider(ak, sk, model)
+		bridge, err := ConfigureReferenceBridgeFromEnv()
+		if err != nil {
+			c.Ready = false
+			c.ReasonCode = "invalid_reference_bridge"
+			return unavailableProvider{}, c
+		}
+		if bridge != nil {
+			p.SetReferenceBridge(bridge)
+		}
+		return p, c
 	}
 	keyName := map[string]string{"openai-images": "OPENAI_API_KEY", "gemini-images": "GEMINI_API_KEY", "gemini-interactions-images": "GEMINI_API_KEY", "ark-images": "ARK_API_KEY", "minimax-images": "MINIMAX_API_KEY"}[name]
 	key := os.Getenv(keyName)

@@ -16,36 +16,42 @@ import (
 )
 
 type CreativeJobInput struct {
-	ExpectedModel    string `json:"expected_model,omitempty"`
-	ReferenceAssetID string `json:"reference_asset_id,omitempty"`
-	Kind             string `json:"kind"`
-	ExpectedVersion  int    `json:"expected_version"`
-	ExpectedProvider string `json:"expected_provider,omitempty"`
-	Prompt           string `json:"prompt,omitempty"`
-	ShotID           string `json:"shot_id,omitempty"`
-	Character        string `json:"character,omitempty"`
+	AudioAssetID      string `json:"audio_asset_id,omitempty"`
+	ComparisonAssetID string `json:"comparison_asset_id,omitempty"`
+	MaskAssetID       string `json:"mask_asset_id,omitempty"`
+	ExpectedModel     string `json:"expected_model,omitempty"`
+	ReferenceAssetID  string `json:"reference_asset_id,omitempty"`
+	Kind              string `json:"kind"`
+	ExpectedVersion   int    `json:"expected_version"`
+	ExpectedProvider  string `json:"expected_provider,omitempty"`
+	Prompt            string `json:"prompt,omitempty"`
+	ShotID            string `json:"shot_id,omitempty"`
+	Character         string `json:"character,omitempty"`
 }
 type CreativeJob struct {
-	Model            string         `json:"model,omitempty"`
-	ReferenceAssetID string         `json:"reference_asset_id,omitempty"`
-	ID               string         `json:"id"`
-	SpaceID          string         `json:"space_id"`
-	ProjectID        string         `json:"project_id"`
-	Kind             string         `json:"kind"`
-	Provider         string         `json:"provider"`
-	Status           string         `json:"status"`
-	SourceVersion    int            `json:"source_version"`
-	Prompt           string         `json:"prompt"`
-	ShotID           string         `json:"shot_id"`
-	Character        string         `json:"character"`
-	UpstreamID       string         `json:"upstream_id,omitempty"`
-	AssetID          string         `json:"asset_id,omitempty"`
-	Analysis         *BriefAnalysis `json:"analysis,omitempty"`
-	Error            string         `json:"error,omitempty"`
-	ErrorCode        string         `json:"error_code,omitempty"`
-	CreatedAt        time.Time      `json:"created_at"`
-	UpdatedAt        time.Time      `json:"updated_at"`
-	Source           ProjectInput   `json:"source"`
+	AudioAssetID      string         `json:"audio_asset_id,omitempty"`
+	ComparisonAssetID string         `json:"comparison_asset_id,omitempty"`
+	MaskAssetID       string         `json:"mask_asset_id,omitempty"`
+	Model             string         `json:"model,omitempty"`
+	ReferenceAssetID  string         `json:"reference_asset_id,omitempty"`
+	ID                string         `json:"id"`
+	SpaceID           string         `json:"space_id"`
+	ProjectID         string         `json:"project_id"`
+	Kind              string         `json:"kind"`
+	Provider          string         `json:"provider"`
+	Status            string         `json:"status"`
+	SourceVersion     int            `json:"source_version"`
+	Prompt            string         `json:"prompt"`
+	ShotID            string         `json:"shot_id"`
+	Character         string         `json:"character"`
+	UpstreamID        string         `json:"upstream_id,omitempty"`
+	AssetID           string         `json:"asset_id,omitempty"`
+	Analysis          *BriefAnalysis `json:"analysis,omitempty"`
+	Error             string         `json:"error,omitempty"`
+	ErrorCode         string         `json:"error_code,omitempty"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+	Source            ProjectInput   `json:"source"`
 }
 type creativeReceipt struct {
 	Fingerprint string `json:"fingerprint"`
@@ -57,6 +63,12 @@ type creativeDisk struct {
 	Receipts map[string]creativeReceipt `json:"receipts"`
 }
 type creativeStore struct {
+	soundEffect           MusicProvider
+	soundEffectCaps       Capabilities
+	lipSync               LipSyncProvider
+	lipSyncCaps           Capabilities
+	music                 MusicProvider
+	musicCaps             Capabilities
 	speechCaps, videoCaps Capabilities
 	mu                    sync.Mutex
 	path                  string
@@ -74,6 +86,9 @@ func openCreativeStore(dir string) (*creativeStore, error) {
 	c := &creativeStore{path: filepath.Join(dir, "creative.json"), data: creativeDisk{Version: 1, Jobs: map[string]CreativeJob{}, Receipts: map[string]creativeReceipt{}}, cancels: map[string]context.CancelFunc{}}
 	_, c.caps = ConfigureCreativeProvider("mock-text", "")
 	c.imageCaps = Capabilities{Provider: "local-synthetic", Mode: "mock", Ready: true, Message: "合成色卡图片，不是AI生成。"}
+	c.musicCaps = Capabilities{Provider: "unavailable", Mode: "unavailable", Message: "未配置音乐生成。"}
+	c.lipSyncCaps = Capabilities{Provider: "unavailable", Mode: "unavailable", Message: "未配置口型同步模型。"}
+	c.soundEffectCaps = Capabilities{Provider: "unavailable", Mode: "unavailable", Message: "未配置音效生成模型。"}
 	b, err := os.ReadFile(c.path)
 	if err == nil {
 		var d creativeDisk
@@ -214,13 +229,13 @@ func (c *creativeStore) mediaCaps() map[string]Capabilities {
 	if _, ok := c.provider.(VisionProvider); !ok || c.provider == nil {
 		vision = Capabilities{Provider: "unavailable", Mode: "unavailable", Ready: false, Message: "请配置支持图像输入的文本模型；不会以本地模拟识别图片。"}
 	}
-	return map[string]Capabilities{"image": c.imageCaps, "speech": speech, "video": video, "vision": vision}
+	return map[string]Capabilities{"image": c.imageCaps, "speech": speech, "video": video, "vision": vision, "consistency": vision, "music": c.musicCaps, "lip_sync": c.lipSyncCaps, "sound_effect": c.soundEffectCaps}
 }
 func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput) (CreativeJob, bool, error) {
 	if in.ExpectedVersion < 1 {
 		return CreativeJob{}, false, ErrInvalidProjectInput
 	}
-	if in.Kind != "analysis" && in.Kind != "image" && in.Kind != "speech" && in.Kind != "video" && in.Kind != "vision" {
+	if in.Kind != "analysis" && in.Kind != "image" && in.Kind != "speech" && in.Kind != "video" && in.Kind != "vision" && in.Kind != "consistency" && in.Kind != "music" && in.Kind != "lip_sync" && in.Kind != "sound_effect" {
 		return CreativeJob{}, false, ErrInvalidProjectInput
 	}
 	if in.Kind != "analysis" {
@@ -285,12 +300,15 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	if !caps.Ready {
 		return CreativeJob{}, false, ErrProviderNotReady
 	}
-	if in.Kind == "vision" && in.ReferenceAssetID == "" {
+	if (in.Kind == "vision" || in.Kind == "consistency") && in.ReferenceAssetID == "" {
 		return CreativeJob{}, false, projectInputError("图像理解需要选择项目图片")
 	}
 	if in.ReferenceAssetID != "" {
-		if in.Kind != "image" && in.Kind != "video" && in.Kind != "vision" {
+		if in.Kind != "image" && in.Kind != "video" && in.Kind != "vision" && in.Kind != "consistency" && in.Kind != "lip_sync" {
 			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
+		if p, ok := c.image.(*JimengImageProvider); ok && in.Kind == "image" && p.bridge == nil {
+			return CreativeJob{}, false, projectInputError("即梦参考图需要显式配置受控对象桥接，默认未启用")
 		}
 		_, supportsImage := c.image.(ReferenceImageProvider)
 		_, supportsVideo := c.video.(referenceVideoProvider)
@@ -298,8 +316,62 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 			return CreativeJob{}, false, projectInputError("当前图像适配器不支持参考图；不会忽略参考素材生成")
 		}
 		path, mime, e := s.media.file(id, space, in.ReferenceAssetID, false, false)
+		_, supportsVideoEdit := c.video.(editVideoProvider)
+		if e != nil || path == "" || (mime != "image/png" && mime != "image/jpeg" && !((in.Kind == "video" && supportsVideoEdit || in.Kind == "lip_sync") && mime == "video/mp4")) {
+			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
+	}
+
+	if in.Kind == "lip_sync" {
+		_, videoMIME, e := s.media.file(id, space, in.ReferenceAssetID, false, false)
+		if e != nil || videoMIME != "video/mp4" {
+			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
+		_, audioMIME, e := s.media.file(id, space, in.AudioAssetID, false, false)
+		if e != nil || (audioMIME != "audio/wav" && audioMIME != "audio/mpeg") {
+			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
+	} else if in.AudioAssetID != "" {
+		return CreativeJob{}, false, ErrInvalidProjectInput
+	}
+
+	if in.Kind == "consistency" {
+		if in.ComparisonAssetID == "" || in.ComparisonAssetID == in.ReferenceAssetID {
+			return CreativeJob{}, false, projectInputError("请选择不同的参考图与镜头图")
+		}
+		path, mime, e := s.media.file(id, space, in.ComparisonAssetID, false, false)
 		if e != nil || path == "" || (mime != "image/png" && mime != "image/jpeg") {
 			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
+	} else if in.ComparisonAssetID != "" {
+		return CreativeJob{}, false, ErrInvalidProjectInput
+	}
+
+	if in.MaskAssetID != "" {
+		if in.Kind != "image" || in.ReferenceAssetID == "" {
+			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
+		if _, ok := c.image.(MaskImageProvider); !ok {
+			return CreativeJob{}, false, projectInputError("当前供应商不支持局部蒙版编辑")
+		}
+		path, mime, e := s.media.file(id, space, in.MaskAssetID, false, false)
+		if e != nil || mime != "image/png" {
+			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
+		refPath, refMIME, e := s.media.file(id, space, in.ReferenceAssetID, false, false)
+		if e != nil {
+			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
+		mask, e := os.ReadFile(path)
+		if e != nil {
+			return CreativeJob{}, false, e
+		}
+		ref, e := os.ReadFile(refPath)
+		if e != nil {
+			return CreativeJob{}, false, e
+		}
+		if validateEditMask(ref, refMIME, mask) != nil {
+			return CreativeJob{}, false, projectInputError("蒙版须与参考图同尺寸，PNG透明区域编辑、不透明区域保留，最大4MiB")
 		}
 	}
 
@@ -327,7 +399,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		return CreativeJob{}, false, err
 	}
 	now := time.Now().UTC()
-	job := CreativeJob{ReferenceAssetID: in.ReferenceAssetID, ID: jid, SpaceID: space, ProjectID: id, Kind: in.Kind, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Prompt: in.Prompt, ShotID: in.ShotID, Character: in.Character, Source: ProjectInput{Title: p.Title, Brief: p.Brief}, CreatedAt: now, UpdatedAt: now}
+	job := CreativeJob{AudioAssetID: in.AudioAssetID, ComparisonAssetID: in.ComparisonAssetID, MaskAssetID: in.MaskAssetID, ReferenceAssetID: in.ReferenceAssetID, ID: jid, SpaceID: space, ProjectID: id, Kind: in.Kind, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Prompt: in.Prompt, ShotID: in.ShotID, Character: in.Character, Source: ProjectInput{Title: p.Title, Brief: p.Brief}, CreatedAt: now, UpdatedAt: now}
 	c.data.Jobs[jid] = job
 	c.data.Receipts[rk] = creativeReceipt{Fingerprint: fingerprint, JobID: jid}
 	if err = c.saveLocked(); err != nil {
@@ -540,7 +612,7 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 		return providerFailure("provider_unavailable")
 	}
 	switch job.Kind {
-	case "vision":
+	case "vision", "consistency":
 		adapter, ok := c.provider.(VisionProvider)
 		if !ok {
 			return providerFailure("unsupported_capability")
@@ -553,7 +625,24 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 		if e != nil || len(ref) > 4<<20 {
 			return providerFailure("provider_rejected")
 		}
-		analysis, e := adapter.DescribeImage(ctx, job.Prompt, ref, refMIME)
+		prompt := job.Prompt
+		if job.Kind == "consistency" {
+			otherPath, _, e := s.media.file(job.ProjectID, job.SpaceID, job.ComparisonAssetID, false, false)
+			if e != nil {
+				return e
+			}
+			other, e := os.ReadFile(otherPath)
+			if e != nil {
+				return e
+			}
+			ref, e = consistencyContactSheet(ref, other)
+			if e != nil {
+				return e
+			}
+			refMIME = "image/png"
+			prompt = "Compare creative character continuity: LEFT is the reference, RIGHT is the shot. Report visible differences in costume, hair, palette and props and actionable corrections; describe uncertainty, never identify a person or guarantee identity. " + shortScriptText(job.Prompt, 1000)
+		}
+		analysis, e := adapter.DescribeImage(ctx, prompt, ref, refMIME)
 		if e != nil {
 			return e
 		}
@@ -584,7 +673,37 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 				if e != nil || len(ref) > 16<<20 {
 					return providerFailure("invalid_provider_response")
 				}
-				result, err = adapter.GenerateWithReference(ctx, input, ref, refMIME)
+				if job.MaskAssetID != "" {
+					maskAdapter, ok := c.image.(MaskImageProvider)
+					if !ok {
+						return providerFailure("unsupported_capability")
+					}
+					maskPath, maskMIME, e := s.media.file(job.ProjectID, job.SpaceID, job.MaskAssetID, false, false)
+					if e != nil || maskMIME != "image/png" {
+						return ErrInvalidProjectInput
+					}
+					mask, e := os.ReadFile(maskPath)
+					if e != nil {
+						return e
+					}
+					result, err = maskAdapter.GenerateWithMask(ctx, input, ref, refMIME, mask)
+				} else if async, ok := c.image.(asyncReferenceImageProvider); ok {
+					if job.UpstreamID == "" {
+						ack, e := async.SubmitImageWithReference(ctx, input, ref, refMIME)
+						if e != nil {
+							return e
+						}
+						if ack.ID == "" {
+							return providerFailure("invalid_provider_response")
+						}
+						if e = c.recordCreativeUpstream(job, ack.ID); e != nil {
+							return e
+						}
+					}
+					result, err = awaitAsyncImage(ctx, async, job.UpstreamID, 2*time.Second)
+				} else {
+					result, err = adapter.GenerateWithReference(ctx, input, ref, refMIME)
+				}
 			} else {
 				if async, ok := c.image.(AsyncImageProvider); ok {
 					if job.UpstreamID == "" {
@@ -608,6 +727,43 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 			}
 			data = result.Data
 		}
+	case "lip_sync":
+		if c.lipSync == nil {
+			return providerFailure("provider_unavailable")
+		}
+		videoPath, _, e := s.media.file(job.ProjectID, job.SpaceID, job.ReferenceAssetID, false, false)
+		if e != nil {
+			return e
+		}
+		audioPath, audioMIME, e := s.media.file(job.ProjectID, job.SpaceID, job.AudioAssetID, false, false)
+		if e != nil {
+			return e
+		}
+		video, e := os.ReadFile(videoPath)
+		if e != nil {
+			return e
+		}
+		audio, e := os.ReadFile(audioPath)
+		if e != nil {
+			return e
+		}
+		mime = "video/mp4"
+		role = "shot"
+		data, err = c.lipSync.Sync(ctx, video, audio, audioMIME)
+	case "sound_effect":
+		if c.soundEffect == nil {
+			return providerFailure("provider_unavailable")
+		}
+		mime = "audio/wav"
+		role = "effect"
+		data, err = c.soundEffect.Music(ctx, job.Prompt)
+	case "music":
+		mime = "audio/mpeg"
+		role = "music"
+		if c.music == nil {
+			return providerFailure("unsupported_capability")
+		}
+		data, err = c.music.Music(ctx, job.Prompt)
 	case "speech":
 		mime = "audio/wav"
 		role = "voice"
@@ -630,7 +786,15 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 				if e != nil || len(ref) > 10<<20 {
 					return providerFailure("invalid_provider_response")
 				}
-				v, err = adapter.SubmitVideoWithImage(ctx, job.Prompt, ref, refMIME)
+				if refMIME == "video/mp4" {
+					editor, ok := c.video.(editVideoProvider)
+					if !ok {
+						return providerFailure("unsupported_capability")
+					}
+					v, err = editor.SubmitVideoWithVideo(ctx, job.Prompt, ref, refMIME)
+				} else {
+					v, err = adapter.SubmitVideoWithImage(ctx, job.Prompt, ref, refMIME)
+				}
 			} else {
 				v, err = c.video.SubmitVideo(ctx, job.Prompt)
 			}
@@ -753,4 +917,13 @@ func (s *FileStore) creativeGenerationModel() string {
 		return ""
 	}
 	return s.creative.caps.Model
+}
+
+type editVideoProvider interface {
+	SubmitVideoWithVideo(context.Context, string, []byte, string) (VideoJob, error)
+}
+
+type asyncReferenceImageProvider interface {
+	AsyncImageProvider
+	SubmitImageWithReference(context.Context, Input, []byte, string) (AsyncImageJob, error)
 }
