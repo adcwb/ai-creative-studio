@@ -18,6 +18,9 @@ func TestOperationsAuditPrivacyAndMetrics(t *testing.T) {
 	defer ops.Close()
 	handler := ops.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		SetAuditIdentity(r.Context(), "user-test", "org-test", "owner")
+		if err := BeginAuditMutation(r.Context()); err != nil {
+			t.Fatal(err)
+		}
 		w.WriteHeader(201)
 	}))
 	request := httptest.NewRequest("POST", "/private-project?secret=hidden", strings.NewReader("private prompt"))
@@ -74,5 +77,76 @@ func TestOperationsFailureBlocksSSOCallback(t *testing.T) {
 	ops.Wrap(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true })).ServeHTTP(w, httptest.NewRequest("GET", "/api/v1/auth/sso/callback", nil))
 	if w.Code != 503 || called {
 		t.Fatal("SSO callback bypassed audit")
+	}
+}
+
+func TestOperationsRejectsAuditSymlink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "private")
+	if err := os.WriteFile(target, []byte("untouched"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(dir, "audit.jsonl")); err != nil {
+		t.Fatal(err)
+	}
+	if ops, err := OpenOperations(dir); err == nil {
+		ops.Close()
+		t.Fatal("symlink audit accepted")
+	}
+	raw, _ := os.ReadFile(target)
+	if string(raw) != "untouched" {
+		t.Fatal("symlink destination changed")
+	}
+}
+
+func TestAnonymousAndReadTrafficDoesNotExhaustAudit(t *testing.T) {
+	dir := t.TempDir()
+	ops, err := OpenOperations(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ops.Close()
+	handler := ops.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" {
+			w.WriteHeader(401)
+		} else {
+			w.WriteHeader(200)
+		}
+	}))
+	for i := 0; i < 1000; i++ {
+		for _, method := range []string{"GET", "POST"} {
+			handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(method, "/healthz?untrusted=ignored", nil))
+		}
+	}
+	info, err := os.Stat(filepath.Join(dir, "audit.jsonl"))
+	if err != nil || info.Size() != 0 {
+		t.Fatal("anonymous/read traffic appended audit", info, err)
+	}
+	ops.mu.Lock()
+	requests := ops.counts[2] + ops.counts[4]
+	ops.mu.Unlock()
+	if requests != 2000 {
+		t.Fatal("traffic metrics not aggregated")
+	}
+}
+func TestAuthorizedMutationChecksDurabilityBeforeExecution(t *testing.T) {
+	ops, err := OpenOperations(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	mutated := false
+	handler := ops.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		SetAuditIdentity(r.Context(), "user", "org", "owner")
+		_ = ops.Close()
+		if err := BeginAuditMutation(r.Context()); err != nil {
+			http.Error(w, "audit unavailable", 503)
+			return
+		}
+		mutated = true
+	}))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest("POST", "/api/v1/projects", nil))
+	if response.Code != 503 || mutated {
+		t.Fatal("mutation passed failed durable start")
 	}
 }

@@ -18,7 +18,7 @@ go run ./cmd/budget -data-dir /path/to/stopped-data -tenant org-id -currency USD
 
 `GetExchangeQuote` 接受可替换 provider；返回十进制字符串 rate、source、as_of、stale。缺少 provider 明确报未换算；过期报价保留 stale。没有默认或硬编码汇率，报价不会修改预算/账本。
 
-**该台账尚未接入所有异步 provider worker/恢复路径，也没有用户费用管理 API/UI，因此不能宣称服务端完整计费已经完成。** `ValidateRuntimeFromEnv` 对 ready real provider 启动拒绝，保留无凭据真实模式的不可用能力展示和包内假上游协议测试。真实 smoke/eval 的执行仍须等待账本/内容策略接入与用户具体供应商、模型、预算授权。
+**该台账尚未接入所有异步 provider worker/恢复路径，因此不能宣称服务端完整计费已经完成。** 组织owner预算配置与分币种报表API/UI由治理模块提供，但不能替代执行端预留/结算接入。 `ValidateRuntimeFromEnv` 对 ready real provider 启动拒绝，保留无凭据真实模式的不可用能力展示和包内假上游协议测试。真实 smoke/eval 的执行仍须等待账本/内容策略接入与用户具体供应商、模型、预算授权。
 
 ## 即梦参考对象桥
 
@@ -26,11 +26,11 @@ go run ./cmd/budget -data-dir /path/to/stopped-data -tenant org-id -currency USD
 
 目标必须是固定 HTTPS origin，拒绝用户信息、非443端口、路径或查询参数。实际上传前验证所有 DNS 地址为公网地址，并固定拨号 IP，关闭代理、重定向和重试。验证图片后规范化 PNG，用随机对象键写入 `references/` 前缀；不设置 public ACL。返回只读300秒 SigV4 URL，不能写入客户端任务结果、日志或聊天。配置者必须提前设置存储桶访问控制和短期对象生命周期，URL过期不自动删除对象。失败上传可能留下对象；后续生命周期清理仍需运维部署时确认。
 
-协议依据：[AWS S3 查询参数 SigV4](https://docs.aws.amazon.com/AmazonS3/latest/developerguide/sigv4-query-string-auth.html)。测试使用官方公开合成凭据签名向量、本地模拟传输及恶意目标，不访问真实对象服务；真实 MinIO/S3 上传、供应商取图及效果仍未验证。
+协议依据：[AWS S3 查询参数 SigV4](https://docs.aws.amazon.com/AmazonS3/latest/developerguide/sigv4-query-string-auth.html)。测试使用官方公开合成凭据签名向量、本地模拟传输及恶意目标，不访问真实对象服务；真实 MinIO/S3 上传、供应商取图及效果仍未验证。固定MinIO源码的console依赖也因公开访问要求认证而无法构建；没有为验证配置账号或改外部权限。
 
 ## 审计、指标与告警
 
-`Operations.Wrap` 为请求分配随机 request ID，向本地 `audit.jsonl` 写入开始/结束时间、方法、响应类别和耗时。认证后记录受信actor ID、tenant ID和role；请求体、URL路径、query、Cookie、prompt均不记录。写入/fsync失败或超过64MiB容量后拒绝新的写请求；已发生响应后的审计失败无法撤销已完成业务，后续写请求会失败。停服后归档审计文件再重启，不自动删除证据。
+`Operations.Wrap` 为请求分配随机 request ID，授权修改经 `BeginAuditMutation` 在修改前向本地 `audit.jsonl` 写入/fsync开始记录，完成后记录状态和耗时；只读及未认证失败请求仅聚合metrics，不逐请求落盘，避免匿名读取耗尽审计容量。认证后记录受信actor ID、tenant ID和role；请求体、URL路径、query、Cookie、prompt均不记录。写入/fsync失败或超过64MiB容量后拒绝新的写请求；已发生响应后的审计失败无法撤销已完成业务，后续写请求会失败。停服后归档审计文件再重启，不自动删除证据。
 
 这是请求级本地审计，尚不具备细粒度资源变更语义、不可篡改外部审计或分布式追踪。`MetricsHandler` 必须运行于独立运维端口，不能挂到公开Nginx代理后以回环peer冒充授权。导出HTTP计数、耗时总和、audit健康和uptime；`deploy/alerts.yaml` 是待操作者加载的告警配置，不表示已部署监控或通知渠道。
 
@@ -42,7 +42,7 @@ python3 scripts/backup.py verify /private/backups/studio.tar.gz
 python3 scripts/backup.py restore /private/backups/studio.tar.gz /path/to/new-data
 ```
 
-备份获取与服务相同的非阻塞 `store.lock`，服务运行时拒绝。完整复制主项目、auth、budget、media、creative、alignment、导出与审计，不只备份state.json。拒绝符号链接/特殊文件，归档位于DATA_DIR外，已有归档和恢复目标拒绝覆盖。manifest逐文件SHA256和长度校验；恢复先验证全部路径/类型/重复项/校验和，再写入新0700目录与0600文件。归档包含账号哈希和会话等敏感数据，保持离线私有，不提交Git。校验和不是加密或签名，离线加密和远端保管尚需运维方案。
+备份获取与服务相同的非阻塞 `store.lock`，服务运行时拒绝。完整复制主项目、auth、budget、media、creative、alignment、导出与审计，不只备份state.json。拒绝符号链接/特殊文件，归档位于DATA_DIR外，已有归档和恢复目标拒绝覆盖。manifest逐文件SHA256和长度校验；恢复先验证全部路径/类型/重复项/校验和，再写入私有暂存树，Linux `renameat2(RENAME_NOREPLACE)` 一次性发布完整新目录，拒绝并发出现的目标；文件0700目录/0600文件，不暴露部分恢复树。归档包含账号哈希和会话等敏感数据，保持离线私有，不提交Git。校验和不是加密或签名，离线加密和远端保管尚需运维方案。
 
 迁移回滚：停服创建完整备份，保留旧版本原DATA_DIR；新程序用完整复制的新目录演练。失败时停止新程序，旧二进制指向匹配的原目录，不能把新增字段/文件删掉后猜测兼容。恢复测试仅证明字节完整和恶意归档防护，恢复后的完整应用启动/媒体播放另需集成验收。
 

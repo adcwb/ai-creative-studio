@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -26,7 +27,42 @@ type Operations struct {
 	started  time.Time
 }
 type auditIdentityKey struct{}
-type auditIdentity struct{ Actor, Tenant, Role string }
+type auditIdentity struct {
+	Actor, Tenant, Role string
+	operations          *Operations
+	requestID, method   string
+	start               time.Time
+	began               bool
+}
+
+// BeginAuditMutation is called after authorization, before committing a mutation.
+// Anonymous failed attempts and all reads are aggregated only in metrics.
+func BeginAuditMutation(ctx context.Context) error {
+	identity, ok := ctx.Value(auditIdentityKey{}).(*auditIdentity)
+	if !ok || identity.operations == nil || identity.began {
+		return nil
+	}
+	if err := identity.operations.append(auditRecord{At: identity.start.UTC(), RequestID: identity.requestID, Method: identity.method, Phase: "started", Actor: identity.Actor, Tenant: identity.Tenant, Role: identity.Role}); err != nil {
+		return err
+	}
+	identity.began = true
+	return nil
+}
+func (o *Operations) available() error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.failed {
+		return errors.New("audit unavailable")
+	}
+	info, err := o.file.Stat()
+	if err == nil && info.Size() > 64<<20 {
+		err = errors.New("audit capacity reached")
+	}
+	if err != nil {
+		o.failed = true
+	}
+	return err
+}
 
 func SetAuditIdentity(ctx context.Context, actor, tenant, role string) {
 	if identity, ok := ctx.Value(auditIdentityKey{}).(*auditIdentity); ok {
@@ -49,7 +85,7 @@ type auditRecord struct {
 }
 
 func OpenOperations(dir string) (*Operations, error) {
-	file, err := os.OpenFile(filepath.Join(dir, "audit.jsonl"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	file, err := os.OpenFile(filepath.Join(dir, "audit.jsonl"), os.O_CREATE|os.O_WRONLY|os.O_APPEND|syscall.O_NOFOLLOW, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +140,7 @@ func (w *observedResponse) Unwrap() http.ResponseWriter { return w.ResponseWrite
 func (o *Operations) Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		identity := &auditIdentity{}
+		identity := &auditIdentity{operations: o, start: start, method: r.Method}
 		r = r.WithContext(context.WithValue(r.Context(), auditIdentityKey{}, identity))
 		var id [16]byte
 		if _, err := rand.Read(id[:]); err != nil {
@@ -112,8 +148,10 @@ func (o *Operations) Wrap(next http.Handler) http.Handler {
 			return
 		}
 		requestID := hex.EncodeToString(id[:])
+		identity.requestID = requestID
+		mutation := authWrite(r) || r.URL.Path == "/api/v1/auth/sso/callback"
 		w.Header().Set("X-Request-ID", requestID)
-		if err := o.append(auditRecord{At: start.UTC(), RequestID: requestID, Method: r.Method, Phase: "started"}); err != nil && (authWrite(r) || r.URL.Path == "/api/v1/auth/sso/callback") {
+		if err := o.available(); err != nil && mutation {
 			http.Error(w, "audit unavailable", 503)
 			return
 		}
@@ -124,7 +162,9 @@ func (o *Operations) Wrap(next http.Handler) http.Handler {
 			status = 200
 		}
 		elapsed := time.Since(start)
-		_ = o.append(auditRecord{At: time.Now().UTC(), RequestID: requestID, Method: r.Method, Phase: "finished", Actor: identity.Actor, Tenant: identity.Tenant, Role: identity.Role, Status: status, DurationMS: elapsed.Milliseconds()})
+		if mutation && (identity.began || identity.Actor != "" && status < 400) {
+			_ = o.append(auditRecord{At: time.Now().UTC(), RequestID: requestID, Method: r.Method, Phase: "finished", Actor: identity.Actor, Tenant: identity.Tenant, Role: identity.Role, Status: status, DurationMS: elapsed.Milliseconds()})
+		}
 		o.mu.Lock()
 		o.counts[status/100]++
 		o.duration += elapsed

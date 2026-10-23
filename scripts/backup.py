@@ -2,6 +2,8 @@
 """Offline, checksummed whole-DATA_DIR backup/restore. Never overwrite a restore target."""
 import argparse
 import contextlib
+import ctypes
+import errno
 import fcntl
 import hashlib
 import io
@@ -128,12 +130,22 @@ def restore(source, destination):
                     shutil.copyfileobj(stream, output)
                     output.flush()
                     os.fsync(output.fileno())
-        # mkdir is the no-clobber claim; then move entries into our private directory.
-        destination.mkdir(mode=0o700)
-        for path in temporary.iterdir():
-            path.rename(destination / path.name)
+        # Linux renameat2 publishes the complete staged tree atomically and
+        # refuses an existing/racing target. Never expose a partially moved tree.
+        libc = ctypes.CDLL(None, use_errno=True)
+        rename = getattr(libc, 'renameat2', None)
+        if rename is None:
+            raise ValueError('atomic no-clobber restore requires Linux renameat2')
+        rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+        rename.restype = ctypes.c_int
+        if rename(-100, os.fsencode(temporary), -100, os.fsencode(destination), 1) != 0:
+            code = ctypes.get_errno()
+            if code == errno.EEXIST:
+                raise ValueError('restore target already exists; refusing overwrite')
+            raise OSError(code, os.strerror(code))
     finally:
-        shutil.rmtree(temporary)
+        if temporary.exists():
+            shutil.rmtree(temporary)
     return {'files': len(records), 'restored': True}
 
 def main():
