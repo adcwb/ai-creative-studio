@@ -37,9 +37,10 @@ type RuntimeProviders struct {
 // are deliberately unavailable to tenant configurations: naming OPENAI_API_KEY
 // must never grant a tenant use of the deployment operator's credential.
 type ModelRuntime struct {
-	auth      *AuthStore
-	authorize func(context.Context, RuntimeSelection) error
-	secrets   *ApprovedSecretResolver
+	auth          *AuthStore
+	authorize     func(context.Context, RuntimeSelection) error
+	secrets       *ApprovedSecretResolver
+	musicEntitled func(string, int64, ModelConfigEntry) bool
 }
 
 func NewModelRuntime(auth *AuthStore, authorize func(context.Context, RuntimeSelection) error) *ModelRuntime {
@@ -93,7 +94,7 @@ func (r *ModelRuntime) Resolve(ctx context.Context, tenant, actor, id, capabilit
 		}
 	}
 	m, ok := t.Entries[selection.ModelID]
-	if !ok || !r.entryAllowed(m.Entry, tenant, capability) {
+	if !ok || !r.entryAllowed(m.Entry, tenant, capability, t.Version) {
 		return selection, ModelConfigEntry{}, errRuntimeUnavailable
 	}
 	selection.Version = t.Version
@@ -105,7 +106,7 @@ func (r *ModelRuntime) Resolve(ctx context.Context, tenant, actor, id, capabilit
 	return selection, entry, nil
 }
 
-func (r *ModelRuntime) entryAllowed(e ModelConfigEntry, tenant, capability string) bool {
+func (r *ModelRuntime) entryAllowed(e ModelConfigEntry, tenant, capability string, version int64) bool {
 	a, err := validateModelInput(ModelConfigInput{ID: e.ID, Provider: e.Provider, Model: e.Model, Capability: e.Capability, Region: e.Region, Enabled: e.Enabled, IsDefault: e.IsDefault, Lifecycle: e.Lifecycle})
 	if err != nil || a.Endpoint != e.Endpoint || a.Protocol != e.Protocol {
 		return false
@@ -115,7 +116,9 @@ func (r *ModelRuntime) entryAllowed(e ModelConfigEntry, tenant, capability strin
 		return false
 	}
 	switch e.Provider {
-	case "minimax-music", "openai-speech":
+	case "minimax-music":
+		return (e.Model == "music-3.0" || e.Model == "music-2.6") && r.musicEntitled != nil && r.musicEntitled(tenant, version, e)
+	case "openai-speech":
 		return false
 	case "openai-asr":
 		return e.Model == "whisper-1"
@@ -134,7 +137,7 @@ func (r *ModelRuntime) check(ctx context.Context, selection RuntimeSelection) er
 	s.mu.Lock()
 	t := s.data.Tenants[selection.TenantID]
 	m, ok := t.Entries[selection.ModelID]
-	valid := s.failed == nil && ok && t.Version == selection.Version && r.entryAllowed(m.Entry, selection.TenantID, selection.Capability)
+	valid := s.failed == nil && ok && t.Version == selection.Version && r.entryAllowed(m.Entry, selection.TenantID, selection.Capability, t.Version)
 	s.mu.Unlock()
 	if !valid {
 		return errRuntimeUnavailable
@@ -168,7 +171,7 @@ func (r *ModelRuntime) Execute(ctx context.Context, selection RuntimeSelection, 
 	s.mu.Lock()
 	t := s.data.Tenants[selection.TenantID]
 	m, ok := t.Entries[selection.ModelID]
-	if s.failed != nil || !ok || t.Version != selection.Version || !r.entryAllowed(m.Entry, selection.TenantID, selection.Capability) || (m.Entry.SecretStatus == "encrypted" && s.aead == nil) {
+	if s.failed != nil || !ok || t.Version != selection.Version || !r.entryAllowed(m.Entry, selection.TenantID, selection.Capability, t.Version) || (m.Entry.SecretStatus == "encrypted" && s.aead == nil) {
 		s.mu.Unlock()
 		return errRuntimeUnavailable
 	}
@@ -437,9 +440,15 @@ func buildRuntimeProviders(lifetime context.Context, e ModelConfigEntry, secret,
 		p := NewByteDanceSpeechProvider(secret, e.Model, voice)
 		guardRuntimeClient(p.client, lifetime, guard, onDispatch)
 		out.Creative = p
+	case "minimax-music":
+		if e.Capability != "music" || (e.Model != "music-3.0" && e.Model != "music-2.6") {
+			return out, errRuntimeUnavailable
+		}
+		p := NewMiniMaxMusicProvider(secret, e.Model)
+		guardRuntimeClient(p.transport.client, lifetime, guard, onDispatch)
+		out.Music = p
 	default:
-		// Music needs independently verified account eligibility; deprecated
-		// OpenAI speech stays disabled.
+		// Deprecated OpenAI speech stays disabled.
 		return out, errRuntimeUnavailable
 	}
 	if out.Creative != nil {

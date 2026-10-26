@@ -123,6 +123,13 @@ func ConfigureManagedRuntime(s *FileStore, auth *AuthStore) {
 		}
 		return s.execution.AuthorizeRuntime(ctx, selection)
 	})
+	s.runtime.musicEntitled = func(tenant string, version int64, entry ModelConfigEntry) bool {
+		if s.execution == nil {
+			return false
+		}
+		policy, ok := s.execution.Quoter.(*ExecutionPolicy)
+		return ok && policy.MusicEntitled(tenant, version, entry)
+	}
 	s.runtime.BindReadiness(func() bool { return s.execution != nil && s.execution.Ready() })
 	if s.media != nil && s.media.alignment != nil {
 		s.media.alignment.runtime = s.runtime

@@ -55,3 +55,7 @@
 本轮测试只使用合成价格、合成凭据、假 transport 和本地 fixture 命令。没有配置真实审核服务、价格或账单适配器，没有执行真实模型。
 
 已知上游任务的恢复查询另走 `ExecuteRecovery`，必须已有同租户/模型/币种的 unknown 费用条目，且对应新鲜报价规则显式 `recovery_queries_free: true`。这只表示操作员核验该供应商查询/下载不收费；没有此配置拒绝恢复。运行时只允许精确绑定已持久上游 ID 的官方视频 GET 查询，以及即梦原生 adapter 的固定签名 POST 查询（固定 endpoint/action/version/req_key/task_id，拒绝额外字段）；不能再发创建或参考图上传。恢复前错误或成功查询均不释放旧 unknown，配置版本/权限撤销仍阻止恢复。即梦 POST 查询例外不是任意 POST 授权，细节见 [模型管理](model-management.md)。
+
+## 音乐账户资格
+
+MiniMax器乐执行额外要求操作员配置有效的 `music_entitlements`，绑定tenant、模型配置ID/版本、已实现型号和资格来源/过期时间。租户不能通过API自授资格；资格不替代精确报价、原币种预算或输入/产出审核。完整合同与重启/撤销边界见[受治理音乐](governed-music.md)。

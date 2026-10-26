@@ -11,7 +11,7 @@ import (
 )
 
 func TestExactRequestQuoteAcrossImageAndCreativeModalities(t *testing.T) {
-	for _, kind := range []string{"image", "speech", "video"} {
+	for _, kind := range []string{"image", "speech", "video", "music"} {
 		t.Run(kind, func(t *testing.T) {
 			store := testStore(t)
 			auth, err := OpenAuthStore(t.TempDir())
@@ -32,6 +32,11 @@ func TestExactRequestQuoteAcrossImageAndCreativeModalities(t *testing.T) {
 				config.Provider = "minimax-speech"
 				config.Model = "synthetic-tts"
 				config.Capability = "speech"
+			}
+			if kind == "music" {
+				config.Provider = "minimax-music"
+				config.Model = "music-3.0"
+				config.Capability = "music"
 			}
 			if kind == "video" {
 				config.Provider = "ark-video"
@@ -68,6 +73,9 @@ func TestExactRequestQuoteAcrossImageAndCreativeModalities(t *testing.T) {
 				t.Fatal(err)
 			}
 			policy := &ExecutionPolicy{Prices: []ExecutionPriceRule{{Provider: entry.Provider, Model: entry.Model, Capability: entry.Capability, RequestDigest: ExecutionRequestDigest(expected), Currency: "USD", MaximumMinor: 15, MaximumInputBytes: 8192, Source: "synthetic fixed request fixture", ExpiresAt: time.Now().Add(time.Minute)}}}
+			if kind == "music" {
+				policy.MusicEntitlements = []MusicEntitlement{{TenantID: tenant, ModelConfigID: entry.ID, ModelConfigVersion: 1, Model: entry.Model, Contract: "minimax-existing-paid-account-v1", Source: "synthetic eligibility fixture", ExpiresAt: time.Now().Add(time.Hour)}}
+			}
 			governor, _ := executionFixture(t)
 			governor.Quoter = policy
 			ConfigureExecutionGovernance(store, governor)
@@ -87,6 +95,12 @@ func TestExactRequestQuoteAcrossImageAndCreativeModalities(t *testing.T) {
 					t.Fatalf("%s got %d want %d: %s", path, w.Code, want, w.Body.String())
 				}
 				return w
+			}
+			if kind == "music" {
+				approved := policy.MusicEntitlements
+				policy.MusicEntitlements = nil
+				post("/api/v1/runtime-quote?space_id="+tenant, preview, 409)
+				policy.MusicEntitlements = approved
 			}
 			response := post("/api/v1/runtime-quote?space_id="+tenant, preview, 200)
 			var quote RuntimeRequestQuote

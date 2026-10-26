@@ -30,6 +30,7 @@ type ExecutionPriceRule struct {
 	ExpiresAt             time.Time `json:"expires_at"`
 }
 type ExecutionPolicy struct {
+	MusicEntitlements   []MusicEntitlement   `json:"music_entitlements,omitempty"`
 	Version             int                  `json:"version"`
 	Prices              []ExecutionPriceRule `json:"prices"`
 	ModerationCommand   string               `json:"moderation_command"`
@@ -192,6 +193,9 @@ func ConfigureExecutionFromEnv(s *FileStore) error {
 	}
 	if policy.BillingCommand != "" && (!policy.billingIsNonbillable() || validatePolicyCommand(policy.BillingCommand) != nil) {
 		return ErrExecutionGovernance
+	}
+	if err := validateMusicEntitlements(policy.MusicEntitlements); err != nil {
+		return err
 	}
 	seen := map[string]bool{}
 	for _, v := range policy.Prices {
