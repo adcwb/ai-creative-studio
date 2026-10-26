@@ -1,0 +1,26 @@
+const messages: Record<string, string> = {
+  "交叉溶解与下一镜重叠并缩短成片，镜头字幕与配音随镜头一起移动；重叠区可同时出现字幕。附加音轨与叠层位置按缩短后的成片计时。黑场转场不缩短时长。原音须明确开启；请降低混音音量，保存并导出后检查实际效果。": "Crossfades overlap the next shot and shorten the film. Shot subtitles and dialogue move with their shot; subtitles may overlap during a transition. Position extra audio and overlays on the shortened timeline. Fades through black keep the duration. Enable source audio explicitly, lower mix levels, then save and export to check the result.",
+  "与下一镜交叉溶解": "Crossfade into next shot",
+  "转场时长（秒）": "Transition duration (seconds)",
+  "转场或镜头时长无效。交叉溶解需要下一镜，时长0.1–2秒且不超过相邻镜头各自一半；移除或调整镜头后请检查转场。": "Invalid shot or transition duration. Crossfades require a next shot and must last 0.1–2 seconds, no longer than half of either adjacent shot. Check transitions after removing or editing shots.",
+  "附加音轨超出成片或素材范围，请根据交叉溶解后的时长调整。": "An extra audio track exceeds the film or source duration. Adjust it to the timeline after crossfades.",
+  "画面叠层无效。请检查素材、0–1位置和大小、原音设置，以及缩短后成片中的起点和时长。": "Invalid visual overlay. Check its asset, relative position and size (0–1), source audio settings, and timing within the shortened film.",
+  "横向位置（0–1）": "Horizontal position (0–1)",
+  "纵向位置（0–1）": "Vertical position (0–1)",
+  "画幅宽度（0–1）": "Relative width (0–1)",
+  "画幅高度（0–1）": "Relative height (0–1)",
+  "不透明度": "Opacity",
+  "画面叠层": "Visual overlays",
+  "最多4条图片或视频叠层，后列叠层显示在上方。位置和大小相对成片画幅；时间相对交叉溶解后的成片。保存并导出后查看实际合成，不提供实时叠层预览。": "Add up to four image or video overlays. Later layers appear on top. Position and size are relative to the film frame; timing follows the film after crossfades. Save and export to view the composite; there is no live overlay preview.",
+  "尚未添加画面叠层。原镜头时间轴仍正常播放。": "No visual overlays added. The original shot timeline still plays normally.",
+  "叠层 {index}": "Overlay {index}",
+  "下移叠层 {index}": "Lower overlay {index}",
+  "上移叠层 {index}": "Raise overlay {index}",
+  "移除叠层 {index}": "Remove overlay {index}",
+  "叠层 {index} 素材": "Overlay {index} asset",
+  "叠层 {index} {field}": "Overlay {index} {field}",
+  "保留叠层 {index} 视频原音": "Keep source audio for overlay {index}",
+  "叠层 {index} 原音音量": "Overlay {index} source audio volume",
+  "添加画面叠层": "Add visual overlay"
+}
+export default messages
