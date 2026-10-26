@@ -96,7 +96,7 @@ func TestGoogleVideoFileLifecycleAndRestart(t *testing.T) {
 			var in map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&in)
 			format := in["response_format"].(map[string]any)
-			if format["type"] != "video" || format["delivery"] != "uri" || format["resolution"] != "720p" || format["aspect_ratio"] != "16:9" {
+			if in["model"] != "gemini-omni-1.1-flash" || in["input"] != "synthetic sunset" || in["previous_interaction_id"] != nil || in["generation_config"] != nil || in["background"] != false || in["store"] != false || in["stream"] != false || format["duration"] != nil || format["type"] != "video" || format["delivery"] != "uri" || format["resolution"] != "720p" || format["aspect_ratio"] != "16:9" {
 				t.Error("missing URI delivery")
 			}
 			_ = json.NewEncoder(w).Encode(googleTestOutput("video", "video/mp4", "", "https://generativelanguage.googleapis.com/v1beta/files/abc-123:download?alt=media"))
@@ -117,7 +117,7 @@ func TestGoogleVideoFileLifecycleAndRestart(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	p := newGoogleMediaProvider("gemini-video", "synthetic", "video-test", "", server.URL, server.Client(), nil)
+	p := newGoogleMediaProvider("gemini-video", "synthetic", "gemini-omni-1.1-flash", "", server.URL, server.Client(), nil)
 	job, err := p.SubmitVideo(context.Background(), "synthetic sunset")
 	if err != nil || job.ID != "abc-123" || job.Status != "queued" {
 		t.Fatal(job, err)
@@ -127,7 +127,7 @@ func TestGoogleVideoFileLifecycleAndRestart(t *testing.T) {
 		t.Fatal(job, err)
 	}
 	// A new adapter can resume using only the persisted file ID; no POST replay.
-	restored := newGoogleMediaProvider("gemini-video", "synthetic", "video-test", "", server.URL, server.Client(), nil)
+	restored := newGoogleMediaProvider("gemini-video", "synthetic", "gemini-omni-1.1-flash", "", server.URL, server.Client(), nil)
 	job, err = restored.PollVideo(context.Background(), job.ID)
 	if err != nil || job.Status != "completed" {
 		t.Fatal(job, err)

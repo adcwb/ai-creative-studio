@@ -76,6 +76,10 @@ func (p *NativeImageProvider) GenerateWithReference(ctx context.Context, in Inpu
 		path = "/v1beta/models/" + p.model + ":generateContent"
 	case "ark-images":
 		b := map[string]any{"model": p.model, "prompt": prompt, "size": "2K", "response_format": "b64_json", "watermark": true, "stream": false}
+		if spec := imageCandidateSpecification(p.kind, p.model); spec != nil {
+			b["size"], b["response_format"] = spec.Size, spec.ResponseFormat
+			b["output_format"], b["sequential_image_generation"] = spec.OutputFormat, spec.SequentialImageGeneration
+		}
 		if len(reference) > 0 {
 			b["image"] = "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(reference)
 		}

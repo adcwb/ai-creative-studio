@@ -27,7 +27,7 @@ func TestArkVideoNativeProtocol(t *testing.T) {
 				t.Error("json")
 			}
 			content := body["content"].([]any)[0].(map[string]any)
-			if body["model"] != "explicit-model" || body["duration"] != float64(5) || content["type"] != "text" || content["text"] != "synthetic prompt" {
+			if body["model"] != "doubao-seedance-2-0-mini-260615" || body["duration"] != float64(5) || body["resolution"] != "480p" || content["type"] != "text" || content["text"] != "synthetic prompt" {
 				t.Errorf("bad request %#v", body)
 			}
 			_, _ = w.Write([]byte(`{"id":"cgt-test-001"}`))
@@ -44,7 +44,7 @@ func TestArkVideoNativeProtocol(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	p := newArkVideoProvider("synthetic-test-key", "explicit-model", server.URL, server.Client(), func(_ context.Context, url string) ([]byte, error) {
+	p := newArkVideoProvider("synthetic-test-key", "doubao-seedance-2-0-mini-260615", server.URL, server.Client(), func(_ context.Context, url string) ([]byte, error) {
 		downloads++
 		if url != "https://cdn.example.test/synthetic.mp4" {
 			t.Error(url)

@@ -31,7 +31,19 @@ func (s *FileStore) creativeExecutionRequest(job CreativeJob) (ExecutionRequest,
 		request.HasMedia = true
 		request.Media = append(request.Media, ExecutionMedia{Data: data, MIME: mime})
 	}
-	request.Parameters, _ = json.Marshal(struct{ Kind, Shot, Character string }{job.Kind, job.ShotID, job.Character})
+	var spec *reviewedVideoSpecification
+	var imageSpec *reviewedImageSpecification
+	if job.Kind == "video" {
+		spec = videoCandidateSpecification(job.Provider, job.Model, job.ReferenceAssetID != "")
+	}
+	if job.Kind == "image" {
+		imageSpec = imageCandidateSpecification(job.Provider, job.Model)
+	}
+	request.Parameters, _ = json.Marshal(struct {
+		Kind, Shot, Character string
+		VideoSpecification    *reviewedVideoSpecification `json:"video_specification,omitempty"`
+		ImageSpecification    *reviewedImageSpecification `json:"image_specification,omitempty"`
+	}{job.Kind, job.ShotID, job.Character, spec, imageSpec})
 	return request, nil
 }
 

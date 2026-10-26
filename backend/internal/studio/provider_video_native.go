@@ -97,7 +97,13 @@ func (p *ArkVideoProvider) submit(ctx context.Context, prompt string, reference 
 	if reference != nil {
 		content = append(content, reference)
 	}
-	body := map[string]any{"model": p.model, "content": content, "duration": 5, "resolution": "720p", "ratio": "16:9", "watermark": true}
+	seconds, resolution, ratio := 5, "720p", "16:9"
+	// The reviewed mini candidate supports 480p. Bind the small-sample preset
+	// to the exact model ID, retaining the existing contract for other models.
+	if spec := videoCandidateSpecification("ark-video", p.model, reference != nil); spec != nil {
+		seconds, resolution, ratio = spec.Seconds, spec.Resolution, spec.Ratio
+	}
+	body := map[string]any{"model": p.model, "content": content, "duration": seconds, "resolution": resolution, "ratio": ratio, "watermark": true}
 	b, err := p.api.request(ctx, "POST", "/contents/generations/tasks", body, 64<<10)
 	if err != nil {
 		return VideoJob{}, err

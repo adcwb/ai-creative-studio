@@ -135,7 +135,15 @@ func (p *MiniMaxVideoProvider) submit(ctx context.Context, prompt string, refere
 		content = append(content, reference)
 		ratio = "adaptive"
 	}
-	raw, err := p.api.request(ctx, "POST", "/v2/video_generation", map[string]any{"model": p.model, "content": content, "duration": 5, "resolution": "768P", "ratio": ratio}, 64<<10)
+	seconds, resolution := 5, "768P"
+	// The explicitly selected Lite candidate supports 4–15 seconds and 480P.
+	// Keep its small-sample contract distinct from other H3 variants; never
+	// infer the same capabilities from a prefix or silently substitute a model.
+	// https://platform.minimax.io/docs/api-reference/video-generation-v2-create
+	if spec := videoCandidateSpecification("minimax-video", p.model, reference != nil); spec != nil {
+		seconds, resolution, ratio = spec.Seconds, spec.Resolution, spec.Ratio
+	}
+	raw, err := p.api.request(ctx, "POST", "/v2/video_generation", map[string]any{"model": p.model, "content": content, "duration": seconds, "resolution": resolution, "ratio": ratio}, 64<<10)
 	if err != nil {
 		return VideoJob{}, err
 	}

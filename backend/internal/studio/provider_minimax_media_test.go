@@ -110,7 +110,7 @@ func TestMiniMaxVideoLifecycleReferenceAndCancel(t *testing.T) {
 			}
 			var body map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&body)
-			if body["model"] != "explicit-H3" || body["duration"] != float64(5) || body["resolution"] != "768P" {
+			if body["model"] != "MiniMax-H3-Lite" || body["duration"] != float64(4) || body["resolution"] != "480P" {
 				t.Error("unbounded submission")
 			}
 			content := body["content"].([]any)
@@ -144,7 +144,7 @@ func TestMiniMaxVideoLifecycleReferenceAndCancel(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	p := newMiniMaxVideoProvider("synthetic", "explicit-H3", server.URL, server.Client(), func(_ context.Context, url string) ([]byte, error) {
+	p := newMiniMaxVideoProvider("synthetic", "MiniMax-H3-Lite", server.URL, server.Client(), func(_ context.Context, url string) ([]byte, error) {
 		downloads++
 		if url != "https://cdn.example.test/generated.mp4" {
 			t.Error("incorrect download")

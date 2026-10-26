@@ -47,7 +47,10 @@ func ExecutionRequestDigest(r ExecutionRequest) string {
 	return hex.EncodeToString(sum[:])
 }
 func imageExecutionRequest(t Task) ExecutionRequest {
-	parameters, _ := json.Marshal(struct{ Prompt, Kind, Ratio, Style string }{t.Prompt, t.Kind, t.Ratio, t.Style})
+	parameters, _ := json.Marshal(struct {
+		Prompt, Kind, Ratio, Style string
+		ImageSpecification         *reviewedImageSpecification `json:"image_specification,omitempty"`
+	}{t.Prompt, t.Kind, t.Ratio, t.Style, imageCandidateSpecification(t.Provider, t.Model)})
 	return ExecutionRequest{ID: "image:" + t.ID, Tenant: t.SpaceID, Provider: t.Provider, Model: t.Model, Capability: "image", Text: t.Prompt, Parameters: parameters, Selection: t.RuntimeSelection}
 }
 
