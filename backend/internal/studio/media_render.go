@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -157,6 +158,9 @@ func (m *MediaStore) StartExport(project, space, key string, version int, traceP
 		for _, track := range p.Timeline.AudioTracks {
 			ids[track.AssetID] = true
 		}
+		for _, overlay := range p.Timeline.VideoOverlays {
+			ids[overlay.AssetID] = true
+		}
 		for id := range ids {
 			if _, err := m.localBlob(space, project, id); err != nil {
 				return MediaExport{}, err
@@ -182,9 +186,7 @@ func (m *MediaStore) StartExport(project, space, key string, version int, traceP
 	if m.pg != nil {
 		e.Status = "queued"
 	}
-	for _, c := range e.Timeline.Clips {
-		e.Duration += c.Duration
-	}
+	e.Duration = timelineDuration(e.Timeline)
 	p.Exports = append(p.Exports, e)
 	d.Projects[k] = p
 	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest, ExportID: e.ID}
@@ -290,6 +292,9 @@ func (m *MediaStore) CancelExport(project, space, key, id string) (MediaExport, 
 	return MediaExport{}, ErrNotFound
 }
 func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) error {
+	if err := validateTimeline(p, e.Timeline); err != nil {
+		return err
+	}
 	dir, err := os.MkdirTemp(m.dir, "render-")
 	if err != nil {
 		return err
@@ -310,6 +315,7 @@ func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) er
 	}
 	elapsed := 0.0
 	subtitleCount := 0
+	var globalCues []SubtitleCue
 	for i, c := range e.Timeline.Clips {
 		a, _ := mediaAsset(p, c.AssetID)
 		input := filepath.Join(m.dir, a.ID)
@@ -353,14 +359,23 @@ func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) er
 		}
 		fmt.Fprintf(&concat, "file '%s'\n", clipPath)
 		for _, cue := range clipSubtitleCues(c) {
-			subtitleCount++
-			text := strings.ReplaceAll(strings.ReplaceAll(cue.Text, "\r", " "), "\n", " ")
-			text = strings.ReplaceAll(text, "-->", "→")
-			fmt.Fprintf(&subs, "%d\n%s --> %s\n%s\n\n", subtitleCount, srtTime(elapsed+cue.Start), srtTime(elapsed+cue.End), text)
-			escaped := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(text)
-			fmt.Fprintf(&vtt, "%s --> %s\n%s\n\n", strings.ReplaceAll(srtTime(elapsed+cue.Start), ",", "."), strings.ReplaceAll(srtTime(elapsed+cue.End), ",", "."), escaped)
+			cue.Start += elapsed
+			cue.End += elapsed
+			globalCues = append(globalCues, cue)
 		}
 		elapsed += c.Duration
+		if c.Transition == "crossfade" {
+			elapsed -= c.TransitionDuration
+		}
+	}
+	sort.SliceStable(globalCues, func(i, j int) bool { return globalCues[i].Start < globalCues[j].Start })
+	for _, cue := range globalCues {
+		subtitleCount++
+		text := strings.ReplaceAll(strings.ReplaceAll(cue.Text, "\r", " "), "\n", " ")
+		text = strings.ReplaceAll(text, "-->", "→")
+		fmt.Fprintf(&subs, "%d\n%s --> %s\n%s\n\n", subtitleCount, srtTime(cue.Start), srtTime(cue.End), text)
+		escaped := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(text)
+		fmt.Fprintf(&vtt, "%s --> %s\n%s\n\n", strings.ReplaceAll(srtTime(cue.Start), ",", "."), strings.ReplaceAll(srtTime(cue.End), ",", "."), escaped)
 	}
 	list := filepath.Join(dir, "concat.txt")
 	if err = os.WriteFile(list, []byte(concat.String()), 0600); err != nil {
@@ -374,6 +389,20 @@ func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) er
 		return err
 	}
 	args := []string{"-f", "concat", "-safe", "0", "-protocol_whitelist", "file,pipe", "-i", list}
+	if hasCrossfade(e.Timeline) {
+		path, composeErr := composeCrossfades(ctx, dir, e.Timeline, maxRate)
+		if composeErr != nil {
+			return composeErr
+		}
+		args = []string{"-protocol_whitelist", "file,pipe", "-i", path}
+	}
+	if len(e.Timeline.VideoOverlays) > 0 {
+		path, composeErr := m.composeOverlays(ctx, dir, p, e.Timeline, args, width, height, maxRate)
+		if composeErr != nil {
+			return composeErr
+		}
+		args = []string{"-protocol_whitelist", "file,pipe", "-i", path}
+	}
 	audioMap := "0:a:0"
 	nextInput := 1
 	var filters []string

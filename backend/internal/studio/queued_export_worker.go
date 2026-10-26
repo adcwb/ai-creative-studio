@@ -27,6 +27,9 @@ func (m *MediaStore) exportInputs(space, project string, p MediaState, e MediaEx
 	for _, track := range e.Timeline.AudioTracks {
 		ids[track.AssetID] = true
 	}
+	for _, overlay := range e.Timeline.VideoOverlays {
+		ids[overlay.AssetID] = true
+	}
 	for id := range ids {
 		if _, err := m.localBlob(space, project, id); err != nil {
 			return err

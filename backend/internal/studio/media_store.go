@@ -58,14 +58,29 @@ type MediaAudioTrack struct {
 	Duration  float64 `json:"duration"`
 	Volume    float64 `json:"volume"`
 }
+type MediaVideoOverlay struct {
+	ID                  string  `json:"id"`
+	AssetID             string  `json:"asset_id"`
+	Start               float64 `json:"start"`
+	TrimStart           float64 `json:"trim_start"`
+	Duration            float64 `json:"duration"`
+	X                   float64 `json:"x"`
+	Y                   float64 `json:"y"`
+	Width               float64 `json:"width"`
+	Height              float64 `json:"height"`
+	Opacity             float64 `json:"opacity"`
+	PreserveSourceAudio bool    `json:"preserve_source_audio"`
+	SourceAudioVolume   float64 `json:"source_audio_volume"`
+}
 type MediaTimeline struct {
-	OutputResolution string            `json:"output_resolution,omitempty"`
-	AspectRatio      string            `json:"aspect_ratio,omitempty"`
-	SubtitleMode     string            `json:"subtitle_mode,omitempty"`
-	AudioTracks      []MediaAudioTrack `json:"audio_tracks,omitempty"`
-	Clips            []MediaClip       `json:"clips"`
-	MusicAssetID     string            `json:"music_asset_id"`
-	MusicVolume      float64           `json:"music_volume"`
+	VideoOverlays    []MediaVideoOverlay `json:"video_overlays,omitempty"`
+	OutputResolution string              `json:"output_resolution,omitempty"`
+	AspectRatio      string              `json:"aspect_ratio,omitempty"`
+	SubtitleMode     string              `json:"subtitle_mode,omitempty"`
+	AudioTracks      []MediaAudioTrack   `json:"audio_tracks,omitempty"`
+	Clips            []MediaClip         `json:"clips"`
+	MusicAssetID     string              `json:"music_asset_id"`
+	MusicVolume      float64             `json:"music_volume"`
 }
 type MediaExport struct {
 	TraceParent    string        `json:"trace_parent,omitempty"`
@@ -330,7 +345,7 @@ func validateTimeline(p MediaState, t MediaTimeline) error {
 	}
 	duration := 0.0
 	ids := map[string]bool{}
-	for _, c := range t.Clips {
+	for i, c := range t.Clips {
 		for _, v := range []float64{c.Duration, c.TrimStart, c.AudioVolume, c.SourceAudioVolume, c.TransitionDuration, c.CropX, c.CropY, c.CropWidth, c.CropHeight, t.MusicVolume} {
 			if math.IsNaN(v) || math.IsInf(v, 0) {
 				return mediaInvalid("时间轴数值必须有限")
@@ -339,11 +354,14 @@ func validateTimeline(p MediaState, t MediaTimeline) error {
 		if c.SourceAudioVolume < 0 || c.SourceAudioVolume > 1 {
 			return mediaInvalid("原音音量须为0–1")
 		}
-		if c.Transition != "" && c.Transition != "fade" {
-			return mediaInvalid("仅支持黑场淡入淡出转场")
+		if c.Transition != "" && c.Transition != "fade" && c.Transition != "crossfade" {
+			return mediaInvalid("转场类型无效")
 		}
 		if c.Transition == "fade" && (c.TransitionDuration < .1 || c.TransitionDuration > 2 || c.TransitionDuration > c.Duration/2) {
 			return mediaInvalid("淡入淡出时长须为0.1–2秒且不超过镜头一半")
+		}
+		if c.Transition == "crossfade" && (i+1 == len(t.Clips) || c.TransitionDuration < .1 || c.TransitionDuration > 2 || c.TransitionDuration > c.Duration/2 || c.TransitionDuration > t.Clips[i+1].Duration/2) {
+			return mediaInvalid("交叉溶解需下一镜，时长0.1–2秒且不超过相邻镜头各自一半")
 		}
 		if c.Transition == "" && c.TransitionDuration != 0 {
 			return mediaInvalid("未选择转场")
@@ -372,6 +390,10 @@ func validateTimeline(p MediaState, t MediaTimeline) error {
 			}
 		}
 	}
+	if err := validateComposite(p, t); err != nil {
+		return err
+	}
+	duration = timelineDuration(t)
 	_, _, maxDuration, _ := outputSpec(t)
 	if duration > maxDuration {
 		return mediaInvalid(fmt.Sprintf("所选清晰度成片最长 %.0f 秒", maxDuration))

@@ -10367,9 +10367,10 @@
             "type": "string",
             "enum": [
               "",
-              "fade"
+              "fade",
+              "crossfade"
             ],
-            "description": "Fade to/from black at clip edges; no overlap or timeline duration change."
+            "description": "fade passes through black without overlap. crossfade overlaps the following clip and its audio, shortening the movie; forbidden on the final clip. Duration 0.1..2s and at most half of each adjacent clip."
           },
           "transition_duration": {
             "type": "number",
@@ -10442,6 +10443,13 @@
             "maxItems": 8,
             "items": {
               "$ref": "#/components/schemas/MediaAudioTrack"
+            }
+          },
+          "video_overlays": {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/components/schemas/MediaVideoOverlay"
             }
           }
         },
@@ -12198,6 +12206,78 @@
             "type": "integer"
           }
         }
+      },
+      "MediaVideoOverlay": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "start": {
+            "type": "number",
+            "minimum": 0
+          },
+          "trim_start": {
+            "type": "number",
+            "minimum": 0
+          },
+          "duration": {
+            "type": "number",
+            "minimum": 0.1
+          },
+          "x": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "y": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "width": {
+            "type": "number",
+            "minimum": 0.1,
+            "maximum": 1
+          },
+          "height": {
+            "type": "number",
+            "minimum": 0.1,
+            "maximum": 1
+          },
+          "opacity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "source_audio_volume": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "id": {
+            "type": "string"
+          },
+          "asset_id": {
+            "type": "string"
+          },
+          "preserve_source_audio": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "start",
+          "trim_start",
+          "duration",
+          "x",
+          "y",
+          "width",
+          "height",
+          "opacity",
+          "source_audio_volume",
+          "id",
+          "asset_id",
+          "preserve_source_audio"
+        ],
+        "description": "Ordered image/video layer; last is on top. Rectangle fractions of output canvas; time on final shortened movie. Same-project asset required. Image trim=0; muted layers volume=0. Entire time and rectangle must fit."
       }
     },
     "securitySchemes": {
