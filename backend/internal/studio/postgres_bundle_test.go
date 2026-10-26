@@ -85,6 +85,22 @@ func TestPostgresBackupRestore(t *testing.T) {
 	if e != nil || m.QueueStates["unknown"] != 1 || m.CostStates["unknown"] != 1 {
 		t.Fatal(m, e)
 	}
+	archiveRoot := filepath.Join(dir, "encrypted")
+	if e = os.Mkdir(archiveRoot, 0700); e != nil {
+		t.Fatal(e)
+	}
+	syntheticKey := make([]byte, 32)
+	for i := range syntheticKey {
+		syntheticKey[i] = 77
+	}
+	sealed, e := SealBackup(ctx, bundle, archiveRoot, syntheticKey)
+	if e != nil {
+		t.Fatal(e)
+	}
+	decrypted := filepath.Join(dir, "decrypted")
+	if _, e = OpenBackup(ctx, filepath.Join(archiveRoot, sealed.File), decrypted, syntheticKey); e != nil {
+		t.Fatal(e)
+	}
 	restored, e := sql.Open("pgx", target)
 	if e != nil {
 		t.Fatal(e)
@@ -92,7 +108,7 @@ func TestPostgresBackupRestore(t *testing.T) {
 	defer restored.Close()
 	restored.SetMaxOpenConns(1)
 	destination := filepath.Join(dir, "restored")
-	if _, e = RestorePostgresBackup(ctx, restored, target, bundle, destination, tools, true); e != nil {
+	if _, e = RestorePostgresBackup(ctx, restored, target, decrypted, destination, tools, true); e != nil {
 		t.Fatal(e)
 	}
 	read, e := openBackupObjects(filepath.Join(destination, "objects"))
@@ -112,5 +128,5 @@ func TestPostgresBackupRestore(t *testing.T) {
 	if _, _, e = VerifyPostgresBackup(ctx, bundle); e == nil {
 		t.Fatal("corrupt object accepted")
 	}
-	t.Log("real pg_dump exported snapshot + shared-file bundle + pg_restore verified; unknown queue/cost retained; active lease, nonempty DB and corruption rejected")
+	t.Log("real pg_dump exported snapshot + shared-file bundle + authenticated encryption/decryption + pg_restore verified; unknown queue/cost retained; active lease, nonempty DB and corruption rejected")
 }

@@ -4,7 +4,9 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"github.com/adcwb/ai-creative-studio/backend/internal/studio"
@@ -23,15 +25,45 @@ func main() {
 	}
 }
 func run() error {
-	mode := flag.String("mode", "verify", "backup, verify or restore")
+	mode := flag.String("mode", "verify", "backup, verify, restore, seal, open or retention")
 	source := flag.String("source", "", "backup bundle for verify/restore")
 	dest := flag.String("destination", "", "new bundle or restore directory")
 	stopped := flag.Bool("confirm-stopped", false, "operator confirms ALL API/worker instances stopped")
 	dump := flag.String("pg-dump", "pg_dump", "matching PostgreSQL pg_dump executable")
 	restore := flag.String("pg-restore", "pg_restore", "matching PostgreSQL pg_restore executable")
+	keepLast := flag.Int("keep-last", 7, "minimum newest authenticated encrypted backups to retain")
+	minAge := flag.Int("min-age-hours", 168, "minimum age before retention deletion; at least 24 hours")
+	applyRetention := flag.Bool("apply-retention", false, "delete only the exact reviewed retention plan")
+	expectedPlan := flag.String("expected-plan-sha256", "", "required reviewed retention plan digest when applying")
 	flag.Parse()
+	if flag.NArg() != 0 {
+		return errors.New("unexpected arguments")
+	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	if *mode == "seal" || *mode == "open" || *mode == "retention" {
+		key, e := base64.StdEncoding.DecodeString(os.Getenv("BACKUP_ENCRYPTION_KEY_BASE64"))
+		if e != nil || len(key) != 32 {
+			return errors.New("explicit 32-byte backup encryption key required")
+		}
+		defer clear(key)
+		var output any
+		switch *mode {
+		case "seal":
+			output, e = studio.SealBackup(ctx, *source, *dest, key)
+		case "open":
+			output, e = studio.OpenBackup(ctx, *source, *dest, key)
+		case "retention":
+			if (*applyRetention && *expectedPlan == "") || (!*applyRetention && *expectedPlan != "") {
+				return errors.New("apply and reviewed plan hash must be supplied together")
+			}
+			output, e = studio.RetainBackups(ctx, *source, key, *keepLast, *minAge, *expectedPlan)
+		}
+		if e != nil {
+			return e
+		}
+		return json.NewEncoder(os.Stdout).Encode(output)
+	}
 	var report studio.PostgresBackupReport
 	var err error
 	if *mode == "verify" {

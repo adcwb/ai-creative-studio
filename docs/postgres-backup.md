@@ -63,6 +63,10 @@ not restored; configure deployment roles separately. Queue unknown/expired lease
 and unknown monetary reservations remain exactly as recorded, requiring normal
 recovery policy. No automatic refund/replay is implied.
 
+Local authenticated `seal`/`open` and reviewed `retention` modes are documented in
+[backup-encryption-retention.md](backup-encryption-retention.md). They do not install
+cloud encryption, key escrow or lifecycle policies.
+
 Bundles contain sensitive application data (identity hashes, sessions, encrypted
 provider secrets). Keep the local destination private, apply deployment encryption
 at rest and retention policy, and protect the separately injected encryption key;
@@ -90,7 +94,7 @@ Real synthetic integration is gated by `STUDIO_BACKUP_TEST_DSN` and
 `go test ./internal/studio -run '^TestPostgresBackup' -race -count=1 -v`.
 The test stores synthetic shared-file data, runs real pg_dump/pg_restore, verifies
 unknown queue/cost preservation, and rejects active leases, nonempty targets and
-object corruption. Real external S3 backup, offsite transport, encryption/retention
+object corruption. Real external S3 backup, offsite transport, managed encryption/retention
 services and production recovery RTO/RPO are not validated by this local rehearsal.
 
 ## Local evidence (2026-10-23)

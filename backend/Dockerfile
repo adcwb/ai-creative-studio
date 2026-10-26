@@ -11,6 +11,7 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/store-migrate ./cm
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/budget ./cmd/budget
 
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/backup ./cmd/backup
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/model-key-rotate ./cmd/model-key-rotate
 
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates ffmpeg fonts-noto-cjk curl \
@@ -23,6 +24,7 @@ COPY --from=build /out/blob-migrate /app/blob-migrate
 COPY --from=build /out/store-migrate /app/store-migrate
 COPY --from=build /out/budget /app/budget
 COPY --from=build /out/backup /app/backup
+COPY --from=build /out/model-key-rotate /app/model-key-rotate
 WORKDIR /app
 ENV HTTP_ADDR=0.0.0.0:8080 DATA_DIR=/app/data
 USER 10001:10001
