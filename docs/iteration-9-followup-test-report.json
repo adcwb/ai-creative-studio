@@ -1,0 +1,383 @@
+{
+  "iteration": 9,
+  "stage": "candidate-contract-followup",
+  "timestamp_utc": "2026-10-26T04:17:58.868635+00:00",
+  "tested_product_head": "5fefb195fc2c51d1527d6243d37219245d42c1e1",
+  "harness": "/tmp/studio-qa9-followup-runner.py",
+  "results": [
+    {
+      "name": "alignment",
+      "exit": 0,
+      "seconds": 2.185,
+      "log": "/tmp/studio-qa9-followup-alignment.log",
+      "status": "passed"
+    },
+    {
+      "name": "auth-e2e",
+      "exit": 0,
+      "seconds": 34.896,
+      "log": "/tmp/studio-qa9-followup-auth-e2e.log",
+      "status": "passed"
+    },
+    {
+      "name": "build",
+      "exit": 0,
+      "seconds": 3.35,
+      "log": "/tmp/studio-qa9-followup-build.log",
+      "status": "passed"
+    },
+    {
+      "name": "contract",
+      "exit": 0,
+      "seconds": 14.139,
+      "log": "/tmp/studio-qa9-followup-contract.log",
+      "status": "passed"
+    },
+    {
+      "name": "e2e",
+      "exit": 0,
+      "seconds": 380.877,
+      "log": "/tmp/studio-qa9-followup-e2e.log",
+      "status": "passed"
+    },
+    {
+      "name": "format",
+      "exit": 0,
+      "seconds": 0.116,
+      "log": "/tmp/studio-qa9-followup-format.log",
+      "status": "passed"
+    },
+    {
+      "name": "frontend-build",
+      "exit": 0,
+      "seconds": 8.851,
+      "log": "/tmp/studio-qa9-followup-frontend-build.log",
+      "status": "passed"
+    },
+    {
+      "name": "i18n",
+      "exit": 0,
+      "seconds": 0.476,
+      "log": "/tmp/studio-qa9-followup-i18n.log",
+      "status": "passed"
+    },
+    {
+      "name": "layout",
+      "exit": 0,
+      "seconds": 32.693,
+      "log": "/tmp/studio-qa9-followup-layout.log",
+      "status": "passed"
+    },
+    {
+      "name": "lint",
+      "exit": 0,
+      "seconds": 7.084,
+      "log": "/tmp/studio-qa9-followup-lint.log",
+      "status": "passed"
+    },
+    {
+      "name": "live-tool",
+      "exit": 0,
+      "seconds": 0.369,
+      "log": "/tmp/studio-qa9-followup-live-tool.log",
+      "status": "passed"
+    },
+    {
+      "name": "local-models",
+      "exit": 0,
+      "seconds": 2.498,
+      "log": "/tmp/studio-qa9-followup-local-models.log",
+      "status": "passed"
+    },
+    {
+      "name": "managed-eval",
+      "exit": 0,
+      "seconds": 3.135,
+      "log": "/tmp/studio-qa9-followup-managed-eval.log",
+      "status": "passed"
+    },
+    {
+      "name": "media",
+      "exit": 0,
+      "seconds": 2.078,
+      "log": "/tmp/studio-qa9-followup-media.log",
+      "status": "passed"
+    },
+    {
+      "name": "multiservice",
+      "exit": 0,
+      "seconds": 24.596,
+      "log": "/tmp/studio-qa9-followup-multiservice.log",
+      "status": "passed"
+    },
+    {
+      "name": "openapi",
+      "exit": 0,
+      "seconds": 0.67,
+      "log": "/tmp/studio-qa9-followup-openapi.log",
+      "status": "passed"
+    },
+    {
+      "name": "pg-browser",
+      "exit": 0,
+      "seconds": 50.368,
+      "log": "/tmp/studio-qa9-followup-pg-browser.log",
+      "status": "passed"
+    },
+    {
+      "name": "project",
+      "exit": 0,
+      "seconds": 30.511,
+      "log": "/tmp/studio-qa9-followup-project.log",
+      "status": "passed"
+    },
+    {
+      "name": "provider",
+      "exit": 0,
+      "seconds": 28.273,
+      "log": "/tmp/studio-qa9-followup-provider.log",
+      "status": "passed"
+    },
+    {
+      "name": "python",
+      "exit": 0,
+      "seconds": 0.265,
+      "log": "/tmp/studio-qa9-followup-python.log",
+      "status": "passed"
+    },
+    {
+      "name": "quote-browser",
+      "exit": 0,
+      "seconds": 21.281,
+      "log": "/tmp/studio-qa9-followup-quote-browser.log",
+      "status": "passed"
+    },
+    {
+      "name": "race",
+      "exit": 0,
+      "seconds": 184.803,
+      "log": "/tmp/studio-qa9-followup-race.log",
+      "status": "passed"
+    },
+    {
+      "name": "recovery",
+      "exit": 0,
+      "seconds": 0.991,
+      "log": "/tmp/studio-qa9-followup-recovery.log",
+      "status": "passed"
+    },
+    {
+      "name": "scheduled",
+      "exit": 0,
+      "seconds": 0.265,
+      "log": "/tmp/studio-qa9-followup-scheduled.log",
+      "status": "passed"
+    },
+    {
+      "name": "secure-contract",
+      "exit": 0,
+      "seconds": 1.833,
+      "log": "/tmp/studio-qa9-followup-secure-contract.log",
+      "status": "passed"
+    },
+    {
+      "name": "server",
+      "exit": 0,
+      "seconds": 1.781,
+      "log": "/tmp/studio-qa9-followup-server.log",
+      "status": "passed"
+    },
+    {
+      "name": "smoke",
+      "exit": 0,
+      "seconds": 8.799,
+      "log": "/tmp/studio-qa9-followup-smoke.log",
+      "status": "passed"
+    },
+    {
+      "name": "static-build",
+      "exit": 0,
+      "seconds": 13.959,
+      "log": "/tmp/studio-qa9-followup-static-build.log",
+      "status": "passed"
+    },
+    {
+      "name": "storyboard",
+      "exit": 0,
+      "seconds": 44.229,
+      "log": "/tmp/studio-qa9-followup-storyboard.log",
+      "status": "passed"
+    },
+    {
+      "name": "typecheck",
+      "exit": 0,
+      "seconds": 4.335,
+      "log": "/tmp/studio-qa9-followup-typecheck.log",
+      "status": "passed"
+    },
+    {
+      "name": "unit",
+      "exit": 0,
+      "seconds": 5.33,
+      "log": "/tmp/studio-qa9-followup-unit.log",
+      "status": "passed"
+    },
+    {
+      "name": "vet",
+      "exit": 0,
+      "seconds": 0.779,
+      "log": "/tmp/studio-qa9-followup-vet.log",
+      "status": "passed"
+    }
+  ],
+  "summary": {
+    "executed_groups": 32,
+    "passed": 32,
+    "failed": 0,
+    "not_run_external_service_groups": 2
+  },
+  "counts": {
+    "frontend_unit": 31,
+    "i18n_keys": 842,
+    "ordinary_contract_responses": 432,
+    "secure_contract_responses": 32,
+    "layout_states": 90,
+    "demo_e2e": 66,
+    "auth_e2e": 10,
+    "postgres_browser": 10,
+    "quote_browser": 2,
+    "python_existing": 4,
+    "scheduled_backup": 7,
+    "managed_eval_tool": 21,
+    "local_models_offline": 12,
+    "media_groups": 7,
+    "alignment_groups": 4,
+    "alignment_contract_responses": 10
+  },
+  "additional_checks": [
+    {
+      "name": "Python compile",
+      "status": "passed",
+      "scope": "live eval/tests, managed eval, local model runner/tests, backup scheduler/tests"
+    }
+  ],
+  "real_multiservice": {
+    "result": "passed",
+    "checks": [
+      "API does not execute queued work",
+      "two independent workers, shared result and cross-API idempotency",
+      "16 synthetic creative tasks under eight concurrent clients across two tenants",
+      "independent script and storyboard workers commit project revisions",
+      "independent creative analysis worker",
+      "independent subtitle estimate worker; no ASR quality claim",
+      "cross-tenant layer and download denied; composition saved through the other API",
+      "PG worker crossfade/overlay duration and decoded pixels; private layer-only materialization; shared export",
+      "SIGKILL after dispatch: API reports unknown and no worker resubmits",
+      "cross-instance membership revocation and tenant isolation",
+      "cross-instance session revocation"
+    ],
+    "api_processes": 2,
+    "worker_processes": 2,
+    "postgres": "real",
+    "blob_store": "shared-file",
+    "real_s3_verified": false,
+    "live_model_calls": 0,
+    "creative_load": {
+      "kind": "synthetic SVG creation through real PostgreSQL and independent workers",
+      "tasks": 16,
+      "tenants": 2,
+      "concurrent_clients": 8,
+      "failures": 0,
+      "wall_seconds": 11.165,
+      "accept_p50_ms": 261.19,
+      "accept_p95_ms": 604.58,
+      "completion_p50_ms": 3754.76,
+      "completion_p95_ms": 5556.75,
+      "production_capacity_claim": false
+    },
+    "evidence": "/tmp/studio-multiservice-ad6_uxnf"
+  },
+  "managed_eval": {
+    "status": "passed",
+    "mode": "synthetic_api_acceptance_fixture",
+    "postgres": "real",
+    "api_processes": 1,
+    "worker_started": false,
+    "supplier_calls": 0,
+    "real_credentials": false,
+    "charges": 0,
+    "checks": [
+      "real session/catalog/budget/quote/creative API contract",
+      "atomic server reservation and queued job",
+      "unknown local reservation retained",
+      "configuration revocation rejected before re-reservation"
+    ],
+    "evidence": "/tmp/studio-managed-eval-ptwmkxu1"
+  },
+  "media": {
+    "passed": [
+      "upload MIME/content/32MiB limit rejection; no asset persisted",
+      "synthetic fixtures are labeled; duplicate demo does not duplicate assets",
+      "valid synthetic PNG upload and exact replay; same-key altered file rejected",
+      "timeline save/replay/version conflict/key conflict/space isolation",
+      "MP4 decodes completely; video/audio/subtitle tracks, audible signal energy and timeline duration verified",
+      "cancel is persistent/idempotent; interrupted export is failed without automatic resubmission",
+      "completed export, timeline, assets and idempotency survive actual process restart"
+    ],
+    "evidence": "/tmp/studio-media-evidence-fchezg_6"
+  },
+  "alignment": {
+    "checks": [
+      "manual cues persist exactly; overlap/range/empty cues rejected without mutation",
+      "SRT/VTT and actual MP4 embedded subtitles preserve per-sentence timestamps including second-clip offsets",
+      "estimate is disclosed/persisted/idempotent and never auto-applied; CAS and attribution guards reject stale or forged results; unconfigured ASR refuses",
+      "manual/estimated cues, export and alignment receipt survive real process restart"
+    ],
+    "contract_responses": 10,
+    "model_validation": false,
+    "evidence": "/tmp/studio-alignment-evidence-9hi398u0"
+  },
+  "backup": {
+    "suite": "full Go race with fresh disposable backup source and empty target databases",
+    "file_restore_assets": 4,
+    "native_postgres_restore": true,
+    "encrypted_bundle_restore": true,
+    "synthetic_key_rotation": true,
+    "unknown_cost_preservation": true,
+    "real_keys_used": false
+  },
+  "not_run": [
+    {
+      "action": "Docker dual-container build/runtime acceptance",
+      "status": "not_run_this_followup",
+      "reason": "Prior same-environment anonymous official debian:bookworm-slim image pull failed resolving auth.docker.io/token through 172.31.3.77:53 (i/o timeout); no new network evidence, not retried",
+      "evidence": "/tmp/studio-docker-evidence-2hkr8o1e/compose.log"
+    },
+    {
+      "action": "Real S3 conditional-write/Range and media integration",
+      "status": "not_run",
+      "reason": "No qualified local service; this followup fixed-version official MinIO go install resolved source version but storage.googleapis.com module ZIP returned Forbidden, exit 1; download stopped, no binary/service created",
+      "evidence": "/tmp/studio-s3-minio-build.log"
+    },
+    {
+      "action": "Real vendor model inference, billing and paid calls",
+      "status": "not_run"
+    },
+    {
+      "action": "Real Wav2Vec2/Wav2Lip/AudioGen weights and quality/performance",
+      "status": "not_run",
+      "reason": "Frameworks and reviewed local model bundles not installed; only synthetic inference contract/algorithm/isolation checks"
+    },
+    {
+      "action": "Production deployment, release, capacity and external identity/governance services",
+      "status": "not_run"
+    }
+  ],
+  "vendor_live_calls": 0,
+  "paid_budget_used": {
+    "USD": 0,
+    "CNY": 0
+  },
+  "pushed": false,
+  "deployed": false
+}
