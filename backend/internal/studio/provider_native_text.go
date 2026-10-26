@@ -68,7 +68,15 @@ func (p *NativeTextProvider) json(ctx context.Context, in any, instruction strin
 		body = map[string]any{"model": p.model, "max_tokens": 6000, "system": system, "messages": []map[string]string{{"role": "user", "content": string(data)}}}
 	} else if p.kind == "gemini-text" {
 		path = "/v1beta/models/" + p.model + ":generateContent"
-		body = map[string]any{"systemInstruction": map[string]any{"parts": []map[string]string{{"text": system}}}, "contents": []map[string]any{{"role": "user", "parts": []map[string]string{{"text": string(data)}}}}, "generationConfig": map[string]any{"maxOutputTokens": 6000, "responseMimeType": "application/json", "candidateCount": 1}}
+		generation := map[string]any{"maxOutputTokens": 6000, "responseMimeType": "application/json", "candidateCount": 1}
+		// This exact candidate supports thinkingLevel. Do not apply a Gemini 3
+		// option to older or unreviewed models. The 6000 cap includes thinking;
+		// a truncated response is rejected below, never automatically continued.
+		// https://ai.google.dev/gemini-api/docs/generate-content/thinking
+		if p.model == "gemini-3.8-flash" {
+			generation["thinkingConfig"] = map[string]any{"thinkingLevel": "low", "includeThoughts": false}
+		}
+		body = map[string]any{"systemInstruction": map[string]any{"parts": []map[string]string{{"text": system}}}, "contents": []map[string]any{{"role": "user", "parts": []map[string]string{{"text": string(data)}}}}, "generationConfig": generation}
 	} else if p.kind == "minimax-text" {
 		path = "/v1/chat/completions"
 		body = map[string]any{"model": p.model, "max_completion_tokens": 6000, "reasoning_split": true, "messages": []map[string]string{{"role": "system", "content": system}, {"role": "user", "content": string(data)}}}
