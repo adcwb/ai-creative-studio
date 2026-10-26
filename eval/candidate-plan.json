@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "status": "contract_inventory_only_execution_harness_incomplete",
+  "status": "managed_harness_prepared_with_explicit_blocked_cases",
   "selection_source": "parent task official-document review; not independently live verified",
   "live_authorized": false,
   "retry_policy": "never automatically retry paid requests",
@@ -38,10 +38,8 @@
         "input_token_upper_bound_for_pricing": 65536,
         "note": "Not the requested 2000 input / 500 output plan. Thinking semantics require model-specific confirmation."
       },
-      "execution_blockers": [
-        "managed_eval_harness_not_implemented"
-      ],
-      "harness_supported": false,
+      "execution_blockers": [],
+      "harness_supported": true,
       "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
@@ -66,10 +64,8 @@
         "input_token_upper_bound_for_pricing": 65536,
         "note": "Not the requested 2000 input / 500 output plan. Thinking semantics require model-specific confirmation."
       },
-      "execution_blockers": [
-        "managed_eval_harness_not_implemented"
-      ],
-      "harness_supported": false,
+      "execution_blockers": [],
+      "harness_supported": true,
       "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
@@ -90,8 +86,7 @@
         "note": "Not the requested 2000 input / 500 output plan. Thinking semantics require model-specific confirmation."
       },
       "execution_blockers": [
-        "model_thinking_token_contract_not_verified",
-        "managed_eval_harness_not_implemented"
+        "model_thinking_token_contract_not_verified"
       ],
       "harness_supported": false,
       "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
@@ -113,10 +108,8 @@
         "input_token_upper_bound_for_pricing": 65536,
         "note": "Not the requested 2000 input / 500 output plan. Thinking semantics require model-specific confirmation."
       },
-      "execution_blockers": [
-        "managed_eval_harness_not_implemented"
-      ],
-      "harness_supported": false,
+      "execution_blockers": [],
+      "harness_supported": true,
       "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
@@ -136,10 +129,8 @@
         "input_token_upper_bound_for_pricing": 65536,
         "note": "Not the requested 2000 input / 500 output plan. Thinking semantics require model-specific confirmation."
       },
-      "execution_blockers": [
-        "managed_eval_harness_not_implemented"
-      ],
-      "harness_supported": false,
+      "execution_blockers": [],
+      "harness_supported": true,
       "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
@@ -159,8 +150,7 @@
         "reference_scenario": "synthetic PNG uploaded to new project; one explicit request per invocation"
       },
       "execution_blockers": [
-        "candidate_model_image_parameters_need_official_review",
-        "managed_eval_harness_not_implemented"
+        "candidate_model_image_parameters_need_official_review"
       ],
       "harness_supported": false,
       "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
@@ -181,10 +171,8 @@
         "outputs_requested": 1,
         "reference_scenario": "synthetic PNG uploaded to new project; one explicit request per invocation"
       },
-      "execution_blockers": [
-        "managed_eval_harness_not_implemented"
-      ],
-      "harness_supported": false,
+      "execution_blockers": [],
+      "harness_supported": true,
       "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
@@ -204,8 +192,7 @@
         "reference_scenario": "synthetic PNG uploaded to new project; one explicit request per invocation"
       },
       "execution_blockers": [
-        "candidate_model_image_parameters_need_official_review",
-        "managed_eval_harness_not_implemented"
+        "candidate_model_image_parameters_need_official_review"
       ],
       "harness_supported": false,
       "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
@@ -228,8 +215,7 @@
         "reference_scenario": "synthetic PNG uploaded to new project; one explicit request per invocation"
       },
       "execution_blockers": [
-        "authorized_public_reference_bridge_not_validated",
-        "managed_eval_harness_not_implemented"
+        "authorized_public_reference_bridge_not_validated"
       ],
       "harness_supported": false,
       "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
@@ -250,8 +236,7 @@
         "seconds": null
       },
       "execution_blockers": [
-        "candidate_video_duration_resolution_contract_mismatch_or_unbounded",
-        "managed_eval_harness_not_implemented"
+        "candidate_video_duration_resolution_contract_mismatch_or_unbounded"
       ],
       "harness_supported": false,
       "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
@@ -272,8 +257,7 @@
         "seconds": 5
       },
       "execution_blockers": [
-        "candidate_video_duration_resolution_contract_mismatch_or_unbounded",
-        "managed_eval_harness_not_implemented"
+        "candidate_video_duration_resolution_contract_mismatch_or_unbounded"
       ],
       "harness_supported": false,
       "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
@@ -294,8 +278,7 @@
         "seconds": 5
       },
       "execution_blockers": [
-        "candidate_video_duration_resolution_contract_mismatch_or_unbounded",
-        "managed_eval_harness_not_implemented"
+        "candidate_video_duration_resolution_contract_mismatch_or_unbounded"
       ],
       "harness_supported": false,
       "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
@@ -314,10 +297,8 @@
         "maximum_characters": 200,
         "voice": "explicit_authorized_voice_required"
       },
-      "execution_blockers": [
-        "managed_eval_harness_not_implemented"
-      ],
-      "harness_supported": false,
+      "execution_blockers": [],
+      "harness_supported": true,
       "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
@@ -335,8 +316,7 @@
         "response_format": "verbose_json"
       },
       "execution_blockers": [
-        "requested_model_not_supported_do_not_substitute",
-        "managed_eval_harness_not_implemented"
+        "requested_model_not_supported_do_not_substitute"
       ],
       "harness_supported": false,
       "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
