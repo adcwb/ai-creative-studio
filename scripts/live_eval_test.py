@@ -67,8 +67,8 @@ class LiveEvalSafetyTests(unittest.TestCase):
         self.assertEqual({b['currency']: b['approved_minor'] for b in plan['budgets']}, {'USD': 300, 'CNY': 500})
         for case in plan['cases']:
             self.assertEqual(case['harness_supported'], not bool(case['execution_blockers']))
-        self.assertFalse(next(c for c in plan['cases'] if c['id'] == 'case-11')['harness_supported'])
-        self.assertFalse(next(c for c in plan['cases'] if c['id'] == 'case-14')['harness_supported'])
+        self.assertFalse(next(c for c in plan['cases'] if c['id'] == 'case-09')['harness_supported'])
+        self.assertTrue(next(c for c in plan['cases'] if c['id'] == 'case-14')['harness_supported'])
         for case in plan['cases'][:2]:
             self.assertEqual(case['requested_specification']['max_output_tokens_including_thinking'], 500)
             self.assertEqual(case['adapter_contract']['maximum_output_parameter'], 6000)
@@ -120,12 +120,15 @@ class ManagedEvalTests(unittest.TestCase):
         if path.endswith('/runtime-models'):
             self.catalog_calls += 1
             item={'id':self.args.model_config_id, 'version':3, 'provider':self.args.provider,
-                  'model':self.args.model, 'capability':'text' if self.args.kind=='analysis' else self.args.kind, 'available':True}
+                  'model':self.args.model, 'capability':'text' if self.args.kind=='analysis' else 'asr' if self.args.kind=='transcription' else self.args.kind, 'available':True}
             if self.catalog_change: self.catalog_change(item, self.catalog_calls)
             return FakeResponse({'governance_ready':True, 'models':[item]})
         if path.endswith('/governance'): return FakeResponse(self.budget)
         if path.endswith('/projects'): return FakeResponse({'id':'project-synthetic', 'version':1})
         if path.endswith('/uploads'): return FakeResponse({'assets':[{'id':'asset-synthetic','kind':'image'}]})
+        if path.endswith('/demo'): return FakeResponse({'version':2, 'assets':[{'id':'audio-synthetic','kind':'audio','duration':2}], 'timeline':{'clips':[{'id':'clip-synthetic'}]}})
+        if path.endswith('/timeline'): return FakeResponse({'version':3})
+        if path.endswith('/alignments'): return FakeResponse({'id':'transcript-synthetic','status':'succeeded','provider':self.args.provider,'model':self.args.model,'mode':'transcription','timing_basis':'transcript-only','cues':[],'transcript':'Synthetic transcript.'})
         if path.endswith('/runtime-quote'):
             if self.quote_change: self.quote_change(self.quote)
             return FakeResponse(self.quote)
@@ -172,8 +175,19 @@ class ManagedEvalTests(unittest.TestCase):
         self.assertEqual(body['voice'],'synthetic-voice')
         self.assertLessEqual(len(body['prompt']),200)
 
+    def test_text_transcription_uses_alignment_quote_and_no_subtitle_cues(self):
+        self.args.case_id='case-14'; self.args.kind='transcription'; self.args.provider='openai-asr'; self.args.model='gpt-transcribe'
+        self.assertEqual(self.execute(),0)
+        quote=next(json.loads(r.data) for r in self.requests if urllib.parse.urlsplit(r.full_url).path.endswith('/runtime-quote'))
+        self.assertEqual(quote['operation'],'alignment')
+        self.assertEqual(quote['input']['mode'],'transcription')
+        self.assertNotIn('text',quote['input'])
+        self.assertFalse(self.posts())
+        self.assertTrue(self.report['checks']['text_only'])
+        self.assertIn('not speech quality',self.report['audio_fixture'])
+
     def test_missing_or_incompatible_case_denies_before_network(self):
-        for case,kind,provider,model in [('case-14','asr','openai-asr','gpt-transcribe'),('case-11','video','minimax-video','MiniMax-H3-Lite'),('case-01','analysis','openai-text','different-model')]:
+        for case,kind,provider,model in [('case-14','asr','openai-asr','gpt-transcribe'),('case-09','image','jimeng-images','jimeng_seedream46_cvtob'),('case-01','analysis','openai-text','different-model')]:
             args=copy.copy(self.args);args.case_id=case;args.kind=kind;args.provider=provider;args.model=model
             with patch.object(eval_tool.urllib.request,'build_opener',side_effect=AssertionError('network')),self.assertRaises((ValueError,KeyError)):
                 eval_tool.run(args,self.auth,self.report)

@@ -26,6 +26,7 @@ PROVIDERS = {
     'image': ['openai-images', 'gemini-images', 'gemini-interactions-images', 'ark-images', 'minimax-images', 'jimeng-images'],
     'speech': ['openai-speech', 'gemini-speech', 'bytedance-speech', 'minimax-speech'],
     'video': ['gemini-video', 'ark-video', 'minimax-video'],
+    'transcription': ['openai-asr'],
 }
 FIXTURE = {'title': 'Synthetic clockwork garden', 'brief': '合成测试：纸片机器人在虚构花园寻找一枚蓝色齿轮。没有真人、品牌或个人数据。'}
 PROMPT = 'Synthetic test only: a paper robot finds a blue gear in an imaginary garden. No real people or brands.'
@@ -169,12 +170,12 @@ def run(args, auth, report):
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', auth['space_id']):
         raise ValueError('invalid organization ID')
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
-    def call(path, body=None, key=None, mime='application/json'):
+    def call(path, body=None, key=None, mime='application/json', method=None):
         headers = {'Cookie': auth['cookie'], 'X-CSRF-Token': auth['csrf_token'], 'Origin': args.origin, 'Content-Type': mime}
         if key:
             headers['Idempotency-Key'] = key
         payload = body if isinstance(body, bytes) else None if body is None else json.dumps(body).encode()
-        request = urllib.request.Request(args.base_url + path, data=payload, headers=headers)
+        request = urllib.request.Request(args.base_url + path, data=payload, headers=headers, method=method)
         with opener.open(request, timeout=min(args.timeout, 30)) as response:
             raw = response.read(1024 * 1024 + 1)
             if len(raw) > 1024 * 1024:
@@ -188,7 +189,7 @@ def run(args, auth, report):
     def check_catalog():
         catalog = call('/api/v1/runtime-models' + query)
         found = next((row for row in catalog.get('models', []) if row.get('id') == args.model_config_id), {})
-        capability = 'text' if args.kind == 'analysis' else args.kind
+        capability = 'text' if args.kind == 'analysis' else 'asr' if args.kind == 'transcription' else args.kind
         if catalog.get('governance_ready') is not True or found.get('available') is not True or not valid_int(found.get('version'), 1) or any(found.get(key) != expected for key, expected in
             [('version', args.model_config_version), ('provider', args.provider), ('model', args.model), ('capability', capability)]):
             raise ValueError('managed model unavailable, changed or mismatched; no fallback')
@@ -210,7 +211,18 @@ def run(args, auth, report):
             raise ValueError('synthetic reference upload response ambiguous')
         job_input['reference_asset_id'] = assets[0]['id']
         report['reference_sha256'] = hashlib.sha256(pixels).hexdigest()
-    quote_input = {'operation': 'creative', 'project_id': project['id'], 'model_config_id': args.model_config_id,
+    if args.kind == 'transcription':
+        state = call(base + '/media/demo' + query, {'expected_version': 1}, report['run_id'] + '-demo')
+        audio = next((asset for asset in state.get('assets', []) if asset.get('kind') == 'audio'), {})
+        if not 0 < audio.get('duration', 0) <= 30 or not state.get('timeline', {}).get('clips'):
+            raise ValueError('bounded synthetic audio fixture unavailable')
+        timeline = state['timeline']
+        timeline['clips'][0]['audio_asset_id'] = audio['id']
+        state = call(base + '/media/timeline' + query, {'expected_version': state['version'], 'timeline': timeline}, report['run_id'] + '-timeline', method='PUT')
+        job_input = {'mode': 'transcription', 'clip_id': timeline['clips'][0]['id'], 'audio_asset_id': audio['id'], 'expected_version': state['version']}
+        report['audio_fixture'] = 'application-generated synthetic tone; not speech quality evidence'
+        report['audio_seconds'] = audio['duration']
+    quote_input = {'operation': 'alignment' if args.kind == 'transcription' else 'creative', 'project_id': project['id'], 'model_config_id': args.model_config_id,
                    'model_config_version': args.model_config_version, 'input': job_input}
     if args.voice:
         quote_input['voice'] = args.voice
@@ -230,7 +242,7 @@ def run(args, auth, report):
                'quote_request_sha256': quote['request_sha256']}
     if args.voice:
         request['voice'] = args.voice
-    jobs_path = base + '/creative-jobs'
+    jobs_path = base + ('/media/alignments' if args.kind == 'transcription' else '/creative-jobs')
     job = call(jobs_path + query, request, report['run_id'] + '-generation')
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', job.get('id', '')):
         raise ValueError('acceptance outcome unknown')
@@ -242,7 +254,9 @@ def run(args, auth, report):
         job = next(row for row in jobs if row.get('id') == report['job_id'])
     report['status'] = job.get('status', 'unknown') if job.get('status') in ('queued', 'running', 'succeeded', 'failed', 'cancelled') else 'unknown'
     report['checks'] = {'provider_matches': job.get('provider') == args.provider, 'model_matches': job.get('model') == args.model,
-                        'completed': job.get('status') == 'succeeded', 'result_present': bool(job.get('analysis') if args.kind == 'analysis' else job.get('asset_id'))}
+                        'completed': job.get('status') == 'succeeded', 'result_present': bool(job.get('analysis') if args.kind == 'analysis' else job.get('transcript') if args.kind == 'transcription' else job.get('asset_id'))}
+    if args.kind == 'transcription':
+        report['checks']['text_only'] = job.get('mode') == 'transcription' and job.get('timing_basis') == 'transcript-only' and job.get('cues') == []
     report['quality_review'] = {'semantic_quality': 'human_review_required', 'character_consistency': 'not_measured', 'lip_sync': 'not_measured', 'billing': 'authoritative_vendor_evidence_required'}
     # Success is not evidence of actual cost. Neither ledger is settled here.
     return 0 if all(report['checks'].values()) else 1

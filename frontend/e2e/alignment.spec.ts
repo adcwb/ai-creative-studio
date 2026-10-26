@@ -90,3 +90,18 @@ test('ASR UI sends saved audio without estimate text (intercepted request only, 
   expect(body).toMatchObject({mode: 'asr', audio_asset_id: audio.id, clip_id: media.timeline.clips[0].id, expected_version: media.version + 1, expected_provider: 'openai-asr', expected_model: 'ui-fixture-model'})
   expect(body).not.toHaveProperty('text')
 })
+
+test('text transcription fixture displays escaped text without applying invented subtitles', async ({page, request}, info) => {
+  const project = await post(request, '/projects', {title: `纯文本-${info.project.name}-${randomUUID()}`, brief: 'UI synthetic transcript fixture only, no provider invocation.'})
+  const media = await post(request, `/projects/${project.id}/media/demo`, {expected_version: 1})
+  await page.route(`**/api/v1/projects/${project.id}/media/alignments?*`, route => route.fulfill({json: [{id: 'synthetic-transcript-ui', status: 'succeeded', mode: 'transcription', provider: 'openai-asr', model: 'gpt-transcribe', source_version: media.version, clip_id: media.timeline.clips[0].id, audio_asset_id: '', duration: 2, cues: [], transcript: '<script>synthetic transcript text</script>', timing_basis: 'transcript-only', warnings: ['纯文本转写没有时间戳；不能直接应用为逐句字幕。']}]}))
+  await page.goto('/')
+  await page.getByRole('button', {name: '短剧工作台', exact: true}).click()
+  await page.locator('.drama-project-list button').filter({hasText: project.title}).click()
+  const region = page.getByRole('region', {name: '片段 1 逐句字幕', exact: true})
+  await expect(region.getByLabel('转写文本', {exact: true})).toHaveText('<script>synthetic transcript text</script>')
+  await expect(region).toContainText('没有时间戳')
+  await expect(region.getByRole('button', {name: '应用至片段 1 字幕草稿', exact: true})).toHaveCount(0)
+  expect(await region.locator('.transcription-result script').count()).toBe(0)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})

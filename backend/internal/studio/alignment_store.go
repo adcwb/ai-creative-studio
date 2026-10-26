@@ -44,6 +44,7 @@ type AlignmentTask struct {
 	Duration         float64           `json:"duration"`
 	TrimStart        float64           `json:"trim_start"`
 	Text             string            `json:"text"`
+	Transcript       string            `json:"transcript,omitempty"`
 	Cues             []SubtitleCue     `json:"cues"`
 	Warnings         []string          `json:"warnings"`
 	TimingBasis      string            `json:"timing_basis"`
@@ -97,14 +98,14 @@ func openAlignmentStore(dir string, database ...*sql.DB) (*AlignmentStore, error
 		}
 		a.data = d
 		for id, t := range d.Tasks {
-			if t.ID != id || !mediaFileID(id) || t.SourceVersion < 1 || t.ProjectID == "" || t.SpaceID == "" || t.Cues == nil || t.Warnings == nil || (t.Mode != "estimate" && t.Mode != "asr" && t.Mode != "forced") {
+			if t.ID != id || !mediaFileID(id) || t.SourceVersion < 1 || t.ProjectID == "" || t.SpaceID == "" || t.Cues == nil || t.Warnings == nil || (t.Mode != "estimate" && t.Mode != "asr" && t.Mode != "forced" && t.Mode != "transcription") {
 				return nil, errors.New("invalid alignment task")
 			}
 			if t.Status != "queued" && t.Status != "running" && t.Status != "succeeded" && t.Status != "failed" && t.Status != "cancelled" {
 				return nil, errors.New("invalid alignment status")
 			}
 			if t.Status == "succeeded" {
-				if len(t.Cues) == 0 || validateSubtitleCues(t.Cues, t.Duration) != nil {
+				if (t.Mode == "transcription" && (!validTranscript(t.Transcript) || len(t.Cues) != 0 || t.TimingBasis != "transcript-only")) || (t.Mode != "transcription" && (len(t.Cues) == 0 || t.Transcript != "" || validateSubtitleCues(t.Cues, t.Duration) != nil)) {
 					return nil, errors.New("invalid persisted alignment result")
 				}
 			}
@@ -189,14 +190,14 @@ func (a *AlignmentStore) close() {
 	a.wg.Wait()
 }
 func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInput) (AlignmentTask, bool, error) {
-	if in.ExpectedVersion < 1 || !shotIDPattern.MatchString(in.ClipID) || (in.Mode != "estimate" && in.Mode != "asr" && in.Mode != "forced") {
+	if in.ExpectedVersion < 1 || !shotIDPattern.MatchString(in.ClipID) || (in.Mode != "estimate" && in.Mode != "asr" && in.Mode != "forced" && in.Mode != "transcription") {
 		return AlignmentTask{}, false, mediaInvalid("字幕对齐输入无效")
 	}
 	in.Text = strings.TrimSpace(in.Text)
-	if len([]rune(in.Text)) > 2000 || (in.Mode != "asr" && in.Text == "") {
+	if len([]rune(in.Text)) > 2000 || (in.Mode != "asr" && in.Mode != "transcription" && in.Text == "") {
 		return AlignmentTask{}, false, mediaInvalid("估算文本需1–2000字")
 	}
-	if in.Mode == "asr" && in.Text != "" {
+	if (in.Mode == "asr" || in.Mode == "transcription") && in.Text != "" {
 		return AlignmentTask{}, false, mediaInvalid("ASR只识别已上传音频，不接收预填剧本文字")
 	}
 	m.mu.Lock()
@@ -246,7 +247,7 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 		return AlignmentTask{}, false, mediaInvalid("ASR需要绑定当前镜头的WAV/MP3配音素材")
 	}
 	caps := estimateAlignmentCapabilities()
-	if in.Mode == "asr" {
+	if in.Mode == "asr" || in.Mode == "transcription" {
 		caps = a.caps
 	}
 	if in.Mode == "forced" {
@@ -254,6 +255,12 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 	}
 	if in.selection != nil {
 		caps = in.selectedCaps
+	}
+	if in.Mode == "transcription" && (in.selection == nil || !validAlignmentModeModel(in.Mode, caps.Model) || audio.Duration > 30) {
+		return AlignmentTask{}, false, ErrProviderNotReady
+	}
+	if in.Mode == "asr" && !validAlignmentModeModel(in.Mode, caps.Model) {
+		return AlignmentTask{}, false, ErrProviderNotReady
 	}
 	if !caps.Ready || (in.selection == nil && ((in.Mode == "asr" && a.provider == nil) || (in.Mode == "forced" && a.forced == nil))) {
 		return AlignmentTask{}, false, ErrProviderNotReady
@@ -265,7 +272,7 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 	for _, task := range a.data.Tasks {
 		if task.CreatedAt.After(time.Now().Add(-time.Hour)) {
 			recent++
-			if task.Mode == "asr" {
+			if task.Mode == "asr" || task.Mode == "transcription" {
 				paid++
 			}
 		}
@@ -276,7 +283,7 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 			}
 		}
 	}
-	if len(a.data.Tasks) >= 500 || len(a.data.Receipts) >= 1000 || recent >= 20 || active >= 2 || (in.Mode == "asr" && paid >= 10) {
+	if len(a.data.Tasks) >= 500 || len(a.data.Receipts) >= 1000 || recent >= 20 || active >= 2 || ((in.Mode == "asr" || in.Mode == "transcription") && paid >= 10) {
 		return AlignmentTask{}, false, errMediaLimit
 	}
 	if in.Mode == "estimate" {
@@ -471,7 +478,16 @@ func (a *AlignmentStore) runTask(ctx context.Context, m *MediaStore, id string, 
 						task.Warnings = append(task.Warnings, "已按镜头时长裁切超出范围的识别字幕；配音也会按此镜头时长结束。")
 					}
 					task.Warnings = append(task.Warnings, "模型对齐结果仍需试听校验；本项目尚未验证实际模型准确率及费用。")
-					if len(task.Cues) == 0 {
+					if task.Mode == "transcription" {
+						if result.TimingBasis != "transcript-only" || !validTranscript(result.Transcript) || len(result.Cues) != 0 {
+							err = providerFailure("invalid_provider_response")
+						} else {
+							task.Transcript = result.Transcript
+							task.Warnings = []string{"纯文本转写没有时间戳；不能直接应用为逐句字幕。"}
+						}
+					} else if result.Transcript != "" {
+						err = providerFailure("invalid_provider_response")
+					} else if len(task.Cues) == 0 {
 						err = mediaInvalid("镜头时间范围内没有识别字幕")
 					} else {
 						err = validateSubtitleCues(task.Cues, task.Duration)
@@ -495,6 +511,7 @@ func (a *AlignmentStore) runTask(ctx context.Context, m *MediaStore, id string, 
 	task.UpdatedAt = time.Now().UTC()
 	if err != nil {
 		task.Status = "failed"
+		task.Transcript = ""
 		task.Cues = []SubtitleCue{}
 		task.ErrorCode, task.Error = creativeFailure(err)
 	} else {
@@ -532,7 +549,7 @@ func (m *MediaStore) validateAlignmentSources(project, space string, t MediaTime
 			continue
 		}
 		task, ok := a.data.Tasks[clip.SubtitleAlignmentID]
-		if !ok || task.ProjectID != project || task.SpaceID != space || task.Status != "succeeded" || task.ClipID != clip.ID {
+		if !ok || task.ProjectID != project || task.SpaceID != space || task.Status != "succeeded" || task.Mode == "transcription" || task.ClipID != clip.ID {
 			return mediaInvalid("字幕来源任务无效")
 		}
 		if clip.SubtitleSource == "estimated" || clip.SubtitleSource == "asr" || clip.SubtitleSource == "forced" {

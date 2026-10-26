@@ -1,4 +1,8 @@
 const messages: Record<string, string> = {
+ "纯文本转写": "Text-only transcription",
+ "纯文本转写没有时间戳；不能直接应用为逐句字幕。": "Text-only transcription has no timestamps and cannot be applied as timed subtitles.",
+ "转写片段 {p0} 配音文本": "Transcribe audio text for clip {p0}",
+ "转写文本": "Transcribed text",
  '即梦需要完整 JSON 对象，包含 access_key 和 secret_key 两个字符串字段。服务端整体加密保存，不读取平台环境凭据，也不自动验证或调用。': 'Jimeng requires a complete JSON object with two string fields: access_key and secret_key. The server encrypts the whole object. It does not read platform environment credentials or automatically validate or call the provider.',
  '当前请求没有可用报价，请调整请求或联系管理员。': 'No quote is available for this request. Adjust the request or contact an administrator.',
  '正在读取费用报价…': 'Loading cost quote…',

@@ -16,6 +16,7 @@ import (
 )
 
 type AlignmentResult struct {
+	Transcript  string
 	Cues        []SubtitleCue
 	TimingBasis string
 }
@@ -71,12 +72,19 @@ func (p *OpenAIAlignmentProvider) Transcribe(ctx context.Context, audio []byte, 
 	fail := func() (AlignmentResult, error) {
 		return AlignmentResult{}, providerFailure("invalid_provider_response")
 	}
-	if p.model != "whisper-1" || len(audio) == 0 || len(audio) > 24<<20 || duration <= 0 || duration > 180 || (mime != "audio/wav" && mime != "audio/mpeg") {
+	if (p.model != "whisper-1" && p.model != "gpt-transcribe") || len(audio) == 0 || len(audio) > 24<<20 || duration <= 0 || duration > 180 || (mime != "audio/wav" && mime != "audio/mpeg") {
 		return AlignmentResult{}, providerFailure("provider_rejected")
 	}
 	var body bytes.Buffer
 	form := multipart.NewWriter(&body)
-	for _, field := range [][2]string{{"model", p.model}, {"response_format", "verbose_json"}, {"timestamp_granularities[]", "segment"}, {"timestamp_granularities[]", "word"}} {
+	fields := [][2]string{{"model", p.model}, {"response_format", "verbose_json"}, {"timestamp_granularities[]", "segment"}, {"timestamp_granularities[]", "word"}}
+	if p.model == "gpt-transcribe" {
+		if duration > 30 {
+			return AlignmentResult{}, providerFailure("provider_rejected")
+		}
+		fields = [][2]string{{"model", p.model}, {"response_format", "json"}}
+	}
+	for _, field := range fields {
 		if err := form.WriteField(field[0], field[1]); err != nil {
 			return AlignmentResult{}, providerFailure("provider_error")
 		}
@@ -128,6 +136,15 @@ func (p *OpenAIAlignmentProvider) Transcribe(ctx context.Context, audio []byte, 
 	b, err := io.ReadAll(io.LimitReader(response.Body, (1<<20)+1))
 	if err != nil || len(b) > 1<<20 {
 		return fail()
+	}
+	if p.model == "gpt-transcribe" {
+		var out struct {
+			Text string `json:"text"`
+		}
+		if json.Unmarshal(b, &out) != nil || !validTranscript(out.Text) {
+			return fail()
+		}
+		return AlignmentResult{Transcript: strings.TrimSpace(out.Text), Cues: []SubtitleCue{}, TimingBasis: "transcript-only"}, nil
 	}
 	var out struct {
 		Segments []struct {
@@ -210,4 +227,11 @@ func (p *OpenAIAlignmentProvider) Transcribe(ctx context.Context, audio []byte, 
 		previous = cue.End
 	}
 	return AlignmentResult{Cues: cues, TimingBasis: basis}, nil
+}
+
+func validTranscript(text string) bool {
+	return strings.TrimSpace(text) != "" && len([]rune(text)) <= 2000
+}
+func validAlignmentModeModel(mode, model string) bool {
+	return (mode == "transcription" && model == "gpt-transcribe") || (mode == "asr" && model == "whisper-1")
 }

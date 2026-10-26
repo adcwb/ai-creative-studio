@@ -122,7 +122,7 @@ func (r *ModelRuntime) entryAllowed(e ModelConfigEntry, tenant, capability strin
 	case "openai-speech":
 		return false
 	case "openai-asr":
-		return e.Model == "whisper-1"
+		return e.Model == "whisper-1" || e.Model == "gpt-transcribe"
 	}
 	return true
 }
@@ -415,7 +415,7 @@ func buildRuntimeProviders(lifetime context.Context, e ModelConfigEntry, secret,
 		p.download = guardRuntimeDownload(lifetime, p.download, guard, onDispatch)
 		out.Creative = p
 	case "openai-asr":
-		if e.Model != "whisper-1" {
+		if e.Model != "whisper-1" && e.Model != "gpt-transcribe" {
 			return out, errRuntimeUnavailable
 		}
 		p := NewOpenAIAlignmentProvider(secret, e.Model)

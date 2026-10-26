@@ -165,7 +165,7 @@ func (s *FileStore) buildQuoteExecutionRequest(tenant string, in RuntimeQuoteInp
 	}
 	if in.Operation == "alignment" {
 		var input AlignmentInput
-		if decodeQuotePayload(in.Input, &input) != nil || input.ModelRequest != (ModelRequest{}) || input.Mode != "asr" || strings.TrimSpace(input.Text) != "" {
+		if decodeQuotePayload(in.Input, &input) != nil || input.ModelRequest != (ModelRequest{}) || !validAlignmentModeModel(input.Mode, entry.Model) || strings.TrimSpace(input.Text) != "" {
 			return ExecutionRequest{}, ErrInvalidProjectInput
 		}
 		media := s.media.Get(project.ID, tenant)
@@ -180,7 +180,7 @@ func (s *FileStore) buildQuoteExecutionRequest(tenant string, in RuntimeQuoteInp
 				return ExecutionRequest{}, ErrInvalidProjectInput
 			}
 			asset, ok := mediaAsset(media, clip.AudioAssetID)
-			if !ok || asset.Kind != "audio" {
+			if !ok || asset.Kind != "audio" || (input.Mode == "transcription" && asset.Duration > 30) {
 				return ExecutionRequest{}, ErrInvalidProjectInput
 			}
 			path, mime, e := s.media.file(project.ID, tenant, asset.ID, false, false)
@@ -196,7 +196,7 @@ func (s *FileStore) buildQuoteExecutionRequest(tenant string, in RuntimeQuoteInp
 			if e != nil || len(data) == 0 || len(data) > 24<<20 {
 				return ExecutionRequest{}, ErrInvalidProjectInput
 			}
-			task := AlignmentTask{SpaceID: tenant, ProjectID: project.ID, Provider: entry.Provider, Model: entry.Model, Mode: "asr", ClipID: clip.ID, AudioAssetID: asset.ID, AudioDuration: asset.Duration, Duration: clip.Duration, TrimStart: clip.TrimStart, RuntimeSelection: &selection}
+			task := AlignmentTask{SpaceID: tenant, ProjectID: project.ID, Provider: entry.Provider, Model: entry.Model, Mode: input.Mode, ClipID: clip.ID, AudioAssetID: asset.ID, AudioDuration: asset.Duration, Duration: clip.Duration, TrimStart: clip.TrimStart, RuntimeSelection: &selection}
 			return alignmentExecutionRequest(task, data, mime), nil
 		}
 		return ExecutionRequest{}, ErrNotFound

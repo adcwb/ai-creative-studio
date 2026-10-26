@@ -10933,14 +10933,15 @@
           },
           "audio_asset_id": {
             "type": "string",
-            "description": "ASR必须引用当前镜头已保存的WAV/MP3配音资产ID；最多24MiB、180秒，不接受任意同项目音频替代。"
+            "description": "ASR必须引用当前镜头已保存的WAV/MP3配音资产ID；最多24MiB、180秒。transcription仅允许gpt-transcribe，最多30秒；不接受任意同项目音频替代。"
           },
           "mode": {
             "type": "string",
             "enum": [
               "estimate",
               "asr",
-              "forced"
+              "forced",
+              "transcription"
             ]
           },
           "text": {
@@ -11005,7 +11006,8 @@
             "enum": [
               "estimate",
               "asr",
-              "forced"
+              "forced",
+              "transcription"
             ]
           },
           "provider": {
@@ -11094,6 +11096,11 @@
             "readOnly": true,
             "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$",
             "description": "Optional server-captured correlation context; never authorization."
+          },
+          "transcript": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "Text-only result for mode=transcription. No timestamps; cues is empty and this task cannot be applied as subtitle provenance."
           }
         },
         "required": [
