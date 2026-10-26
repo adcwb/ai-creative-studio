@@ -7,6 +7,7 @@ Creates and drops only a randomly named database owned by this invocation.
 """
 import argparse
 import concurrent.futures
+import copy
 import http.cookiejar
 import json
 import os
@@ -70,10 +71,10 @@ def main():
         def client():
             return urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         alice, bob, anon = client(), client(), client()
-        def call(opener, index, method, path, body=None, csrf='', key='', status=200):
+        def call(opener, index, method, path, body=None, csrf='', key='', status=200, content_type='application/json'):
             request = urllib.request.Request(f'http://127.0.0.1:{ports[index]}' + path, method=method,
-                headers={'Content-Type': 'application/json', 'Origin': origin, 'X-CSRF-Token': csrf, 'Idempotency-Key': key},
-                data=None if body is None else json.dumps(body).encode())
+                headers={'Content-Type': content_type, 'Origin': origin, 'X-CSRF-Token': csrf, 'Idempotency-Key': key},
+                data=None if body is None else body if isinstance(body, bytes) else json.dumps(body).encode())
             try:
                 response = opener.open(request, timeout=20)
             except urllib.error.HTTPError as error:
@@ -210,6 +211,44 @@ def main():
             time.sleep(.05)
         assert aligned['status'] == 'succeeded' and aligned['cues'], aligned
         checks.append('independent subtitle estimate worker; no ASR quality claim')
+        # Upload a layer-only asset through API 0. It is intentionally absent
+        # from every base clip and from both worker caches before execution.
+        layer_source = evidence / 'synthetic-layer.mp4'
+        subprocess.run(['ffmpeg', '-v', 'error', '-nostdin', '-y', '-threads', '1',
+                        '-f', 'lavfi', '-i', 'color=c=lime:s=64x64:r=24:d=1',
+                        '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-t', '1', str(layer_source)],
+                       env=env, check=True, timeout=30)
+        previous_assets = {item['id'] for item in media['assets']}
+        media = call(alice, 0, 'POST', media_path + '/uploads' + query + '&filename=synthetic-layer.mp4&role=reference',
+                     layer_source.read_bytes(), csrf, 'multi-layer-upload', content_type='video/mp4')
+        layer_asset = next(item for item in media['assets'] if item['id'] not in previous_assets)
+        assert layer_asset['id'].isalnum()
+        worker_layer_paths = [evidence / f'worker-{index}-cache' / 'media' / layer_asset['id'] for index in range(2)]
+        assert all(not path.exists() for path in worker_layer_paths), 'layer unexpectedly already cached by worker'
+        call(bob, 1, 'GET', layer_asset['file_url'], status=403)
+
+        # A valid member of another organization cannot lend their asset ID to
+        # Alice's timeline: authorization and project-asset ownership both apply.
+        bob_query = '?space_id=' + b['spaces'][0]['id']
+        bob_project = call(bob, 1, 'POST', '/api/v1/projects' + bob_query,
+                           {'title': 'Other tenant synthetic film', 'brief': 'Only synthetic ownership fixture.'},
+                           b['csrf_token'], 'multi-other-project', 201)
+        bob_media = call(bob, 1, 'POST', '/api/v1/projects/' + bob_project['id'] + '/media/demo' + bob_query,
+                         {'expected_version': 1}, b['csrf_token'], 'multi-other-demo')
+        foreign_asset = next(item for item in bob_media['assets'] if item['kind'] == 'image')
+        timeline = copy.deepcopy(media['timeline'])
+        assert len(timeline['clips']) >= 2
+        timeline['clips'][0].update(transition='crossfade', transition_duration=.5)
+        timeline['video_overlays'] = [{'id': 'synthetic-layer', 'asset_id': foreign_asset['id'],
+            'start': .25, 'trim_start': 0, 'duration': .5, 'x': .25, 'y': .25,
+            'width': .5, 'height': .5, 'opacity': 1, 'preserve_source_audio': False, 'source_audio_volume': 0}]
+        call(alice, 1, 'PUT', media_path + '/timeline' + query,
+             {'expected_version': media['version'], 'timeline': timeline}, csrf, 'multi-foreign-layer', 400)
+        timeline['video_overlays'][0]['asset_id'] = layer_asset['id']
+        media = call(alice, 1, 'PUT', media_path + '/timeline' + query,
+                     {'expected_version': media['version'], 'timeline': timeline}, csrf, 'multi-composite-save')
+        expected_duration = sum(clip['duration'] for clip in timeline['clips']) - .5
+        checks.append('cross-tenant layer and download denied; composition saved through the other API')
         exported = call(alice, 1, 'POST', media_path + '/exports' + query,
                         {'expected_version': media['version']}, csrf, 'multi-media-export', 202)
         for _ in range(600):
@@ -224,7 +263,27 @@ def main():
         output = evidence / 'distributed-export.mp4'
         output.write_bytes(video)
         subprocess.run(['ffmpeg', '-v', 'error', '-i', str(output), '-f', 'null', '-'], env=env, check=True, timeout=30)
-        checks.append('independent FFmpeg export worker and shared objects decode across both APIs')
+        assert abs(result['duration'] - expected_duration) < .001, result
+        probe = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'json', str(output)],
+                               env=env, check=True, text=True, capture_output=True, timeout=10)
+        actual_duration = float(json.loads(probe.stdout)['format']['duration'])
+        assert abs(actual_duration - expected_duration) < .12, (actual_duration, expected_duration)
+        def center_pixel(at):
+            pixel = subprocess.run(['ffmpeg', '-v', 'error', '-ss', str(at), '-i', str(output),
+                                    '-vf', 'crop=2:2:320:180,scale=1:1', '-frames:v', '1',
+                                    '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'],
+                                   env=env, check=True, capture_output=True, timeout=10).stdout
+            assert len(pixel) == 3
+            return list(pixel)
+        before, during, after = center_pixel(.1), center_pixel(.4), center_pixel(1)
+        assert during[1] > 220 and during[0] < 40 and during[2] < 40, during
+        assert before[1] < 200 and after[1] < 200, (before, after)
+        assert any(path.exists() for path in worker_layer_paths), 'independent worker did not materialize layer-only asset'
+        (evidence / 'composition-result.json').write_text(json.dumps({
+            'expected_duration': expected_duration, 'actual_duration': actual_duration,
+            'before_layer_rgb': before, 'during_layer_rgb': during, 'after_layer_rgb': after,
+            'worker_materialized_layer_only_asset': True, 'cross_tenant_layer_rejected': True}, indent=2) + '\n')
+        checks.append('PG worker crossfade/overlay duration and decoded pixels; private layer-only materialization; shared export')
 
         # Fault injection is restricted to the disposable database created above.
         # Kill actual workers after the durable dispatch boundary, then expire
