@@ -2,7 +2,7 @@
 
 `scripts/live_eval.py` 默认仅提供无网络、无凭据读取的 dry-run。现在可通过应用的受治理运行时做**单个明确授权请求**：绑定租户模型配置ID/版本、具体候选case、当前精确报价和原币种预算。旧全局 provider 路径已删除，不会因为配置默认模型或环境变量而静默付费。
 
-本轮测试全部使用合成会话、假HTTP transport、合成价格和PNG；没有运行真实模型或读取真实凭据。候选计划 `live_authorized=false` / `execution_authorized=false` 仍准确记录当前缺少认证发送确认，不能把工具支持当作本任务已获live授权。
+本轮测试全部使用合成会话、假HTTP transport、合成价格、PNG和音调；没有运行真实模型或读取真实凭据。候选计划 `live_authorized=false` / `execution_authorized=false` 仍准确记录当前缺少认证发送确认，不能把工具支持当作本任务已获live授权。
 
 ## 无凭据准备
 
@@ -43,12 +43,17 @@ python3 scripts/live_eval_test.py
 
 [`eval/candidate-plan.json`](../eval/candidate-plan.json)区分 `requested_specification` 与 `adapter_contract`：
 
-- case-01/02/04/05：文本单次分析工具已接线。原2000输入/500输出意图不是实际wire限制；当前按64KiB请求、65536输入token保守计价及6000输出参数上限准备报价。不能沿用较低意图规格的费用估算；thinking及账户资格仍需具体模型核实。
-- case-07：Google Interactions图像，original/reference分别单次；reference上传合成PNG后与quote内容绑定。
+- case-01/02/03/04/05：文本单次分析。原2000输入/500输出意图不是实际wire限制；当前为64KiB请求和6000输出参数上限。OpenAI/Anthropic的有界报价保守使用65536输入token，其他厂商须精确请求报价。Gemini 3.8的思考参数及总输出边界已复核，仍不能沿用原较低规格估价。
+- case-06/07/08：OpenAI／Google Interactions／Ark图像，original/reference分别单次；合成PNG与quote绑定。型号特定参数的官方依据与fixtures见后续核对记录。
+- case-09：即梦managed参考桥接已补本地授权接线，但公网S3访问与供应商取图仍未验证；计划继续在认证读取前拒绝，不通过传入全局变量绕过。
+- case-10：Google官方模型卡规定原始视频3–10秒／720p，以最大10秒报价；**不保证恰好10秒**，不猜测未核实的duration参数。单次text-to-video，不延长。
+- case-11/12：MiniMax H3-Lite为4秒／480P，Ark Seedance mini为5秒／480p；候选规格纳入精确报价摘要，旧报价不能复用。
 - case-13：MiniMax speech，显式voice，合成提示最多200字符。
-- case-03仍缺已核验thinking/token契约；case-06/08图像型号参数待核验；case-09即梦公开参考桥接未验证；case-10/11/12视频时长/分辨率与意图不兼容；case-14 gpt-transcribe不能替代whisper-1时间戳协议。以上执行在读取认证/发请求前拒绝，不能只换型号绕过。
+- case-14：`gpt-transcribe`的显式纯文本转写，JSON响应、最多30秒音频/2000字符，结果没有时间戳。不能当作Whisper字幕对齐，不自动更换模型。工具生成音调只检验传输协议，不能证明语音识别质量；无语音的空转写可被拒绝。
 
-独立视觉、mask、ASR、强制对齐、口型、音乐尚无本工具完整真实端到端评测。报告只验证任务状态、provider/model与结果引用，不评价图像像素、语义质量、一致性、口型或费用。真实模型效果、耗时与账单均未验收。
+上述支持以当前候选计划和最后回归为准；“harness_supported”只表示本地执行链可用，所有真实账户、模型输出与计费仍未验证。OpenAI Videos/Sora继续本地拒绝；即梦视频未核实可用官方接口，仍不接入。
+
+独立视觉、mask、带时间戳ASR、强制对齐、口型、音乐尚无本工具完整真实端到端评测。报告只验证任务状态、provider/model与结果引用，不评价图像像素、语义质量、一致性、口型或费用。真实模型效果、耗时与账单均未验收。
 
 ## 本地测试
 
@@ -56,4 +61,4 @@ python3 scripts/live_eval_test.py
 
 另有实际服务端合同演练 `scripts/managed_eval_check.py`：用明确本地PG socket参数创建随机命名测试库，仅启动API，永不启动worker；注入合成KEK/密钥和固定deny审核器，真实跑session→目录→预算→精确quote→creative接收，断言队列 `queued:0`、服务端reserved及本地unknown，再撤销配置并验证拒绝。任务停留queued是预期，不当作生成成功。脚本只删除本次创建的测试库，不读取现有secret。
 
-2026-10-26：20项单测通过；真实PostgreSQL接受合同演练通过，证据 `/tmp/studio-managed-eval-4wkoppyl/result.json`，`supplier_calls=0`。正式模型、参考效果、账户权限与实际账单均未验证。
+第九轮原基线：20项单测通过；真实PostgreSQL接受合同演练通过，证据 `/tmp/studio-managed-eval-4wkoppyl/result.json`，`supplier_calls=0`。正式模型、参考效果、账户权限与实际账单均未验证。

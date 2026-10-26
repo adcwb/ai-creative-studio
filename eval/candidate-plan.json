@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "status": "managed_harness_prepared_with_explicit_blocked_cases",
   "selection_source": "parent task official-document review; not independently live verified",
   "live_authorized": false,
@@ -73,7 +73,7 @@
       "model": "gemini-3.8-flash",
       "kind": "analysis",
       "calls": 1,
-      "adapter_status": "blocked_before_execution",
+      "adapter_status": "wire_contract_supported_account_and_model_unverified",
       "id": "case-03",
       "requested_specification": {
         "max_input_tokens": 2000,
@@ -83,13 +83,15 @@
         "maximum_encoded_request_bytes": 65536,
         "maximum_output_parameter": 6000,
         "input_token_upper_bound_for_pricing": 65536,
-        "note": "Not the requested 2000 input / 500 output plan. Thinking semantics require model-specific confirmation."
+        "note": "Still not the requested 2000/500 plan: actual 64KiB request and 6000 total output cap; exact fresh quote required.",
+        "thinking_level": "low",
+        "include_thoughts": false,
+        "maximum_output_includes_thinking": true
       },
-      "execution_blockers": [
-        "model_thinking_token_contract_not_verified"
-      ],
-      "harness_supported": false,
-      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
+      "execution_blockers": [],
+      "harness_supported": true,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed",
+      "contract_evidence": "docs/candidate-openai-gemini-contracts.md"
     },
     {
       "provider": "minimax-text",
@@ -142,18 +144,17 @@
         "original",
         "reference"
       ],
-      "adapter_status": "blocked_before_execution",
+      "adapter_status": "wire_contract_supported_account_and_model_unverified",
       "id": "case-06",
       "requested_specification": {},
       "adapter_contract": {
         "outputs_requested": 1,
         "reference_scenario": "synthetic PNG uploaded to new project; one explicit request per invocation"
       },
-      "execution_blockers": [
-        "candidate_model_image_parameters_need_official_review"
-      ],
-      "harness_supported": false,
-      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
+      "execution_blockers": [],
+      "harness_supported": true,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed",
+      "contract_evidence": "docs/candidate-openai-gemini-contracts.md"
     },
     {
       "provider": "gemini-interactions-images",
@@ -184,23 +185,26 @@
         "original",
         "reference"
       ],
-      "adapter_status": "blocked_before_execution",
+      "adapter_status": "wire_contract_supported_account_and_model_unverified",
       "id": "case-08",
       "requested_specification": {},
       "adapter_contract": {
         "outputs_requested": 1,
-        "reference_scenario": "synthetic PNG uploaded to new project; one explicit request per invocation"
+        "reference_scenario": "synthetic PNG uploaded to new project; one explicit request per invocation",
+        "size": "2K",
+        "response_format": "b64_json",
+        "output_format": "png",
+        "sequential_image_generation": "disabled"
       },
-      "execution_blockers": [
-        "candidate_model_image_parameters_need_official_review"
-      ],
-      "harness_supported": false,
-      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
+      "execution_blockers": [],
+      "harness_supported": true,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed",
+      "contract_evidence": "docs/candidate-video-ark-contracts.md"
     },
     {
       "provider": "jimeng-images",
       "model": "jimeng_seedream46_cvtob",
-      "configuration_field": "JIMENG_REQ_KEY",
+      "configuration_field": "model-config entry.model (req_key); encrypted AK/SK pair belongs to the same managed configuration",
       "kind": "image",
       "calls": 2,
       "scenarios": [
@@ -218,70 +222,71 @@
         "authorized_public_reference_bridge_not_validated"
       ],
       "harness_supported": false,
-      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed",
+      "local_implementation_status": "managed_reference_bridge_wired_with_operator_tenant_configuration_version_destination_grant; public service and vendor fetch remain unvalidated"
     },
     {
       "provider": "gemini-video",
       "model": "gemini-omni-1.1-flash",
       "kind": "video",
       "calls": 1,
-      "adapter_status": "blocked_before_execution",
+      "adapter_status": "wire_contract_supported_account_and_model_unverified",
       "id": "case-10",
       "requested_specification": {
-        "seconds": 10,
+        "maximum_seconds": 10,
         "resolution": "720p"
       },
       "adapter_contract": {
         "resolution": "720p",
-        "seconds": null
+        "seconds": null,
+        "maximum_seconds": 10,
+        "bounds_source": "official model card https://ai.google.dev/gemini-api/docs/models/gemini-omni-flash (2026-10-22)",
+        "scope": "single original text-to-video; no extension, reference or editing; model limit is not exact requested duration"
       },
-      "execution_blockers": [
-        "candidate_video_duration_resolution_contract_mismatch_or_unbounded"
-      ],
-      "harness_supported": false,
-      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
+      "execution_blockers": [],
+      "harness_supported": true,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed",
+      "contract_evidence": "docs/candidate-video-ark-contracts.md"
     },
     {
       "provider": "minimax-video",
       "model": "MiniMax-H3-Lite",
       "kind": "video",
       "calls": 1,
-      "adapter_status": "blocked_before_execution",
+      "adapter_status": "wire_contract_supported_account_and_model_unverified",
       "id": "case-11",
       "requested_specification": {
         "seconds": 4,
         "resolution": "480p"
       },
       "adapter_contract": {
-        "resolution": "768P",
-        "seconds": 5
+        "resolution": "480P",
+        "seconds": 4
       },
-      "execution_blockers": [
-        "candidate_video_duration_resolution_contract_mismatch_or_unbounded"
-      ],
-      "harness_supported": false,
-      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
+      "execution_blockers": [],
+      "harness_supported": true,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed",
+      "contract_evidence": "docs/candidate-video-ark-contracts.md"
     },
     {
       "provider": "ark-video",
       "model": "doubao-seedance-2-0-mini-260615",
       "kind": "video",
       "calls": 1,
-      "adapter_status": "blocked_before_execution",
+      "adapter_status": "wire_contract_supported_account_and_model_unverified",
       "id": "case-12",
       "requested_specification": {
         "seconds": 5,
         "resolution": "480p"
       },
       "adapter_contract": {
-        "resolution": "720p",
+        "resolution": "480p",
         "seconds": 5
       },
-      "execution_blockers": [
-        "candidate_video_duration_resolution_contract_mismatch_or_unbounded"
-      ],
-      "harness_supported": false,
-      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
+      "execution_blockers": [],
+      "harness_supported": true,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed",
+      "contract_evidence": "docs/candidate-video-ark-contracts.md"
     },
     {
       "provider": "minimax-speech",
@@ -304,22 +309,26 @@
     {
       "provider": "openai-asr",
       "model": "gpt-transcribe",
-      "kind": "asr",
+      "kind": "transcription",
       "calls": 1,
-      "adapter_status": "blocked_before_execution",
+      "adapter_status": "wire_contract_supported_account_and_model_unverified",
       "id": "case-14",
       "requested_specification": {
         "max_seconds": 30
       },
       "adapter_contract": {
-        "supported_model": "whisper-1",
-        "response_format": "verbose_json"
+        "supported_model": "gpt-transcribe",
+        "response_format": "json",
+        "maximum_audio_seconds": 30,
+        "maximum_response_characters": 2000,
+        "timestamps": false,
+        "result": "transcript-only",
+        "synthetic_audio": "Generated tone is protocol-only; empty transcript may be rejected and is not a quality failure claim."
       },
-      "execution_blockers": [
-        "requested_model_not_supported_do_not_substitute"
-      ],
-      "harness_supported": false,
-      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
+      "execution_blockers": [],
+      "harness_supported": true,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed",
+      "contract_evidence": "docs/candidate-openai-gemini-contracts.md"
     }
   ],
   "excluded": [

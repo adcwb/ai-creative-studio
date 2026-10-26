@@ -16,7 +16,7 @@
 
 ## case-14：OpenAI gpt-transcribe
 
-[官方文件转写指南](https://developers.openai.com/api/docs/guides/speech-to-text)给出 `gpt-transcribe` 的 multipart 转写和 JSON 文本／语言响应。它不等于现有 Whisper 的 `verbose_json` 时间戳协议。缺口是应用尚需显式纯文本转写结果链路，不能靠换模型或伪造字幕时间解决；不属于模型退役，也不只是缺凭据。原 Whisper 时间戳接口已标弃用，官方计划 2027-02-26 关闭，后续应迁移到本地／独立对齐。
+[官方文件转写指南](https://developers.openai.com/api/docs/guides/speech-to-text)给出 `gpt-transcribe` 的 multipart 转写和 JSON 文本／语言响应。它不等于现有 Whisper 的 `verbose_json` 时间戳协议。基线缺口是应用缺少显式纯文本转写结果链路，不能靠换模型或伪造字幕时间解决；本次已补[独立纯文本模式](text-transcription.md)，不生成时间戳。原阻塞不属于模型退役，也不只是缺凭据。原 Whisper 时间戳接口已标弃用，官方计划 2027-02-26 关闭，后续应迁移到本地／独立对齐。
 
 ## 本地证据
 

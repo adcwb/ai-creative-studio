@@ -120,3 +120,27 @@ contract and operator-manifested source are separate from verifying a particular
 installed upstream revision. TorchAudio's old forced-align API is not used: its
 [2.8 documentation](https://docs.pytorch.org/audio/2.8.0/tutorials/ctc_forced_alignment_api_tutorial.html)
 states removal in2.9, so this bridge uses its own CTC path computation.
+
+## Follow-up environment check (2026-10-26)
+
+A fresh `importlib.util.find_spec` check after `d633c295` found `torch`,
+`torchaudio`, `transformers` and `audiocraft` absent; `numpy`, `scipy`,
+`/usr/bin/ffmpeg` and `/usr/bin/ffprobe` are present. No real inference was run.
+These are local preparation gaps, not missing vendor API credentials. An operator
+can prepare the dependencies and reviewed artifacts through normally permitted
+sources; a hosted provider account is not required by any of the three bridges.
+
+| Engine | Exact prerequisites before a real offline sample |
+| --- | --- |
+| Wav2Vec2 | An isolated Python environment with compatible CPU PyTorch and Transformers **4.49.0**; complete reviewed local `wav2vec2-base-960h` processor/tokenizer/config and safetensors snapshot; English recorded speech with known transcript. Both ordinary and repeated-label accuracy need inspection. |
+| Wav2Lip | An isolated Python environment satisfying the dependencies of the **operator-pinned** upstream checkout, its face detector checkpoint and `wav2lip.pth`; reviewed rights for research/noncommercial use; a consented face clip and matching speech. No universal framework version is claimed validated. |
+| AudioGen | An isolated Python environment with AudioCraft **1.3.0** and its compatible PyTorch/audio dependencies; complete local LM, compression and conditioning artifacts, including the offline text-encoder cache; reviewed noncommercial use rights. CPU runtime and memory must be measured under the existing timeout. |
+
+For all three: Linux x86-64 with process seccomp permitted, FFmpeg/FFprobe,
+private immutable regular-file bundles with every SHA256 and reviewed source
+revision, an explicit fixed-path wrapper and resource configuration are required.
+Configuration must pass before a model is loaded. The bundle limit is 12GiB,
+optional conditioning cache 1GiB, configured address-space limit 512–16384MiB,
+and the Go caller kills the process group after 120s. These are enforced ceilings,
+**not measured minimum memory or performance guarantees**. Preparing packages or
+weights alone does not establish licensing, compatibility or model quality.
