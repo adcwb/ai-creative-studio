@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One explicitly authorized creative request against a loopback Studio server.
+"""Dry-run creative contract inventory. Live execution is currently unavailable.
 Default dry-run never reads credentials, existing configuration or makes requests.
 """
 import argparse
@@ -21,7 +21,7 @@ PROVIDERS = {
     'analysis': ['openai-text', 'anthropic-text', 'gemini-text', 'ark-text', 'minimax-text'],
     'image': ['openai-images', 'gemini-images', 'gemini-interactions-images', 'ark-images', 'minimax-images', 'jimeng-images'],
     'speech': ['openai-speech', 'gemini-speech', 'bytedance-speech', 'minimax-speech'],
-    'video': ['openai-video', 'gemini-video', 'ark-video', 'minimax-video'],
+    'video': ['gemini-video', 'ark-video', 'minimax-video'],
 }
 FIXTURE = {'title': 'Synthetic clockwork garden', 'brief': '合成测试：纸片机器人在虚构花园寻找一枚蓝色齿轮。没有真人、品牌或个人数据。'}
 PROMPT = 'Synthetic test only: a paper robot finds a blue gear in an imaginary garden. No real people or brands.'
@@ -38,8 +38,9 @@ def validate(args):
         raise ValueError('explicit model required')
     if args.budget_micros <= 0 or args.reserve_micros <= 0 or args.reserve_micros > args.budget_micros:
         raise ValueError('positive reserve must fit budget (integer millionths of selected currency)')
-    if not re.fullmatch(r'[A-Z]{3}', args.currency):
-        raise ValueError('currency must be an explicit three-letter code')
+    approved = {'USD': 3000000, 'CNY': 5000000}
+    if args.currency not in approved or args.budget_micros > approved[args.currency]:
+        raise ValueError('only separately approved USD 3 / CNY 5 caps are supported; no conversion or top-up')
     if not 1 <= args.timeout <= 600:
         raise ValueError('timeout must be 1..600 seconds')
     url = urllib.parse.urlsplit(args.base_url)
@@ -78,42 +79,10 @@ def reserve(path, args, run_id):
 
 
 def run(args, auth, report):
-    for field in ('cookie', 'csrf_token', 'space_id'):
-        if not isinstance(auth.get(field), str) or not auth[field] or any(c in auth[field] for c in '\r\n'):
-            raise ValueError('stdin must contain cookie, csrf_token and space_id strings')
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
-    def call(path, body=None, key=None):
-        headers = {'Cookie': auth['cookie'], 'X-CSRF-Token': auth['csrf_token'], 'Origin': args.origin, 'Content-Type': 'application/json'}
-        if key:
-            headers['Idempotency-Key'] = key
-        request = urllib.request.Request(args.base_url + path, data=None if body is None else json.dumps(body).encode(), headers=headers)
-        with opener.open(request, timeout=min(args.timeout, 30)) as response:
-            raw = response.read(1024 * 1024 + 1)
-            if len(raw) > 1024 * 1024:
-                raise ValueError('response too large')
-            return json.loads(raw)
-    session = call('/api/v1/auth/session')
-    if session.get('mode') != 'secure' or not session.get('authenticated'):
-        raise ValueError('live evaluation requires authenticated secure mode')
-    if auth['space_id'] not in [space['id'] for space in session.get('spaces', [])]:
-        raise ValueError('session is not a member of requested organization')
-    reserve(args.ledger, args, report['run_id'])
-    report['cost_state'] = 'unknown_reserved'
-    query = '?' + urllib.parse.urlencode({'space_id': auth['space_id']})
-    project = call('/api/v1/projects' + query, FIXTURE, report['run_id'] + '-project')
-    report['project_id'] = project['id']
-    path = '/api/v1/projects/' + project['id'] + '/creative-jobs'
-    job = call(path + query, {'kind': args.kind, 'expected_version': project['version'], 'expected_provider': args.provider, 'expected_model': args.model, 'prompt': PROMPT}, report['run_id'] + '-generation')
-    report['job_id'] = job['id']
-    deadline = time.monotonic() + args.timeout
-    while job['status'] in ('queued', 'running') and time.monotonic() < deadline:
-        time.sleep(1)
-        jobs = call(path + query)
-        job = next(row for row in jobs if row['id'] == job['id'])
-    report.update(status=job['status'], provider=job['provider'], model=job.get('model'), error_code=job.get('error_code'), asset_id=job.get('asset_id'))
-    report['checks'] = {'provider_matches': job['provider'] == args.provider, 'model_matches': job.get('model') == args.model, 'completed': job['status'] == 'succeeded', 'result_present': bool(job.get('analysis') if args.kind == 'analysis' else job.get('asset_id'))}
-    report['quality_review'] = {'semantic_quality': 'human_review_required', 'character_consistency': 'not_measured', 'lip_sync': 'not_measured', 'billing': 'vendor_invoice_required'}
-    return 0 if all(report['checks'].values()) else 1
+    # The previous global-provider path did not bind a managed model version,
+    # exact request quote or authoritative server budget. Never retain it as an
+    # alternate execution path while the replacement harness is incomplete.
+    raise ValueError('managed live execution harness is not implemented')
 
 
 def main(argv=None):
@@ -136,6 +105,8 @@ def main(argv=None):
         validate(args)
         if args.execute_live and not args.authorize_provider_model_budget:
             raise ValueError('live execution requires explicit provider/model/budget authorization')
+        if args.execute_live:
+            raise ValueError('live harness unavailable: managed configuration, exact quote and server budget binding are not implemented; dry-run only')
     except ValueError as error:
         parser.error(str(error))
     report = {'run_id': 'eval-' + uuid.uuid4().hex, 'mode': 'live' if args.execute_live else 'dry-run', 'provider': args.provider, 'model': args.model, 'kind': args.kind, 'budget_micros': args.budget_micros, 'reserve_micros': args.reserve_micros, 'currency': args.currency, 'fixture_sha256': hashlib.sha256(json.dumps(FIXTURE, sort_keys=True).encode()).hexdigest(), 'model_quality_verified': False, 'cost_state': 'not_called', 'matrix': PROVIDERS}
@@ -156,7 +127,7 @@ def main(argv=None):
             report.update(status='incomplete', failure_type=type(error).__name__)
             code = 1
     else:
-        report.update(status='prepared', fixture=FIXTURE, prompt=PROMPT)
+        report.update(status='prepared_not_executable', execution_supported=False, execution_blockers=['managed_eval_harness_not_implemented'], fixture=FIXTURE, prompt=PROMPT)
     with args.report.open('w') as stream:
         json.dump(report, stream, ensure_ascii=False, indent=2)
         stream.write('\n')

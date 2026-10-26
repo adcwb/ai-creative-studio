@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "status": "awaiting_credentials_and_transport_confirmation",
+  "version": 2,
+  "status": "contract_inventory_only_execution_harness_incomplete",
   "selection_source": "parent task official-document review; not independently live verified",
   "live_authorized": false,
   "retry_policy": "never automatically retry paid requests",
@@ -26,50 +26,121 @@
       "model": "gpt-6.1-sol",
       "kind": "analysis",
       "calls": 1,
-      "max_input_tokens": 2000,
-      "max_output_tokens_including_thinking": 500,
-      "adapter_status": "token_limits_require_harness_support"
+      "adapter_status": "wire_contract_supported_account_and_model_unverified",
+      "id": "case-01",
+      "requested_specification": {
+        "max_input_tokens": 2000,
+        "max_output_tokens_including_thinking": 500
+      },
+      "adapter_contract": {
+        "maximum_encoded_request_bytes": 65536,
+        "maximum_output_parameter": 6000,
+        "input_token_upper_bound_for_pricing": 65536,
+        "note": "Not the requested 2000 input / 500 output plan. Thinking semantics require model-specific confirmation."
+      },
+      "execution_blockers": [
+        "managed_eval_harness_not_implemented"
+      ],
+      "harness_supported": false,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
       "provider": "anthropic-text",
       "model": "claude-sonnet-5-5",
       "kind": "analysis",
       "calls": 1,
-      "max_input_tokens": 2000,
-      "max_output_tokens_including_thinking": 500,
       "forbidden_parameters": [
         "temperature",
         "top_p",
         "top_k"
       ],
-      "adapter_status": "token_limits_require_harness_support"
+      "adapter_status": "wire_contract_supported_account_and_model_unverified",
+      "id": "case-02",
+      "requested_specification": {
+        "max_input_tokens": 2000,
+        "max_output_tokens_including_thinking": 500
+      },
+      "adapter_contract": {
+        "maximum_encoded_request_bytes": 65536,
+        "maximum_output_parameter": 6000,
+        "input_token_upper_bound_for_pricing": 65536,
+        "note": "Not the requested 2000 input / 500 output plan. Thinking semantics require model-specific confirmation."
+      },
+      "execution_blockers": [
+        "managed_eval_harness_not_implemented"
+      ],
+      "harness_supported": false,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
       "provider": "gemini-text",
       "model": "gemini-3.8-flash",
       "kind": "analysis",
       "calls": 1,
-      "max_input_tokens": 2000,
-      "max_output_tokens_including_thinking": 500,
-      "adapter_status": "model_protocol_and_token_limits_require_review"
+      "adapter_status": "blocked_before_execution",
+      "id": "case-03",
+      "requested_specification": {
+        "max_input_tokens": 2000,
+        "max_output_tokens_including_thinking": 500
+      },
+      "adapter_contract": {
+        "maximum_encoded_request_bytes": 65536,
+        "maximum_output_parameter": 6000,
+        "input_token_upper_bound_for_pricing": 65536,
+        "note": "Not the requested 2000 input / 500 output plan. Thinking semantics require model-specific confirmation."
+      },
+      "execution_blockers": [
+        "model_thinking_token_contract_not_verified",
+        "managed_eval_harness_not_implemented"
+      ],
+      "harness_supported": false,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
       "provider": "minimax-text",
       "model": "MiniMax-M3.1-Flash",
       "kind": "analysis",
       "calls": 1,
-      "max_input_tokens": 2000,
-      "max_output_tokens_including_thinking": 500,
-      "adapter_status": "token_limits_require_harness_support"
+      "adapter_status": "wire_contract_supported_account_and_model_unverified",
+      "id": "case-04",
+      "requested_specification": {
+        "max_input_tokens": 2000,
+        "max_output_tokens_including_thinking": 500
+      },
+      "adapter_contract": {
+        "maximum_encoded_request_bytes": 65536,
+        "maximum_output_parameter": 6000,
+        "input_token_upper_bound_for_pricing": 65536,
+        "note": "Not the requested 2000 input / 500 output plan. Thinking semantics require model-specific confirmation."
+      },
+      "execution_blockers": [
+        "managed_eval_harness_not_implemented"
+      ],
+      "harness_supported": false,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
       "provider": "ark-text",
       "model": "doubao-seed-2-1-lite-260915",
       "kind": "analysis",
       "calls": 1,
-      "max_input_tokens": 2000,
-      "max_output_tokens_including_thinking": 500,
-      "adapter_status": "token_limits_require_harness_support"
+      "adapter_status": "wire_contract_supported_account_and_model_unverified",
+      "id": "case-05",
+      "requested_specification": {
+        "max_input_tokens": 2000,
+        "max_output_tokens_including_thinking": 500
+      },
+      "adapter_contract": {
+        "maximum_encoded_request_bytes": 65536,
+        "maximum_output_parameter": 6000,
+        "input_token_upper_bound_for_pricing": 65536,
+        "note": "Not the requested 2000 input / 500 output plan. Thinking semantics require model-specific confirmation."
+      },
+      "execution_blockers": [
+        "managed_eval_harness_not_implemented"
+      ],
+      "harness_supported": false,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
       "provider": "openai-images",
@@ -80,7 +151,19 @@
         "original",
         "reference"
       ],
-      "adapter_status": "model_parameters_require_review; reference_harness_pending"
+      "adapter_status": "blocked_before_execution",
+      "id": "case-06",
+      "requested_specification": {},
+      "adapter_contract": {
+        "outputs_requested": 1,
+        "reference_scenario": "synthetic PNG uploaded to new project; one explicit request per invocation"
+      },
+      "execution_blockers": [
+        "candidate_model_image_parameters_need_official_review",
+        "managed_eval_harness_not_implemented"
+      ],
+      "harness_supported": false,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
       "provider": "gemini-interactions-images",
@@ -91,7 +174,18 @@
         "original",
         "reference"
       ],
-      "adapter_status": "reference_harness_pending"
+      "adapter_status": "wire_contract_supported_account_and_model_unverified",
+      "id": "case-07",
+      "requested_specification": {},
+      "adapter_contract": {
+        "outputs_requested": 1,
+        "reference_scenario": "synthetic PNG uploaded to new project; one explicit request per invocation"
+      },
+      "execution_blockers": [
+        "managed_eval_harness_not_implemented"
+      ],
+      "harness_supported": false,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
       "provider": "ark-images",
@@ -102,7 +196,19 @@
         "original",
         "reference"
       ],
-      "adapter_status": "model_parameters_require_review; reference_harness_pending"
+      "adapter_status": "blocked_before_execution",
+      "id": "case-08",
+      "requested_specification": {},
+      "adapter_contract": {
+        "outputs_requested": 1,
+        "reference_scenario": "synthetic PNG uploaded to new project; one explicit request per invocation"
+      },
+      "execution_blockers": [
+        "candidate_model_image_parameters_need_official_review",
+        "managed_eval_harness_not_implemented"
+      ],
+      "harness_supported": false,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
       "provider": "jimeng-images",
@@ -114,50 +220,126 @@
         "original",
         "reference"
       ],
-      "adapter_status": "reference_bridge_needs_authorized_public_object_origin; reference_harness_pending"
+      "adapter_status": "blocked_before_execution",
+      "id": "case-09",
+      "requested_specification": {},
+      "adapter_contract": {
+        "outputs_requested": 1,
+        "reference_scenario": "synthetic PNG uploaded to new project; one explicit request per invocation"
+      },
+      "execution_blockers": [
+        "authorized_public_reference_bridge_not_validated",
+        "managed_eval_harness_not_implemented"
+      ],
+      "harness_supported": false,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
       "provider": "gemini-video",
       "model": "gemini-omni-1.1-flash",
       "kind": "video",
       "calls": 1,
-      "seconds": 10,
-      "resolution": "720p",
-      "adapter_status": "duration_parameter_requires_review"
+      "adapter_status": "blocked_before_execution",
+      "id": "case-10",
+      "requested_specification": {
+        "seconds": 10,
+        "resolution": "720p"
+      },
+      "adapter_contract": {
+        "resolution": "720p",
+        "seconds": null
+      },
+      "execution_blockers": [
+        "candidate_video_duration_resolution_contract_mismatch_or_unbounded",
+        "managed_eval_harness_not_implemented"
+      ],
+      "harness_supported": false,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
       "provider": "minimax-video",
       "model": "MiniMax-H3-Lite",
       "kind": "video",
       "calls": 1,
-      "seconds": 4,
-      "resolution": "480p",
-      "adapter_status": "current_adapter_5s_768p_must_not_execute_this_plan"
+      "adapter_status": "blocked_before_execution",
+      "id": "case-11",
+      "requested_specification": {
+        "seconds": 4,
+        "resolution": "480p"
+      },
+      "adapter_contract": {
+        "resolution": "768P",
+        "seconds": 5
+      },
+      "execution_blockers": [
+        "candidate_video_duration_resolution_contract_mismatch_or_unbounded",
+        "managed_eval_harness_not_implemented"
+      ],
+      "harness_supported": false,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
       "provider": "ark-video",
       "model": "doubao-seedance-2-0-mini-260615",
       "kind": "video",
       "calls": 1,
-      "seconds": 5,
-      "resolution": "480p",
-      "adapter_status": "resolution_and_model_require_review"
+      "adapter_status": "blocked_before_execution",
+      "id": "case-12",
+      "requested_specification": {
+        "seconds": 5,
+        "resolution": "480p"
+      },
+      "adapter_contract": {
+        "resolution": "720p",
+        "seconds": 5
+      },
+      "execution_blockers": [
+        "candidate_video_duration_resolution_contract_mismatch_or_unbounded",
+        "managed_eval_harness_not_implemented"
+      ],
+      "harness_supported": false,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
       "provider": "minimax-speech",
       "model": "speech-2.8-turbo",
       "kind": "speech",
       "calls": 1,
-      "max_characters": 200,
-      "adapter_status": "voice_and_model_require_review"
+      "adapter_status": "wire_contract_supported_account_and_model_unverified",
+      "id": "case-13",
+      "requested_specification": {
+        "max_characters": 200
+      },
+      "adapter_contract": {
+        "maximum_characters": 200,
+        "voice": "explicit_authorized_voice_required"
+      },
+      "execution_blockers": [
+        "managed_eval_harness_not_implemented"
+      ],
+      "harness_supported": false,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     },
     {
       "provider": "openai-asr",
       "model": "gpt-transcribe",
       "kind": "asr",
       "calls": 1,
-      "max_seconds": 30,
-      "adapter_status": "unsupported_current_adapter_whisper_1_verbose_json_only; do_not_substitute"
+      "adapter_status": "blocked_before_execution",
+      "id": "case-14",
+      "requested_specification": {
+        "max_seconds": 30
+      },
+      "adapter_contract": {
+        "supported_model": "whisper-1",
+        "response_format": "verbose_json"
+      },
+      "execution_blockers": [
+        "requested_model_not_supported_do_not_substitute",
+        "managed_eval_harness_not_implemented"
+      ],
+      "harness_supported": false,
+      "pricing_status": "fresh_trusted_exact_quote_required_no_price_assumed"
     }
   ],
   "excluded": [
@@ -186,6 +368,8 @@
   "blockers": [
     "credentials_missing",
     "secure_authentication_transport_not_confirmed",
-    "per_case_adapter_compatibility_checks_pending"
-  ]
+    "fresh_model_specific_quotes_and_moderation_required",
+    "explicit_case_execution_blockers_apply"
+  ],
+  "budget_basis": "Original 2000/500 estimates are invalid for current wire contracts. Obtain fresh exact server quotes within original independent hard caps; no automatic price or FX."
 }
