@@ -2,7 +2,7 @@
 
 React / TypeScript / Vite 前端与 Go / Eino 后端分离的视觉创作工作室。支持图像任务、项目简报、剧本、分镜、素材、历史、时间轴、字幕、混音与 MP4。默认模拟素材始终保留来源；假上游与合成媒体验证不代表真实模型质量或费用验证。
 
-本轮基线为 `5c6060b09d3cc7d054e57f5b0dc7dfcf3c98fe7d`。**本轮只本地提交，不推送、不触发镜像发布、不部署。** 已获批首轮测试预算 USD 3 与 CNY 5，分别封顶、不兑换、不充值；凭据与认证传输确认仍未就绪，没有执行真实模型调用。最新候选余项核对见 [第九轮后续核对](docs/iteration-9-followup.md)。当前补缺实现与验收见 [第九轮交付矩阵](docs/iteration-9-delivery.md)；生产基础见 [第八轮交付矩阵](docs/iteration-8-delivery.md)，[第七轮矩阵](docs/iteration-7-delivery.md)保留历史快照。
+本轮基线为 `5c6060b09d3cc7d054e57f5b0dc7dfcf3c98fe7d`。**开发阶段仅本地提交；2026-10-26已获准正常推送master并由既有CI发布前后端镜像，未授权部署应用。** 发布结果以对应提交的[GitHub Actions](https://github.com/adcwb/ai-creative-studio/actions)为准，代码推送不等于检查或镜像发布成功。 已获批首轮测试预算 USD 3 与 CNY 5，分别封顶、不兑换、不充值；凭据与认证传输确认仍未就绪，没有执行真实模型调用。最新候选余项核对见 [第九轮后续核对](docs/iteration-9-followup.md)。当前补缺实现与验收见 [第九轮交付矩阵](docs/iteration-9-delivery.md)；生产基础见 [第八轮交付矩阵](docs/iteration-8-delivery.md)，[第七轮矩阵](docs/iteration-7-delivery.md)保留历史快照。
 
 ## 当前能力与边界
 

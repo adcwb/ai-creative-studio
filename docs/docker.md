@@ -1,10 +1,10 @@
 # 当前安全模式与本轮验证边界
 
-默认安全模式不开放注册，cookie需要HTTPS。仅本机HTTP演练时，显式设置 `AUTH_ALLOW_REGISTRATION=true AUTH_COOKIE_SECURE=false docker compose up -d`。不要将这个HTTP设置用于公网部署。本轮没有推送镜像或上线；最终容器验收受基础镜像拉取/DNS阻塞，不能引用旧发布结果证明本轮通过。
+默认安全模式不开放注册，cookie需要HTTPS。仅本机HTTP演练时，显式设置 `AUTH_ALLOW_REGISTRATION=true AUTH_COOKIE_SECURE=false docker compose up -d`。不要将这个HTTP设置用于公网部署。2026-10-26已获准推送master和既有CI镜像发布，未授权应用部署。本地基础镜像拉取曾受DNS阻塞；提交`d9a6954a4906cd615a8b7a5e9227e5f4809936a2`的[CI双容器验收](https://github.com/adcwb/ai-creative-studio/actions/runs/40271837020)实际通过。该次运行因managed eval脚本缺Go缓存默认路径而未发布镜像，修复保持凭据隔离和全部断言；后续发布结果以精确SHA的全部CI任务及镜像digest为准。
 
 compose使用专用网段（默认172.30.89.0/24）与前端固定IP（默认172.30.89.3），后端只信任该IP的X-Real-IP；Nginx覆盖客户端该header，以免所有用户共用代理IP的登录速率限制。若已有网段冲突，同时显式更改STUDIO_INTERNAL_SUBNET与其中的STUDIO_FRONTEND_IP。禁止把信任范围扩大为全部公网或直接相信X-Forwarded-For。代理访问日志不含query，以免记录OIDC code/state。
 
-下方为上一轮发布与运行记录，其发布授权不适用于本轮。最新能力和缺口见[交付矩阵](iteration-7-delivery.md)。
+下方包含上一轮发布与运行记录；本轮授权以上方2026-10-26说明为准。最新能力和缺口见[后续交付矩阵](iteration-9-followup.md)。
 
 ---
 
@@ -22,7 +22,7 @@ docker compose up -d
 docker compose ps
 ```
 
-浏览器访问 **http://localhost:8080**。默认仅前端容器映射到宿主机 `127.0.0.1:8080`；后端没有宿主端口，通过 Compose 内部网络由 Nginx 访问。服务尚无生产认证，不应把回环绑定改成公网监听后直接用于真实客户。
+浏览器访问 **http://localhost:8080**。默认仅前端容器映射到宿主机 `127.0.0.1:8080`；后端没有宿主端口，通过 Compose 内部网络由 Nginx 访问。默认使用安全认证模式；仍不应把回环绑定直接改成公网监听，生产TLS、注册与外部服务配置须单独验收。
 
 自定义本地端口时，同步设置浏览器实际来源：
 
@@ -52,13 +52,13 @@ docker compose down
 
 前端构建固定 `VITE_API_BASE_URL=/`，代码将其规范为同源地址；Nginx把`/api/`和`/healthz`代理到`backend:8080`，其余请求提供SPA。该值在构建时生效，不能靠启动后设置浏览器环境变量改写。Nginx的33MiB请求上限只是入口限制，后端仍执行32MiB上传和格式/像素/时长校验。
 
-Compose 使用 `studio-data` 命名卷保存完整`/app/data`；Docker实际卷名会包含Compose项目名。后端文件锁仍限制单进程写入，不应把同一卷挂给多个后端副本。备份应先停服并备份整个卷，包括主状态、创作/媒体/字幕任务、历史、原素材及成片；恢复时保持UID10001的读写权限。容器重建不会自动迁移到数据库或补齐生产鉴权。
+Compose 使用 `studio-data` 命名卷保存完整`/app/data`；Docker实际卷名会包含Compose项目名。后端文件锁仍限制单进程写入，不应把同一卷挂给多个后端副本。备份应先停服并备份整个卷，包括主状态、创作/媒体/字幕任务、历史、原素材及成片；恢复时保持UID10001的读写权限。容器重建不会自动迁移到数据库或完成生产身份与外部服务配置。
 
 两个`.dockerignore`均采用文件白名单，排除`.env`、运行数据、测试证据、构建产物和仓库其他文件。不要把模型或Docker Hub凭据写入Dockerfile、镜像构建参数或Git；需要真实模型时应另行采用受保护的运行配置，并确认模型与费用授权。
 
 ## CI 与 Docker Hub
 
-工作流`.github/workflows/ci.yml`对所有分支push及pull request执行。`container-smoke`与`verify`并行，构建并验证双容器代理、持久化和合成媒体；`docker`发布矩阵依赖这两个任务成功，分别以`./backend`与`./frontend`构建`linux/amd64`镜像。
+工作流`.github/workflows/ci.yml`对所有分支push及pull request执行。`container-smoke`与`verify`并行，构建并验证双容器代理、持久化和合成媒体；`docker`发布矩阵依赖`verify`、`container-smoke`和`durable-smoke`全部成功，分别以`./backend`与`./frontend`构建`linux/amd64`镜像。
 
 - Pull request仅构建，不登录Docker Hub、不发布；fork仓库不发布。
 - 已配置凭据的上游`adcwb/ai-creative-studio`分支push可以发布；默认分支还更新`latest`。

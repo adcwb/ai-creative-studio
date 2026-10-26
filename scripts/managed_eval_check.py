@@ -23,6 +23,18 @@ import live_eval
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def build_environment(base, evidence):
+    # CI need not export GOPATH/GOCACHE. Keep private fallbacks without
+    # forwarding HOME, provider keys, proxy credentials or user Go settings.
+    paths = {'GOPATH': evidence / 'go-path', 'GOCACHE': evidence / 'go-build'}
+    build = {**base, 'GOENV': 'off', 'GOTOOLCHAIN': 'local'}
+    for key, fallback in paths.items():
+        build[key] = os.environ.get(key) or str(fallback)
+    if os.environ.get('GOMODCACHE'):
+        build['GOMODCACHE'] = os.environ['GOMODCACHE']
+    return build
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--pg-bin', type=Path, required=True)
@@ -41,7 +53,7 @@ def main():
     subprocess.run([str(args.pg_bin/'createdb'), *pg_args, '-T', 'template0', '-E', 'UTF8', database], env=pg_env, check=True)
     process = log = None
     try:
-        build_env = {**env, **{key: os.environ[key] for key in ('GOPATH', 'GOCACHE') if key in os.environ}}
+        build_env = build_environment(env, evidence)
         subprocess.run(['go', 'build', '-o', str(evidence/'server'), './cmd/server'], cwd=ROOT/'backend', env=build_env, check=True)
         with socket.socket() as sock:
             sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
