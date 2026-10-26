@@ -75,3 +75,18 @@ STUDIO_S3_SERVICE_ENDPOINT=http://127.0.0.1:55480 go test -race ./internal/studi
 ```
 
 此入口仅允许 loopback HTTP 合成测试，默认未指定 endpoint 则明确 skip；不会读取真实 S3 凭据。云 S3 的真实账户验证仍需另外明确授权和安全配置，不能把本次独立软件实测或其他 fixture 结果算成云验收。
+
+## 2026-10-26 再核：当前环境仍缺合格独立服务
+
+本次针对 `d633c295a149a6e99379922885f913fbeb395d36` 重新检查，并未把历史网络错误当作当前结果：
+
+- `command -v minio garage seaweedfs weed rclone docker` 仅找到 `/usr/bin/rclone` 和 `/usr/local/bin/docker`；工作目录和临时目录中没有可用 MinIO、Garage 或 SeaweedFS 二进制。
+- 使用新建空 `DOCKER_CONFIG` 执行 `docker image ls`，仅有 `postgres:17.6-alpine`（`d741b3768746`），没有可离线启动的 S3 镜像，没有读取既有 registry 凭据。
+- 系统 `rclone version` 是 `v1.60.1-DEV`；`rclone --config /dev/null serve s3 --help` 只列出 dlna/docker/http/restic/sftp/webdav，没有 S3 服务。前轮独立安装的 1.75.2 实测仍是上节已记录的不兼容实现，未降低合同要求重新采用。
+- [MinIO 官方 release](https://github.com/minio/minio/releases/tag/RELEASE.2025-10-15T17-29-55Z) 提供固定版本源码安装方式；[官方仓库](https://github.com/minio/minio) 说明社区版仅分发源码。因此本次执行正常的 `go install github.com/minio/minio@RELEASE.2025-10-15T17-29-55Z`，并未重试之前返回 403 的二进制下载地址。
+- Go 成功解析版本 `v0.0.0-20251015172955-9e49d5e7a648`，但 `proxy.golang.org` 重定向到 `storage.googleapis.com` 的该模块 ZIP 下载返回 **Forbidden**，命令 exit 1。日志为 `/tmp/studio-s3-minio-build.log`。`/tmp/studio-s3-bin/minio` 不存在，未启动服务。该访问被拒绝后停止，没有更改 DNS、代理、安全设置或尝试其他地址绕过拒绝。
+- [Garage 官方已知问题](https://garagehq.deuxfleurs.fr/documentation/reference-manual/known-issues/) 明确不支持 `If-None-Match` 等条件写，因此不把 Garage 作为通过此合同的候选，也未安装它。
+
+**结果：实际 S3 服务合同和实际 S3 媒体链本次均未运行，不是通过，也不是新的适配器测试失败。** 本地适配器和 fixture 的既有通过结果不证明 AWS S3 或任何独立 S3 服务已合格。当前可恢复前提是提供经审核的本地 S3 服务二进制/镜像，或恢复官方源码及依赖的正常下载权限；不需要真实云凭据即可使用 loopback、独立临时目录和合成凭据执行现有严格门禁。真实外部 S3 endpoint、隔离 bucket 和授权凭据仍属另一项待确认的云验证，本次未配置。
+
+后续必须保留 `TestBlobS3Service` 的原子条件写、Range 206、签名与匿名拒绝、SHA 元数据及真实媒体回读检查；不能用先 HEAD 后 PUT、接受 Range 200 或仅启动成功代替验收。本次仅更新证据文档，没有改动适配器、测试断言或运行生产部署。
