@@ -37,10 +37,11 @@ type RuntimeProviders struct {
 // are deliberately unavailable to tenant configurations: naming OPENAI_API_KEY
 // must never grant a tenant use of the deployment operator's credential.
 type ModelRuntime struct {
-	auth          *AuthStore
-	authorize     func(context.Context, RuntimeSelection) error
-	secrets       *ApprovedSecretResolver
-	musicEntitled func(string, int64, ModelConfigEntry) bool
+	auth            *AuthStore
+	authorize       func(context.Context, RuntimeSelection) error
+	secrets         *ApprovedSecretResolver
+	musicEntitled   func(string, int64, ModelConfigEntry) bool
+	referenceBridge func(RuntimeSelection, string) ReferenceObjectBridge
 }
 
 func NewModelRuntime(auth *AuthStore, authorize func(context.Context, RuntimeSelection) error) *ModelRuntime {
@@ -222,6 +223,7 @@ func (r *ModelRuntime) Execute(ctx context.Context, selection RuntimeSelection, 
 	if err != nil {
 		return err
 	}
+	r.attachReferenceBridge(providers, ctx, selection, m.Entry, guard, func() { attempts.Add(1) })
 	if err = guard(ctx); err != nil {
 		return err
 	}

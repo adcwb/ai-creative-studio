@@ -328,13 +328,13 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		if in.Kind != "image" && in.Kind != "video" && in.Kind != "vision" && in.Kind != "consistency" && in.Kind != "lip_sync" {
 			return CreativeJob{}, false, ErrInvalidProjectInput
 		}
-		if p, ok := c.image.(*JimengImageProvider); ok && in.Kind == "image" && p.bridge == nil {
+		if p, ok := c.image.(*JimengImageProvider); ok && in.selection == nil && in.Kind == "image" && p.bridge == nil {
 			return CreativeJob{}, false, projectInputError("即梦参考图需要显式配置受控对象桥接，默认未启用")
 		}
 		_, supportsImage := c.image.(ReferenceImageProvider)
 		_, supportsVideo := c.video.(referenceVideoProvider)
 		if in.selection != nil {
-			supportsImage = runtimeImageReferenceSupported(caps.Provider)
+			supportsImage = s.runtime.imageReferenceSupported(*in.selection, caps.Provider, caps.Model)
 			supportsVideo = caps.Provider == "gemini-video" || caps.Provider == "ark-video" || caps.Provider == "minimax-video"
 		}
 		if (in.Kind == "image" && !supportsImage) || (in.Kind == "video" && !supportsVideo) {

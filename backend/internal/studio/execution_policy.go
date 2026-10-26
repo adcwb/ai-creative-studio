@@ -30,17 +30,19 @@ type ExecutionPriceRule struct {
 	ExpiresAt             time.Time `json:"expires_at"`
 }
 type ExecutionPolicy struct {
-	MusicEntitlements   []MusicEntitlement   `json:"music_entitlements,omitempty"`
-	Version             int                  `json:"version"`
-	Prices              []ExecutionPriceRule `json:"prices"`
-	ModerationCommand   string               `json:"moderation_command"`
-	ModerationContract  string               `json:"moderation_contract"`
-	ModerationSource    string               `json:"moderation_source"`
-	ModerationExpiresAt time.Time            `json:"moderation_expires_at"`
-	BillingCommand      string               `json:"billing_command,omitempty"`
-	BillingContract     string               `json:"billing_contract,omitempty"`
-	BillingSource       string               `json:"billing_source,omitempty"`
-	BillingExpiresAt    time.Time            `json:"billing_expires_at,omitempty"`
+	ReferenceBridgeEntitlements []ReferenceBridgeEntitlement `json:"reference_bridge_entitlements,omitempty"`
+	referenceBridge             ReferenceObjectBridge
+	MusicEntitlements           []MusicEntitlement   `json:"music_entitlements,omitempty"`
+	Version                     int                  `json:"version"`
+	Prices                      []ExecutionPriceRule `json:"prices"`
+	ModerationCommand           string               `json:"moderation_command"`
+	ModerationContract          string               `json:"moderation_contract"`
+	ModerationSource            string               `json:"moderation_source"`
+	ModerationExpiresAt         time.Time            `json:"moderation_expires_at"`
+	BillingCommand              string               `json:"billing_command,omitempty"`
+	BillingContract             string               `json:"billing_contract,omitempty"`
+	BillingSource               string               `json:"billing_source,omitempty"`
+	BillingExpiresAt            time.Time            `json:"billing_expires_at,omitempty"`
 }
 
 // Rules are operator assertions of a conservative bounded request quote, not an
@@ -162,8 +164,9 @@ func validatePolicyCommand(path string) error {
 	return nil
 }
 
-// ConfigureExecutionFromEnv reads only the explicitly named non-secret policy.
-// No credentials, supplier calls or paid probes occur during configuration.
+// ConfigureExecutionFromEnv loads the explicitly named operator policy.
+// Storage credentials are read only for explicit reference-transfer grants and
+// REFERENCE_BRIDGE_ENABLED=true. No network calls or paid probes occur here.
 func ConfigureExecutionFromEnv(s *FileStore) error {
 	path := os.Getenv("EXECUTION_POLICY_FILE")
 	if path == "" {
@@ -210,6 +213,9 @@ func ConfigureExecutionFromEnv(s *FileStore) error {
 			}
 		}
 		seen[key] = true
+	}
+	if err := policy.configureReferenceBridge(); err != nil {
+		return err
 	}
 	ConfigureExecutionGovernance(s, &ExecutionGovernor{Ledger: s.budget, Quoter: &policy, Moderator: &policy, Billing: &policy})
 	return nil

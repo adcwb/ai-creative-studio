@@ -130,6 +130,16 @@ func ConfigureManagedRuntime(s *FileStore, auth *AuthStore) {
 		policy, ok := s.execution.Quoter.(*ExecutionPolicy)
 		return ok && policy.MusicEntitled(tenant, version, entry)
 	}
+	s.runtime.referenceBridge = func(selection RuntimeSelection, model string) ReferenceObjectBridge {
+		if s.execution == nil {
+			return nil
+		}
+		policy, ok := s.execution.Quoter.(*ExecutionPolicy)
+		if !ok {
+			return nil
+		}
+		return policy.referenceBridgeFor(selection, model)
+	}
 	s.runtime.BindReadiness(func() bool { return s.execution != nil && s.execution.Ready() })
 	if s.media != nil && s.media.alignment != nil {
 		s.media.alignment.runtime = s.runtime
