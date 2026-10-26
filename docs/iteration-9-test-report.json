@@ -1,0 +1,323 @@
+{
+  "iteration": 9,
+  "timestamp_utc": "2026-10-26T03:54:20.635678+00:00",
+  "tested_product_head": "c09d37b2df5965693318299745ba4a9dd30a7088",
+  "go_frontend_frozen_commit": "f698afd6b3270a56574412f3e80672d7ea67d9c7",
+  "harness": "/tmp/studio-qa9-runner.py",
+  "results": [
+    {
+      "name": "alignment",
+      "exit": 0,
+      "seconds": 1.725,
+      "log": "/tmp/studio-qa9-final-alignment.log",
+      "status": "passed"
+    },
+    {
+      "name": "auth-e2e",
+      "exit": 0,
+      "seconds": 38.881,
+      "log": "/tmp/studio-qa9-final-auth-e2e.log",
+      "status": "passed"
+    },
+    {
+      "name": "build",
+      "exit": 0,
+      "seconds": 6.361,
+      "log": "/tmp/studio-qa9-final-build.log",
+      "status": "passed"
+    },
+    {
+      "name": "contract",
+      "exit": 0,
+      "seconds": 13.77,
+      "log": "/tmp/studio-qa9-final-contract.log",
+      "status": "passed"
+    },
+    {
+      "name": "docker",
+      "exit": 1,
+      "seconds": 6.28,
+      "log": "/tmp/studio-qa9-final-docker.log",
+      "status": "blocked"
+    },
+    {
+      "name": "e2e",
+      "exit": 0,
+      "seconds": 349.282,
+      "log": "/tmp/studio-qa9-final-e2e.log",
+      "status": "passed"
+    },
+    {
+      "name": "format",
+      "exit": 0,
+      "seconds": 0.114,
+      "log": "/tmp/studio-qa9-final-format.log",
+      "status": "passed"
+    },
+    {
+      "name": "frontend-build",
+      "exit": 0,
+      "seconds": 6.38,
+      "log": "/tmp/studio-qa9-final-frontend-build.log",
+      "status": "passed"
+    },
+    {
+      "name": "i18n",
+      "exit": 0,
+      "seconds": 0.727,
+      "log": "/tmp/studio-qa9-final-i18n.log",
+      "status": "passed"
+    },
+    {
+      "name": "layout",
+      "exit": 0,
+      "seconds": 29.102,
+      "log": "/tmp/studio-qa9-final-layout.log",
+      "status": "passed"
+    },
+    {
+      "name": "lint",
+      "exit": 0,
+      "seconds": 14.599,
+      "log": "/tmp/studio-qa9-final-lint.log",
+      "status": "passed"
+    },
+    {
+      "name": "live-tool",
+      "exit": 0,
+      "seconds": 0.318,
+      "log": "/tmp/studio-qa9-final-live-tool.log",
+      "status": "passed"
+    },
+    {
+      "name": "local-models",
+      "exit": 0,
+      "seconds": 1.933,
+      "log": "/tmp/studio-qa9-final-local-models.log",
+      "status": "passed"
+    },
+    {
+      "name": "managed-eval",
+      "exit": 0,
+      "seconds": 2.625,
+      "log": "/tmp/studio-qa9-final-managed-eval.log",
+      "status": "passed"
+    },
+    {
+      "name": "media",
+      "exit": 0,
+      "seconds": 1.777,
+      "log": "/tmp/studio-qa9-final-media.log",
+      "status": "passed"
+    },
+    {
+      "name": "multiservice",
+      "exit": 0,
+      "seconds": 19.991,
+      "log": "/tmp/studio-qa9-final-multiservice.log",
+      "status": "passed"
+    },
+    {
+      "name": "openapi",
+      "exit": 0,
+      "seconds": 0.776,
+      "log": "/tmp/studio-qa9-final-openapi.log",
+      "status": "passed"
+    },
+    {
+      "name": "pg-browser",
+      "exit": 0,
+      "seconds": 48.319,
+      "log": "/tmp/studio-qa9-final-pg-browser.log",
+      "status": "passed"
+    },
+    {
+      "name": "project",
+      "exit": 0,
+      "seconds": 32.513,
+      "log": "/tmp/studio-qa9-final-project.log",
+      "status": "passed"
+    },
+    {
+      "name": "provider",
+      "exit": 0,
+      "seconds": 17.947,
+      "log": "/tmp/studio-qa9-final-provider.log",
+      "status": "passed"
+    },
+    {
+      "name": "python",
+      "exit": 0,
+      "seconds": 0.282,
+      "log": "/tmp/studio-qa9-final-python.log",
+      "status": "passed"
+    },
+    {
+      "name": "quote-browser",
+      "exit": 0,
+      "seconds": 15.245,
+      "log": "/tmp/studio-qa9-final-quote-browser.log",
+      "status": "passed"
+    },
+    {
+      "name": "race",
+      "exit": 0,
+      "seconds": 165.672,
+      "log": "/tmp/studio-qa9-final-race.log",
+      "status": "passed"
+    },
+    {
+      "name": "recovery",
+      "exit": 0,
+      "seconds": 0.669,
+      "log": "/tmp/studio-qa9-final-recovery.log",
+      "status": "passed"
+    },
+    {
+      "name": "scheduled",
+      "exit": 0,
+      "seconds": 0.321,
+      "log": "/tmp/studio-qa9-final-scheduled.log",
+      "status": "passed"
+    },
+    {
+      "name": "secure-contract",
+      "exit": 0,
+      "seconds": 1.776,
+      "log": "/tmp/studio-qa9-final-secure-contract.log",
+      "status": "passed"
+    },
+    {
+      "name": "server",
+      "exit": 0,
+      "seconds": 2.051,
+      "log": "/tmp/studio-qa9-final-server.log",
+      "status": "passed"
+    },
+    {
+      "name": "smoke",
+      "exit": 0,
+      "seconds": 8.667,
+      "log": "/tmp/studio-qa9-final-smoke.log",
+      "status": "passed"
+    },
+    {
+      "name": "static-build",
+      "exit": 0,
+      "seconds": 31.552,
+      "log": "/tmp/studio-qa9-final-static-build.log",
+      "status": "passed"
+    },
+    {
+      "name": "storyboard",
+      "exit": 0,
+      "seconds": 45.966,
+      "log": "/tmp/studio-qa9-final-storyboard.log",
+      "status": "passed"
+    },
+    {
+      "name": "typecheck",
+      "exit": 0,
+      "seconds": 4.871,
+      "log": "/tmp/studio-qa9-final-typecheck.log",
+      "status": "passed"
+    },
+    {
+      "name": "unit",
+      "exit": 0,
+      "seconds": 1.627,
+      "log": "/tmp/studio-qa9-final-unit.log",
+      "status": "passed"
+    },
+    {
+      "name": "vet",
+      "exit": 0,
+      "seconds": 11.627,
+      "log": "/tmp/studio-qa9-final-vet.log",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "frontend_unit": 30,
+    "i18n_keys": 838,
+    "ordinary_contract_responses": 430,
+    "secure_contract_responses": 32,
+    "layout_states": 90,
+    "demo_e2e": 64,
+    "auth_e2e": 10,
+    "postgres_browser": 10,
+    "quote_browser": 2,
+    "python_existing": 4,
+    "scheduled_backup": 7,
+    "managed_eval_tool": 20,
+    "local_models_offline": 12,
+    "media_groups": 7,
+    "alignment_groups": 4,
+    "alignment_contract_responses": 10
+  },
+  "additional_checks": [
+    {
+      "name": "Python compile",
+      "status": "passed",
+      "scope": "local model runner/tests, live eval/tests, managed eval harness, scheduled backup/tests"
+    }
+  ],
+  "real_multiservice": {
+    "api_processes": 2,
+    "worker_processes": 2,
+    "postgres": "17.11",
+    "object_store": "shared-file",
+    "synthetic_tasks": 16,
+    "concurrent_clients": 8,
+    "tenants": 2,
+    "failures": 0,
+    "accept_p95_ms": 428.19,
+    "completion_p95_ms": 4766.73,
+    "evidence": "/tmp/studio-multiservice-uhryvkyq",
+    "production_capacity_claim": false
+  },
+  "backup": {
+    "source_target": "fresh disposable databases",
+    "file_restore": true,
+    "native_postgres_restore": true,
+    "encrypted_bundle_restore": true,
+    "synthetic_key_rotation": true,
+    "unknown_cost_preservation": true,
+    "suite": "full Go race"
+  },
+  "evidence": {
+    "provider": "/tmp/studio-provider-evidence-FczE87",
+    "layout": "/tmp/studio-layout-evidence-D1iJJd",
+    "project_layout": "/tmp/studio-project-evidence-H2oGXi",
+    "storyboard_layout": "/tmp/studio-storyboard-evidence-y89xIL",
+    "postgres_browser": "/tmp/studio-postgres-browser-0vb_g6u0",
+    "quote_browser": "/tmp/studio-postgres-browser-fg6g06mw",
+    "managed_eval": "/tmp/studio-managed-eval-8bd_u6u0",
+    "media": "/tmp/studio-media-evidence-y5sivis6",
+    "alignment": "/tmp/studio-alignment-evidence-6ltd6b0r",
+    "docker": "/tmp/studio-docker-evidence-2hkr8o1e/compose.log"
+  },
+  "blockers": [
+    {
+      "action": "anonymous official base-image pull during docker compose build",
+      "target": "debian:bookworm-slim via auth.docker.io/token",
+      "reason": "DNS lookup through 172.31.3.77:53 i/o timeout",
+      "status": "failed before image build/runtime acceptance",
+      "runtime_dual_container": "not_run",
+      "security_network_configuration_changed": false
+    }
+  ],
+  "not_run": [
+    "Real supplier inference and paid live calls",
+    "Real local model weights/inference quality (Wav2Vec2, Wav2Lip, AudioGen); offline synthetic contract/security tests only",
+    "Official S3 service compatibility in this final regression",
+    "Production deployment, public release, production capacity validation"
+  ],
+  "vendor_live_calls": 0,
+  "paid_budget_used": {
+    "USD": 0,
+    "CNY": 0
+  },
+  "pushed": false,
+  "deployed": false
+}

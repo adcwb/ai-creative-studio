@@ -17,7 +17,7 @@
 
 credential.action有keep/set/reference/revoke。keep不能附带secret/reference；若已有凭据，不允许更换provider后继续keep，避免把某厂商secret发送给另一厂商。reference只能选择当前适配器声明的凭据环境变量名称，返回 `reference_unverified`，不读取现有值、不证明部署配置存在。即梦AK/SK由两个独立环境变量组成，选中一个引用不代表凭据对已完整配置。
 
-set只有部署明确注入 `MODEL_CONFIG_KEK_BASE64` 才可使用：其解码值必须为32字节随机密钥，无默认密钥、无硬编码或明文回退。输入secret仅内存处理，以AES-256-GCM随机nonce加密，AAD绑定租户ID、记录ID和provider。GET/PUT响应永不返回secret或ciphertext，仅返回secret_status、掩码和允许的引用名称。密钥缺失时503拒绝写secret，原有密文仍保留；错误KEK的本地验证返回credential_unreadable。更换KEK不是自动轮换，必须由操作者先做完整备份和受控重新录入；当前无密钥轮换迁移命令。
+set只有部署明确注入 `MODEL_CONFIG_KEK_BASE64` 才可使用：其解码值必须为32字节随机密钥，无默认密钥、无硬编码或明文回退。输入secret仅内存处理，以AES-256-GCM随机nonce加密，AAD绑定租户ID、记录ID和provider。GET/PUT响应永不返回secret或ciphertext，仅返回secret_status、掩码和允许的引用名称。密钥缺失时503拒绝写secret，原有密文仍保留；错误KEK的本地验证返回credential_unreadable。更换环境中的KEK不是自动轮换。操作者须先停服并完整备份，再通过[离线密钥轮换命令](model-key-rotation.md)验证和原子重封装当前密文；成功后为全部进程注入匹配的新KEK。
 
 revoke原子清除当前密文/引用并禁用配置、撤销默认项。旧版本写入409，元数据keep不能恢复被撤销凭据。显式新版本set才可重新存入凭据。历史备份仍可能含旧密文，撤销不等于供应商端吊销，也不等于磁盘安全擦除；服务不会代替用户修改供应商权限。
 
@@ -31,7 +31,7 @@ model-config.json为0600，临时文件写入、fsync、rename及目录fsync，�
 
 `ModelRuntime.Resolve`不读取secret，锁定当前租户配置版本；`Execute`必须获得执行治理的任务许可，随后解密AES-GCM凭据。每次HTTP发送、视频轮询和下载前重新检查组织成员角色、配置版本、能力与治理许可。配置变更取消本进程已注册的请求，成员角色变更也取消；回调结束后旧adapter不能复用。已经发送给供应商的请求无法撤回，取消后仍需保留未知费用。跨进程变更除每次发送前复核，还每秒读取共享权威状态；复核超时两秒即取消，在本地将检查延迟限制为最多三秒。不能撤回供应商已经接受的请求，不承诺供应商端瞬时停算。
 
-默认仅租户独立加密secret参与运行时，禁止租户通过引用平台变量名借用部署操作者的credential。外部secret-store使用可替换`ApprovedSecretResolver`：部署显式绑定tenant、配置ID、provider与reference到外部secret ID，并注入遵守context取消的fetch实现；没有默认环境变量解析器，缺绑定即拒绝，HTTP不能创建这种平台授权绑定。返回的secret只用于当前执行，不缓存进配置。语音必须显式提供voice。即梦凭据使用JSON对象`{"access_key":"…","secret_key":"…"}`一起加密保存或由明确绑定的外部secret-store返回，禁止把单个AK或SK当作完整凭据。需要另行核准账户资格的MiniMax music、已弃用OpenAI speech尚未开放这个管理运行时，非whisper-1的ASR不套用旧时间戳协议；这些配置在任务接收前拒绝，无自动供应商fallback。
+默认仅租户独立加密secret参与运行时，禁止租户通过引用平台变量名借用部署操作者的credential。外部secret-store使用可替换`ApprovedSecretResolver`：部署显式绑定tenant、配置ID、provider与reference到外部secret ID，并注入遵守context取消的fetch实现；没有默认环境变量解析器，缺绑定即拒绝，HTTP不能创建这种平台授权绑定。返回的secret只用于当前执行，不缓存进配置。语音必须显式提供voice。即梦凭据使用JSON对象`{"access_key":"…","secret_key":"…"}`一起加密保存或由明确绑定的外部secret-store返回，禁止把单个AK或SK当作完整凭据。MiniMax music仅在操作员额外配置按租户/配置版本绑定的有效资格声明后开放（见[受治理音乐](governed-music.md)）；已弃用OpenAI speech仍未开放这个管理运行时，非whisper-1的ASR不套用旧时间戳协议；这些配置在任务接收前拒绝，无自动供应商fallback。
 
 合成fixture验证真实adapter发送所保存的model及租户secret、固定HTTPS目标、跨能力拒绝、过期版本、跨租户、缺治理许可、撤销在途取消及回调结束后复用拒绝。fixture不代表真实供应商验收。
 

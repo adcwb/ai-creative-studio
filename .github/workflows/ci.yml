@@ -77,6 +77,7 @@ jobs:
         run: |
           python -m unittest discover -s scripts/tests -v
           python scripts/live_eval_test.py
+          python scripts/local_models/test_runner.py
           python scripts/recovery_check.py
       - name: Synthetic media workflow and API contracts
         run: python scripts/media_check.py
@@ -159,6 +160,10 @@ jobs:
           cd ..
           python3 scripts/postgres_browser_check.py --pg-bin /usr/lib/postgresql/16/bin --pg-socket /tmp/studio-ci-pg-socket --pg-port 55439 --pg-user "$(id -un)" --chromium "$(command -v google-chrome)"
           python3 scripts/postgres_browser_check.py --pg-bin /usr/lib/postgresql/16/bin --pg-socket /tmp/studio-ci-pg-socket --pg-port 55439 --pg-user "$(id -un)" --chromium "$(command -v google-chrome)" --quote-fixture
+      - name: Managed evaluation acceptance without a worker or supplier calls
+        run: >-
+          python3 scripts/managed_eval_check.py --pg-bin /usr/lib/postgresql/16/bin
+          --pg-socket /tmp/studio-ci-pg-socket --pg-port 55439 --pg-user "$(id -un)"
       - name: Stop disposable PostgreSQL
         if: always()
         run: /usr/lib/postgresql/16/bin/pg_ctl -D /tmp/studio-ci-pg-data -m fast stop || true
