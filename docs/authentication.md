@@ -6,7 +6,7 @@
 
 - `AUTH_ALLOW_REGISTRATION=true` 才开放自助注册（含首次SSO账号），默认关闭。不创建默认密码，不配置已有账号。首次使用需操作者明确开启注册，让用户自行注册后可关闭。
 - `AUTH_COOKIE_SECURE` 默认true；仅HTTP回环开发显式设false。会话cookie为HttpOnly、SameSite=Lax、12小时；前端请求携带credentials。
-- 所有写操作要求与 `FRONTEND_ORIGIN` 精确匹配的Origin；登录后写操作另要求 `X-CSRF-Token`。没有用客户端身份头、转发头、邮箱或space_id自称授权。
+- CORS 放行所有来源，响应回显请求的 `Origin` 并允许携带凭据。所有写操作仍要求非空 `Origin`；登录后写操作另要求 `X-CSRF-Token`。`FRONTEND_ORIGIN` 仅用于 SSO 登录完成后的固定回跳，不限制 CORS 来源。没有用客户端身份头、转发头、邮箱或space_id自称授权。
 - 登录/注册每来源连接IP每15分钟20次、最多1024个限流桶。默认不信任转发头。部署可明确设置 `AUTH_TRUSTED_PROXY_CIDRS`（逗号分隔CIDR，最多32项），仅当TCP对端在该列表才使用其覆盖写入的 `X-Real-IP`；不读取X-Forwarded-For，非法地址拒绝。Nginx必须用 `$remote_addr` 覆盖X-Real-IP，不能传递客户端原头。Docker配置仅信任专用内部网络中的前端代理单IP；额外公网代理链须独立审查。没有分布式限流。每用户最多20个未过期session。
 - 密码为12–128字节，独立随机16字节盐，PBKDF2-HMAC-SHA256 600000次、32字节派生值；session只存SHA256摘要。原密码和原session token不落盘。
 - 暂无本地账号邮件验证、密码重置、MFA、其他设备退出及owner转移。自助注册不证明邮箱所有权，因此绝不自动以同邮箱绑定SSO。

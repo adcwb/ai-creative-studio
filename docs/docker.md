@@ -30,7 +30,7 @@ docker compose ps
 STUDIO_PORT=8090 FRONTEND_ORIGIN=http://localhost:8090 docker compose up -d
 ```
 
-`FRONTEND_ORIGIN` 必须与浏览器地址的协议、主机和端口一致，例如 `localhost` 与 `127.0.0.1` 是不同来源。后端环境只从 Compose 明确列出的配置读取；宿主 `backend/.env` 不会自动进入容器。默认模拟图像/文本，无真实语音、视频或ASR模型调用；上传素材、本地时间轴和明确标识的合成演示仍可使用。
+CORS 放行所有来源，并通过回显请求 `Origin` 支持携带凭据；写请求仍要求非空 `Origin`，登录后的写请求另要求 `X-CSRF-Token`。`FRONTEND_ORIGIN` 仅用于 SSO 登录完成后的固定回跳，启用 SSO 时应配置为实际前端地址。会话 Cookie 仍为 `SameSite=Lax`，浏览器的跨站 Cookie 限制仍适用。后端环境只从 Compose 明确列出的配置读取；宿主 `backend/.env` 不会自动进入容器。默认模拟图像/文本，无真实语音、视频或ASR模型调用；上传素材、本地时间轴和明确标识的合成演示仍可使用。
 
 检查运行状态与停止服务：
 

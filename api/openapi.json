@@ -3,7 +3,7 @@
   "info": {
     "title": "映创 · Iteration 7 Creative Studio API",
     "version": "0.7.0",
-    "description": "Local creative studio. Default secure mode requires authenticated organization membership, CSRF and trusted Origin for writes. Explicit AUTH_MODE=demo is local-only and provides no tenant security. Real model runtime remains fail-closed pending end-to-end cost governance. Local protocol tests are not live quality verification."
+    "description": "Local creative studio. Default secure mode requires authenticated organization membership, CSRF and a non-empty Origin for writes. CORS accepts all origins and echoes the request Origin with credentials enabled. FRONTEND_ORIGIN is only the SSO return destination. Explicit AUTH_MODE=demo is local-only and provides no tenant security. Real model runtime remains fail-closed pending end-to-end cost governance. Local protocol tests are not live quality verification."
   },
   "servers": [
     {
@@ -203,7 +203,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -813,7 +813,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -1069,7 +1069,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -1464,7 +1464,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "requestBody": {
@@ -1878,7 +1878,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "requestBody": {
@@ -2242,7 +2242,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "requestBody": {
@@ -2463,7 +2463,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "requestBody": {
@@ -2883,7 +2883,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "requestBody": {
@@ -3074,7 +3074,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "requestBody": {
@@ -3464,7 +3464,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -3740,7 +3740,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -3902,7 +3902,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -4096,7 +4096,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -4293,7 +4293,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -4463,7 +4463,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -5601,7 +5601,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -5784,7 +5784,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -5974,7 +5974,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -6303,7 +6303,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -6613,7 +6613,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -6804,7 +6804,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -7032,7 +7032,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -8043,7 +8043,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Authenticated session CSRF token. Also requires trusted Origin."
+            "description": "Authenticated session CSRF token. Also requires a non-empty Origin; all origins are accepted."
           }
         ],
         "responses": {
@@ -8356,7 +8356,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Authenticated session CSRF token. Also requires trusted Origin."
+            "description": "Authenticated session CSRF token. Also requires a non-empty Origin; all origins are accepted."
           }
         ],
         "responses": {
@@ -8465,7 +8465,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Authenticated session CSRF token. Also requires trusted Origin."
+            "description": "Authenticated session CSRF token. Also requires a non-empty Origin; all origins are accepted."
           }
         ],
         "responses": {
@@ -8583,7 +8583,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Authenticated session CSRF token. Also requires trusted Origin."
+            "description": "Authenticated session CSRF token. Also requires a non-empty Origin; all origins are accepted."
           }
         ],
         "responses": {
@@ -8786,7 +8786,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -8962,7 +8962,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -9268,7 +9268,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -9440,7 +9440,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           },
           {
             "name": "job_id",
@@ -9620,7 +9620,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           },
           {
             "name": "job_id",
@@ -9800,7 +9800,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           },
           {
             "name": "job_id",
@@ -9980,7 +9980,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -10152,7 +10152,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -10472,7 +10472,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -10647,7 +10647,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           },
           {
             "name": "connection_id",
@@ -10961,7 +10961,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -11133,7 +11133,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           },
           {
             "name": "job_id",
@@ -11313,7 +11313,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           },
           {
             "name": "job_id",
@@ -11573,7 +11573,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           }
         ],
         "responses": {
@@ -11745,7 +11745,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Must match configured frontend origin in secure mode."
+            "description": "Required and non-empty in secure mode; all origins are accepted."
           },
           {
             "name": "job_id",
@@ -16348,7 +16348,7 @@
         "type": "apiKey",
         "in": "cookie",
         "name": "studio_session",
-        "description": "HttpOnly session cookie. Secure by default. Mutations additionally require trusted Origin and session X-CSRF-Token."
+        "description": "HttpOnly session cookie. Secure by default. Mutations additionally require a non-empty Origin and session X-CSRF-Token; all origins are accepted."
       }
     }
   },

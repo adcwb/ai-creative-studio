@@ -22,7 +22,7 @@
 | Compose 配置解析 | `docker compose --env-file deploy/.env.example -f deploy/compose.yaml --profile future config --quiet` 通过 |
 | `git diff --check` | 无报错；新文件仍未暂存，因此本命令不覆盖未跟踪文件内容 |
 
-后端测试还覆盖：Eino 规范化与取消、模拟 provider 失败、SVG 文本转义、跨空间 ID 查询/保存拒绝、同目录并发写者拒绝、损坏状态拒绝启动、并发幂等创建、失败写入不发布内存任务、重复素材保存，以及错误 CORS 来源。
+后端测试还覆盖：Eino 规范化与取消、模拟 provider 失败、SVG 文本转义、跨空间 ID 查询/保存拒绝、同目录并发写者拒绝、损坏状态拒绝启动、并发幂等创建、失败写入不发布内存任务、重复素材保存，以及任意 CORS 来源、凭据与预检放行，同时保留身份认证和 CSRF 校验。
 
 浏览器截图位于 `frontend/test-results/**/studio.png`（忽略、不提交）；已实际查看移动端截图。测试数据保存在 `/tmp` 临时目录，不写入正常开发数据目录。E2E 的临时目录当前不自动清理，环境销毁时可移除。
 

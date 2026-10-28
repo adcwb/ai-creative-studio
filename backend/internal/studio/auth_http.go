@@ -94,11 +94,7 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		if o := r.Header.Get("Origin"); o != "" {
-			if o != origin {
-				problem(w, 403, "origin_denied", "不允许的浏览器来源")
-				return
-			}
-			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Origin", o)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, X-CSRF-Token")
@@ -140,8 +136,8 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 			options.OIDC.callback(w, r, auth, options, origin)
 			return
 		}
-		if authWrite(r) && r.Header.Get("Origin") != origin {
-			problem(w, 403, "origin_required", "写操作需要可信 Origin")
+		if authWrite(r) && r.Header.Get("Origin") == "" {
+			problem(w, 403, "origin_required", "写操作需要 Origin")
 			return
 		}
 		if options.OIDC != nil && r.URL.Path == "/api/v1/auth/sso/start" && r.Method == "POST" {

@@ -102,17 +102,16 @@ func TestAuthCookieCSRFRecoveryAndDefaultMode(t *testing.T) {
 	if _, _, ok := restored.authenticate(token); !ok {
 		t.Fatal("session lost on restart")
 	}
-	for _, origin := range []string{"", "https://evil.test"} {
+	t.Run("write requires Origin", func(t *testing.T) {
 		r := httptest.NewRequest("POST", "/api/v1/auth/logout", strings.NewReader(`{}`))
 		r.AddCookie(cookies[0])
 		r.Header.Set("X-CSRF-Token", state.CSRF)
-		r.Header.Set("Origin", origin)
 		out := httptest.NewRecorder()
 		h.ServeHTTP(out, r)
 		if out.Code != 403 {
-			t.Fatal("origin bypass", origin, out.Code)
+			t.Fatal("missing Origin accepted", out.Code)
 		}
-	}
+	})
 	authRequest(t, h, "POST", "/api/v1/auth/logout", `{}`, token, "bad-csrf", 403)
 	restored.mu.Lock()
 	ss := restored.data.Sessions[authDigest(token)]

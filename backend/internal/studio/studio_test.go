@@ -226,11 +226,11 @@ func TestHTTPWorkflow(t *testing.T) {
 		t.Fatal("asset ownership")
 	}
 	r := httptest.NewRequest(http.MethodGet, path, nil)
-	r.Header.Set("Origin", "https://evil.example")
+	r.Header.Set("Origin", "https://another.example")
 	w = httptest.NewRecorder()
 	h.ServeHTTP(w, r)
-	if w.Code != 403 {
-		t.Fatal("unexpected CORS acceptance")
+	if w.Code != 200 || w.Header().Get("Access-Control-Allow-Origin") != "https://another.example" {
+		t.Fatal("cross-origin request rejected", w.Code, w.Header())
 	}
 }
 func TestWorkerFailure(t *testing.T) {

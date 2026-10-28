@@ -32,6 +32,7 @@ services:
     environment:
       <<: *runtime
       HTTP_ADDR: 0.0.0.0:8080
+      # Fixed SSO return destination; CORS accepts all request origins.
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?Provide the reviewed HTTPS frontend origin}
       AUTH_TRUSTED_PROXY_CIDRS: ${STUDIO_FRONTEND_IP:-172.30.90.3}/32
     # An anonymous cache volume per replica; shared data lives in DB/S3.
