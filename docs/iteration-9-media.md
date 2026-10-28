@@ -1,3 +1,5 @@
+> 历史快照：第十轮已增加实时画面预览、关键帧、更多转场和有界4K。当前规格见 [第十轮媒体合同](iteration-10-media.md)，以下限制仅描述第九轮状态。
+
 # Crossfade and bounded visual layers
 
 Timeline JSON remains additive: old clips with an empty transition or `fade`

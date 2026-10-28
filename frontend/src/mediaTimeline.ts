@@ -1,6 +1,10 @@
+export type Transition = '' | 'fade' | 'crossfade' | 'wipeleft' | 'wiperight' | 'slideleft' | 'slideright' | 'circleopen'
+export const overlapTransitions: readonly Transition[] = ['crossfade', 'wipeleft', 'wiperight', 'slideleft', 'slideright', 'circleopen']
+export function overlaps(transition?: Transition) {return overlapTransitions.includes(transition ?? '')}
+export interface OverlayKeyframe {time: number; x: number; y: number; opacity: number}
 export interface ClipTiming {
   duration: number
-  transition?: '' | 'fade' | 'crossfade'
+  transition?: Transition
   transition_duration?: number
 }
 export interface VideoOverlay {
@@ -16,20 +20,21 @@ export interface VideoOverlay {
   opacity: number
   preserve_source_audio: boolean
   source_audio_volume: number
+  keyframes?: OverlayKeyframe[]
 }
 export interface AudioTiming {id: string; asset_id: string; start: number; trim_start: number; duration: number; volume: number}
 export interface VisualAsset {id: string; kind: 'image' | 'video' | 'audio'; duration: number}
 export function timelineDuration(clips: readonly ClipTiming[]): number {
-  return clips.reduce((sum, clip) => sum + clip.duration - (clip.transition === 'crossfade' ? clip.transition_duration ?? 0 : 0), 0)
+  return clips.reduce((sum, clip) => sum + clip.duration - (overlaps(clip.transition) ? clip.transition_duration ?? 0 : 0), 0)
 }
 export function maxTransitionDuration(clips: readonly ClipTiming[], index: number, transition = clips[index]?.transition): number {
-  return Math.min(2, (clips[index]?.duration ?? 0) / 2, transition === 'crossfade' ? (clips[index + 1]?.duration ?? 0) / 2 : 2)
+  return Math.min(2, (clips[index]?.duration ?? 0) / 2, overlaps(transition) ? (clips[index + 1]?.duration ?? 0) / 2 : 2)
 }
 export function compositionError(clips: readonly ClipTiming[], overlays: readonly VideoOverlay[], assets: readonly VisualAsset[], tracks: readonly AudioTiming[] = []): 'transition' | 'overlay' | 'audio' | null {
   for (const [index, clip] of clips.entries()) {
     if (!Number.isFinite(clip.duration) || clip.duration < .5 || clip.duration > 30) return 'transition'
     if (!clip.transition) {if ((clip.transition_duration ?? 0) !== 0) return 'transition'; continue}
-    if (clip.transition !== 'fade' && clip.transition !== 'crossfade') return 'transition'
+    if (clip.transition !== 'fade' && !overlaps(clip.transition)) return 'transition'
     const seconds = clip.transition_duration ?? 0
     if (!Number.isFinite(seconds) || seconds < .1 || seconds > maxTransitionDuration(clips, index)) return 'transition'
   }
@@ -46,6 +51,11 @@ export function compositionError(clips: readonly ClipTiming[], overlays: readonl
       (!layer.preserve_source_audio && layer.source_audio_volume !== 0) ||
       (asset.kind === 'image' && (layer.trim_start !== 0 || layer.preserve_source_audio || layer.source_audio_volume !== 0)) ||
       (asset.kind === 'video' && layer.trim_start + layer.duration > asset.duration + .05)) return 'overlay'
+    const keys = layer.keyframes ?? []
+    if (keys.length > 16 || keys.some((key, index) =>
+      ![key.time, key.x, key.y, key.opacity].every(Number.isFinite) || key.time < 0 || key.time > layer.duration ||
+      (index === 0 ? key.time !== 0 : key.time <= keys[index - 1].time) || key.x < 0 || key.y < 0 ||
+      key.x + layer.width > 1 || key.y + layer.height > 1 || key.opacity < 0 || key.opacity > 1)) return 'overlay'
     ids.add(layer.id)
   }
   if (tracks.length > 8) return 'audio'
@@ -61,3 +71,37 @@ export function compositionError(clips: readonly ClipTiming[], overlays: readonl
   return null
 }
 
+
+export function clipStarts(clips: readonly ClipTiming[]) {
+  let start = 0
+  return clips.map(clip => {const value = start; start += clip.duration - (overlaps(clip.transition) ? clip.transition_duration ?? 0 : 0); return value})
+}
+export function overlayAt(layer: VideoOverlay, localTime: number): {x: number; y: number; opacity: number} {
+  const keys = layer.keyframes ?? []
+  if (!keys.length) return {x: layer.x, y: layer.y, opacity: layer.opacity}
+  if (localTime <= keys[0].time) return keys[0]
+  for (let i = 1; i < keys.length; i++) {
+    if (localTime <= keys[i].time) {
+      const a = keys[i - 1], b = keys[i], ratio = (localTime - a.time) / (b.time - a.time)
+      return {x: a.x + (b.x - a.x) * ratio, y: a.y + (b.y - a.y) * ratio, opacity: a.opacity + (b.opacity - a.opacity) * ratio}
+    }
+  }
+  return keys[keys.length - 1]
+}
+export interface EditableClip extends ClipTiming {
+  id: string; asset_id: string; trim_start: number; audio_asset_id: string
+  subtitle_cues?: {start: number; end: number; text: string}[]
+  subtitle_source?: 'manual' | 'estimated' | 'asr' | 'forced'; subtitle_alignment_id?: string
+}
+// Splitting per-shot dialogue requires an audio source offset not present in the
+// existing contract; require moving it to an independently trimmed audio track.
+export function splitClip<T extends EditableClip>(clip: T, offset: number, video: boolean, secondID: string): [T, T] | null {
+  if (!Number.isFinite(offset) || offset < .5 || clip.duration - offset < .5 || clip.audio_asset_id) return null
+  const cues = clip.subtitle_cues ?? []
+  function sliceCues(start: number, end: number) {
+    return cues.filter(cue => cue.end > start && cue.start < end).map(cue => ({...cue, start: Math.max(cue.start, start) - start, end: Math.min(cue.end, end) - start}))
+  }
+  const manual = {subtitle_source: 'manual' as const, subtitle_alignment_id: ''}
+  return [{...clip, ...manual, duration: offset, transition: '', transition_duration: 0, subtitle_cues: sliceCues(0, offset)},
+    {...clip, ...manual, id: secondID, duration: clip.duration - offset, trim_start: video ? clip.trim_start + offset : 0, subtitle_cues: sliceCues(offset, clip.duration)}]
+}

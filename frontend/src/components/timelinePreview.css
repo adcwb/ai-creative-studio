@@ -1,0 +1,11 @@
+.timeline-preview {margin: 1rem 0; padding: 1rem; border: 1px solid var(--border, #ccc); border-radius: 12px; min-width: 0;}
+.timeline-preview canvas {display: block; max-width: 100%; max-height: 420px; width: auto; height: auto; margin: 0 auto; background: #000;}
+.timeline-preview label {display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .6rem 0;}
+.timeline-preview input[type=range] {flex: 1; min-width: 100px;}
+.timeline-ruler {display: flex; gap: 2px; overflow-x: auto; padding: .5rem 0;}
+.timeline-ruler button {min-width: 70px; border-radius: 4px;}
+.overlay-keyframes {padding: .75rem; border: 1px dashed var(--border, #ccc); border-radius: 8px; margin: .5rem 0;}
+.overlay-keyframe {display: flex; flex-wrap: wrap; align-items: end; gap: .5rem; margin: .5rem 0;}
+.overlay-keyframe label {flex: 1 1 100px; min-width: 0;}
+.overlay-keyframe input {width: 100%; min-width: 0;}
+@media (max-width: 600px) {.timeline-preview {padding: .5rem}.timeline-preview canvas {max-height: 340px}.overlay-keyframe label {flex-basis: 44%}}

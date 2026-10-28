@@ -1,0 +1,10 @@
+.poster-editor { margin-block: 1.5rem; padding: 1rem; border: 1px solid var(--border, #8885); border-radius: 12px; }
+.poster-editor fieldset { display: flex; flex-wrap: wrap; gap: .7rem; min-width: 0; margin-block: .75rem; }
+.poster-editor fieldset fieldset { flex-basis: 100%; }
+.poster-editor label { display: grid; gap: .25rem; max-width: 100%; }
+.poster-editor input, .poster-editor textarea, .poster-editor select { max-width: 100%; min-width: 0; }
+.poster-preview { width: 100%; max-width: 640px; position: relative; overflow: hidden; container-type: inline-size; border: 1px solid #888; }
+.poster-preview-layer { position: absolute; overflow: hidden; white-space: pre-wrap; line-height: 1.2; }
+.poster-preview-layer img { width: 100%; height: 100%; object-fit: contain; object-position: left top; }
+.poster-editor > a { display: block; margin-top: .5rem; overflow-wrap: anywhere; }
+@media(max-width:600px) {.poster-editor {padding:.5rem}.poster-editor label{width:100%}.poster-editor button{min-height:44px}}

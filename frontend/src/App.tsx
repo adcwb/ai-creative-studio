@@ -14,6 +14,7 @@ import { useWorkspace } from './hooks/useWorkspace'
 import { DramaWorkspace } from './components/DramaWorkspace'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { AuthGate, type Session } from './components/AuthGate'
+import { SocialOAuthCallback } from './components/SocialTikTokPanel'
 import { GovernancePanel } from './components/GovernancePanel'
 import { ModelConfigPanel } from './components/ModelConfigPanel'
 import { OrganizationPanel } from './components/OrganizationPanel'
@@ -25,7 +26,7 @@ const blankDraft: TaskInput = {prompt: '', kind: 'poster', ratio: '4:5', style: 
 
 export default function App() {
   useI18n()
- return <AuthGate>{(session, logout) => <AuthenticatedApp session={session} logout={logout} />}</AuthGate> }
+ return <AuthGate>{(session, logout) => window.location.pathname === '/social-callback' ? <SocialOAuthCallback /> : <AuthenticatedApp session={session} logout={logout} />}</AuthGate> }
 function AuthenticatedApp({session, logout}: {session: Session; logout: () => void}) {
   useI18n()
 

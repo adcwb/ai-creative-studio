@@ -112,6 +112,11 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 			respond(w, 200, map[string]string{"status": "ok", "mode": "secure"})
 			return
 		}
+		// This exact route verifies an encrypted expiring grant and current membership.
+		if r.URL.Path == douyinMediaPath && (r.Method == "GET" || r.Method == "HEAD") {
+			next.ServeHTTP(w, r)
+			return
+		}
 		cookie, _ := r.Cookie("studio_session")
 		token := ""
 		if cookie != nil {

@@ -10,12 +10,12 @@ import (
 )
 
 // All times after composition (extra tracks, overlays and subtitles) are on the
-// shortened movie timeline. A crossfade belongs to the outgoing clip.
+// shortened movie timeline. An overlapping transition belongs to the outgoing clip.
 func timelineDuration(t MediaTimeline) float64 {
 	total := 0.0
 	for _, c := range t.Clips {
 		total += c.Duration
-		if c.Transition == "crossfade" {
+		if overlappingTransition(c.Transition) {
 			total -= c.TransitionDuration
 		}
 	}
@@ -23,7 +23,7 @@ func timelineDuration(t MediaTimeline) float64 {
 }
 func hasCrossfade(t MediaTimeline) bool {
 	for _, c := range t.Clips {
-		if c.Transition == "crossfade" {
+		if overlappingTransition(c.Transition) {
 			return true
 		}
 	}
@@ -47,6 +47,9 @@ func validateComposite(p MediaState, t MediaTimeline) error {
 		}
 		if (a.Kind == "video" && layer.TrimStart+layer.Duration > a.Duration+.05) || (a.Kind == "image" && (layer.TrimStart != 0 || layer.PreserveSourceAudio)) || (!layer.PreserveSourceAudio && layer.SourceAudioVolume != 0) {
 			return mediaInvalid("叠层裁剪或原音设置无效")
+		}
+		if err := validateKeyframes(layer); err != nil {
+			return err
 		}
 		ids[layer.ID] = true
 	}
@@ -84,8 +87,8 @@ func composeCrossfades(ctx context.Context, dir string, t MediaTimeline, maxRate
 		// concatenation/crossfade; normalize video timebases for the xfade filter.
 		filters := fmt.Sprintf("[0:v]settb=AVTB,setpts=PTS-STARTPTS,fps=24[v0];[1:v]settb=AVTB,setpts=PTS-STARTPTS,fps=24[v1];[0:a]atrim=duration=%s,asetpts=PTS-STARTPTS[a0];[1:a]atrim=duration=%s,asetpts=PTS-STARTPTS[a1];", seconds(duration), seconds(t.Clips[i].Duration))
 		previous := t.Clips[i-1]
-		if previous.Transition == "crossfade" {
-			filters += fmt.Sprintf("[v0][v1]xfade=transition=fade:duration=%s:offset=%s[v];[a0][a1]acrossfade=d=%s:c1=tri:c2=tri[a]", seconds(previous.TransitionDuration), seconds(duration-previous.TransitionDuration), seconds(previous.TransitionDuration))
+		if overlappingTransition(previous.Transition) {
+			filters += fmt.Sprintf("[v0][v1]xfade=transition=%s:duration=%s:offset=%s[v];[a0][a1]acrossfade=d=%s:c1=tri:c2=tri[a]", xfadeName(previous.Transition), seconds(previous.TransitionDuration), seconds(duration-previous.TransitionDuration), seconds(previous.TransitionDuration))
 			duration -= previous.TransitionDuration
 		} else {
 			filters += "[v0][a0][v1][a1]concat=n=2:v=1:a=1[v][a]"
@@ -124,8 +127,13 @@ func (m *MediaStore) composeOverlays(ctx context.Context, dir string, p MediaSta
 		}
 		args = append(args, "-t", seconds(layer.Duration), "-protocol_whitelist", "file,pipe", "-i", source)
 		w, h := int(float64(width)*layer.Width)/2*2, int(float64(height)*layer.Height)/2*2
-		x, y := int(float64(width)*layer.X)/2*2, int(float64(height)*layer.Y)/2*2
-		filters := fmt.Sprintf("[1:v]setpts=PTS-STARTPTS+%s/TB,scale=%d:%d:force_original_aspect_ratio=decrease,format=rgba,pad=%d:%d:(ow-iw)/2:(oh-ih)/2:color=black@0,colorchannelmixer=aa=%s[over];[0:v][over]overlay=x=%d:y=%d:eof_action=pass:repeatlast=0:enable='gte(t,%s)*lt(t,%s)'[v]", seconds(layer.Start), w, h, w, h, seconds(layer.Opacity), x, y, seconds(layer.Start), seconds(layer.Start+layer.Duration))
+		x := keyframeExpression(layer, "x", "t-"+seconds(layer.Start))
+		y := keyframeExpression(layer, "y", "t-"+seconds(layer.Start))
+		alpha := "colorchannelmixer=aa=" + seconds(layer.Opacity)
+		if len(layer.Keyframes) > 0 {
+			alpha = fmt.Sprintf("geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*(%s)'", keyframeExpression(layer, "opacity", "T"))
+		}
+		filters := fmt.Sprintf("[1:v]setpts=PTS-STARTPTS,scale=%d:%d:force_original_aspect_ratio=decrease,format=rgba,pad=%d:%d:(ow-iw)/2:(oh-ih)/2:color=black@0,%s,setpts=PTS+%s/TB[over];[0:v][over]overlay=x='2*floor(%d*(%s)/2)':y='2*floor(%d*(%s)/2)':eof_action=pass:repeatlast=0:enable='gte(t,%s)*lt(t,%s)'[v]", w, h, w, h, alpha, seconds(layer.Start), width, x, height, y, seconds(layer.Start), seconds(layer.Start+layer.Duration))
 		audio := "0:a:0"
 		if layer.PreserveSourceAudio && asset.Kind == "video" {
 			probe, err := probeMedia(source)

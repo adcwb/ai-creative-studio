@@ -5,9 +5,12 @@ import drama from './locales/drama'
 import governance from './locales/governance'
 import runtime from './locales/runtime'
 import mediaComposite from './locales/mediaComposite'
+import social from './locales/social'
+import douyin from './locales/douyin'
+import poster from './locales/poster'
 export type Locale = 'zh-CN' | 'en'
 export type TranslationParams = Record<string, string | number>
-const dictionaries: Record<string, string> = {...drama, ...mediaLegacy, ...core, ...governance, ...runtime, ...mediaComposite}
+const dictionaries: Record<string, string> = {...drama, ...mediaLegacy, ...core, ...governance, ...runtime, ...mediaComposite, ...poster, ...social, ...douyin}
 export function resolveLocale(saved: string | null, languages: readonly string[]): Locale {
   if (saved === 'zh-CN' || saved === 'en') return saved
   return languages[0]?.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'

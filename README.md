@@ -1,80 +1,84 @@
 # 映创 · AI Creative Studio
 
-React / TypeScript / Vite 前端与 Go / Eino 后端分离的视觉创作工作室。支持图像任务、项目简报、剧本、分镜、素材、历史、时间轴、字幕、混音与 MP4。默认模拟素材始终保留来源；假上游与合成媒体验证不代表真实模型质量或费用验证。
+**简体中文** · [English](README.en.md)
 
-本轮基线为 `5c6060b09d3cc7d054e57f5b0dc7dfcf3c98fe7d`。**开发阶段仅本地提交；2026-10-26已获准正常推送master并由既有CI发布前后端镜像，未授权部署应用。** 发布结果以对应提交的[GitHub Actions](https://github.com/adcwb/ai-creative-studio/actions)为准，代码推送不等于检查或镜像发布成功。 已获批首轮测试预算 USD 3 与 CNY 5，分别封顶、不兑换、不充值；凭据与认证传输确认仍未就绪，没有执行真实模型调用。最新候选余项核对见 [第九轮后续核对](docs/iteration-9-followup.md)。当前补缺实现与验收见 [第九轮交付矩阵](docs/iteration-9-delivery.md)；生产基础见 [第八轮交付矩阵](docs/iteration-8-delivery.md)，[第七轮矩阵](docs/iteration-7-delivery.md)保留历史快照。
+从创意、剧本和分镜，到图片、配音、字幕、海报与短片的创作工作室。React / TypeScript 前端与 Go / Eino 后端分离；支持本地文件模式，也提供 PostgreSQL、独立 worker 和对象存储适配。
 
-## 当前能力与边界
+界面目前完整支持**简体中文和英文**，可以切换并记住语言，首次访问按浏览器语言回退。语言与币种独立：默认 USD，账本和预算按各币种整数最小单位分别处理，不静默兑换。翻译结构可扩展，不表示已经支持其他语言。
 
-- 默认安全模式：注册开关、密码哈希、HttpOnly 会话、CSRF、组织成员与 owner/admin/editor/viewer 服务端授权。资源读写、下载和幂等记录按组织隔离；旧演示数据不会自动归给新账户。OIDC 支持授权码、PKCE、state、nonce 和签名校验；外部 SSO 尚未配置或验证。[身份与迁移](docs/authentication.md)
-- 界面支持简体中文和英文、持久化语言选择与浏览器语言回退；日期和数字按语言格式化。币种独立于语言，默认 USD；预算账本按币种整数最小单位隔离，不做隐式换算。[国际化](docs/internationalization.md)
-- 组织 owner 配置原币种预算；托管模型执行接入预留、dispatch、审核和费用证据处理，未知费用继续占用。缺少明确报价、审核或授权时拒绝执行；旧全局远端环境配置不能绕过治理。[执行治理](docs/execution-governance.md) / [预算 API](docs/iteration-7-governance-api.md)
-- 保留原子文件模式，新增 PostgreSQL 业务/身份/治理存储与数据库任务队列、独立 worker、共享对象存储及多实例授权。采用数据库直接队列替代 Redis 双写；实际两 API/两 worker 与本地媒体演练通过。部署与容量仍需专门验收。[独立 worker](docs/postgres-workers.md) / [对象存储](docs/iteration-8-object-storage.md)
-- 360p / 720p / 1080p、16:9 / 9:16 / 1:1、软字幕或烧录、源视频音轨显式保留与混音、最多 8 条定位音轨、黑场淡入淡出、交叉溶解及最多 4 层图片／视频叠加。[合成规格与限制](docs/iteration-9-media.md)
-- mask 绘制与 OpenAI 局部编辑协议、Google 首帧与视频编辑、即梦短期对象 URL 桥接、双图角色一致性反馈、MiniMax 存量账户器乐协议，以及可替换本地强制对齐／口型／音效适配。另提供[具体离线引擎桥接](docs/local-model-engines.md)：英文 Wav2Vec2 CTC、Wav2Lip、AudioGen。尚未安装模型权重或验证真实推理质量；后两者受非商用用途限制，默认不启用。人物反馈不保证锁脸。[适配与官方依据](docs/iteration-7-provider-enhancements.md)
+## 可以做什么
 
-模型接入管理支持租户管理与脱敏配置；配置验证与真实请求分开。凭据只能服务端加密或引用允许的 secret 名称，部署密钥没有默认值。用户必须显式选择配置版本并确认原币种费用上限；worker 再次授权、解密并应用配置，撤销会阻止继续发送。保存默认模型不会把原模拟操作静默变成收费请求，管理页面也不代表已取得供应商权限。[运行时选择](docs/runtime-model-selection.md)
+| 工作流 | 能力 |
+| --- | --- |
+| 创意到分镜 | 项目简报、剧本、镜头计划、角色参考、版本历史及素材管理 |
+| 图片与海报 | 图像生成适配、参考图与 mask 编辑；海报文字、Logo 图层的保存与 PNG 导出 |
+| 短片编辑 | 镜头裁剪、排序、拆分与复制；多条定位音轨、图片／视频叠层、位置与透明度关键帧 |
+| 预览与输出 | 浏览器画面预览和时间轴拖动；可组合的镜头转场；H.264/AAC MP4、横屏／竖屏／方形、360p 至有界 4K |
+| 声音与字幕 | 显式原声混音、背景音乐、人工字幕、ASR 候选、字幕烧录与 SRT/VTT；纯文本转写与带时间戳字幕分开 |
+| 发布准备 | 小红书、抖音、TikTok 发布中心；按平台审批、授权及协议区分导出、App 交接、草稿与直发 |
+| 团队与治理 | 登录、组织、服务端角色权限、租户隔离、模型配置、预算预留／结算、审核与脱敏审计 |
 
-## 供应商状态
+以上功能的具体实现、测试结果及未完成部分以[本轮交付矩阵](docs/iteration-10-delivery.md)为准。合成素材、模拟上游和离线协议测试不代表真实模型效果或社交平台审批通过。
 
-下表表示代码与协议状态，所有真实账号、效果、耗时和费用均未验证。具体模型是否兼容仍需单独核对，消费产品名称不等于 API 模型 ID。
+## 编辑能力与限制
 
-| 官方生态 | 已实现协议 | 明确限制 |
-| --- | --- | --- |
-| OpenAI | 文本、视觉、图像、参考与 mask、语音、Whisper 时间戳 | Videos/Sora API 已退役，本地拒绝；旧语音接口已标弃用；gpt-transcribe 只输出纯文本，与 whisper-1 时间戳对齐分开 |
-| Anthropic / Claude | Messages 文本与视觉 | 无图像／视频／语音生成；新型号参数须适配 |
-| Google / Gemini / Nano Banana | generateContent 与 Interactions 图像、文本／视觉、Interactions 视频首帧／编辑与语音 | 使用支持相应协议的显式型号；不回退到已关闭旧 preview |
-| 字节 / Ark / 豆包 | 文本／视觉、图像／参考、视频首帧、独立豆包 TTS | 方舟与豆包 TTS 权限和凭据不同 |
-| MiniMax | 文本／视觉、图像人物参考、视频首帧、语音、器乐 | 音乐仅明确确认的存量获权账户；视频规格不能只换型号就假定支持 |
-| 即梦公开视觉 API | AK/SK 图像签名、查询恢复、受控 S3 参考桥接 | 无已核实可用新版视频接口；不逆向消费网站 |
+这是一套渐进扩展的短片编辑器，不是完整专业 NLE。视频输出为 24fps；360p 最长 180 秒、720p 120 秒、1080p 60 秒、2160p（4K）15 秒。最多 30 镜、8 条定位音轨、4 个画面叠层，每层最多 16 个位置／透明度关键帧；大小固定，线性插值。导出产物与中间文件受 128MiB 上限约束；4K 不承诺长片、HDR、无损母版或实时全分辨率播放。
 
-即梦参考桥接只向部署明确配置的 S3 兼容存储上传受控参考图，使用短期签名 URL；没有创建公网资源或验证公网访问。参考桥接与通用 BlobStore 独立配置；实际 S3 服务互操作仍需单独验收。
+浏览器预览用于画面编排，是低分辨率无声预览；最终字幕、声音和压缩结果以实际导出为准。转场使用允许的内置效果，不接受任意 FFmpeg 表达式。交叉溶解、擦除、滑动和圆形展开会重叠相邻镜头，字幕与音轨使用重叠后的时间轴。详见[媒体规格](docs/iteration-10-media.md)。
 
-## 本地运行
+海报保存可编辑图层，导出新 PNG 素材；已有图片不会被覆盖。角色参考和一致性反馈不保证锁脸；强制对齐、口型及音效的[具体离线引擎](docs/local-model-engines.md)尚未完成真实权重质量验收，部分上游模型限非商用。
 
-需要 Go 1.25.3、Node.js 24 / npm 11、FFmpeg / FFprobe。后端配置仅从启动进程环境读取，不自动读取 `.env`。
+## 社交平台：配置与发布是两回事
 
-安全模式开发示例（仅本机 HTTP，用全新测试账号）：
+发布中心不会把素材下载、转到 App、上传草稿或提交审核显示成“已发布”。TikTok 需要应用审批和用户授权；抖音普通创作工具走批准的 H5 分享，支持官方 ticket 获取、缓存和到期刷新；企业代发有额外账号与权限条件；小红书公开分享平台接入受限，没有已核实的通用服务器笔记直发接口。
+
+默认未配置时只提供真实素材导出；小红书支持用户主动复制本地文案，不自动填入平台。账户连接、内容发送和发布结果查询必须经过对应平台的服务端授权与能力检查；创建结果未知时保留回执，不盲目重发。本项目本轮只使用合成账号和假上游测试，**没有执行真实 OAuth、上传或对外发布**。[协议与状态边界](docs/iteration-10-social.md)
+
+## 模型生态
+
+提供 OpenAI、Anthropic / Claude、Google / Gemini / Nano Banana、字节 Ark / 豆包、MiniMax 和即梦公开视觉 API 的可替换适配。不同厂商和型号的文本、图像、视频、语音与转写能力不同，配置型号不等于协议兼容或账户获权。
+
+OpenAI Videos / Sora 已退役并在本地拒绝；即梦视频没有已核实的可用新版官方接口。旧语音与转写接口生命周期见[候选合同核对](docs/iteration-9-followup.md)。真实账号、效果、耗时和费用尚未验证，不以 mock 结果代替。[真实验收准备](docs/live-evaluation.md)默认 dry-run；明确报价、费用上限、审核及授权缺失时不能执行远端收费请求。
+
+## 本地启动
+
+依赖：Go 1.25.3、Node.js 24 / npm 11、FFmpeg / FFprobe 和中文字体。后端只读启动环境，不自动加载 `.env`。示例仅供本机 HTTP、全新测试账号：
 
 ```bash
+# 终端 1
 cd backend
 AUTH_ALLOW_REGISTRATION=true AUTH_COOKIE_SECURE=false go run ./cmd/server
-# 另一终端
+```
+
+```bash
+# 终端 2
 cd frontend
 npm ci
 npm run dev
 ```
 
-前端 `http://localhost:5173`，后端回环 `http://localhost:8080`。默认注册关闭，Secure cookie 开启；正式 TLS 配置不可照搬本地 HTTP 开关。没有创建或配置用户已有账号。
+打开 `http://localhost:5173`，后端监听 `http://localhost:8080`。默认注册关闭、Secure cookie 开启；公网部署需 TLS，不能照搬本机 cookie 开关。若显式使用 `AUTH_MODE=demo`，空间只是公开演示过滤，不是租户安全边界，不得放真实客户数据。[身份说明](docs/authentication.md)
 
-若仅复现旧无身份演示，显式设置 `AUTH_MODE=demo`。该模式公开两个演示空间，`space_id` 不是安全边界，不能暴露公网或使用真实客户数据。默认安全模式不会把演示空间冒充租户。
+## Docker 与持久化部署
 
-Docker 使用 `docker compose build` 和 `docker compose up -d`；前端仅绑定回环，Nginx 同源代理，后端包含 FFmpeg 与字体。安全注册、cookie 和 TLS 按 [身份说明](docs/authentication.md) 及 [Docker说明](docs/docker.md) 配置。本轮环境容器结果以交付矩阵为准，旧 CI 成功不算本轮通过。
+```bash
+docker compose build
+docker compose up -d
+```
 
-## 创作到成片
+前端通过 Nginx 同源代理后端，默认只绑定回环。按[Docker 配置](docs/docker.md)配置注册、TLS、持久卷与资源限制。镜像发布不表示应用已上线；本轮开发不自动推送、部署或创建云资源。
 
-新建项目，保存简报，生成模拟剧本和分镜。在“素材与成片”上传 PNG/JPEG、WAV/MP3 或 H.264 MP4，或创建明确标注的色块／正弦音演示素材。选择镜头顺序、入点、字幕、音轨与输出规格，保存时间轴，再导出 MP4。
+文件模式必须备份整个 `DATA_DIR`。PostgreSQL 模式使用数据库事务与队列、独立 worker 和共享 BlobStore；迁移前停写并使用空目标，不能只切换环境变量。[数据库与 worker](docs/postgres-workers.md) · [对象存储](docs/iteration-8-object-storage.md) · [迁移和备份](docs/postgres-backup.md)
 
-导出为 H.264/AAC、24fps。360p 最长180秒、720p最长120秒、1080p最长60秒；最多30镜，每镜0.5–30秒。上传单文件32MiB，图片最多2000万像素；导出另有并发、容量与128MiB产物限制，以服务端为准。转场可选黑场淡入淡出或向下一镜交叉溶解，后者缩短总时长并同步字幕／音轨时间。最多4层画面可定位、调整透明度并显式混入原音；没有实时叠层预览或关键帧，不宣称专业NLE。
+部署密钥由部署方注入，没有默认值；列表和审计不回显供应商密钥。加密备份不包含 KEK，需独立保管；新增图层和发布状态不能由旧版本程序无损读取。回滚应恢复匹配版本完整备份。[备份加密](docs/backup-encryption-retention.md) · [密钥轮换](docs/model-key-rotation.md)
 
-字幕支持人工逐句、文本估算、ASR 候选和可替换强制对齐；新增受治理纯文本转写，结果没有时间戳，不能直接应用为字幕。估算不识别音频，ASR 不等于已知对白强制对齐；候选须复核后应用并保存。源视频原音默认不保留，必须显式启用。配置或模拟测试不能证明角色一致性与口型质量。
-
-## 数据、迁移与恢复
-
-默认文件模式主快照仍为兼容 v1/v2 升级的 v3 JSON，其他媒体、创作、身份、预算与配置文件位于同一 `DATA_DIR`。必须备份整个目录；不是只备份 `state.json`。文件锁阻止同目录双实例，损坏状态拒绝启动，不清空重建。
-
-使用 `python3 scripts/backup.py --help` 查看停服备份、校验和恢复操作；恢复至新目录，验证后再切换。新增身份不会自动认领旧演示资产；回滚旧程序应恢复其匹配版本完整备份，而不是修改快照版本号。加密凭据恢复还需要部署方安全保管的原 KEK，备份包不包含该环境密钥。第九轮增加[备份认证加密与保留](docs/backup-encryption-retention.md)和[离线KEK轮换](docs/model-key-rotation.md)，仅用合成密钥演练；真实密钥仍由部署方安全管理。
-
-PostgreSQL 模式使用 `STORAGE_BACKEND=postgres`、`QUEUE_BACKEND=postgres`、部署注入的 `DATABASE_URL` 与显式共享 BlobStore；API 和 worker 使用各自私有 `DATA_DIR`。先离线执行 `store-migrate --mode init --confirm-stopped`，启动不默认建表。数据迁移及反向恢复必须停写、使用空目标并匹配媒体与 KEK，不能只改环境变量承诺回滚。[数据库＋媒体备份包与调度](docs/postgres-backup.md)要求停止全部 API/worker，并提供匹配 PostgreSQL 客户端；模板未安装。可选[跨进程追踪与告警配置](docs/tracing.md)默认关闭，只导出有界脱敏数据。真实数据库恢复与多进程演练覆盖范围见第八轮矩阵；没有承诺异地容灾或生产容量。
-
-## 检查与验收
+## 开发与验收
 
 ```bash
 cd backend
-test -z "$(gofmt -l cmd internal)"
 go vet ./...
 go test -race ./...
-go build -o bin/server ./cmd/server
+go build ./cmd/server
 cd ../frontend
 npm ci
 npm run lint
@@ -84,25 +88,6 @@ npm run build
 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e
 ```
 
-其他验证从根目录执行：
+完整验收还包括 OpenAPI、跨租户安全、恢复、实际媒体、桌面／手机布局和多服务测试；入口见[本轮验证](docs/iteration-10-verification.md)及 `.github/workflows/ci.yml`。测试数据均为合成素材或临时账号，不应提交凭据、私人素材或生成媒体。
 
-```bash
-python3 scripts/smoke.py
-python3 scripts/contract_check.py
-python3 scripts/media_check.py
-python3 scripts/alignment_check.py
-python3 scripts/recovery_check.py
-node scripts/provider_check.mjs
-node scripts/layout_check.mjs
-node scripts/project_check.mjs
-node scripts/storyboard_check.mjs
-python3 scripts/docker_check.py
-```
-
-OpenAPI 使用 `openapi-spec-validator==0.7.2`；安全身份桌面/手机使用 `frontend/playwright.auth.config.ts`。测试使用隔离临时目录、明确 demo 模式或合成账号、合成媒体及本地假上游，不依赖真实凭据。
-
-真实小样准备见 [验收工具](docs/live-evaluation.md) 与 `eval/candidate-plan.json`。当前候选存在 adapter／规格不匹配项目，工具默认 dry-run；缺安全凭据、准确上限或发送授权时不能执行。未知创建结果保留费用预留并停止，不自动重试。
-
-## 历史与协作
-
-[当前交接](docs/next-iteration.md)、[路线图](docs/roadmap.md)、[第六轮产品](docs/iteration-6-product.md)、[历史验证](docs/iteration-6-followup-verification.md)、[品牌规范](docs/brand.md)、[贡献指南](CONTRIBUTING.md)。历史文档描述当时状态，不能替代本轮交付矩阵。没有添加开源许可证。
+[当前交接](docs/next-iteration.md) · [路线图](docs/roadmap.md) · [贡献指南](CONTRIBUTING.md) · [国际化](docs/internationalization.md)

@@ -8,6 +8,7 @@ import { DramaScriptEditor } from './DramaScriptEditor'
 import { GenerationHistory } from './GenerationHistory'
 import { StoryboardEditor } from './StoryboardEditor'
 import { MediaStudio } from './MediaStudio'
+import { SocialPublishCenter } from './SocialPublishCenter'
 import { CreativeTools } from './CreativeTools'
 import { Icon } from './Icon'
 import { RuntimeModelPicker } from './RuntimeModelPicker'
@@ -131,6 +132,7 @@ function ProjectEditor({space, id, onProject, onDirtyChange, requestLeave}: {
         </section>
         {editor.project.storyboard ? <StoryboardEditor provider={editor.project.storyboard.provider} shots={editor.shots} sourceVersion={editor.baseline?.storyboard?.source_script_version ?? editor.project.storyboard.source_script_version} stale={(editor.baseline?.storyboard?.source_script_version ?? editor.project.storyboard.source_script_version) !== editor.project.script_version} editing={editor.editingStoryboard} disabled={editor.locked || editor.briefDirty || editor.editingScript || Boolean(editor.loadError)} dirty={editor.storyboardDirty} onChange={editor.setShots} onEdit={() => editor.setEditingStoryboard(true)} onCancel={editor.cancelStoryboard} onSave={() => editor.submit('storyboard')} /> : editor.project.script && <section className="panel drama-no-script storyboard-empty"><Icon name="script" /><h2>{translate("还没有分镜计划")}</h2><p>{translate("剧本已保存。生成模拟分镜后，可以逐镜编辑并保存。")}</p></section>}
         <MediaStudio project={editor.project} space={space} onDirtyChange={setMediaDirty} />
+        <SocialPublishCenter projectId={editor.project.id} space={space} />
       </>}
     </>}
     {confirmStoryboard && <ConfirmDialog title={translate("替换当前分镜计划？")} message={translate("新的模拟分镜生成成功后，会替换当前已保存的分镜计划；旧计划可在版本历史中恢复。生成失败时，当前计划保持不变。")} confirmLabel={translate("确认重新生成分镜")} onCancel={() => setConfirmStoryboard(false)} onConfirm={() => {setConfirmStoryboard(false); editor.submit('generateStoryboard')}} />}

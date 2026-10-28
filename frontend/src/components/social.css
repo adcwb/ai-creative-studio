@@ -1,0 +1,23 @@
+.social-center { min-width: 0; }
+.social-center .section-heading { gap: 1rem; flex-wrap: wrap; }
+.social-platforms { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .8rem; margin: 1rem 0; }
+.social-platforms article { border: 1px solid var(--line, #ddd); border-radius: 12px; padding: 1rem; min-width: 0; }
+.social-platforms h3 { margin-top: 0; }
+.social-platforms dl { margin-bottom: 0; }
+.social-platforms dt { font-weight: 600; margin-top: .6rem; }
+.social-platforms dd { margin: .2rem 0 0; overflow-wrap: anywhere; }
+.social-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.social-center label { display: block; margin: .7rem 0; }
+.social-center select { width: 100%; min-width: 0; }
+.social-center .social-consent { display: flex; gap: .6rem; align-items: flex-start; margin: 1rem 0; }
+.social-consent input { flex: 0 0 auto; width: auto; margin-top: .2rem; }
+.social-jobs { padding: 0; list-style: none; }
+.social-jobs li { padding: 1rem 0; border-top: 1px solid var(--line, #ddd); overflow-wrap: anywhere; }
+.social-jobs a { display: block; margin-top: .7rem; }
+@media (max-width: 700px) { .social-platforms, .social-fields { grid-template-columns: 1fr; } .social-center .section-heading button { width: 100%; } }
+.social-tiktok { margin: 1.5rem 0; border-block: 1px solid var(--line, #ddd); padding: 1rem 0; }
+.social-tiktok summary { cursor: pointer; font-weight: 600; }
+.social-preview { display: block; width: 100%; max-height: 400px; object-fit: contain; background: #111; margin: 1rem 0; }
+.social-options { display: flex; flex-wrap: wrap; gap: 1rem; }
+.social-options input { width: auto; margin-right: .5rem; }
+.social-job-actions button { margin: .5rem .5rem .5rem 0; }

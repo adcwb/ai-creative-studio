@@ -1,0 +1,51 @@
+import {randomUUID} from 'node:crypto'
+import {expect, test} from '@playwright/test'
+
+for (const locale of ['zh-CN','en']) test(`synthetic Douyin handoff requires consent and never claims publication (${locale})`, async ({page,request}, info) => {
+  const t=(zh:string,en:string)=>locale==='en'?en:zh
+  const headers={'Idempotency-Key':randomUUID()}
+  const response=await request.post('http://127.0.0.1:8081/api/v1/projects?space_id=personal-demo',{headers,data:{title:`Synthetic Douyin ${info.project.name} ${randomUUID()}`,brief:'Synthetic application handoff contract only. Never open or publish to an external app.'}})
+  expect(response.status()).toBe(201)
+  const project=await response.json()
+  const seeded=await request.post(`http://127.0.0.1:8081/api/v1/projects/${project.id}/media/demo?space_id=personal-demo`,{headers:{'Idempotency-Key':randomUUID()},data:{expected_version:1}})
+  expect(seeded.status()).toBe(200)
+  const media=await seeded.json()
+  const asset=media.assets.find((item:{kind:string})=>item.kind==='image')
+  const requests:{key:string;body:unknown}[]=[]
+  let appRequests=0
+  page.on('request',r=>{if(r.url().startsWith('snssdk1128:'))appRequests++})
+  await page.addInitScript(value=>localStorage.setItem('studio.locale',value),locale)
+  await page.route(`**/api/v1/projects/${project.id}/social/douyin?*`,route=>route.fulfill({json:{ready:true}}))
+  await page.route(`**/api/v1/projects/${project.id}/social/douyin/prepare?*`,async route=>{
+    requests.push({key:route.request().headers()['idempotency-key'],body:route.request().postDataJSON()})
+    if(requests.length===1)return route.abort('failed')
+    return route.fulfill({json:{job_id:'synthetic-handoff',handoff_url:'snssdk1128://openplatform/share?image_path='+encodeURIComponent('https://studio.example/api/v1/social-media/douyin?cap=synthetic'),expires_at:new Date(Date.now()+30000).toISOString(),version:media.version+1}})
+  })
+  await page.goto('/')
+  await page.getByRole('button',{name:t('短剧工作台','Story studio'),exact:true}).click()
+  await page.locator('.drama-project-list button').filter({hasText:project.title}).click()
+  const panel=page.locator('.social-handoff')
+  await expect(panel).toBeVisible()
+  const prepare=panel.getByRole('button',{name:t('准备抖音短期分享链接','Prepare a temporary Douyin sharing link'),exact:true})
+  await expect(prepare).toBeDisabled()
+  await panel.getByRole('combobox',{name:t('抖音交接素材','Douyin handoff media'),exact:true}).selectOption(`asset:${asset.id}`)
+  await panel.getByRole('textbox',{name:t('抖音分享标题（可选）','Douyin share title (optional)'),exact:true}).fill('Synthetic handoff')
+  await panel.getByRole('checkbox',{name:t('我拥有素材及相关人物、音乐的分享权利。','I have sharing rights for the media, depicted people and music.'),exact:true}).check()
+  await expect(prepare).toBeDisabled()
+  await panel.getByRole('checkbox',{name:t('我同意为此素材创建短期公开读取链接，并自行在抖音确认目标账号和发布。','I consent to a temporary public read link for this media and will confirm the account and publication in Douyin myself.'),exact:true}).check()
+  expect(requests).toHaveLength(0)
+  await prepare.click()
+  await expect(panel.getByRole('alert')).toBeVisible()
+  await expect(prepare).toBeDisabled()
+  await panel.getByRole('button',{name:t('使用原请求核对交接结果','Check handoff using the original request'),exact:true}).click()
+  const link=panel.getByRole('link',{name:t('打开抖音并在 App 内确认','Open Douyin and confirm in the App'),exact:true})
+  await expect(link).toHaveAttribute('href',/^snssdk1128:\/\/openplatform\/share\?/)
+  await expect(link).toHaveAttribute('referrerpolicy','no-referrer')
+  expect(requests).toHaveLength(2)
+  expect(requests[0]).toEqual(requests[1])
+  expect(requests[1].body).toMatchObject({asset_id:asset.id,confirmed:true,rights_confirmed:true,title:'Synthetic handoff'})
+  expect(appRequests).toBe(0)
+  await expect(panel).toContainText(t('不证明 App 已打开或内容已发布','does not prove that the App opened or published content'))
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+  await panel.screenshot({path:`/tmp/iteration10-douyin-${locale}-${info.project.name}.png`})
+})

@@ -73,6 +73,7 @@ jobs:
           python -m openapi_spec_validator api/openapi.json
           python scripts/contract_check.py
           python scripts/secure_contract_check.py
+          python scripts/iteration10_check.py
       - name: Governance, live-tool safety and offline restore
         run: |
           python -m unittest discover -s scripts/tests -v

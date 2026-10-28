@@ -1,0 +1,8 @@
+export default {
+ '放弃未保存的海报更改？':'Discard unsaved poster changes?',
+ '海报图层编辑器':'Poster layer editor',
+ '编辑文字与 Logo，最后一层位于最上方。预览字体取决于浏览器，导出使用服务器字体；请检查最终 PNG。':'Edit text and logos; the last layer is on top. Preview fonts depend on your browser; export uses server fonts. Check the final PNG.',
+ '海报读取失败':'Could not load poster', '海报操作失败':'Poster operation failed', '结果未确认，请用原请求重试。':'The result is unconfirmed. Retry the original request.', '重试原海报请求':'Retry original poster request',
+ '海报画布':'Poster canvas', '海报宽度':'Poster width', '海报高度':'Poster height', '海报背景':'Poster background', '添加文字图层':'Add text layer', '添加 Logo 图层':'Add logo layer', '尚无图层，添加文字或上传图片后添加 Logo。':'No layers yet. Add text or upload an image to add a logo.', '海报图层 {n}':'Poster layer {n}', '图层文字':'Layer text', '图层字号':'Layer font size', '文字颜色':'Text color', 'Logo 图片':'Logo image', '图层横坐标':'Layer X', '图层纵坐标':'Layer Y', '图层宽度':'Layer width', '图层高度':'Layer height', '图层透明度':'Layer opacity', '海报下移一层':'Move poster layer down', '海报上移一层':'Move poster layer up', '移除海报图层':'Remove poster layer', '保存海报':'Save poster', '导出海报 PNG':'Export poster PNG', '重载海报与素材':'Reload poster and assets', '海报图层预览':'Poster layer preview', 'Logo 图层预览':'Logo layer preview', '查看已导出海报':'View exported poster', '海报标题':'Poster title',
+ '海报尺寸、背景或图层数量无效':'Invalid poster dimensions, background or layer count', '海报图层位置或透明度无效':'Invalid poster layer position or opacity', '海报文字设置无效':'Invalid poster text settings', '海报文字包含无效控制字符':'Poster text contains invalid control characters', '海报 Logo 必须使用本项目图片':'Poster logos must use images from this project', '海报图层类型无效':'Invalid poster layer type', '请先保存海报':'Save the poster first',
+} satisfies Record<string,string>

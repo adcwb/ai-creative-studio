@@ -58,19 +58,26 @@ type MediaAudioTrack struct {
 	Duration  float64 `json:"duration"`
 	Volume    float64 `json:"volume"`
 }
+type MediaKeyframe struct {
+	Time    float64 `json:"time"`
+	X       float64 `json:"x"`
+	Y       float64 `json:"y"`
+	Opacity float64 `json:"opacity"`
+}
 type MediaVideoOverlay struct {
-	ID                  string  `json:"id"`
-	AssetID             string  `json:"asset_id"`
-	Start               float64 `json:"start"`
-	TrimStart           float64 `json:"trim_start"`
-	Duration            float64 `json:"duration"`
-	X                   float64 `json:"x"`
-	Y                   float64 `json:"y"`
-	Width               float64 `json:"width"`
-	Height              float64 `json:"height"`
-	Opacity             float64 `json:"opacity"`
-	PreserveSourceAudio bool    `json:"preserve_source_audio"`
-	SourceAudioVolume   float64 `json:"source_audio_volume"`
+	Keyframes           []MediaKeyframe `json:"keyframes,omitempty"`
+	ID                  string          `json:"id"`
+	AssetID             string          `json:"asset_id"`
+	Start               float64         `json:"start"`
+	TrimStart           float64         `json:"trim_start"`
+	Duration            float64         `json:"duration"`
+	X                   float64         `json:"x"`
+	Y                   float64         `json:"y"`
+	Width               float64         `json:"width"`
+	Height              float64         `json:"height"`
+	Opacity             float64         `json:"opacity"`
+	PreserveSourceAudio bool            `json:"preserve_source_audio"`
+	SourceAudioVolume   float64         `json:"source_audio_volume"`
 }
 type MediaTimeline struct {
 	VideoOverlays    []MediaVideoOverlay `json:"video_overlays,omitempty"`
@@ -94,15 +101,18 @@ type MediaExport struct {
 	Timeline       MediaTimeline `json:"timeline"`
 }
 type MediaState struct {
-	Version  int           `json:"version"`
-	Assets   []MediaAsset  `json:"assets"`
-	Timeline MediaTimeline `json:"timeline"`
-	Exports  []MediaExport `json:"exports"`
+	Poster   *PosterDocument `json:"poster,omitempty"`
+	Social   *SocialState    `json:"social,omitempty"`
+	Version  int             `json:"version"`
+	Assets   []MediaAsset    `json:"assets"`
+	Timeline MediaTimeline   `json:"timeline"`
+	Exports  []MediaExport   `json:"exports"`
 }
 type mediaReceipt struct {
-	AssetID  string `json:"asset_id,omitempty"`
-	Digest   string `json:"digest"`
-	ExportID string `json:"export_id"`
+	SocialSecret string `json:"social_secret,omitempty"`
+	AssetID      string `json:"asset_id,omitempty"`
+	Digest       string `json:"digest"`
+	ExportID     string `json:"export_id"`
 }
 type mediaDisk struct {
 	Version  int                     `json:"version"`
@@ -354,13 +364,13 @@ func validateTimeline(p MediaState, t MediaTimeline) error {
 		if c.SourceAudioVolume < 0 || c.SourceAudioVolume > 1 {
 			return mediaInvalid("原音音量须为0–1")
 		}
-		if c.Transition != "" && c.Transition != "fade" && c.Transition != "crossfade" {
+		if c.Transition != "" && c.Transition != "fade" && !overlappingTransition(c.Transition) {
 			return mediaInvalid("转场类型无效")
 		}
 		if c.Transition == "fade" && (c.TransitionDuration < .1 || c.TransitionDuration > 2 || c.TransitionDuration > c.Duration/2) {
 			return mediaInvalid("淡入淡出时长须为0.1–2秒且不超过镜头一半")
 		}
-		if c.Transition == "crossfade" && (i+1 == len(t.Clips) || c.TransitionDuration < .1 || c.TransitionDuration > 2 || c.TransitionDuration > c.Duration/2 || c.TransitionDuration > t.Clips[i+1].Duration/2) {
+		if overlappingTransition(c.Transition) && (i+1 == len(t.Clips) || c.TransitionDuration < .1 || c.TransitionDuration > 2 || c.TransitionDuration > c.Duration/2 || c.TransitionDuration > t.Clips[i+1].Duration/2) {
 			return mediaInvalid("交叉溶解需下一镜，时长0.1–2秒且不超过相邻镜头各自一半")
 		}
 		if c.Transition == "" && c.TransitionDuration != 0 {
@@ -539,6 +549,8 @@ func outputSpec(t MediaTimeline) (int, int, float64, error) {
 		w, h, limit = 1280, 720, 120
 	case "1080p":
 		w, h, limit = 1920, 1080, 60
+	case "2160p":
+		w, h, limit = 3840, 2160, 15
 	default:
 		return 0, 0, 0, mediaInvalid("不支持的输出清晰度")
 	}

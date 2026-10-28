@@ -313,6 +313,9 @@ func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) er
 	if e.Timeline.OutputResolution == "1080p" {
 		maxRate = "8M"
 	}
+	if e.Timeline.OutputResolution == "2160p" {
+		maxRate = "24M"
+	}
 	elapsed := 0.0
 	subtitleCount := 0
 	var globalCues []SubtitleCue
@@ -364,7 +367,7 @@ func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) er
 			globalCues = append(globalCues, cue)
 		}
 		elapsed += c.Duration
-		if c.Transition == "crossfade" {
+		if overlappingTransition(c.Transition) {
 			elapsed -= c.TransitionDuration
 		}
 	}
