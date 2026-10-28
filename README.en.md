@@ -93,3 +93,5 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e
 Full acceptance also covers OpenAPI, tenant security, recovery, real media, desktop/mobile layouts and multiple services. See [current verification](docs/iteration-10-verification.md) and `.github/workflows/ci.yml`. Only synthetic media and temporary accounts belong in tests; do not commit credentials, private inputs or generated media.
 
 [Handoff](docs/next-iteration.md) · [Roadmap](docs/roadmap.md) · [Contributing](CONTRIBUTING.md) · [Internationalization](docs/internationalization.md)
+
+[Chinese/English desktop and mobile screenshots](docs/screenshots/iteration-10/README.md) use synthetic test data and do not demonstrate real platform publishing.

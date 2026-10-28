@@ -93,3 +93,5 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e
 完整验收还包括 OpenAPI、跨租户安全、恢复、实际媒体、桌面／手机布局和多服务测试；入口见[本轮验证](docs/iteration-10-verification.md)及 `.github/workflows/ci.yml`。测试数据均为合成素材或临时账号，不应提交凭据、私人素材或生成媒体。
 
 [当前交接](docs/next-iteration.md) · [路线图](docs/roadmap.md) · [贡献指南](CONTRIBUTING.md) · [国际化](docs/internationalization.md)
+
+[中英文桌面／手机合成截图](docs/screenshots/iteration-10/README.md)（仅测试数据，不代表真实平台发布）。
