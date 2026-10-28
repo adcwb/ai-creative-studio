@@ -1,3 +1,4 @@
+import { navigateTo, chooseSpace } from './support/navigation'
 import { randomUUID } from 'node:crypto'
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 
@@ -202,7 +203,7 @@ test('library combines server search and type filtering and recovers from query 
   const poster = await createFixture(request, { prompt: `${marker} Coffee 海报`, kind: 'poster', ratio: '4:5', style: 'illustration' }, true)
   const portrait = await createFixture(request, { prompt: `${marker} coffee 肖像`, kind: 'portrait', ratio: '1:1', style: 'studio' }, true)
   await page.goto('/')
-  await page.getByRole('button', { name: /素材库/ }).first().click()
+  await navigateTo(page, '/assets')
   const search = page.getByLabel('搜索素材')
   const filter = page.getByLabel('素材类型')
   const queryResponse = page.waitForResponse(response => {
@@ -267,8 +268,8 @@ test('library combines server search and type filtering and recovers from query 
   await page.unroute('**/api/v1/assets?*')
   await page.getByRole('button', { name: '重新查询', exact: true }).click()
   await expect(page.locator('.asset-grid article')).toHaveCount(2)
-  await page.getByLabel('选择演示空间').selectOption('team-demo')
-  await page.getByRole('button', { name: /素材库/ }).first().click()
+  await chooseSpace(page, 'team-demo')
+  await navigateTo(page, '/assets')
   await expect(page.getByText(marker, { exact: false })).toHaveCount(0)
 })
 
@@ -289,11 +290,11 @@ test('late submission response cannot leak across spaces; reload resumes durable
   await page.getByLabel('描述你的画面').fill(prompt)
   await page.getByRole('button', { name: '创建模拟图像', exact: false }).click()
   const task = await created
-  await page.getByLabel('选择演示空间').selectOption('team-demo')
+  await chooseSpace(page, 'team-demo')
   releaseResponse?.()
   await expect(page.locator('.task').filter({ hasText: prompt })).toHaveCount(0)
   await expect(page.getByLabel('描述你的画面')).toHaveValue('')
-  await page.getByLabel('选择演示空间').selectOption('personal-demo')
+  await chooseSpace(page, 'personal-demo')
   await page.reload()
   const card = page.locator('.task').filter({ hasText: prompt })
   await expect(card.getByText('模拟完成', { exact: true })).toBeVisible()
@@ -344,7 +345,7 @@ test('space, catalog, detail and save failures recover through real endpoints', 
   await expect(dialog.getByRole('button', { name: '已保存' })).toBeDisabled()
   await page.keyboard.press('Escape')
   await page.reload()
-  await page.getByRole('button', { name: /素材库/ }).first().click()
+  await navigateTo(page, '/assets')
   await page.getByLabel('搜索素材').fill(task.prompt)
   await expect(page.locator('.asset-grid article')).toHaveCount(1)
   await expect(page.locator('.asset-grid')).toContainText(task.prompt)

@@ -1,3 +1,4 @@
+import { navigateTo, chooseSpace } from './support/navigation'
 import { test, expect } from '@playwright/test'
 
 test('create mock image, save, reload, switch space, and show failure', async ({page}, testInfo) => {
@@ -17,15 +18,15 @@ test('create mock image, save, reload, switch space, and show failure', async ({
   await expect(page.locator('.task').filter({hasText:prompt})).toHaveCount(1)
   await card.getByRole('button', {name:'保存到素材库'}).click()
   await expect(card.getByRole('button', {name:'已保存'})).toBeDisabled()
-  await page.getByRole('button', {name:/素材库/}).first().click()
+  await navigateTo(page, '/assets')
   await expect(page.locator('.asset-grid').getByText(prompt)).toBeVisible()
   await page.reload()
-  await page.getByRole('button', {name:/素材库/}).first().click()
+  await navigateTo(page, '/assets')
   await expect(page.locator('.asset-grid').getByText(prompt)).toBeVisible()
-  await page.getByLabel('选择演示空间').selectOption('team-demo')
-  await page.getByRole('button', {name:/素材库/}).first().click()
+  await chooseSpace(page, 'team-demo')
+  await navigateTo(page, '/assets')
   await expect(page.getByText(prompt, {exact:true})).toHaveCount(0)
-  await page.getByRole('button', {name:'图像创作', exact:true}).click()
+  await navigateTo(page, '/studio')
   await page.getByLabel('描述你的画面').fill(`[mock-fail] 故障测试 ${testInfo.project.name}`)
   await page.getByRole('button', {name:'创建模拟图像'}).click()
   await expect(page.locator('.task').filter({hasText:testInfo.project.name}).getByText('执行失败', {exact:true})).toBeVisible()

@@ -1,3 +1,4 @@
+import { navigateTo, openProject, projectStep } from './support/navigation'
 import {randomUUID} from 'node:crypto'
 import {mkdirSync} from 'node:fs'
 import {test, expect} from '@playwright/test'
@@ -25,12 +26,12 @@ for (const language of ['zh-CN', 'en'] as const) {
     media.timeline.video_overlays = [{id:'synthetic-layer',asset_id:overlay.id,start:0,trim_start:0,duration:2,x:0,y:0,width:.25,height:.25,opacity:1,preserve_source_audio:false,source_audio_volume:0,keyframes:[{time:0,x:0,y:0,opacity:1},{time:2,x:.7,y:.7,opacity:.5}]}]
     const saved = await request.put(`${mediaPath}/timeline${query}`, {headers:{'Idempotency-Key':randomUUID()},data:{expected_version:media.version,timeline:media.timeline}})
     expect(saved.status()).toBe(200)
-    async function openProject() {
-      await page.getByRole('button',{name:label('短剧工作台','Story studio'),exact:true}).click()
-      await page.locator('.drama-project-list button').filter({hasText:title}).click()
+    async function reopenProject() {
+      await navigateTo(page, '/projects')
+      await openProject(page, title, 'media')
     }
     await page.goto('/')
-    await openProject()
+    await reopenProject()
     const preview = page.locator('.timeline-preview')
     await expect(preview).toBeVisible()
     const canvas = preview.locator('canvas')
@@ -75,6 +76,7 @@ for (const language of ['zh-CN', 'en'] as const) {
     expect(content.readUInt32BE(16)).toBe(1080)
     expect(content.readUInt32BE(20)).toBe(1080)
 
+    await projectStep(page, 'publish')
     const social=page.locator('.social-center')
     await social.getByRole('button',{name:label('刷新素材与发布记录','Refresh media and publishing records'),exact:true}).click()
     await social.getByLabel(label('目标平台','Target platform'),{exact:true}).selectOption('xiaohongshu')
@@ -88,12 +90,14 @@ for (const language of ['zh-CN', 'en'] as const) {
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
     mkdirSync('/tmp/studio-iteration10-screenshots',{recursive:true})
     for (const [name,locator] of [['timeline',preview],['poster',poster],['social',social]] as const) {
+      await projectStep(page, name === 'social' ? 'publish' : 'media')
       await locator.screenshot({path:`/tmp/studio-iteration10-screenshots/${name}-${language}-${info.project.name}.png`})
     }
     await page.reload()
-    await openProject()
+    await reopenProject()
     await expect(page.locator('.poster-editor').getByRole('textbox',{name:label('图层文字','Layer text'),exact:true})).toHaveValue('Synthetic poster — 合成海报')
     await expect(page.getByRole('combobox',{name:label('输出清晰度','Output resolution'),exact:true})).toHaveValue('2160p')
+    await projectStep(page, 'publish')
     await expect(page.locator('.social-center').getByRole('link',{name:label('下载交付素材','Download prepared media'),exact:true})).toBeVisible()
     expect(errors).toEqual([])
   })

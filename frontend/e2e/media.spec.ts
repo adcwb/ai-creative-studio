@@ -1,3 +1,4 @@
+import { navigateTo, openProject } from './support/navigation'
 import { randomUUID } from 'node:crypto'
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 const api = 'http://127.0.0.1:8081/api/v1'
@@ -9,8 +10,8 @@ async function project(request: APIRequestContext, name: string) {
 }
 async function open(page: Page, title: string) {
   await page.goto('/')
-  await page.getByRole('button', {name: '短剧工作台', exact: true}).click()
-  await page.locator('.drama-project-list button').filter({hasText: title}).click()
+  await navigateTo(page, '/projects')
+  await openProject(page, title, 'media')
   await expect(page.getByRole('heading', {name: '素材与成片', exact: true})).toBeVisible()
 }
 
@@ -53,8 +54,8 @@ test('synthetic local timeline saves, exports and plays actual MP4 on desktop an
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.screenshot({path: `/tmp/iteration6-media-${info.project.name}.png`, fullPage: true})
   await page.reload()
-  await page.getByRole('button', {name: '短剧工作台', exact: true}).click()
-  await page.locator('.drama-project-list button').filter({hasText: p.title}).click()
+  await navigateTo(page, '/projects')
+  await openProject(page, p.title, 'media')
   await expect(page.getByLabel('片段 1 字幕', {exact: true})).toHaveValue(subtitle)
   await expect(page.getByLabel('成片预览', {exact: true}).first()).toBeVisible()
   expect(errors).toEqual([])
@@ -123,8 +124,8 @@ test('HD portrait output, burn subtitles, fade and extra audio survive timeline 
   expect(saved.timeline.audio_tracks).toHaveLength(1)
   expect(saved.timeline.audio_tracks[0].volume).toBe(0.2)
   await page.reload()
-  await page.getByRole('button', {name: '短剧工作台', exact: true}).click()
-  await page.locator('.drama-project-list button').filter({hasText: p.title}).click()
+  await navigateTo(page, '/projects')
+  await openProject(page, p.title, 'media')
   await expect(page.getByRole('combobox', {name: '输出清晰度', exact: true})).toHaveValue('720p')
   await expect(page.getByLabel('音轨 1 volume', {exact: true})).toHaveValue('0.2')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
@@ -185,8 +186,8 @@ test('crossfade and visual overlay validate the shortened timeline, persist and 
   await expect.poll(() => video.evaluate((node: HTMLVideoElement) => node.readyState)).toBeGreaterThanOrEqual(2)
   expect(await video.evaluate((node: HTMLVideoElement) => node.duration)).toBeCloseTo(expectedDuration, 1)
   await page.reload()
-  await page.getByRole('button', {name: '短剧工作台', exact: true}).click()
-  await page.locator('.drama-project-list button').filter({hasText: p.title}).click()
+  await navigateTo(page, '/projects')
+  await openProject(page, p.title, 'media')
   await expect(page.getByLabel('片段 1 转场', {exact: true})).toHaveValue('crossfade')
   await expect(page.getByLabel('叠层 1 不透明度', {exact: true})).toHaveValue('0.5')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)

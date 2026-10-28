@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { TikTokPhotoEditor } from './TikTokPhotoEditor'
 import { ApiError, baseURL, errorMessage, request } from '../api'
 import { useI18n } from '../i18n'
+import { useNavigationTask } from '../app/navigationGuard'
 import { safeTikTokAuthorization, socialDownloadPath, type SocialJob, type SocialSource, type SocialState } from '../social'
 
 interface Creator {
@@ -37,6 +38,7 @@ export function SocialTikTokPanel({projectId, space, state, sources, reload}: {p
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [uncertain, setUncertain] = useState(false)
+  useNavigationTask(busy || uncertain)
   const inFlight = useRef(false)
   const pending = useRef<{suffix: string; body: string; key: string} | null>(null)
   const path = `/projects/${encodeURIComponent(projectId)}/social`
@@ -161,6 +163,7 @@ export function SocialJobActions({job, projectId, space, version, reload, source
   const [revokeConfirmed, setRevokeConfirmed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [uncertain, setUncertain] = useState(false)
+  useNavigationTask(busy || uncertain)
   const [error, setError] = useState('')
   const inFlight = useRef(false)
   if (job.platform !== 'tiktok' || !['direct', 'draft'].includes(job.mode)) return null

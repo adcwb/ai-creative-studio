@@ -1,3 +1,4 @@
+import { navigateTo, openProject } from './support/navigation'
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 
@@ -30,8 +31,8 @@ for (const locale of ['zh-CN', 'en']) test(`synthetic TikTok consent and unknown
     return route.fulfill({json: view()})
   })
   await page.goto('/')
-  await page.getByRole('button', {name: locale === 'en' ? 'Story studio' : '短剧工作台', exact: true}).click()
-  await page.locator('.drama-project-list button').filter({hasText: project.title}).click()
+  await navigateTo(page, '/projects')
+  await openProject(page, project.title, 'publish')
   const panel = page.locator('.social-tiktok')
   await panel.locator(':scope > summary').click()
   await panel.getByRole('combobox', {name: locale === 'en' ? 'Target TikTok account' : '目标 TikTok 账号', exact: true}).selectOption('synthetic-account')
@@ -113,8 +114,8 @@ for (const locale of ['zh-CN', 'en']) test(`Xiaohongshu manual copy is explicit 
     await route.fulfill({response, json: body})
   })
   await page.goto('/')
-  await page.getByRole('button', {name: locale === 'en' ? 'Story studio' : '短剧工作台', exact: true}).click()
-  await page.locator('.drama-project-list button').filter({hasText: project.title}).click()
+  await navigateTo(page, '/projects')
+  await openProject(page, project.title, 'publish')
   const center = page.locator('.social-center')
   await center.getByRole('combobox', {name: locale === 'en' ? 'Target platform' : '目标平台', exact: true}).selectOption('xiaohongshu')
   const caption = center.getByRole('textbox', {name: locale === 'en' ? 'Xiaohongshu manual caption (this page only)' : '小红书手动发布文案（仅本页）', exact: true})
@@ -141,8 +142,8 @@ for (const locale of ['zh-CN', 'en']) test(`Xiaohongshu manual copy is explicit 
   expect(JSON.stringify(posts)).not.toContain(text)
   expect(await page.evaluate(value => Object.values(localStorage).some(item => String(item).includes(value)), text)).toBe(false)
   await page.reload()
-  await page.getByRole('button', {name: locale === 'en' ? 'Story studio' : '短剧工作台', exact: true}).click()
-  await page.locator('.drama-project-list button').filter({hasText: project.title}).click()
+  await navigateTo(page, '/projects')
+  await openProject(page, project.title, 'publish')
   await center.getByRole('combobox', {name: locale === 'en' ? 'Target platform' : '目标平台', exact: true}).selectOption('xiaohongshu')
   await expect(caption).toHaveValue('')
 })

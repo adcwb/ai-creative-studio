@@ -1,3 +1,4 @@
+import { chooseLanguage } from '../e2e/support/navigation'
 import { test, expect } from '@playwright/test'
 
 test('browser locale fallback and language choice persist through reload', async ({ browser }) => {
@@ -6,7 +7,7 @@ test('browser locale fallback and language choice persist through reload', async
   await page.goto('http://localhost:5175')
   await expect(page.getByRole('combobox', {name: 'Interface language'})).toHaveValue('en')
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
-  await page.getByRole('combobox', {name: 'Interface language'}).selectOption('zh-CN')
+  await chooseLanguage(page, 'zh-CN')
   await expect(page.getByRole('heading', {name: '登录映创'})).toBeVisible()
   await page.reload()
   await expect(page.getByRole('combobox', {name: '界面语言'})).toHaveValue('zh-CN')

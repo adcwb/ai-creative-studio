@@ -1,3 +1,4 @@
+import { navigateTo, openProject, chooseSpace } from './support/navigation'
 import { randomUUID } from 'node:crypto'
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 import type { DramaProject } from '../src/drama'
@@ -30,9 +31,8 @@ async function fixture(request: APIRequestContext, title: string, board = true, 
 }
 async function open(page: Page, project: DramaProject) {
   await page.goto('/')
-  await page.getByRole('button', {name:'短剧工作台',exact:true}).click()
-  await page.locator('.drama-project-list button').filter({hasText:project.title}).click()
-  await expect(page.getByLabel('项目名称')).toHaveValue(project.title)
+  await navigateTo(page, '/projects')
+  await openProject(page, project.title, 'storyboard')
 }
 async function reload(page: Page, project: DramaProject) { await open(page, project) }
 const description = (page: Page) => page.getByLabel('第 1 镜画面描述', {exact:true})
@@ -109,11 +109,10 @@ test('stale source remains stale after plan edits and failed regeneration keeps 
 
 test('conflicting storyboard saves and navigation preserve local drafts until explicit discard',async({page,request},info)=>{
   const project = await fixture(request,`分镜冲突-${info.project.name}-${randomUUID()}`)
-  const other = await fixture(request,`分镜切换-${info.project.name}-${randomUUID()}`,false,false)
   await open(page,project);await edit(page).click()
   const local = '未保存分镜草稿，切换和冲突均不能静默丢弃。'
   await description(page).fill(local)
-  for(const action of [()=>page.locator('.drama-project-list button').filter({hasText:other.title}).click(),()=>page.getByLabel('选择演示空间').selectOption('team-demo'),()=>page.getByRole('button',{name:'图像工作室',exact:true}).click()]){
+  for(const action of [()=>navigateTo(page, '/projects'),()=>chooseSpace(page, 'team-demo'),()=>navigateTo(page, '/studio')]){
     await action();await expect(page.getByRole('dialog')).toBeVisible()
     await page.getByRole('dialog').getByRole('button',{name:'继续编辑',exact:true}).click()
     await expect(description(page)).toHaveValue(local)

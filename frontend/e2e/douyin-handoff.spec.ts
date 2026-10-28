@@ -1,3 +1,4 @@
+import { navigateTo, openProject } from './support/navigation'
 import {randomUUID} from 'node:crypto'
 import {expect, test} from '@playwright/test'
 
@@ -22,8 +23,8 @@ for (const locale of ['zh-CN','en']) test(`synthetic Douyin handoff requires con
     return route.fulfill({json:{job_id:'synthetic-handoff',handoff_url:'snssdk1128://openplatform/share?image_path='+encodeURIComponent('https://studio.example/api/v1/social-media/douyin?cap=synthetic'),expires_at:new Date(Date.now()+30000).toISOString(),version:media.version+1}})
   })
   await page.goto('/')
-  await page.getByRole('button',{name:t('短剧工作台','Story studio'),exact:true}).click()
-  await page.locator('.drama-project-list button').filter({hasText:project.title}).click()
+  await navigateTo(page, '/projects')
+  await openProject(page, project.title, 'publish')
   const panel=page.locator('.social-handoff')
   await expect(panel).toBeVisible()
   const prepare=panel.getByRole('button',{name:t('准备抖音短期分享链接','Prepare a temporary Douyin sharing link'),exact:true})

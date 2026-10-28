@@ -1,3 +1,4 @@
+import { navigateTo, openProject, projectStep, chooseSpace } from './support/navigation'
 import { randomUUID } from 'node:crypto'
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 import type { DramaProject, ScriptGeneration } from '../src/drama'
@@ -20,9 +21,9 @@ async function fixture(request: APIRequestContext, title: string, generate = tru
 async function readProject(request: APIRequestContext, id: string) { const response = await request.get(`${api}/projects/${id}${query}`); expect(response.ok()).toBe(true); return response.json() as Promise<DramaProject> }
 async function openDrama(page: Page, title?: string) {
   await page.goto('/')
-  await page.getByRole('button', { name: '短剧工作台', exact: true }).click()
-  if (title) await page.locator('.drama-project-list button').filter({ hasText: title }).click()
-  await expect(page.getByLabel('项目名称')).toBeVisible()
+  await navigateTo(page, '/projects')
+  if (title) await openProject(page, title, 'brief')
+  if (title) await expect(page.getByLabel('项目名称')).toBeVisible()
 }
 async function noOverflow(page: Page) { expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true) }
 async function capture(page: Page, path: string) {
@@ -33,7 +34,7 @@ async function capture(page: Page, path: string) {
 
 test('project creation, asynchronous script generation and lost-save response use durable backend receipts', async ({ page, request }, info) => {
   await openDrama(page)
-  if (await page.getByRole('button', { name: '新建短剧项目', exact: false }).isEnabled()) await page.getByRole('button', { name: '新建短剧项目', exact: false }).click()
+  if (await page.getByRole('link', { name: '新建短剧项目', exact: false }).isEnabled()) await page.getByRole('link', { name: '新建短剧项目', exact: false }).click()
   const title = `合成短剧-${info.project.name}-${randomUUID()}`
   await page.getByLabel('项目名称').fill(title)
   await page.getByLabel('创作简报').fill('合成验收：修钟师与快递员合作送达一封旧信。')
@@ -42,10 +43,12 @@ test('project creation, asynchronous script generation and lost-save response us
   const created = await createdResponse; expect(created.status()).toBe(201)
   const project = await created.json() as DramaProject
   await expect(page.getByLabel('项目名称')).toHaveValue(title)
+  await expect(page).toHaveURL(new RegExp('/projects/' + project.id + '/brief' + '$'))
+  await projectStep(page, 'script')
   const accepted = page.waitForResponse(r => r.request().method() === 'POST' && r.url().includes(`/projects/${project.id}/generations`))
   await page.getByRole('button', { name: '生成模拟剧本', exact: true }).dblclick()
   expect((await accepted).status()).toBe(202)
-  await expect(page.getByLabel('项目名称')).toBeDisabled()
+  await expect(page.getByRole('button', {name: '生成模拟剧本', exact: true})).toBeDisabled()
   await expect(page.locator('.drama-script')).toBeVisible()
   const generated = await readProject(request, project.id)
   expect(generated.version).toBe(2); expect(generated.script?.characters).toHaveLength(2); expect(generated.script?.scenes).toHaveLength(3)
@@ -71,8 +74,8 @@ test('project creation, asynchronous script generation and lost-save response us
   expect((await replay).status()).toBe(200); expect(keys).toHaveLength(2); expect(keys[0]).toBe(keys[1])
   await expect(page.getByText('剧本修改已保存。', { exact: true })).toBeVisible()
   expect((await readProject(request, project.id)).version).toBe(3)
-  await page.reload(); await page.getByRole('button', { name: '短剧工作台', exact: true }).click()
-  await page.locator('.drama-project-list button').filter({ hasText: title }).click()
+  await page.reload(); await navigateTo(page, '/projects')
+  await openProject(page, title, 'script')
   await expect(page.locator('.drama-script')).toContainText(edited)
   await noOverflow(page); await capture(page, info.outputPath('project-script.png'))
 })
@@ -80,6 +83,7 @@ test('project creation, asynchronous script generation and lost-save response us
 test('version conflicts preserve the local script until an explicit discard and reload', async ({ page, request }, info) => {
   const project = await fixture(request, `冲突验收-${info.project.name}-${randomUUID()}`)
   await openDrama(page, project.title)
+  await projectStep(page, 'script')
   await page.getByRole('button', { name: '编辑剧本', exact: true }).click()
   const local = '本地未保存的动作应在版本冲突后保留。'
   await page.getByLabel('第 1 场动作', { exact: true }).fill(local)
@@ -97,7 +101,9 @@ test('version conflicts preserve the local script until an explicit discard and 
   await expect(page.getByLabel('第 1 场动作', { exact: true })).toHaveValue(local)
   await page.getByRole('button', { name: '重新读取最新项目', exact: true }).click()
   await page.getByRole('dialog').getByRole('button', { name: /放弃/ }).click()
+  await projectStep(page, 'brief')
   await expect(page.getByLabel('创作简报')).toHaveValue('另一客户端已保存的新简报，不能被旧版本覆盖。')
+  await projectStep(page, 'script')
   await expect(page.locator('.drama-script')).not.toContainText(local)
   await expect(page.getByText('当前剧本来自之前的简报', { exact: true })).toBeVisible()
   expect((await readProject(request, project.id)).version).toBe(3)
@@ -109,23 +115,23 @@ test('dirty drafts require confirmation across projects, spaces and workspaces; 
   const second = await fixture(request, `草稿二-${info.project.name}-${randomUUID()}`, false)
   await openDrama(page, first.title)
   await page.getByLabel('创作简报').fill('未保存的合成草稿。')
-  await page.locator('.drama-project-list button').filter({ hasText: second.title }).click()
+  await navigateTo(page, '/projects')
   await expect(page.getByRole('dialog')).toBeVisible(); await page.getByRole('dialog').getByRole('button', { name: '继续编辑' }).click()
   await expect(page.getByLabel('项目名称')).toHaveValue(first.title); await expect(page.getByLabel('创作简报')).toHaveValue('未保存的合成草稿。')
-  await page.locator('.drama-project-list button').filter({ hasText: second.title }).click(); await page.getByRole('dialog').getByRole('button', { name: /放弃/ }).click()
+  await navigateTo(page, '/projects'); await page.getByRole('dialog').getByRole('button', { name: /放弃/ }).click(); await openProject(page, second.title, 'brief')
   await expect(page.getByLabel('项目名称')).toHaveValue(second.title)
   await page.getByLabel('创作简报').fill('切换空间之前的未保存草稿。')
-  await page.getByLabel('选择演示空间').selectOption('team-demo'); await page.getByRole('dialog').getByRole('button', { name: '继续编辑' }).click()
+  await chooseSpace(page, 'team-demo'); await page.getByRole('dialog').getByRole('button', { name: '继续编辑' }).click()
   await expect(page.getByLabel('选择演示空间')).toHaveValue('personal-demo')
-  await page.getByLabel('选择演示空间').selectOption('team-demo'); await page.getByRole('dialog').getByRole('button', { name: /放弃/ }).click()
-  await expect(page.getByLabel('选择演示空间')).toHaveValue('team-demo'); await expect(page.locator('.drama-project-list')).not.toContainText(second.title)
-  await page.getByLabel('选择演示空间').selectOption('personal-demo'); await page.locator('.drama-project-list button').filter({ hasText: first.title }).click()
+  await chooseSpace(page, 'team-demo'); await page.getByRole('dialog').getByRole('button', { name: /放弃/ }).click()
+  await expect(page.getByLabel('选择演示空间')).toHaveValue('team-demo'); await expect(page.locator('.project-grid')).not.toContainText(second.title)
+  await chooseSpace(page, 'personal-demo'); await openProject(page, first.title, 'brief')
   await page.getByLabel('创作简报').fill('切换图像工作台前的未保存草稿。')
-  await page.getByRole('button', { name: '图像工作室', exact: true }).click(); await page.getByRole('dialog').getByRole('button', { name: /放弃/ }).click()
-  await expect(page.getByLabel('描述你的画面')).toBeVisible(); await page.getByRole('button', { name: '短剧工作台', exact: true }).click(); await page.locator('.drama-project-list button').filter({ hasText: first.title }).click()
+  await navigateTo(page, '/studio'); await page.getByRole('dialog').getByRole('button', { name: /放弃/ }).click()
+  await expect(page.getByLabel('描述你的画面')).toBeVisible(); await navigateTo(page, '/projects'); await openProject(page, first.title, 'brief')
   await expect(page.getByLabel('创作简报')).toHaveValue(first.brief)
   await page.getByLabel('创作简报').fill('刷新前未保存草稿。'); page.once('dialog', dialog => dialog.accept()); await page.reload()
-  await page.getByRole('button', { name: '短剧工作台', exact: true }).click(); await page.locator('.drama-project-list button').filter({ hasText: first.title }).click(); await expect(page.getByLabel('创作简报')).toHaveValue(first.brief)
+  await navigateTo(page, '/projects'); await openProject(page, first.title, 'brief'); await expect(page.getByLabel('创作简报')).toHaveValue(first.brief)
   expect((await readProject(request, first.id)).version).toBe(1); expect((await readProject(request, second.id)).version).toBe(1)
   await noOverflow(page)
 })
@@ -135,6 +141,7 @@ test('regeneration confirmation and failure preserve the saved script and source
   await openDrama(page, project.title)
   await page.getByLabel('创作简报').fill('[mock-fail] 合成失败必须保留当前稿。')
   await page.getByRole('button', { name: '保存项目简报', exact: true }).click(); await expect(page.getByText('项目简报已保存。', { exact: true })).toBeVisible()
+  await projectStep(page, 'script')
   await expect(page.getByText('当前剧本来自之前的简报', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '重新生成剧本', exact: true }).click(); await page.keyboard.press('Escape')
   expect((await (await request.get(`${api}/projects/${project.id}/generations${query}`)).json() as ScriptGeneration[])).toHaveLength(1)
@@ -149,11 +156,11 @@ test('regeneration confirmation and failure preserve the saved script and source
 
 test('project list errors recover and a late create response cannot leak across spaces', async ({ page, request }, info) => {
   await page.route('**/api/v1/projects?*', route => route.abort('failed'))
-  await page.goto('/'); await page.getByRole('button', { name: '短剧工作台', exact: true }).click()
-  await expect(page.locator('.drama-projects').getByRole('alert')).toBeVisible()
+  await page.goto('/'); await navigateTo(page, '/projects')
+  await expect(page.locator('.projects-page').getByRole('alert')).toBeVisible()
   await page.unroute('**/api/v1/projects?*'); await page.getByRole('button', { name: '重新加载项目列表', exact: true }).click()
   await expect(page.getByLabel('项目名称')).toBeVisible()
-  if (await page.getByRole('button', { name: '新建短剧项目', exact: false }).isEnabled()) await page.getByRole('button', { name: '新建短剧项目', exact: false }).click()
+  if (await page.getByRole('link', { name: '新建短剧项目', exact: false }).isEnabled()) await page.getByRole('link', { name: '新建短剧项目', exact: false }).click()
   const title = `迟到响应-${info.project.name}-${randomUUID()}`
   await page.getByLabel('项目名称').fill(title); await page.getByLabel('创作简报').fill('迟到响应只能属于创建时的个人演示空间。')
   let release: () => void = () => undefined
@@ -167,13 +174,13 @@ test('project list errors recover and a late create response cannot leak across 
   }, { times: 1 })
   await page.getByRole('button', { name: '创建项目', exact: true }).click()
   const project = await created
-  await page.getByLabel('选择演示空间').selectOption('team-demo'); await page.getByRole('dialog').getByRole('button', { name: /放弃/ }).click(); release()
-  await expect(page.locator('.drama-project-list')).not.toContainText(title)
-  await expect(page.getByLabel('项目名称')).not.toHaveValue(title)
+  await chooseSpace(page, 'team-demo'); await page.getByRole('dialog').getByRole('button', { name: /放弃/ }).click(); release()
+  await expect(page.locator('.project-grid')).not.toContainText(title)
+  await expect(page.getByLabel('项目名称')).toHaveCount(0)
   // Install the failure before switching: the newest project may auto-load immediately.
   await page.route(`**/api/v1/projects/${project.id}?*`, route => route.abort('failed'))
-  await page.getByLabel('选择演示空间').selectOption('personal-demo')
-  await page.locator('.drama-project-list button').filter({ hasText: title }).click()
+  await chooseSpace(page, 'personal-demo')
+  await openProject(page, title, 'brief')
   await expect(page.getByRole('button', { name: '重试读取项目', exact: true })).toBeVisible()
   await page.unroute(`**/api/v1/projects/${project.id}?*`); await page.getByRole('button', { name: '重试读取项目', exact: true }).click()
   await expect(page.getByLabel('项目名称')).toHaveValue(title)
@@ -186,8 +193,8 @@ test('image drafts and an uncertain image idempotency key survive a round trip t
   const prompt = `跨工作台图像草稿-${info.project.name}-${randomUUID()}`
   await page.getByLabel('描述你的画面').fill(prompt)
   await page.getByLabel('画面比例').selectOption('16:9'); await page.getByLabel('视觉风格').selectOption('illustration')
-  await page.getByRole('button', { name: '短剧工作台', exact: true }).click()
-  await page.getByRole('button', { name: '图像工作室', exact: true }).click()
+  await navigateTo(page, '/projects')
+  await navigateTo(page, '/studio')
   await expect(page.getByLabel('描述你的画面')).toHaveValue(prompt)
   await expect(page.getByLabel('画面比例')).toHaveValue('16:9'); await expect(page.getByLabel('视觉风格')).toHaveValue('illustration')
   const keys: string[] = []
@@ -198,8 +205,8 @@ test('image drafts and an uncertain image idempotency key survive a round trip t
   }, { times: 1 })
   await page.getByRole('button', { name: '创建模拟图像', exact: true }).click()
   await expect(page.getByRole('alert')).toBeVisible()
-  await page.getByRole('button', { name: '短剧工作台', exact: true }).click()
-  await page.getByRole('button', { name: '图像工作室', exact: true }).click()
+  await navigateTo(page, '/projects')
+  await navigateTo(page, '/studio')
   await expect(page.getByLabel('描述你的画面')).toHaveValue(prompt)
   const replay = page.waitForResponse(r => r.request().method() === 'POST' && new URL(r.url()).pathname === '/api/v1/tasks')
   await page.getByRole('button', { name: '创建模拟图像', exact: true }).click()

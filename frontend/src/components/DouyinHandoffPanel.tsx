@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ApiError, errorMessage, request } from '../api'
 import { useI18n } from '../i18n'
 import { safeDouyinHandoff } from '../socialDouyin'
+import { useNavigationTask } from '../app/navigationGuard'
 import type { SocialSource, SocialState } from '../social'
 interface Prepared {job_id: string; handoff_url: string; expires_at: string; version: number}
 interface Attempt {path: string; body: string; key: string; kind: 'prepare' | 'ack' | 'revoke'}
@@ -15,6 +16,7 @@ export function DouyinHandoffPanel({projectId, space, state, sources, reload}: {
   const [prepared, setPrepared] = useState<Prepared | null>(null)
   const [busy, setBusy] = useState(false)
   const [uncertain, setUncertain] = useState(false)
+  useNavigationTask(busy || uncertain)
   const [error, setError] = useState('')
   const [clock, setClock] = useState(Date.now())
   const attempt = useRef<Attempt | null>(null)

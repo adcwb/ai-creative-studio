@@ -1,26 +1,55 @@
-import { translate as t, useI18n } from "../i18n"
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Link, NavLink, useLocation } from 'react-router-dom'
 import type { Capabilities, Space } from '../api'
+import { useI18n } from '../i18n'
 import { capabilityLabel } from '../providerPresentation'
 import { LanguagePicker } from './LanguagePicker'
 import type { Session } from './AuthGate'
 import { Icon } from './Icon'
 
-export function StudioShell({spaces, space, workbench, onWorkbenchChange, capability, capabilityError, onSpaceChange, children, session, onLogout}: {session: Session; onLogout: () => void; spaces: Space[]; space: string; workbench: 'image' | 'drama'; onWorkbenchChange: (workbench: 'image' | 'drama') => void; capability: Capabilities | null; capabilityError: string; onSpaceChange: (space: string) => void; children: ReactNode}) {
-  useI18n()
-
-  return <div className="shell">
-    <a className="skip-link" href="#workspace">{t("跳到创作工作区")}</a>
-    <aside className="sidebar">
+export function StudioShell({spaces, space, capability, capabilityError, onSpaceChange, children, session, onLogout}: {
+  session: Session; onLogout: () => void; spaces: Space[]; space: string
+  capability: Capabilities | null; capabilityError: string; onSpaceChange: (space: string) => void; children: ReactNode
+}) {
+  const {t} = useI18n()
+  const location = useLocation()
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef<HTMLButtonElement>(null)
+  const sidebarRef = useRef<HTMLElement>(null)
+  const activeSpace = spaces.find(item => item.id === space)
+  const canManage = activeSpace?.role === 'owner' || activeSpace?.role === 'admin'
+  const roles: Record<string, string> = {owner: '所有者', admin: '管理员', editor: '编辑者', viewer: '只读成员'}
+  const title = location.pathname.startsWith('/settings') ? '工作空间设置' : location.pathname.startsWith('/projects') ? '短剧工作台' : '视觉工作室'
+  useEffect(() => {
+    if (!open) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    sidebarRef.current?.querySelector<HTMLElement>('a, button')?.focus()
+    function keydown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {setOpen(false); menuRef.current?.focus()}
+      if (event.key !== 'Tab') return
+      const items = sidebarRef.current?.querySelectorAll<HTMLElement>('a[href], button, select')
+      if (!items?.length) return
+      const first = items[0], last = items[items.length - 1]
+      if (event.shiftKey && document.activeElement === first) {event.preventDefault(); last.focus()}
+      else if (!event.shiftKey && document.activeElement === last) {event.preventDefault(); first.focus()}
+    }
+    window.addEventListener('keydown', keydown)
+    return () => {document.body.style.overflow = previousOverflow; window.removeEventListener('keydown', keydown)}
+  }, [open])
+  const navItem = (to: string, label: string, icon: Parameters<typeof Icon>[0]['name']) => <NavLink to={to} onClick={() => setOpen(false)}><Icon name={icon} /><span>{t(label)}</span></NavLink>
+  return <div className="shell app-shell">
+    <a className="skip-link" href="#page-content">{t('跳到创作工作区')}</a>
+    {open && <button type="button" className="sidebar-backdrop" aria-label={t('关闭导航')} onClick={() => {setOpen(false); menuRef.current?.focus()}} />}
+    <aside ref={sidebarRef} id="app-navigation" className={`sidebar ${open ? 'is-open' : ''}`} aria-label={t('主导航')} role={open ? 'dialog' : undefined} aria-modal={open ? true : undefined}>
       <div className="sidebar-inner">
-      <a className="brand" href="/" aria-label={t("映创工作室首页")} onClick={event => {event.preventDefault(); onWorkbenchChange('image')}}><img src="/brand/lockup-dark.svg" alt={t("映创 Creative Studio")} width="158" height="48" /></a>
-      <div className="space-picker"><label htmlFor="space">{t("工作空间")}</label><select id="space" aria-label={session.mode === 'demo' ? t("选择演示空间") : t("选择组织")} value={space} disabled={!spaces.length} onChange={event => onSpaceChange(event.target.value)}>{spaces.length ? spaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>) : <option value="">{t("等待空间数据")}</option>}</select></div>
-      <LanguagePicker /><div className="sidebar-current"><Icon name={workbench === 'image' ? 'image' : 'script'} /><span>{workbench === 'image' ? t("视觉工作室") : t("短剧工作台")}</span><span className="current-dot" /></div>
-      <div className="sidebar-note">{t("让创意，")}<br />{t("从一张图开始。")}</div>
-      <div className="roadmap"><span className="eyebrow">WORDS INTO STORIES</span><strong>{t("短剧工作台已开放")}</strong><p>{t("简报 · 分镜 · 本地成片")}</p></div>
-      <div className="demo-id"><span className="avatar">{t("映")}</span><div>{session.mode === 'demo' ? <>{t("演示身份 · demo-user")}<small>{t("无生产认证 · 空间不构成权限隔离")}</small></> : <>{session.user?.email}<small>{t("组织角色：")}{spaces.find(item => item.id === space)?.role ?? t("未选择")}</small><button onClick={onLogout}>{t("退出登录")}</button></>}</div></div>
+        <div className="sidebar-brand"><Link className="brand" to="/studio" onClick={() => setOpen(false)} aria-label={t('映创工作室首页')}><img src="/brand/lockup-dark.svg" alt={t('映创 Creative Studio')} width="158" height="48" /></Link><button type="button" className="sidebar-close" aria-label={t('关闭导航')} onClick={() => {setOpen(false); menuRef.current?.focus()}}><Icon name="close" /></button></div>
+        <div className="space-picker"><label htmlFor="space">{t('工作空间')}</label><select id="space" aria-label={session.mode === 'demo' ? t('选择演示空间') : t('选择组织')} value={space} disabled={!spaces.length} onChange={event => {setOpen(false); onSpaceChange(event.target.value)}}>{spaces.length ? spaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>) : <option value="">{t('等待空间数据')}</option>}</select></div>
+        <nav className="app-nav" aria-label={t('创作导航')}><span className="nav-group-label">{t('创作空间')}</span>{navItem('/studio', '图像创作', 'image')}{navItem('/assets', '素材库', 'grid')}{navItem('/projects', '短剧项目', 'script')}</nav>
+        {session.mode === 'secure' && <nav className="app-nav settings-nav" aria-label={t('管理导航')}><span className="nav-group-label">{t('空间管理')}</span>{navItem('/settings/organization', '组织与成员', 'users')}{canManage && navItem('/settings/models', '模型接入', 'settings')}{navItem('/settings/billing', '预算与费用', 'wallet')}</nav>}
+        <div className="sidebar-account"><LanguagePicker /><div className="account-profile"><span className="avatar">{session.user?.email?.slice(0, 1).toUpperCase() ?? t('映')}</span><div><strong title={session.user?.email}>{session.mode === 'demo' ? t('演示工作空间') : session.user?.email}</strong><small>{session.mode === 'demo' ? t('模拟模式') : t(roles[activeSpace?.role ?? ''] ?? '未选择')}</small></div></div>{session.mode === 'secure' ? <button type="button" className="account-signout" onClick={onLogout}>{t('退出登录')}</button> : <p className="demo-description">{t('无生产认证 · 空间不构成权限隔离')}</p>}</div>
       </div>
     </aside>
-    <main id="workspace"><header className="topbar"><nav className="workbench-nav" aria-label={t("选择工作台")}><button type="button" aria-current={workbench === 'image' ? 'page' : undefined} onClick={() => onWorkbenchChange('image')}>{t("图像工作室")}</button><span aria-hidden="true">/</span><button type="button" aria-current={workbench === 'drama' ? 'page' : undefined} onClick={() => onWorkbenchChange('drama')}>{t("短剧工作台")}</button></nav>{session.mode === 'secure' && <button className="mobile-signout" onClick={onLogout}>{t('退出登录')}</button>}<span className={`provider-badge ${workbench === 'image' && !capability?.ready ? 'provider-unavailable' : ''}`}><span />{workbench === 'drama' ? t("短剧创作 · 本地成片") : capabilityLabel(capability, capabilityError)}</span></header>{children}<footer><span>{t("映创 · 为每一次灵感留白")}</span><span>{t("创作记录 / 持久保存")}</span></footer></main>
+    <main id="workspace"><header className="topbar"><div className="topbar-location"><button ref={menuRef} type="button" className="menu-toggle" aria-label={t('打开导航')} aria-controls="app-navigation" aria-expanded={open} onClick={() => setOpen(true)}><Icon name="menu" /></button><span>{t(title)}</span><span className="topbar-space">/ {activeSpace?.name ?? t('工作空间')}</span></div><span className={`provider-badge ${!capability?.ready ? 'provider-unavailable' : ''}`}><span />{capabilityLabel(capability, capabilityError)}</span></header><div id="page-content" tabIndex={-1} className="page-content">{children}</div></main>
   </div>
 }

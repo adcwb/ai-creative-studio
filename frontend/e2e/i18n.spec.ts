@@ -1,3 +1,4 @@
+import { navigateTo, openProject, projectStep, chooseLanguage } from './support/navigation'
 import { test, expect } from '@playwright/test'
 
 test.use({locale: 'en-US'})
@@ -14,7 +15,7 @@ test('English image workflow preserves provenance warnings and language switchin
   await expect(card.locator('img')).toBeVisible()
   await card.getByRole('button', {name: 'Save to library', exact: true}).click()
   await expect(card.getByRole('button', {name: 'Saved', exact: true})).toBeDisabled()
-  await page.getByRole('combobox', {name: 'Interface language'}).selectOption('zh-CN')
+  await chooseLanguage(page, 'zh-CN')
   await expect(card.getByText('模拟完成', {exact: true})).toBeVisible()
   await expect(card.getByRole('button', {name: '已保存', exact: true})).toBeDisabled()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
@@ -25,8 +26,8 @@ test('English image workflow preserves provenance warnings and language switchin
 test('English story, validation, storyboard and media controls use translated dynamic messages', async ({page}, info) => {
   test.setTimeout(60000)
   await page.goto('/')
-  await page.getByRole('button', {name: 'Story studio', exact: true}).click()
-  const newProject = page.getByRole('button', {name: 'New drama project', exact: false})
+  await navigateTo(page, '/projects')
+  const newProject = page.getByRole('link', {name: 'New drama project', exact: false})
   if (await newProject.isEnabled()) await newProject.click()
   const title = `English story fixture ${info.project.name} ${Date.now()}`
   await page.getByLabel('Project name', {exact: true}).fill(title)
@@ -38,7 +39,10 @@ test('English story, validation, storyboard and media controls use translated dy
   await page.getByRole('button', {name: 'Create project', exact: true}).click()
   const project = await (await accepted).json()
   const expectedDate = await page.evaluate((date: string) => new Intl.DateTimeFormat('en', {dateStyle: 'medium'}).format(new Date(date)), project.updated_at)
-  await expect(page.locator('.drama-project-list button').filter({hasText: title}).locator('time')).toHaveText(expectedDate)
+  await expect(page).toHaveURL(new RegExp('/projects/' + project.id + '/brief' + '$'))
+  await navigateTo(page, '/projects')
+  await expect(page.locator('.project-card').filter({hasText: title}).locator('time')).toHaveText(expectedDate)
+  await openProject(page, title, 'script')
   await page.getByRole('button', {name: 'Generate mock script', exact: true}).click()
   await expect(page.locator('.drama-generation-state .status').first()).toHaveText('Script generated')
   await expect(page.getByText('mock-script · Program-generated demo, not AI writing.', {exact: true})).toBeVisible()
@@ -46,6 +50,7 @@ test('English story, validation, storyboard and media controls use translated dy
   await page.getByLabel('Scene 1 action', {exact: true}).fill('')
   await expect(page.getByText('Scene 1 action must contain 1–1000 characters.', {exact: true})).toBeVisible()
   await page.getByRole('button', {name: 'Cancel script edits', exact: true}).click()
+  await projectStep(page, 'storyboard')
   await page.getByRole('button', {name: 'Generate mock storyboard', exact: true}).click()
   await expect(page.getByRole('heading', {name: 'Current storyboard', exact: true})).toBeVisible()
   await expect(page.getByText('mock-storyboard · Program-generated demo, not AI filmmaking. Source script version 1.', {exact: true})).toBeVisible()
@@ -56,6 +61,7 @@ test('English story, validation, storyboard and media controls use translated dy
   await page.getByLabel('Shot 1 description', {exact: true}).fill('Synthetic close-up of a blue paper gear.')
   await page.getByRole('button', {name: 'Save storyboard', exact: true}).click()
   await expect(page.getByRole('button', {name: 'Edit storyboard', exact: true})).toBeVisible()
+  await projectStep(page, 'media')
   await page.getByRole('button', {name: 'Create synthetic demo media and timeline', exact: true}).click()
   await expect(page.getByRole('heading', {name: 'Media and final film', exact: true})).toBeVisible()
   await expect(page.getByRole('combobox', {name: 'Output resolution', exact: true})).toHaveValue('360p')

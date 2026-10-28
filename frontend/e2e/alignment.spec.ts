@@ -1,3 +1,4 @@
+import { navigateTo, openProject } from './support/navigation'
 import { randomUUID } from 'node:crypto'
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 const api = 'http://127.0.0.1:8081/api/v1'
@@ -11,8 +12,8 @@ async function fixture(page: Page, request: APIRequestContext, name: string) {
   const project = await post(request, '/projects', {title: `${name}-${randomUUID()}`, brief: '合成字幕时间验收，不调用真实语音识别。'})
   const media = await post(request, `/projects/${project.id}/media/demo`, {expected_version: 1})
   await page.goto('/')
-  await page.getByRole('button', {name: '短剧工作台', exact: true}).click()
-  await page.locator('.drama-project-list button').filter({hasText: project.title}).click()
+  await navigateTo(page, '/projects')
+  await openProject(page, project.title, 'media')
   await expect(page.getByLabel('片段 1 字幕', {exact: true})).toBeVisible()
   return {project, media}
 }
@@ -96,8 +97,8 @@ test('text transcription fixture displays escaped text without applying invented
   const media = await post(request, `/projects/${project.id}/media/demo`, {expected_version: 1})
   await page.route(`**/api/v1/projects/${project.id}/media/alignments?*`, route => route.fulfill({json: [{id: 'synthetic-transcript-ui', status: 'succeeded', mode: 'transcription', provider: 'openai-asr', model: 'gpt-transcribe', source_version: media.version, clip_id: media.timeline.clips[0].id, audio_asset_id: '', duration: 2, cues: [], transcript: '<script>synthetic transcript text</script>', timing_basis: 'transcript-only', warnings: ['纯文本转写没有时间戳；不能直接应用为逐句字幕。']}]}))
   await page.goto('/')
-  await page.getByRole('button', {name: '短剧工作台', exact: true}).click()
-  await page.locator('.drama-project-list button').filter({hasText: project.title}).click()
+  await navigateTo(page, '/projects')
+  await openProject(page, project.title, 'media')
   const region = page.getByRole('region', {name: '片段 1 逐句字幕', exact: true})
   await expect(region.getByLabel('转写文本', {exact: true})).toHaveText('<script>synthetic transcript text</script>')
   await expect(region).toContainText('没有时间戳')

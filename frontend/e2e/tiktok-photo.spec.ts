@@ -1,3 +1,4 @@
+import { navigateTo, openProject } from './support/navigation'
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 // Synthetic 64x64 FFmpeg orange JPEG; no private image or external model output.
@@ -50,8 +51,8 @@ for (const locale of ['zh-CN', 'en']) test(`TikTok photo intent, normalization r
     return route.fulfill({json: view()})
   })
   await page.goto('/')
-  await page.getByRole('button', {name: locale === 'en' ? 'Story studio' : '短剧工作台', exact: true}).click()
-  await page.locator('.drama-project-list button').filter({hasText: project.title}).click()
+  await navigateTo(page, '/projects')
+  await openProject(page, project.title, 'publish')
   const panel = page.locator('.social-tiktok')
   await panel.locator(':scope > summary').click()
   await panel.locator('.social-local-photos > summary').click()
@@ -126,8 +127,8 @@ for (const locale of ['zh-CN', 'en']) test(`TikTok unknown token refresh permits
     return route.fulfill({json: {version, platforms: [{id: 'tiktok', direct_status: 'available', handoff_status: 'available', photo_status: 'available', connection_status: 'configured'}], connections: [{id: 'account', platform: 'tiktok', status, display_name: 'Synthetic expiring account'}], jobs: []}})
   })
   await page.goto('/')
-  await page.getByRole('button', {name: locale === 'en' ? 'Story studio' : '短剧工作台', exact: true}).click()
-  await page.locator('.drama-project-list button').filter({hasText: project.title}).click()
+  await navigateTo(page, '/projects')
+  await openProject(page, project.title, 'publish')
   const panel = page.locator('.social-tiktok')
   await panel.locator(':scope > summary').click()
   await panel.getByRole('combobox', {name: locale === 'en' ? 'Target TikTok account' : '目标 TikTok 账号', exact: true}).selectOption('account')

@@ -38,6 +38,7 @@ export function useWorkspace(space: string) {
   }, [revision])
 
   useEffect(() => {
+    if (!space) return
     const controller = new AbortController()
     let timer: ReturnType<typeof setTimeout>
     async function load() {
@@ -58,7 +59,7 @@ export function useWorkspace(space: string) {
     }
     void load()
     return () => {controller.abort(); clearTimeout(timer)}
-  }, [query, revision])
+  }, [space, query, revision])
 
   const clearFeedback = useCallback(() => {setActionError(''); setNotice('')}, [])
   const newAttempt = useCallback(() => {attempt.current = null; clearFeedback()}, [clearFeedback])

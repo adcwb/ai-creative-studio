@@ -1,3 +1,4 @@
+import { navigateTo, openProject, openCreativeTools } from '../e2e/support/navigation'
 import {test, expect} from '@playwright/test'
 
 test('exact image and creative quote consent accepts queued work without a model worker', async ({page}, info) => {
@@ -6,18 +7,19 @@ test('exact image and creative quote consent accepts queued work without a model
  await page.locator('#auth-email').fill(`quote-${info.project.name}-${Date.now()}@example.invalid`)
  await page.locator('#auth-password').fill('Synthetic-quote-passphrase!')
  await page.getByRole('button', {name: '注册并登录'}).click()
- await expect(page.getByRole('button', {name: '退出登录'}).filter({visible: true})).toBeVisible()
+ await expect(page.locator('.account-signout')).toBeAttached()
  const api = 'http://localhost:8082/api/v1'
  const session = await (await page.request.get(api + '/auth/session')).json()
  const query = '?space_id=' + session.spaces[0].id
  const headers = {'Origin': 'http://localhost:5175', 'X-CSRF-Token': session.csrf_token}
- await page.getByText('预算与费用记录', {exact: true}).click()
+ await navigateTo(page, '/settings/billing')
  await page.getByLabel('新的预算上限（USD）', {exact: true}).fill('1.00')
  await page.getByRole('button', {name: '保存预算', exact: true}).click()
  await expect(page.getByText('预算已保存。此操作不会启用真实模型调用。', {exact: true})).toBeVisible()
  const cfg = await page.request.put(api + '/model-config' + query, {headers, data: {expected_version: 0, entry: {provider:'openai-images',model:'synthetic-quote-image',capability:'image',region:'global',lifecycle:'active',enabled:true,is_default:false},credential:{action:'set',secret:'synthetic-never-transmitted'}}})
  expect(cfg.status()).toBe(200)
  const model = (await cfg.json()).entries[0]
+ await navigateTo(page, '/studio')
  await page.getByRole('button', {name:'刷新模型目录',exact:true}).click()
  await page.getByRole('combobox',{name:'模型选择',exact:true}).selectOption(model.id)
  await page.getByRole('combobox',{name:'创作类型',exact:true}).selectOption('general')
@@ -39,8 +41,9 @@ test('exact image and creative quote consent accepts queued work without a model
  const created = await page.request.post(api+'/projects'+query,{headers:{...headers,'Idempotency-Key':'synthetic-project'},data:{title:'Synthetic quote story',brief:'Synthetic local preview only.'}})
  expect(created.status()).toBe(201)
  const project = await created.json()
- await page.getByRole('button',{name:'短剧工作台',exact:true}).click()
- await page.locator('.drama-project-list button').filter({hasText:project.title}).click()
+ await navigateTo(page, '/projects')
+ await openProject(page, project.title, 'brief')
+ await openCreativeTools(page)
  const tools = page.locator('.creative-tools')
  const picker = tools.locator('.runtime-model-picker').last()
  await picker.getByRole('button',{name:'刷新模型目录',exact:true}).click()

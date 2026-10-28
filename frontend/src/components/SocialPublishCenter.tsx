@@ -5,6 +5,7 @@ import { socialDownloadPath, socialPlatformLabels, socialSources, socialStatusLa
 import './social.css'
 import { SocialTikTokPanel, SocialJobActions } from './SocialTikTokPanel'
 import { DouyinHandoffPanel } from './DouyinHandoffPanel'
+import { useNavigationTask } from '../app/navigationGuard'
 
 export function SocialPublishCenter({projectId, space}: {projectId: string; space: string}) {
   const {t, formatDate} = useI18n()
@@ -15,6 +16,7 @@ export function SocialPublishCenter({projectId, space}: {projectId: string; spac
   const [confirmed, setConfirmed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [uncertain, setUncertain] = useState(false)
+  useNavigationTask(busy || uncertain)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [revision, setRevision] = useState(0)

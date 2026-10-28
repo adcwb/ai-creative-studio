@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { ApiError, baseURL, errorMessage, request } from '../api'
 import { useI18n } from '../i18n'
+import { useNavigationTask } from '../app/navigationGuard'
 import { socialDownloadPath, type SocialMedia, type SocialSource } from '../social'
 
 export function TikTokPhotoEditor({projectId, space, version, reload, sources, ids, cover, onChange, disabled}: {projectId: string; space: string; version: number; reload: () => void; sources: SocialSource[]; ids: string[]; cover: number; onChange: (ids: string[], cover: number) => void; disabled: boolean}) {
@@ -9,6 +10,7 @@ export function TikTokPhotoEditor({projectId, space, version, reload, sources, i
   const [normalizationConsent, setNormalizationConsent] = useState(false)
   const [normalizing, setNormalizing] = useState(false)
   const [uncertain, setUncertain] = useState(false)
+  useNavigationTask(normalizing || uncertain)
   const [error, setError] = useState('')
   const pending = useRef<{key: string; body: string} | null>(null)
   const photos = sources.filter(item => item.kind === 'asset' && ['image/jpeg', 'image/png'].includes(item.mime_type))

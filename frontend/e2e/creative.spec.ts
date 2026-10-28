@@ -1,3 +1,4 @@
+import { navigateTo, openProject, projectStep, openCreativeTools } from './support/navigation'
 import { randomUUID } from 'node:crypto'
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 import type { DramaProject } from '../src/drama'
@@ -20,19 +21,22 @@ async function create(request: APIRequestContext, title: string, storyboard = fa
 }
 async function open(page: Page, project: DramaProject) {
   await page.goto('/')
-  await page.getByRole('button', {name: '短剧工作台', exact: true}).click()
-  await page.locator('.drama-project-list button').filter({hasText: project.title}).click()
+  await navigateTo(page, '/projects')
+  await openProject(page, project.title, 'brief')
   await expect(page.getByLabel('项目名称')).toHaveValue(project.title)
 }
 
 test('analysis and synthetic image generation persist through actual asynchronous APIs', async ({page, request}, info) => {
   const project = await create(request, `创作任务-${info.project.name}-${randomUUID()}`)
   await open(page, project)
+  await openCreativeTools(page)
   await page.getByRole('button', {name: '分析已保存需求', exact: true}).click()
   await expect(page.locator('.creative-analysis')).toContainText('待澄清问题')
   await expect(page.locator('.creative-analysis')).toContainText('local-rules')
   await page.getByLabel('生成提示或配音文本', {exact: true}).fill('合成演示：雨夜钟楼色卡')
   await page.getByRole('button', {name: '生成合成演示图片', exact: true}).click()
+  await expect.poll(async () => (await (await request.get(`${api}/projects/${project.id}/creative-jobs${query}`)).json() as {status: string}[]).some(job => job.status === 'succeeded')).toBe(true)
+  await projectStep(page, 'media')
   await expect(page.locator('.media-assets img')).toHaveCount(1)
   const jobs = await (await request.get(`${api}/projects/${project.id}/creative-jobs${query}`)).json() as {kind: string; status: string; provider: string}[]
   expect(jobs.some(job => job.kind === 'analysis' && job.status === 'succeeded')).toBe(true)
@@ -43,6 +47,7 @@ test('analysis and synthetic image generation persist through actual asynchronou
 test('photo editing uploads new cropped and rotated pixels with reference metadata', async ({page, request}, info) => {
   const project = await create(request, `照片编辑-${info.project.name}-${randomUUID()}`, true)
   await open(page, project)
+  await projectStep(page, 'media')
   const data = await page.evaluate(() => {const canvas = document.createElement('canvas'); canvas.width = 80; canvas.height = 40; const c = canvas.getContext('2d')!; c.fillStyle = '#678060'; c.fillRect(0, 0, 80, 40); return canvas.toDataURL('image/png').split(',')[1]})
   await page.getByLabel('素材用途', {exact: true}).selectOption('reference')
   await page.locator('.media-studio').getByLabel('关联角色', {exact: true}).selectOption(project.script!.characters[0].name)
@@ -61,6 +66,7 @@ test('photo editing uploads new cropped and rotated pixels with reference metada
 test('shots can be added reordered removed and restored from persisted history', async ({page, request}, info) => {
   const project = await create(request, `镜头结构-${info.project.name}-${randomUUID()}`, true)
   await open(page, project)
+  await projectStep(page, 'storyboard')
   await page.getByRole('button', {name: '编辑分镜', exact: true}).click()
   await page.getByRole('button', {name: '添加镜头', exact: true}).click()
   await page.getByLabel('第 4 镜画面描述', {exact: true}).fill('新增镜头：合成灯光特写')
@@ -72,6 +78,7 @@ test('shots can be added reordered removed and restored from persisted history',
   const saved = await (await request.get(`${api}/projects/${project.id}${query}`)).json() as DramaProject
   expect(saved.storyboard!.shots).toHaveLength(3)
   expect(saved.storyboard!.shots[2].description).toBe('新增镜头：合成灯光特写')
+  await openCreativeTools(page)
   await page.getByText(/剧本与分镜版本历史（/).click()
   await page.getByRole('button', {name: '恢复此分镜版本', exact: true}).first().click()
   await page.getByRole('button', {name: '确认恢复历史版本', exact: true}).click()

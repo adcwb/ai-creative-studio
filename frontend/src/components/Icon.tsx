@@ -1,6 +1,10 @@
-type IconName = 'spark' | 'grid' | 'image' | 'arrow' | 'close' | 'search' | 'check' | 'refresh' | 'poster' | 'portrait' | 'general' | 'script'
+type IconName = 'spark' | 'grid' | 'image' | 'arrow' | 'close' | 'search' | 'check' | 'refresh' | 'poster' | 'portrait' | 'general' | 'script' | 'users' | 'settings' | 'wallet' | 'menu'
 
 const paths: Record<IconName, string> = {
+  menu: 'M4 6h16M4 12h16M4 18h16',
+  users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
+  settings: 'M4 7h16M4 17h16M8 4v6M16 14v6',
+  wallet: 'M20 8H4V5h14v3M4 8v12h16V8M16 13h4v4h-4z',
   spark: 'm12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3Z',
   grid: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
   image: 'M4 4h16v16H4zM4 16l5-5 5 5 3-3 3 3M14 8h.01',

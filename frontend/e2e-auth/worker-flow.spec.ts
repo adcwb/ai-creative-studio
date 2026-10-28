@@ -1,3 +1,4 @@
+import { navigateTo, openProject, projectStep } from '../e2e/support/navigation'
 import { test, expect } from '@playwright/test'
 
 test('secure browser creates image, script and storyboard through execution workers', async ({page}, info) => {
@@ -6,26 +7,31 @@ test('secure browser creates image, script and storyboard through execution work
   await page.locator('#auth-email').fill(`worker-flow-${info.project.name}-${Date.now()}@example.invalid`)
   await page.locator('#auth-password').fill('Synthetic-worker-browser-passphrase!')
   await page.getByRole('button', {name: '注册并登录'}).click()
-  await expect(page.getByRole('button', {name: '退出登录'}).filter({visible: true})).toBeVisible()
+  await expect(page.locator('.account-signout')).toBeAttached()
   const prompt = `合成工作进程图像 ${info.project.name}`
   await page.getByLabel('描述你的画面').fill(prompt)
   await page.getByRole('button', {name: '创建模拟图像', exact: true}).click()
   const card = page.locator('.task').filter({hasText: prompt})
   await expect(card.getByText('模拟完成', {exact: true})).toBeVisible({timeout: 15000})
   await expect.poll(() => card.locator('img').evaluate((node: HTMLImageElement) => node.naturalWidth)).toBeGreaterThan(0)
-  await page.getByRole('button', {name: '短剧工作台', exact: true}).click()
+  await navigateTo(page, '/projects')
+  await page.getByRole('link', {name: '新建短剧项目', exact: true}).click()
   const title = `独立任务创作验收 ${info.project.name}`
   await page.getByLabel('项目名称').fill(title)
   await page.getByLabel('创作简报').fill('合成验收：修钟师与快递员合作，将一封旧信送到钟楼。')
   await page.getByRole('button', {name: '创建项目', exact: true}).click()
+  await expect(page).toHaveURL(new RegExp('/projects/[^/]+/brief' + '$'))
+  await projectStep(page, 'script')
   await page.getByRole('button', {name: '生成模拟剧本', exact: true}).click()
   await expect(page.locator('.drama-script')).toBeVisible({timeout: 15000})
+  await projectStep(page, 'storyboard')
   await page.getByRole('button', {name: '生成模拟分镜', exact: true}).click()
   await expect(page.locator('.drama-storyboard')).toBeVisible({timeout: 15000})
   await page.reload()
-  await page.getByRole('button', {name: '短剧工作台', exact: true}).click()
-  await page.locator('.drama-project-list button').filter({hasText: title}).click()
+  await navigateTo(page, '/projects')
+  await openProject(page, title, 'script')
   await expect(page.locator('.drama-script')).toBeVisible()
+  await projectStep(page, 'storyboard')
   await expect(page.locator('.drama-storyboard')).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
