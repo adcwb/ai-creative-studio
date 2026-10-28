@@ -69,7 +69,7 @@ var pgCollections = map[string][]pgCollection{
 	"auth":      {{"users", "studio_users", "map"}, {"organizations", "studio_organizations", "map"}, {"sessions", "studio_sessions", "map"}},
 	"budget":    {{"limits", "studio_budget_limits", "map"}, {"entries", "studio_cost_entries", "map"}, {"changes", "studio_budget_changes", "array"}},
 	"models":    {{"tenants", "studio_model_tenants", "map"}},
-	"creative":  {{"jobs", "studio_creative_jobs", "map"}, {"receipts", "studio_creative_receipts", "map"}},
+	"creative":  {{"jobs", "studio_creative_jobs", "map"}, {"receipts", "studio_creative_receipts", "map"}, {"digital_humans", "studio_digital_humans", "map"}},
 	"media":     {{"projects", "studio_media_projects", "map"}, {"receipts", "studio_media_receipts", "map"}},
 	"alignment": {{"tasks", "studio_alignment_tasks", "map"}, {"receipts", "studio_alignment_receipts", "map"}},
 }

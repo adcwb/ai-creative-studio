@@ -38,6 +38,8 @@
 
 ## 模型生态
 
+项目内现已提供[数字人口播入口](docs/digital-human.md)：形象授权登记与撤销、TTS／录音选择、照片驱动与视频改口型任务、带 AI 标识的成片入库。默认未启用人物模型，需安装具备适当许可的执行器并完成真实样片验收。
+
 提供 OpenAI、Anthropic / Claude、Google / Gemini / Nano Banana、字节 Ark / 豆包、MiniMax 和即梦公开视觉 API 的可替换适配。不同厂商和型号的文本、图像、视频、语音与转写能力不同，配置型号不等于协议兼容或账户获权。
 
 OpenAI Videos / Sora 已退役并在本地拒绝；即梦视频没有已核实的可用新版官方接口。旧语音与转写接口生命周期见[候选合同核对](docs/iteration-9-followup.md)。真实账号、效果、耗时和费用尚未验证，不以 mock 结果代替。[真实验收准备](docs/live-evaluation.md)默认 dry-run；明确报价、费用上限、审核及授权缺失时不能执行远端收费请求。

@@ -9,9 +9,10 @@ import social from './locales/social'
 import douyin from './locales/douyin'
 import poster from './locales/poster'
 import navigation from './locales/navigation'
+import digitalHuman from './locales/digitalHuman'
 export type Locale = 'zh-CN' | 'en'
 export type TranslationParams = Record<string, string | number>
-const dictionaries: Record<string, string> = {...drama, ...mediaLegacy, ...core, ...governance, ...runtime, ...mediaComposite, ...poster, ...social, ...douyin, ...navigation}
+const dictionaries: Record<string, string> = {...drama, ...mediaLegacy, ...core, ...governance, ...runtime, ...mediaComposite, ...poster, ...social, ...douyin, ...navigation, ...digitalHuman}
 export function resolveLocale(saved: string | null, languages: readonly string[]): Locale {
   if (saved === 'zh-CN' || saved === 'en') return saved
   return languages[0]?.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'

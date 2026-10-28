@@ -24,6 +24,12 @@ x-runtime: &runtime
   AUTH_COOKIE_SECURE: "true"
   IMAGE_PROVIDER: mock-svg
   TEXT_PROVIDER: mock-text
+  # API and workers must see identical installed runners and license settings.
+  DIGITAL_HUMAN_LICENSE_ACK: ${DIGITAL_HUMAN_LICENSE_ACK:-false}
+  DIGITAL_HUMAN_PHOTO_COMMAND: ${DIGITAL_HUMAN_PHOTO_COMMAND:-}
+  DIGITAL_HUMAN_PHOTO_MODEL: ${DIGITAL_HUMAN_PHOTO_MODEL:-}
+  LIP_SYNC_COMMAND: ${LIP_SYNC_COMMAND:-}
+  LIP_SYNC_MODEL: ${LIP_SYNC_MODEL:-}
 
 services:
   backend:

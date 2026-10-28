@@ -41,6 +41,7 @@ func ConfigureProviders(store *application.FileStore, image application.ImagePro
 	application.SetForcedAlignmentProvider(store, forced, forcedCaps)
 	lipSync, lipSyncCaps := application.ConfigureLipSyncFromEnv()
 	application.SetCreativeLipSync(store, lipSync, lipSyncCaps)
+	application.ConfigureDigitalHumanFromEnv(store)
 	if err := application.ValidateRuntimeFromEnv(imageCaps, creativeCaps, speechCaps, videoCaps, asrCaps, musicCaps, forcedCaps, lipSyncCaps, effectCaps); err != nil {
 		return Providers{}, err
 	}

@@ -5732,7 +5732,7 @@
             }
           }
         },
-        "description": "kind=vision要求reference_asset_id引用同项目已验证图像，分析结果复用analysis；真实模型质量、权限和费用未验证，不自动重试。"
+        "description": "kind=vision要求reference_asset_id引用同项目已验证图像，分析结果复用analysis；真实模型质量、权限和费用未验证，不自动重试。 kind=digital_human requires avatar_id, audio_asset_id, voice_confirmed=true and voice_consent_reference. Reference is derived from the grant. Select provider/model from digital_human_photo or digital_human_video capability; managed generic video configurations are rejected. Audio must be owned WAV/MP3, <=10 MiB and <=30 seconds, no longer than a video reference. Local engine and operator license acknowledgment are required. Eino validates, drives and encodes; output replaces the model soundtrack with the selected audio and burns in AI Generated. Successful output is a project media asset, not an automatic timeline edit. Text-to-speech uses a separate speech job and its own explicit model/budget confirmation."
       }
     },
     "/api/v1/projects/{id}/analysis": {
@@ -11971,6 +11971,506 @@
           }
         }
       }
+    },
+    "/api/v1/projects/{id}/digital-humans": {
+      "get": {
+        "operationId": "listDigitalHumans",
+        "summary": "List project likeness grants, including revoked records",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project likeness grants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DigitalHuman"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createDigitalHuman",
+        "summary": "Register a manually reviewed likeness authorization",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Idempotent replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DigitalHuman"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DigitalHuman"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DigitalHumanInput"
+              }
+            }
+          }
+        },
+        "description": "Requires owned PNG/JPEG (at least 256 pixels per dimension) or MP4 up to 30 seconds; input file at most 10 MiB. Requires both operator confirmations and a traceable consent reference. Same key and payload returns the saved record, including any later revocation; a changed payload returns 409. Does not invoke a model."
+      }
+    },
+    "/api/v1/projects/{id}/digital-humans/{avatarId}/revoke": {
+      "post": {
+        "operationId": "revokeDigitalHuman",
+        "summary": "Permanently revoke a likeness grant",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          },
+          {
+            "name": "avatarId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revoked or previously revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DigitalHuman"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "description": "Idempotent state transition. Requires editor privileges and CSRF protection. Blocks future generation and unpublished output of running jobs; existing assets remain for audit. New consent requires a new grant. Does not remove published media."
+      }
     }
   },
   "components": {
@@ -13905,7 +14405,8 @@
               "consistency",
               "music",
               "lip_sync",
-              "sound_effect"
+              "sound_effect",
+              "digital_human"
             ]
           },
           "expected_version": {
@@ -13974,6 +14475,20 @@
             "type": "string",
             "pattern": "^[a-f0-9]{64}$",
             "description": "Request-bound digest from runtime-quote; required for explicit managed execution."
+          },
+          "avatar_id": {
+            "type": "string",
+            "description": "Required for digital_human; active likeness grant in this project."
+          },
+          "voice_consent_reference": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 300,
+            "description": "Traceable permission for the selected audio, required for digital_human."
+          },
+          "voice_confirmed": {
+            "type": "boolean",
+            "description": "Must be true for digital_human; this is an operator declaration, not automated rights verification."
           }
         },
         "required": [
@@ -14074,6 +14589,27 @@
             "readOnly": true,
             "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$",
             "description": "Optional server-captured correlation context; never authorization."
+          },
+          "avatar_id": {
+            "type": "string",
+            "description": "Required for digital_human; active likeness grant in this project."
+          },
+          "voice_consent_reference": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 300,
+            "description": "Traceable permission for the selected audio, required for digital_human."
+          },
+          "voice_confirmed": {
+            "type": "boolean",
+            "description": "Must be true for digital_human; this is an operator declaration, not automated rights verification."
+          },
+          "ai_generated": {
+            "type": "boolean"
+          },
+          "voice_consent_by": {
+            "type": "string",
+            "description": "Authenticated user recording the voice consent; omitted only in demo mode or non-avatar jobs."
           }
         },
         "required": [
@@ -16339,6 +16875,99 @@
             "enum": [
               true
             ]
+          }
+        }
+      },
+      "DigitalHumanInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "reference_asset_id",
+          "consent_reference",
+          "likeness_confirmed",
+          "single_person_confirmed"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "reference_asset_id": {
+            "type": "string"
+          },
+          "consent_reference": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 300
+          },
+          "likeness_confirmed": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "single_person_confirmed": {
+            "type": "boolean",
+            "enum": [
+              true
+            ],
+            "description": "Manual single-person, clear, unobstructed face review. No automated face detection is claimed."
+          }
+        }
+      },
+      "DigitalHuman": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "space_id",
+          "project_id",
+          "name",
+          "reference_asset_id",
+          "route",
+          "consent_reference",
+          "created_by",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "space_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reference_asset_id": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string",
+            "enum": [
+              "photo",
+              "video"
+            ]
+          },
+          "consent_reference": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string",
+            "description": "Authenticated user ID; empty only in demo mode."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }

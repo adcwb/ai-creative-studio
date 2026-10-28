@@ -20,74 +20,88 @@ import (
 
 type CreativeJobInput struct {
 	ModelRequest
-	AudioAssetID      string `json:"audio_asset_id,omitempty"`
-	ComparisonAssetID string `json:"comparison_asset_id,omitempty"`
-	MaskAssetID       string `json:"mask_asset_id,omitempty"`
-	ExpectedModel     string `json:"expected_model,omitempty"`
-	ReferenceAssetID  string `json:"reference_asset_id,omitempty"`
-	Kind              string `json:"kind"`
-	ExpectedVersion   int    `json:"expected_version"`
-	ExpectedProvider  string `json:"expected_provider,omitempty"`
-	Prompt            string `json:"prompt,omitempty"`
-	ShotID            string `json:"shot_id,omitempty"`
-	Character         string `json:"character,omitempty"`
+	consentActor          string
+	AvatarID              string `json:"avatar_id,omitempty"`
+	VoiceConsentReference string `json:"voice_consent_reference,omitempty"`
+	VoiceConfirmed        bool   `json:"voice_confirmed,omitempty"`
+	AudioAssetID          string `json:"audio_asset_id,omitempty"`
+	ComparisonAssetID     string `json:"comparison_asset_id,omitempty"`
+	MaskAssetID           string `json:"mask_asset_id,omitempty"`
+	ExpectedModel         string `json:"expected_model,omitempty"`
+	ReferenceAssetID      string `json:"reference_asset_id,omitempty"`
+	Kind                  string `json:"kind"`
+	ExpectedVersion       int    `json:"expected_version"`
+	ExpectedProvider      string `json:"expected_provider,omitempty"`
+	Prompt                string `json:"prompt,omitempty"`
+	ShotID                string `json:"shot_id,omitempty"`
+	Character             string `json:"character,omitempty"`
 }
 type CreativeJob struct {
-	TraceParent       string `json:"trace_parent,omitempty"`
-	lease             *jobqueue.Job
-	RuntimeSelection  *RuntimeSelection `json:"runtime_selection,omitempty"`
-	AudioAssetID      string            `json:"audio_asset_id,omitempty"`
-	ComparisonAssetID string            `json:"comparison_asset_id,omitempty"`
-	MaskAssetID       string            `json:"mask_asset_id,omitempty"`
-	Model             string            `json:"model,omitempty"`
-	ReferenceAssetID  string            `json:"reference_asset_id,omitempty"`
-	ID                string            `json:"id"`
-	SpaceID           string            `json:"space_id"`
-	ProjectID         string            `json:"project_id"`
-	Kind              string            `json:"kind"`
-	Provider          string            `json:"provider"`
-	Status            string            `json:"status"`
-	SourceVersion     int               `json:"source_version"`
-	Prompt            string            `json:"prompt"`
-	ShotID            string            `json:"shot_id"`
-	Character         string            `json:"character"`
-	UpstreamID        string            `json:"upstream_id,omitempty"`
-	AssetID           string            `json:"asset_id,omitempty"`
-	Analysis          *BriefAnalysis    `json:"analysis,omitempty"`
-	Error             string            `json:"error,omitempty"`
-	ErrorCode         string            `json:"error_code,omitempty"`
-	CreatedAt         time.Time         `json:"created_at"`
-	UpdatedAt         time.Time         `json:"updated_at"`
-	Source            ProjectInput      `json:"source"`
+	VoiceConsentBy        string `json:"voice_consent_by,omitempty"`
+	AvatarID              string `json:"avatar_id,omitempty"`
+	VoiceConsentReference string `json:"voice_consent_reference,omitempty"`
+	VoiceConfirmed        bool   `json:"voice_confirmed,omitempty"`
+	AIGenerated           bool   `json:"ai_generated,omitempty"`
+	TraceParent           string `json:"trace_parent,omitempty"`
+	lease                 *jobqueue.Job
+	RuntimeSelection      *RuntimeSelection `json:"runtime_selection,omitempty"`
+	AudioAssetID          string            `json:"audio_asset_id,omitempty"`
+	ComparisonAssetID     string            `json:"comparison_asset_id,omitempty"`
+	MaskAssetID           string            `json:"mask_asset_id,omitempty"`
+	Model                 string            `json:"model,omitempty"`
+	ReferenceAssetID      string            `json:"reference_asset_id,omitempty"`
+	ID                    string            `json:"id"`
+	SpaceID               string            `json:"space_id"`
+	ProjectID             string            `json:"project_id"`
+	Kind                  string            `json:"kind"`
+	Provider              string            `json:"provider"`
+	Status                string            `json:"status"`
+	SourceVersion         int               `json:"source_version"`
+	Prompt                string            `json:"prompt"`
+	ShotID                string            `json:"shot_id"`
+	Character             string            `json:"character"`
+	UpstreamID            string            `json:"upstream_id,omitempty"`
+	AssetID               string            `json:"asset_id,omitempty"`
+	Analysis              *BriefAnalysis    `json:"analysis,omitempty"`
+	Error                 string            `json:"error,omitempty"`
+	ErrorCode             string            `json:"error_code,omitempty"`
+	CreatedAt             time.Time         `json:"created_at"`
+	UpdatedAt             time.Time         `json:"updated_at"`
+	Source                ProjectInput      `json:"source"`
 }
 type creativeReceipt struct {
+	AvatarID    string `json:"avatar_id,omitempty"`
 	Fingerprint string `json:"fingerprint"`
 	JobID       string `json:"job_id"`
 }
 type creativeDisk struct {
-	Version  int                        `json:"version"`
-	Jobs     map[string]CreativeJob     `json:"jobs"`
-	Receipts map[string]creativeReceipt `json:"receipts"`
+	DigitalHumans map[string]DigitalHuman    `json:"digital_humans,omitempty"`
+	Version       int                        `json:"version"`
+	Jobs          map[string]CreativeJob     `json:"jobs"`
+	Receipts      map[string]creativeReceipt `json:"receipts"`
 }
 type creativeStore struct {
-	pg                    *postgresScope
-	soundEffect           MusicProvider
-	soundEffectCaps       Capabilities
-	lipSync               LipSyncProvider
-	lipSyncCaps           Capabilities
-	music                 MusicProvider
-	musicCaps             Capabilities
-	speechCaps, videoCaps Capabilities
-	mu                    stateMutex
-	path                  string
-	data                  creativeDisk
-	provider              CreativeProvider
-	speech                CreativeProvider
-	video                 CreativeProvider
-	image                 ImageProvider
-	caps                  Capabilities
-	imageCaps             Capabilities
-	cancels               map[string]context.CancelFunc
+	avatarPhoto            PhotoAvatarProvider
+	avatarPhotoCaps        Capabilities
+	avatarLicenseConfirmed bool
+	pg                     *postgresScope
+	soundEffect            MusicProvider
+	soundEffectCaps        Capabilities
+	lipSync                LipSyncProvider
+	lipSyncCaps            Capabilities
+	music                  MusicProvider
+	musicCaps              Capabilities
+	speechCaps, videoCaps  Capabilities
+	mu                     stateMutex
+	path                   string
+	data                   creativeDisk
+	provider               CreativeProvider
+	speech                 CreativeProvider
+	video                  CreativeProvider
+	image                  ImageProvider
+	caps                   Capabilities
+	imageCaps              Capabilities
+	cancels                map[string]context.CancelFunc
 }
 
 func openCreativeStore(dir string, database ...*sql.DB) (*creativeStore, error) {
@@ -248,13 +262,13 @@ func (c *creativeStore) mediaCaps() map[string]Capabilities {
 	if _, ok := c.provider.(VisionProvider); !ok || c.provider == nil {
 		vision = Capabilities{Provider: "unavailable", Mode: "unavailable", Ready: false, Message: "请配置支持图像输入的文本模型；不会以本地模拟识别图片。"}
 	}
-	return map[string]Capabilities{"image": c.imageCaps, "speech": speech, "video": video, "vision": vision, "consistency": vision, "music": c.musicCaps, "lip_sync": c.lipSyncCaps, "sound_effect": c.soundEffectCaps}
+	return map[string]Capabilities{"image": c.imageCaps, "speech": speech, "video": video, "vision": vision, "consistency": vision, "music": c.musicCaps, "lip_sync": c.lipSyncCaps, "sound_effect": c.soundEffectCaps, "digital_human_photo": c.avatarCaps("photo"), "digital_human_video": c.avatarCaps("video")}
 }
 func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput) (CreativeJob, bool, error) {
 	if in.ExpectedVersion < 1 {
 		return CreativeJob{}, false, ErrInvalidProjectInput
 	}
-	if in.Kind != "analysis" && in.Kind != "image" && in.Kind != "speech" && in.Kind != "video" && in.Kind != "vision" && in.Kind != "consistency" && in.Kind != "music" && in.Kind != "lip_sync" && in.Kind != "sound_effect" {
+	if in.Kind != "analysis" && in.Kind != "image" && in.Kind != "speech" && in.Kind != "video" && in.Kind != "vision" && in.Kind != "consistency" && in.Kind != "music" && in.Kind != "lip_sync" && in.Kind != "sound_effect" && in.Kind != "digital_human" {
 		return CreativeJob{}, false, ErrInvalidProjectInput
 	}
 	if in.Kind != "analysis" {
@@ -319,13 +333,54 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	if in.selection != nil {
 		caps = in.selectedCaps
 	}
+	if in.Kind == "digital_human" {
+		// This release only runs operator-installed avatar engines. Do not allow
+		// a generic video model selection to bypass the avatar capability gate.
+		if in.selection != nil || !in.VoiceConfirmed {
+			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
+		consent, e := normalizeProjectText(in.VoiceConsentReference, "声音授权依据", 3, 300)
+		if e != nil {
+			return CreativeJob{}, false, e
+		}
+		in.VoiceConsentReference = consent
+		avatar, e := c.avatarLocked(space, id, in.AvatarID)
+		if e != nil {
+			return CreativeJob{}, false, e
+		}
+		if in.ReferenceAssetID != "" && in.ReferenceAssetID != avatar.ReferenceAssetID {
+			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
+		in.ReferenceAssetID = avatar.ReferenceAssetID
+		caps = c.avatarCaps(avatar.Route)
+		media := s.media.Get(id, space)
+		reference, found := mediaAsset(media, avatar.ReferenceAssetID)
+		if !found {
+			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
+		audio, found := mediaAsset(media, in.AudioAssetID)
+		if !found || audio.Kind != "audio" {
+			return CreativeJob{}, false, projectInputError("请选择本项目已授权的配音")
+		}
+		if e = s.validateAvatarMedia(id, space, reference, false); e != nil {
+			return CreativeJob{}, false, e
+		}
+		if e = s.validateAvatarMedia(id, space, audio, true); e != nil {
+			return CreativeJob{}, false, e
+		}
+		if avatar.Route == "video" && audio.Duration > reference.Duration+0.1 {
+			return CreativeJob{}, false, projectInputError("配音不能长于参考视频，请裁剪配音或更换视频")
+		}
+	} else if in.AvatarID != "" || in.VoiceConfirmed || in.VoiceConsentReference != "" {
+		return CreativeJob{}, false, ErrInvalidProjectInput
+	}
 	if !caps.Ready {
 		return CreativeJob{}, false, ErrProviderNotReady
 	}
 	if (in.Kind == "vision" || in.Kind == "consistency") && in.ReferenceAssetID == "" {
 		return CreativeJob{}, false, projectInputError("图像理解需要选择项目图片")
 	}
-	if in.ReferenceAssetID != "" {
+	if in.ReferenceAssetID != "" && in.Kind != "digital_human" {
 		if in.Kind != "image" && in.Kind != "video" && in.Kind != "vision" && in.Kind != "consistency" && in.Kind != "lip_sync" {
 			return CreativeJob{}, false, ErrInvalidProjectInput
 		}
@@ -360,7 +415,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		if e != nil || (audioMIME != "audio/wav" && audioMIME != "audio/mpeg") {
 			return CreativeJob{}, false, ErrInvalidProjectInput
 		}
-	} else if in.AudioAssetID != "" {
+	} else if in.AudioAssetID != "" && in.Kind != "digital_human" {
 		return CreativeJob{}, false, ErrInvalidProjectInput
 	}
 
@@ -433,6 +488,10 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	}
 	now := time.Now().UTC()
 	job := CreativeJob{TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), AudioAssetID: in.AudioAssetID, ComparisonAssetID: in.ComparisonAssetID, MaskAssetID: in.MaskAssetID, ReferenceAssetID: in.ReferenceAssetID, ID: jid, SpaceID: space, ProjectID: id, Kind: in.Kind, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Prompt: in.Prompt, ShotID: in.ShotID, Character: in.Character, Source: ProjectInput{Title: p.Title, Brief: p.Brief}, CreatedAt: now, UpdatedAt: now}
+	job.AvatarID, job.VoiceConsentReference, job.VoiceConfirmed, job.AIGenerated = in.AvatarID, in.VoiceConsentReference, in.VoiceConfirmed, in.Kind == "digital_human"
+	if in.Kind == "digital_human" {
+		job.VoiceConsentBy = in.consentActor
+	}
 	c.data.Jobs[jid] = job
 	c.data.Receipts[rk] = creativeReceipt{Fingerprint: fingerprint, JobID: jid}
 	if c.pg != nil {
@@ -665,6 +724,9 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 	return s.executeCreativeJobWith(ctx, job, nil)
 }
 func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob, managed *RuntimeProviders) error {
+	if job.Kind == "digital_human" {
+		return s.executeDigitalHuman(ctx, job)
+	}
 	c := s.creative
 	textProvider, imageProvider, speechProvider, videoProvider, musicProvider := c.provider, c.image, c.speech, c.video, c.music
 	caps := c.mediaCaps()[job.Kind]

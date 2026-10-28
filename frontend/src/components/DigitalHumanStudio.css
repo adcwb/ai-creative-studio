@@ -1,0 +1,7 @@
+.digital-human-studio > h3 { margin-top: 1.75rem; }
+.digital-human-studio > label { display: block; margin-block: 1rem; }
+.digital-human-studio label:has(input[type="checkbox"]) { display: flex; align-items: flex-start; gap: .6rem; margin-block: .8rem; font-weight: 400; }
+.digital-human-studio input[type="checkbox"] { width: 1rem; height: 1rem; flex: 0 0 1rem; margin-top: .2rem; }
+.digital-human-studio audio, .digital-human-studio video { width: 100%; max-width: 100%; margin-block: .75rem; }
+.digital-human-studio video { max-height: 360px; }
+.digital-human-studio .editing-note p { overflow-wrap: anywhere; }

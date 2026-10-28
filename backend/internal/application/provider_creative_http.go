@@ -5,6 +5,7 @@ import (
 )
 
 func registerCreativeRoutes(mux *http.ServeMux, s *FileStore) {
+	registerDigitalHumanRoutes(mux, s)
 	mux.HandleFunc("GET /api/v1/creative-registry", func(w http.ResponseWriter, r *http.Request) { respond(w, 200, CreativeRegistry()) })
 	mux.HandleFunc("GET /api/v1/creative-capabilities", func(w http.ResponseWriter, r *http.Request) { respond(w, 200, s.creative.caps) })
 	mux.HandleFunc("GET /api/v1/creative-media-capabilities", func(w http.ResponseWriter, r *http.Request) { respond(w, 200, s.creative.mediaCaps()) })
@@ -44,6 +45,8 @@ func registerCreativeRoutes(mux *http.ServeMux, s *FileStore) {
 			if !validateModelPreview(w, r, s, in.ModelRequest, "creative", r.PathValue("id"), in) {
 				return
 			}
+			scope, _ := r.Context().Value(authScopeKey{}).(authScope)
+			in.consentActor = scope.UserID
 			job, created, err := s.createCreativeJob(space, r.PathValue("id"), key, in)
 			if err != nil {
 				storeError(w, err)
