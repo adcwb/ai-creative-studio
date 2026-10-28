@@ -47,7 +47,7 @@ def main():
             # Only allow toolchain environment; do not inspect/inherit provider credentials.
             env = {key: os.environ[key] for key in ['PATH', 'HOME', 'GOPATH', 'GOCACHE', 'GOTOOLCHAIN'] if key in os.environ}
             env.update(STUDIO_TEST_S3_ENDPOINT=endpoint, STUDIO_TEST_S3_ACCESS=access, STUDIO_TEST_S3_SECRET=secret)
-            run('go', 'test', '-race', './internal/studio', '-run', '^TestS3LocalContainerIntegration$', '-count=1', '-v', cwd=ROOT / 'backend', env=env)
+            run('go', 'test', '-race', './internal/application', '-run', '^TestS3LocalContainerIntegration$', '-count=1', '-v', cwd=ROOT / 'backend', env=env)
             print(json.dumps({'fixture': 'local disposable MinIO', 'result': 'passed', 'checks': ['signed upload', 'signed read', 'PNG roundtrip', 'expired URL rejected', 'object substitution rejected', 'anonymous read denied'], 'live_provider_calls': 0}))
         finally:
             subprocess.run(['docker', 'rm', '-f', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False, env=docker_env)

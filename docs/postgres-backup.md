@@ -91,7 +91,7 @@ and the timer never catches up missed windows automatically.
 Real synthetic integration is gated by `STUDIO_BACKUP_TEST_DSN` and
 `STUDIO_BACKUP_TARGET_DSN` (fresh empty DBs), plus optional
 `STUDIO_TEST_PG_DUMP`, `STUDIO_TEST_PG_RESTORE`, `STUDIO_TEST_PG_LIBRARY_PATH`:
-`go test ./internal/studio -run '^TestPostgresBackup' -race -count=1 -v`.
+`go test ./internal/application -run '^TestPostgresBackup' -race -count=1 -v`.
 The test stores synthetic shared-file data, runs real pg_dump/pg_restore, verifies
 unknown queue/cost preservation, and rejects active leases, nonempty targets and
 object corruption. Real external S3 backup, offsite transport, managed encryption/retention

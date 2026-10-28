@@ -7,11 +7,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"flag"
-	"github.com/adcwb/ai-creative-studio/backend/internal/studio"
 	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/application"
 )
 
 func TestRotationConnectionRequiresExplicitIsolatedParameters(t *testing.T) {
@@ -66,7 +67,7 @@ func TestRotationCLIFileApplyWithOnlySyntheticKeys(t *testing.T) {
 	if e := os.WriteFile(path, raw, 0600); e != nil {
 		t.Fatal(e)
 	}
-	if _, e := studio.OpenModelConfigStore(dir, old); e != nil {
+	if _, e := application.OpenModelConfigStore(dir, old); e != nil {
 		t.Fatal("synthetic configuration invalid", e)
 	}
 	oldArgs, oldFlags := os.Args, flag.CommandLine

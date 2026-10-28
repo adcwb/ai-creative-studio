@@ -71,7 +71,7 @@ S3 HTTP fixture 不等于实际 S3 服务。2026-10-23 从官方 `https://dl.min
 
 ```sh
 cd backend
-STUDIO_S3_SERVICE_ENDPOINT=http://127.0.0.1:55480 go test -race ./internal/studio -run '^TestBlobS3Service$' -count=1 -v
+STUDIO_S3_SERVICE_ENDPOINT=http://127.0.0.1:55480 go test -race ./internal/application -run '^TestBlobS3Service$' -count=1 -v
 ```
 
 此入口仅允许 loopback HTTP 合成测试，默认未指定 endpoint 则明确 skip；不会读取真实 S3 凭据。云 S3 的真实账户验证仍需另外明确授权和安全配置，不能把本次独立软件实测或其他 fixture 结果算成云验收。

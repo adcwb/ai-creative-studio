@@ -10,7 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/adcwb/ai-creative-studio/backend/internal/studio"
+	"github.com/adcwb/ai-creative-studio/backend/internal/application"
+	"github.com/adcwb/ai-creative-studio/backend/internal/bootstrap"
 )
 
 func env(key, fallback string) string {
@@ -26,7 +27,7 @@ func main() {
 	}
 }
 func run() error {
-	flushTraces, traceErr := studio.ConfigureTracingFromEnv("api")
+	flushTraces, traceErr := application.ConfigureTracingFromEnv("api")
 	if traceErr != nil {
 		return traceErr
 	}
@@ -35,7 +36,7 @@ func run() error {
 			slog.Warn("trace export incomplete")
 		}
 	}()
-	provider, capabilities := studio.ConfigureImageFromEnv()
+	provider, capabilities := application.ConfigureImageFromEnv()
 	store, db, err := openStorage(capabilities)
 	if err != nil {
 		return err
@@ -44,57 +45,40 @@ func run() error {
 		defer db.Close()
 	}
 	defer store.Close()
-	if err := studio.ConfigureBlobStorageFromEnv(store); err != nil {
+	if err := application.ConfigureBlobStorageFromEnv(store); err != nil {
 		return err
 	}
-	if err := studio.ConfigureExecutionFromEnv(store); err != nil {
+	if err := application.ConfigureExecutionFromEnv(store); err != nil {
 		return err
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	pipeline, err := studio.NewPipeline(ctx, provider, capabilities)
+	pipeline, err := application.NewPipeline(ctx, provider, capabilities)
 	if err != nil {
 		return err
 	}
-	creative, creativeCaps := studio.ConfigureCreativeFromEnv()
-	if err = studio.ConfigureCreative(store, creative, creativeCaps); err != nil {
-		return err
-	}
-	speech, speechCaps := studio.ConfigureSpeechFromEnv()
-	studio.SetCreativeSpeech(store, speech, speechCaps)
-	music, musicCaps := studio.ConfigureMusicFromEnv()
-	studio.SetCreativeMusic(store, music, musicCaps)
-	effects, effectCaps := studio.ConfigureSoundEffectFromEnv()
-	studio.SetCreativeSoundEffect(store, effects, effectCaps)
-	video, videoCaps := studio.ConfigureVideoFromEnv()
-	studio.SetCreativeVideo(store, video, videoCaps)
-	studio.SetCreativeImage(store, provider, capabilities)
-	asr, asrCaps := studio.ConfigureAlignmentFromEnv()
-	studio.SetAlignmentProvider(store, asr, asrCaps)
-	forced, forcedCaps := studio.ConfigureForcedAlignmentFromEnv()
-	studio.SetForcedAlignmentProvider(store, forced, forcedCaps)
-	lipSync, lipSyncCaps := studio.ConfigureLipSyncFromEnv()
-	studio.SetCreativeLipSync(store, lipSync, lipSyncCaps)
-	if err := studio.ValidateRuntimeFromEnv(capabilities, creativeCaps, speechCaps, videoCaps, asrCaps, musicCaps, forcedCaps, lipSyncCaps, effectCaps); err != nil {
-		return err
-	}
-	scriptPipeline, err := studio.NewScriptPipeline(ctx, studio.CreativeScriptProvider(creative))
+	providers, err := bootstrap.ConfigureProviders(store, provider, capabilities)
 	if err != nil {
 		return err
 	}
-	storyboardPipeline, err := studio.NewStoryboardPipeline(ctx, studio.CreativeStoryboardProvider(creative))
+	creative := providers.Creative
+	scriptPipeline, err := application.NewScriptPipeline(ctx, application.CreativeScriptProvider(creative))
 	if err != nil {
 		return err
 	}
-	handler, err := studio.HandlerFromEnv(store, env("FRONTEND_ORIGIN", "http://localhost:5173"), env("DATA_DIR", "./data"))
+	storyboardPipeline, err := application.NewStoryboardPipeline(ctx, application.CreativeStoryboardProvider(creative))
 	if err != nil {
 		return err
 	}
-	var ops *studio.Operations
+	handler, err := application.HandlerFromEnv(store, env("FRONTEND_ORIGIN", "http://localhost:5173"), env("DATA_DIR", "./data"))
+	if err != nil {
+		return err
+	}
+	var ops *application.Operations
 	if db != nil {
-		ops, err = studio.OpenPostgresOperations(db)
+		ops, err = application.OpenPostgresOperations(db)
 	} else {
-		ops, err = studio.OpenOperations(env("DATA_DIR", "./data"))
+		ops, err = application.OpenOperations(env("DATA_DIR", "./data"))
 	}
 	if err != nil {
 		return err
@@ -116,7 +100,7 @@ func run() error {
 	workerDone := make(chan struct{})
 	creativeWorkerDone := make(chan struct{})
 	if db == nil {
-		go func() { defer close(creativeWorkerDone); errs <- studio.RunCreativeWorker(ctx, store) }()
+		go func() { defer close(creativeWorkerDone); errs <- application.RunCreativeWorker(ctx, store) }()
 	} else {
 		close(creativeWorkerDone)
 	}
@@ -125,10 +109,10 @@ func run() error {
 	if db == nil {
 		go func() {
 			defer close(storyboardWorkerDone)
-			errs <- studio.RunStoryboardWorker(ctx, store, storyboardPipeline)
+			errs <- application.RunStoryboardWorker(ctx, store, storyboardPipeline)
 		}()
-		go func() { defer close(workerDone); errs <- studio.RunWorker(ctx, store, pipeline) }()
-		go func() { defer close(scriptWorkerDone); errs <- studio.RunScriptWorker(ctx, store, scriptPipeline) }()
+		go func() { defer close(workerDone); errs <- application.RunWorker(ctx, store, pipeline) }()
+		go func() { defer close(scriptWorkerDone); errs <- application.RunScriptWorker(ctx, store, scriptPipeline) }()
 	} else {
 		close(storyboardWorkerDone)
 		close(workerDone)

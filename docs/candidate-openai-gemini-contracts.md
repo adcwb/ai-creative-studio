@@ -20,4 +20,4 @@
 
 ## 本地证据
 
-`backend/internal/studio/provider_candidate_contract_test.go`：Gemini STOP/限额截断/续传/安全拒绝四种响应；Sunburst 三种画幅×生成／参考六种请求。使用 `httptest`、合成密钥和 PNG；没有真实模型质量结论。
+`backend/internal/application/provider_candidate_contract_test.go`：Gemini STOP/限额截断/续传/安全拒绝四种响应；Sunburst 三种画幅×生成／参考六种请求。使用 `httptest`、合成密钥和 PNG；没有真实模型质量结论。

@@ -9,11 +9,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/adcwb/ai-creative-studio/backend/internal/studio"
 	"os"
 	"path/filepath"
 	"syscall"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/application"
 )
 
 func run() error {
@@ -31,7 +32,7 @@ func run() error {
 	if *tenant == "" {
 		return errors.New("tenant required")
 	}
-	perform := func(ledger *studio.BudgetLedger) error {
+	perform := func(ledger *application.BudgetLedger) error {
 		var err error
 		switch *action {
 		case "report":
@@ -74,7 +75,7 @@ func run() error {
 		if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 			return errors.New("stop every server/worker before offline budget administration")
 		}
-		ledger, err := studio.OpenBudgetLedger(*dir)
+		ledger, err := application.OpenBudgetLedger(*dir)
 		if err != nil {
 			return err
 		}
@@ -91,10 +92,10 @@ func run() error {
 		db.SetMaxOpenConns(2)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		if err = studio.CheckPostgres(ctx, db); err != nil {
+		if err = application.CheckPostgres(ctx, db); err != nil {
 			return err
 		}
-		return studio.WithPostgresBudgetMaintenance(ctx, db, perform, *tenant)
+		return application.WithPostgresBudgetMaintenance(ctx, db, perform, *tenant)
 	default:
 		return errors.New("STORAGE_BACKEND must be file or postgres")
 	}

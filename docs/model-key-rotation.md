@@ -37,7 +37,7 @@
 
 ## 合成验证
 
-`go test -race ./internal/studio ./cmd/model-key-rotate -run 'TestModelRotation|TestPostgresModelRotation|TestRotationConnection' -count=1`
+`go test -race ./internal/application ./cmd/model-key-rotate -run 'TestModelRotation|TestPostgresModelRotation|TestRotationConnection' -count=1`
 
 覆盖文件预览/应用/逆向、错误及相同密钥、确认不符、跨租户密文、撤销污染、版本溢出、锁/符号链接/权限/严格JSON拒绝；PG另测预览无审计、审计失败事务回滚、维护锁拒绝、成功审计与逆向状态。真实PG测试仅在显式`STUDIO_POSTGRES_TEST_DSN`提供隔离测试库时运行，每次创建并清理自己的随机schema；缺变量则skip，不得算作集成通过。仅使用合成密钥和secret，不做真实用户密钥轮换。
 

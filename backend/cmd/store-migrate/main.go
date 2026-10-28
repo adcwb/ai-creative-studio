@@ -12,7 +12,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/adcwb/ai-creative-studio/backend/internal/studio"
+	"github.com/adcwb/ai-creative-studio/backend/internal/application"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -53,13 +53,13 @@ func run() error {
 		return json.NewEncoder(os.Stdout).Encode(map[string]string{"result": "schema_initialized"})
 	}
 	if *mode == "import" {
-		report, err := studio.ImportPostgresData(ctx, *dir, db)
+		report, err := application.ImportPostgresData(ctx, *dir, db)
 		if err != nil {
 			return err
 		}
 		return json.NewEncoder(os.Stdout).Encode(report)
 	}
-	report, err := studio.ExportPostgresData(ctx, *dir, db)
+	report, err := application.ExportPostgresData(ctx, *dir, db)
 	if err != nil {
 		return err
 	}
@@ -69,11 +69,11 @@ func run() error {
 // Import/export never create or repair a source schema implicitly.
 func prepareSchema(ctx context.Context, db *sql.DB, mode string) error {
 	if mode == "init" {
-		if err := studio.InitPostgres(ctx, db); err != nil {
+		if err := application.InitPostgres(ctx, db); err != nil {
 			return err
 		}
 	} else if mode != "import" && mode != "export" {
 		return errors.New("invalid migration mode")
 	}
-	return studio.CheckPostgres(ctx, db)
+	return application.CheckPostgres(ctx, db)
 }

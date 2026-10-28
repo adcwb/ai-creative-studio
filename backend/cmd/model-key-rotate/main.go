@@ -9,13 +9,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/adcwb/ai-creative-studio/backend/internal/studio"
-	_ "github.com/jackc/pgx/v5/stdlib"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/application"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 func run() error {
@@ -35,11 +36,11 @@ func run() error {
 		keys[i] = key
 		defer clear(key)
 	}
-	var report studio.ModelRotationReport
+	var report application.ModelRotationReport
 	var e error
 	switch os.Getenv("STORAGE_BACKEND") {
 	case "", "file":
-		report, e = studio.RotateFileModelKey(*dir, keys[0], keys[1], keys[2], *stopped, *apply)
+		report, e = application.RotateFileModelKey(*dir, keys[0], keys[1], keys[2], *stopped, *apply)
 	case "postgres":
 		if os.Getenv("DATABASE_URL") == "" {
 			return errors.New("explicit database required")
@@ -64,7 +65,7 @@ func run() error {
 		defer db.Close()
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
-		report, e = studio.RotatePostgresModelKey(ctx, db, keys[0], keys[1], keys[2], *stopped, *apply)
+		report, e = application.RotatePostgresModelKey(ctx, db, keys[0], keys[1], keys[2], *stopped, *apply)
 	default:
 		return errors.New("unsupported storage backend")
 	}

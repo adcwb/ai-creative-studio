@@ -9,13 +9,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/adcwb/ai-creative-studio/backend/internal/studio"
 	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/application"
 )
 
 func main() {
@@ -50,24 +51,24 @@ func run() error {
 		var output any
 		switch *mode {
 		case "seal":
-			output, e = studio.SealBackup(ctx, *source, *dest, key)
+			output, e = application.SealBackup(ctx, *source, *dest, key)
 		case "open":
-			output, e = studio.OpenBackup(ctx, *source, *dest, key)
+			output, e = application.OpenBackup(ctx, *source, *dest, key)
 		case "retention":
 			if (*applyRetention && *expectedPlan == "") || (!*applyRetention && *expectedPlan != "") {
 				return errors.New("apply and reviewed plan hash must be supplied together")
 			}
-			output, e = studio.RetainBackups(ctx, *source, key, *keepLast, *minAge, *expectedPlan)
+			output, e = application.RetainBackups(ctx, *source, key, *keepLast, *minAge, *expectedPlan)
 		}
 		if e != nil {
 			return e
 		}
 		return json.NewEncoder(os.Stdout).Encode(output)
 	}
-	var report studio.PostgresBackupReport
+	var report application.PostgresBackupReport
 	var err error
 	if *mode == "verify" {
-		_, report, err = studio.VerifyPostgresBackup(ctx, *source)
+		_, report, err = application.VerifyPostgresBackup(ctx, *source)
 	} else {
 		if !*stopped || *dest == "" {
 			return fmt.Errorf("maintenance confirmation and new destination required")
@@ -115,10 +116,10 @@ func run() error {
 		}
 		defer db.Close()
 		db.SetMaxOpenConns(1)
-		tools := studio.PostgresBackupTools{Dump: *dump, Restore: *restore, LibraryPath: os.Getenv("BACKUP_PG_LIBRARY_PATH")}
+		tools := application.PostgresBackupTools{Dump: *dump, Restore: *restore, LibraryPath: os.Getenv("BACKUP_PG_LIBRARY_PATH")}
 		switch *mode {
 		case "backup":
-			var store studio.BlobStore
+			var store application.BlobStore
 			switch os.Getenv("BLOB_STORE") {
 			case "shared-file":
 				root := os.Getenv("BLOB_FILE_ROOT")
@@ -126,23 +127,23 @@ func run() error {
 				if e != nil || !st.IsDir() || st.Mode()&os.ModeSymlink != 0 {
 					return fmt.Errorf("existing shared object directory required")
 				}
-				fs, e := studio.NewFileBlobStore(root)
+				fs, e := application.NewFileBlobStore(root)
 				if e != nil {
 					return e
 				}
 				defer fs.Close()
 				store = fs
 			case "s3":
-				store, err = studio.S3BlobStoreFromEnv()
+				store, err = application.S3BlobStoreFromEnv()
 			default:
 				return fmt.Errorf("shared-file or s3 required")
 			}
 			if err != nil {
 				return err
 			}
-			report, err = studio.BackupPostgresObjects(ctx, db, dsn, store, *dest, tools, true)
+			report, err = application.BackupPostgresObjects(ctx, db, dsn, store, *dest, tools, true)
 		case "restore":
-			report, err = studio.RestorePostgresBackup(ctx, db, dsn, *source, *dest, tools, true)
+			report, err = application.RestorePostgresBackup(ctx, db, dsn, *source, *dest, tools, true)
 		default:
 			return fmt.Errorf("invalid mode")
 		}

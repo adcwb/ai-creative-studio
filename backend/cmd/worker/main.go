@@ -12,8 +12,9 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/adcwb/ai-creative-studio/backend/internal/jobqueue"
-	"github.com/adcwb/ai-creative-studio/backend/internal/studio"
+	"github.com/adcwb/ai-creative-studio/backend/internal/application"
+	"github.com/adcwb/ai-creative-studio/backend/internal/bootstrap"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -24,7 +25,7 @@ func main() {
 	}
 }
 func run() error {
-	flushTraces, traceErr := studio.ConfigureTracingFromEnv("worker")
+	flushTraces, traceErr := application.ConfigureTracingFromEnv("worker")
 	if traceErr != nil {
 		return traceErr
 	}
@@ -56,59 +57,60 @@ func run() error {
 		return err
 	}
 	if os.Getenv("STORAGE_AUTO_MIGRATE") == "true" {
-		if err = studio.InitPostgres(ctx, db); err != nil {
+		if err = application.InitPostgres(ctx, db); err != nil {
 			return err
 		}
 	}
-	if err = studio.CheckPostgres(ctx, db); err != nil {
+	if err = application.CheckPostgres(ctx, db); err != nil {
 		return errors.New("postgres schema unavailable; run explicit migration")
 	}
 	concurrency, err := workerConcurrency(os.Getenv("WORKER_CONCURRENCY"))
 	if err != nil {
 		return err
 	}
-	queue := jobqueue.Queue{DB: db, Slots: make(chan struct{}, concurrency), BeforeClaim: func(ctx context.Context) error { return studio.ReconcilePostgresJobs(ctx, db) }}
+	queue := jobqueue.Queue{DB: db, Slots: make(chan struct{}, concurrency), BeforeClaim: func(ctx context.Context) error { return application.ReconcilePostgresJobs(ctx, db) }}
 
-	store, err := studio.OpenPostgresStore(dir, db)
+	store, err := application.OpenPostgresStore(dir, db)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	if err = studio.ConfigureBlobStorageFromEnv(store); err != nil {
+	if err = application.ConfigureBlobStorageFromEnv(store); err != nil {
 		return err
 	}
-	if err = studio.ConfigureExecutionFromEnv(store); err != nil {
+	if err = application.ConfigureExecutionFromEnv(store); err != nil {
 		return err
 	}
-	if err = studio.ConfigureWorkerRuntimeFromEnv(store, dir); err != nil {
+	if err = application.ConfigureWorkerRuntimeFromEnv(store, dir); err != nil {
 		return err
 	}
-	provider, caps, err := studio.ConfigureWorkerProvidersFromEnv(store)
+	provider, caps := application.ConfigureImageFromEnv()
+	_, err = bootstrap.ConfigureProviders(store, provider, caps)
 	if err != nil {
 		return err
 	}
-	pipeline, err := studio.NewPipeline(ctx, provider, caps)
+	pipeline, err := application.NewPipeline(ctx, provider, caps)
 	if err != nil {
 		return err
 	}
-	script, err := studio.NewScriptPipeline(ctx, studio.MockScriptProvider{})
+	script, err := application.NewScriptPipeline(ctx, application.MockScriptProvider{})
 	if err != nil {
 		return err
 	}
-	storyboard, err := studio.NewStoryboardPipeline(ctx, studio.MockStoryboardProvider{})
+	storyboard, err := application.NewStoryboardPipeline(ctx, application.MockStoryboardProvider{})
 	if err != nil {
 		return err
 	}
 	slog.Info("durable worker started", "kinds", "image,script,storyboard,export,alignment,creative", "default_provider", caps.Provider)
 	results := make(chan error, 8)
-	go func() { results <- studio.RunQueuedImageWorker(ctx, queue, store, pipeline) }()
-	go func() { results <- studio.RunQueuedScriptWorker(ctx, queue, store, script) }()
-	go func() { results <- studio.RunQueuedStoryboardWorker(ctx, queue, store, storyboard) }()
-	go func() { results <- studio.RunQueuedExportWorker(ctx, queue, store) }()
-	go func() { results <- studio.RunQueuedAlignmentWorker(ctx, queue, store) }()
-	go func() { results <- studio.RunQueuedCreativeWorker(ctx, queue, store) }()
-	go func() { results <- studio.RunQueuedCreativeRecoveryWorker(ctx, queue, store) }()
-	go func() { results <- studio.RunQueuedImageRecoveryWorker(ctx, queue, store) }()
+	go func() { results <- application.RunQueuedImageWorker(ctx, queue, store, pipeline) }()
+	go func() { results <- application.RunQueuedScriptWorker(ctx, queue, store, script) }()
+	go func() { results <- application.RunQueuedStoryboardWorker(ctx, queue, store, storyboard) }()
+	go func() { results <- application.RunQueuedExportWorker(ctx, queue, store) }()
+	go func() { results <- application.RunQueuedAlignmentWorker(ctx, queue, store) }()
+	go func() { results <- application.RunQueuedCreativeWorker(ctx, queue, store) }()
+	go func() { results <- application.RunQueuedCreativeRecoveryWorker(ctx, queue, store) }()
+	go func() { results <- application.RunQueuedImageRecoveryWorker(ctx, queue, store) }()
 	err = <-results
 	cancel()
 	for range 7 {

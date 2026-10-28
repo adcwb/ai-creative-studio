@@ -7,10 +7,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/adcwb/ai-creative-studio/backend/internal/studio"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/application"
 )
 
 func main() {
@@ -21,14 +22,14 @@ func main() {
 		fmt.Fprintln(os.Stderr, "require -data-dir and -direction=to-s3|to-file")
 		os.Exit(2)
 	}
-	store, e := studio.S3BlobStoreFromEnv()
+	store, e := application.S3BlobStoreFromEnv()
 	if e != nil {
 		fmt.Fprintln(os.Stderr, e)
 		os.Exit(1)
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	report, e := studio.MigrateBlobStorage(ctx, *dir, store, *direction == "to-file")
+	report, e := application.MigrateBlobStorage(ctx, *dir, store, *direction == "to-file")
 	if e != nil {
 		fmt.Fprintln(os.Stderr, e)
 		os.Exit(1)

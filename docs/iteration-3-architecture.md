@@ -165,4 +165,4 @@ API 级 `provider_not_ready` 表示新请求没有被接受，与已经持久化
 
 最终审查还发现已有快照解码沿用新库默认值时，缺失顶层字段可能被误认为空库。实现现先解码到零值快照再校验；独立临时进程验证 `{}` 会拒启且原文件不变。QA 新增 7 个空对象、null、缺字段或 null 映射回归用例，均检查拒绝打开及字节保留；实现角色完成全量 `go test -race ./... -count=1 -timeout=60s` 与 `go vet ./...`，主集成另行复验 build 与 smoke 通过。
 
-已核读独立 QA 的 [PNG 协议与浏览器检查](../scripts/provider_check.mjs) 及仅测试编译的 [harness](../backend/internal/studio/provider_harness_test.go)。该次结果记录为 5 次明确的 loopback 假服务调用，覆盖 PNG 浏览器解码/保存/重启、缓存 mock 模式切换为外部配置时 guard 拦截且零调用、响应丢失后原键重放、能力未知时禁 POST、SIGKILL 后 execution_interrupted 且无自动重发，以及显式重试关联。采样结果的 `model/result_mime/result_width` 字段与本契约一致。这些图片是合成协议 fixture，不能作为真实模型生成、权限或费用验证证据。
+已核读独立 QA 的 [PNG 协议与浏览器检查](../scripts/provider_check.mjs) 及仅测试编译的 [harness](../backend/internal/application/provider_harness_test.go)。该次结果记录为 5 次明确的 loopback 假服务调用，覆盖 PNG 浏览器解码/保存/重启、缓存 mock 模式切换为外部配置时 guard 拦截且零调用、响应丢失后原键重放、能力未知时禁 POST、SIGKILL 后 execution_interrupted 且无自动重发，以及显式重试关联。采样结果的 `model/result_mime/result_width` 字段与本契约一致。这些图片是合成协议 fixture，不能作为真实模型生成、权限或费用验证证据。

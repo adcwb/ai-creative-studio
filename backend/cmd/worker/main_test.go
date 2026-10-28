@@ -1,6 +1,8 @@
 package main
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestWorkerConcurrencyBounds(t *testing.T) {
 	for _, v := range []string{"-1", "0", "17", "1.5", "x", "9999999999999999999999"} {

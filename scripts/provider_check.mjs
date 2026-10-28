@@ -52,7 +52,7 @@ try {
   upstream.listen(0, '127.0.0.1'); await once(upstream, 'listening')
   const endpoint = `http://127.0.0.1:${upstream.address().port}/v1/images/generations`
   const binary = join(temp, 'harness')
-  execFileSync('go', ['test', '-c', '-o', binary, './internal/studio'], { cwd: join(repo,'backend'), stdio:'pipe' })
+  execFileSync('go', ['test', '-c', '-o', binary, './internal/application'], { cwd: join(repo,'backend'), stdio:'pipe' })
   async function boot(mode) { await stop(service); service = start(binary, ['-test.run=^TestProviderHarness$', '-test.timeout=5m'], repo, { PATH: process.env.PATH, IMAGE_PROVIDER:'mock-svg', OPENAI_API_KEY:'', STUDIO_TEST_HARNESS:'1', STUDIO_TEST_MODE:mode, STUDIO_TEST_UPSTREAM:endpoint, AUTH_MODE: 'demo', TEXT_PROVIDER: 'mock-text', SPEECH_PROVIDER: '', VIDEO_PROVIDER: '', ASR_PROVIDER: '', DATA_DIR:join(temp,'data'), HTTP_ADDR:`127.0.0.1:${apiPort}`, FRONTEND_ORIGIN:origin }); await ready(`${api}/healthz`, service) }
   async function call(path, body, idempotencyKey, status = 200) { const response = await fetch(`${api}/api/v1${path}`, body ? { method:'POST', headers:{'Content-Type':'application/json', ...(idempotencyKey ? {'Idempotency-Key':idempotencyKey} : {})}, body:JSON.stringify(body) } : {}); const text = await response.text(); expect(text).not.toContain(key); expect(text).not.toContain('upstream-private-body'); expect(response.status, text).toBe(status); return JSON.parse(text) }
   const input = { prompt:fixturePrompt, kind:'general', ratio:'1:1', style:'natural' }

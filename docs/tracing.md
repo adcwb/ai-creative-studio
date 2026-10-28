@@ -33,7 +33,7 @@ Set `TRACE_MODE=json` and `TRACE_JSON_PATH` to a new absolute file on a trusted
 local filesystem. API and worker need distinct paths, and each restart needs a
 new path. Files are created exclusively with mode 0600 and symlinks are refused;
 existing files are never appended or overwritten. No network collector or new
-external service is configured. `internal/tracing.Sink` is the replaceable
+external service is configured. `internal/platform/tracing.Sink` is the replaceable
 exporter interface; an OTLP exporter is not bundled or live-validated.
 
 The default queue holds 256 spans (hard configurable constructor cap 4096), sends
