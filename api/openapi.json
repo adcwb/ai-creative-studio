@@ -9222,7 +9222,7 @@
     "/api/v1/projects/{id}/social/jobs": {
       "post": {
         "operationId": "createSocial",
-        "summary": "createSocial; authenticated tenant scope; no automatic external retries",
+        "summary": "Prepare local export or explicitly confirmed TikTok video/PHOTO direct/draft intent; does not dispatch",
         "parameters": [
           {
             "name": "space_id",
@@ -10415,6 +10415,187 @@
             }
           }
         }
+      },
+      "post": {
+        "operationId": "refreshAndQuerySocialCreator",
+        "summary": "Explicit authenticated creator query with safe just-in-time credential renewal",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "媒体域持久幂等键；项目+空间范围内共享，重试必须保留相同请求及标签。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Current state; prepared/draft/handoff are not published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocialCreator"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "媒体资源限额：单项目120素材/30导出，同时最多2个合成，以及全局容量上限。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Platform configuration/approval unavailable; fail closed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "maxProperties": 0,
+                "description": "Explicit empty JSON object; authenticated POST permits just-in-time credential renewal before reading creator capabilities."
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/projects/{id}/social/connections/{connection_id}/revoke": {
@@ -11330,6 +11511,454 @@
         "responses": {
           "200": {
             "description": "Verified bounded media; private/no-store; no redirect."
+          },
+          "206": {
+            "description": "Verified single/multipart byte range supplied by standard Go ServeContent."
+          },
+          "404": {
+            "description": "Missing, expired, revoked, foreign or malformed capability; no existence disclosure."
+          },
+          "416": {
+            "description": "Unsatisfiable byte range"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/social/photos/normalize": {
+      "post": {
+        "operationId": "normalizeTikTokPhoto",
+        "summary": "Explicit local PNG/JPEG to separate owned JPEG, no TikTok configuration or upstream call required",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "媒体域持久幂等键；项目+空间范围内共享，重试必须保留相同请求及标签。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Current state; prepared/draft/handoff are not published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocialPhotoNormalized"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "媒体资源限额：单项目120素材/30导出，同时最多2个合成，以及全局容量上限。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Platform configuration/approval unavailable; fail closed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SocialPhotoNormalize"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/social/jobs/{job_id}/revoke-photo-access": {
+      "post": {
+        "operationId": "revokeTikTokPhotoAccess",
+        "summary": "Permanently revoke this job’s future photo downloads; does not retract published media or unlock unknown-post deduplication",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "媒体域持久幂等键；项目+空间范围内共享，重试必须保留相同请求及标签。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must match configured frontend origin in secure mode."
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Current state; prepared/draft/handoff are not published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocialView"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "媒体资源限额：单项目120素材/30导出，同时最多2个合成，以及全局容量上限。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Platform configuration/approval unavailable; fail closed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SocialPhotoRevoke"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/social-media/tiktok-photo": {
+      "get": {
+        "operationId": "downloadTikTokPhotoCapability",
+        "summary": "Sessionless JPEG read ONLY through encrypted up-to65-minute grant; tenant/project/account/actor/job revocation and configuration checked",
+        "security": [],
+        "parameters": [
+          {
+            "name": "cap",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "description": "Encrypted scoped bearer capability; never log query values."
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verified JPEG <=1080x1080 and20,000,000bytes; private/no-store; no redirect.",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Verified single/multipart byte range supplied by standard Go ServeContent.",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, expired, revoked, foreign or malformed capability; no existence disclosure."
+          },
+          "416": {
+            "description": "Unsatisfiable byte range"
+          }
+        }
+      },
+      "head": {
+        "operationId": "headTikTokPhotoCapability",
+        "summary": "Sessionless JPEG read ONLY through encrypted up-to65-minute grant; tenant/project/account/actor/job revocation and configuration checked",
+        "security": [],
+        "parameters": [
+          {
+            "name": "cap",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "description": "Encrypted scoped bearer capability; never log query values."
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verified JPEG <=1080x1080 and20,000,000bytes; private/no-store; no redirect."
           },
           "206": {
             "description": "Verified single/multipart byte range supplied by standard Go ServeContent."
@@ -15080,11 +15709,13 @@
           },
           "title": {
             "type": "string",
-            "maxLength": 90
+            "maxLength": 90,
+            "description": "PHOTO maximum90 UTF-16 code units, additionally enforced by server."
           },
           "caption": {
             "type": "string",
-            "maxLength": 2200
+            "maxLength": 4000,
+            "description": "PHOTO description at most4000 UTF-16 code units; video/export retains2200 limit. Server enforces mode-specific UTF-16 constraints."
           },
           "confirmed": {
             "type": "boolean"
@@ -15115,6 +15746,38 @@
           },
           "rights_confirmed": {
             "type": "boolean"
+          },
+          "media_type": {
+            "type": "string",
+            "enum": [
+              "PHOTO"
+            ],
+            "description": "Omit for existing video/export intents. PHOTO supports only TikTok direct/draft and uses photo_asset_ids instead of asset_id/export_id."
+          },
+          "photo_asset_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 35,
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "description": "Ordered current-project JPEG asset IDs; actual bytes must decode, be at most1080x1080 and20,000,000bytes. PNG/poster conversion is an explicit separate operation."
+          },
+          "photo_cover_index": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 34,
+            "description": "Zero-based selected cover; must be less than photo_asset_ids length."
+          },
+          "auto_add_music": {
+            "type": "boolean",
+            "default": false,
+            "description": "PHOTO Direct Post only; explicit user choice."
+          },
+          "public_media_confirmed": {
+            "type": "boolean",
+            "description": "Must be true for PHOTO: explicit consent to a scoped public read grant lasting up to65minutes."
           }
         },
         "required": [
@@ -15149,6 +15812,9 @@
           "version": {
             "type": "integer",
             "minimum": 1
+          },
+          "refresh_lease_until": {
+            "type": "string"
           }
         },
         "required": [
@@ -15227,6 +15893,41 @@
           },
           "next_poll_at": {
             "type": "string"
+          },
+          "media_type": {
+            "type": "string",
+            "enum": [
+              "PHOTO"
+            ]
+          },
+          "photo_asset_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 35,
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "description": "Ordered current-project JPEG asset IDs; actual bytes must decode, be at most1080x1080 and20,000,000bytes. PNG/poster conversion is an explicit separate operation."
+          },
+          "photo_expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "photo_access_revoked": {
+            "type": "boolean"
+          },
+          "photo_source_key": {
+            "type": "string",
+            "description": "Fingerprint of immutable source bytes; does not grant file access."
+          },
+          "photo_grant_id": {
+            "type": "string",
+            "description": "Opaque grant identity, not the signed URL or secret."
+          },
+          "photo_actor": {
+            "type": "string",
+            "description": "Actor whose current membership is checked when serving a grant."
           }
         },
         "required": [
@@ -15282,6 +15983,14 @@
           },
           "reason_code": {
             "type": "string"
+          },
+          "photo_status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "not_configured",
+              "unavailable"
+            ]
           }
         },
         "required": [
@@ -15414,6 +16123,10 @@
           },
           "max_video_post_duration_sec": {
             "type": "integer"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
           }
         },
         "required": [
@@ -15542,6 +16255,92 @@
           "expected_version",
           "confirmed"
         ]
+      },
+      "SocialPhotoNormalize": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_version",
+          "asset_id",
+          "confirmed"
+        ],
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "asset_id": {
+            "type": "string"
+          },
+          "confirmed": {
+            "type": "boolean",
+            "enum": [
+              true
+            ],
+            "description": "Explicit consent to resize to fit1080x1080 and flatten transparency to white in a newJPEG; original unchanged."
+          }
+        }
+      },
+      "SocialPhotoNormalized": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaAsset"
+            }
+          },
+          "timeline": {
+            "$ref": "#/components/schemas/MediaTimeline"
+          },
+          "exports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaExport"
+            }
+          },
+          "poster": {
+            "$ref": "#/components/schemas/PosterDocument"
+          },
+          "social": {
+            "$ref": "#/components/schemas/SocialState"
+          },
+          "normalized_asset_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "assets",
+          "timeline",
+          "exports",
+          "normalized_asset_id"
+        ]
+      },
+      "SocialPhotoRevoke": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_version",
+          "confirmed"
+        ],
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "confirmed": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        }
       }
     },
     "securitySchemes": {

@@ -1,7 +1,7 @@
 export type SocialPlatform = 'tiktok' | 'douyin' | 'xiaohongshu'
-export interface SocialIntent {privacy_level?: string; allow_comment?: boolean; allow_duet?: boolean; allow_stitch?: boolean; is_aigc?: boolean; brand_content?: boolean; brand_organic?: boolean}
+export interface SocialIntent {media_type?: string; photo_asset_ids?: string[]; photo_cover_index?: number; auto_add_music?: boolean; public_media_confirmed?: boolean; title?: string; caption?: string; privacy_level?: string; allow_comment?: boolean; allow_duet?: boolean; allow_stitch?: boolean; is_aigc?: boolean; brand_content?: boolean; brand_organic?: boolean}
 export interface SocialJob {
-  next_poll_at?: string; lease_until?: string
+  next_poll_at?: string; lease_until?: string; photo_expires_at?: string; photo_access_revoked?: boolean
   intent?: SocialIntent
   id: string; platform: SocialPlatform; mode: string; status: string
   asset_id?: string; export_id?: string; title: string; caption: string
@@ -9,11 +9,11 @@ export interface SocialJob {
 }
 export interface SocialState {
   version: number
-  platforms: {id: SocialPlatform; direct_status: string; handoff_status: string; connection_status: string; reason_code?: string}[]
+  platforms: {id: SocialPlatform; direct_status: string; handoff_status: string; connection_status: string; reason_code?: string; photo_status?: string}[]
   jobs: SocialJob[]
   connections: SocialConnection[]
 }
-export interface SocialConnection {id: string; platform: SocialPlatform; status: string; display_name?: string; username?: string}
+export interface SocialConnection {id: string; platform: SocialPlatform; status: string; display_name?: string; username?: string; expires_at?: string; refresh_expires_at?: string}
 export interface SocialSource {id: string; kind: 'asset' | 'export'; name: string; mime_type: string; file_url?: string}
 export interface SocialMedia {
   assets: {id: string; kind: string; name: string; mime_type: string; file_url?: string}[]

@@ -33,7 +33,7 @@ for (const locale of ['zh-CN', 'en']) test(`synthetic TikTok consent and unknown
   await page.getByRole('button', {name: locale === 'en' ? 'Story studio' : '短剧工作台', exact: true}).click()
   await page.locator('.drama-project-list button').filter({hasText: project.title}).click()
   const panel = page.locator('.social-tiktok')
-  await panel.locator('summary').click()
+  await panel.locator(':scope > summary').click()
   await panel.getByRole('combobox', {name: locale === 'en' ? 'Target TikTok account' : '目标 TikTok 账号', exact: true}).selectOption('synthetic-account')
   await panel.getByRole('button', {name: locale === 'en' ? 'Load account publishing permissions' : '读取账号发布权限', exact: true}).click()
   const privacy = panel.getByRole('combobox', {name: locale === 'en' ? 'Who can watch' : '谁可以观看', exact: true})

@@ -96,7 +96,7 @@ func TestSocialOAuthEncryptedStateAndRevocation(t *testing.T) {
 		if req.Form.Get("client_secret") != "synthetic-secret" || req.Form.Get("grant_type") != "authorization_code" {
 			t.Fatal("bad token request")
 		}
-		return socialJSON(socialToken{Access: "synthetic-access", Refresh: "synthetic-refresh", OpenID: "synthetic-open-id", Scope: "video.publish,video.upload", Expires: 3600}), nil
+		return socialJSON(socialToken{Access: "synthetic-access", Refresh: "synthetic-refresh", OpenID: "synthetic-open-id", Scope: "video.publish,video.upload", Expires: 3600, RefreshExpires: 31536000, TokenType: "Bearer"}), nil
 	})
 	u, e := r.start("p", "tenant", "user", "session", 1, "oauth-start-key")
 	if e != nil {
@@ -232,7 +232,7 @@ func TestSocialTikTokSyntheticLifecycleAndUnknownRecovery(t *testing.T) {
 			r.client.Transport = socialRoundTrip(func(req *http.Request) (*http.Response, error) {
 				switch req.URL.Path {
 				case "/v2/oauth/token/":
-					return socialJSON(socialToken{Access: "synthetic-access", Refresh: "synthetic-refresh", OpenID: "account", Scope: "video.publish,video.upload", Expires: 3600}), nil
+					return socialJSON(socialToken{Access: "synthetic-access", Refresh: "synthetic-refresh", OpenID: "account", Scope: "video.publish,video.upload", Expires: 3600, RefreshExpires: 31536000, TokenType: "Bearer"}), nil
 				case "/v2/post/publish/creator_info/query/":
 					if scenario == "actor-revoked" {
 						actorOK = false
@@ -361,7 +361,7 @@ func TestSocialTikTokSyntheticLifecycleAndUnknownRecovery(t *testing.T) {
 				m.mu.Lock()
 				d := m.clone()
 				state := d.Projects[mediaKey("s", "p")]
-				state.Social.Connections[0].ExpiresAt = time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
+				state.Social.Connections[0].Status = "revoked"
 				d.Projects[mediaKey("s", "p")] = state
 				_ = m.commit(d)
 				m.mu.Unlock()
@@ -422,7 +422,7 @@ func TestPostgresSocialTwoInstancesEncryptionAndClaim(t *testing.T) {
 		t.Fatal(e)
 	}
 	fn := socialRoundTrip(func(*http.Request) (*http.Response, error) {
-		return socialJSON(socialToken{Access: "synthetic-pg-access", Refresh: "synthetic-pg-refresh", OpenID: "synthetic-pg-account", Scope: "video.publish,video.upload", Expires: 3600}), nil
+		return socialJSON(socialToken{Access: "synthetic-pg-access", Refresh: "synthetic-pg-refresh", OpenID: "synthetic-pg-account", Scope: "video.publish,video.upload", Expires: 3600, RefreshExpires: 31536000, TokenType: "Bearer"}), nil
 	})
 	ra, rb := testSocialRuntime(t, a.media, fn), testSocialRuntime(t, b.media, fn)
 	u, e := ra.start(p.ID, "tenant-a", "user", "session", 1)
@@ -477,7 +477,7 @@ func TestSocialOAuthRevocationDuringExchangeAndAAD(t *testing.T) {
 	allowed := true
 	r := testSocialRuntime(t, m, func(*http.Request) (*http.Response, error) {
 		allowed = false
-		return socialJSON(socialToken{Access: "synthetic-never-persist", Refresh: "synthetic-refresh", OpenID: "synthetic-account", Scope: "video.publish", Expires: 3600}), nil
+		return socialJSON(socialToken{Access: "synthetic-never-persist", Refresh: "synthetic-refresh", OpenID: "synthetic-account", Scope: "video.publish", Expires: 3600, RefreshExpires: 31536000, TokenType: "Bearer"}), nil
 	})
 	u, e := r.start("p", "s", "u", "session", 1)
 	if e != nil {

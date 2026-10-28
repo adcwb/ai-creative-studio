@@ -113,7 +113,7 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 			return
 		}
 		// This exact route verifies an encrypted expiring grant and current membership.
-		if r.URL.Path == douyinMediaPath && (r.Method == "GET" || r.Method == "HEAD") {
+		if (r.URL.Path == douyinMediaPath || r.URL.Path == tiktokPhotoMediaPath) && (r.Method == "GET" || r.Method == "HEAD") {
 			next.ServeHTTP(w, r)
 			return
 		}

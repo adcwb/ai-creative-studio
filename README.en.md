@@ -30,9 +30,11 @@ Posters preserve editable layers and export a new PNG without overwriting source
 
 ## Social publishing requires approval
 
-Downloading files, handing off to an App, uploading a draft or submitting for review is never labeled published. TikTok requires application approval and user authorization. Ordinary Douyin creative tools use approved H5 sharing, with official ticket retrieval, caching and expiry refresh. Enterprise posting has additional account and permission restrictions. Xiaohongshu access is restricted and no general server-side note-publishing API has been verified.
+Downloading files, handing off to an App, uploading a draft or submitting for review is never labeled published. TikTok video and photo direct-post/draft protocols require application approval and user authorization; photos also require a platform-verified public media domain. Ordinary Douyin creative tools use approved H5 sharing, with official ticket retrieval, caching and expiry refresh. Enterprise posting has additional account and permission restrictions. Xiaohongshu access is restricted and no general server-side note-publishing API has been verified.
 
-An unconfigured installation provides real media export. Xiaohongshu also offers explicit copying of a local caption, with no automatic platform prefill. Account connections, transmission and status queries require platform-specific server-side capability checks. An uncertain create result retains its receipt and is not blindly resent. This iteration uses synthetic accounts and fake upstreams only: **no real OAuth, uploads or external posts have been performed**. [Protocol and state boundaries](docs/iteration-10-social.md)
+An unconfigured installation provides real media export. Xiaohongshu also offers explicit copying of a local caption, with no automatic platform prefill. PNG posters can be explicitly converted into separate JPEGs, previewed, ordered and assigned a cover without altering originals. Photo transmission requires consent to scoped public access lasting up to 65 minutes. TikTok credentials renew just in time during explicit operations; rotated tokens are encrypted, and uncertain renewal requires reauthorization without resending posts. [Photo contract](docs/social-photo.md) · [Token renewal](docs/social-token-refresh.md)
+
+Account connections, transmission and status queries require platform-specific server-side capability checks. An uncertain create result retains its receipt and is not blindly resent. This iteration uses synthetic accounts and fake upstreams only: **no real OAuth, uploads or external posts have been performed**. [Protocol and state boundaries](docs/iteration-10-social.md)
 
 ## Model ecosystems
 

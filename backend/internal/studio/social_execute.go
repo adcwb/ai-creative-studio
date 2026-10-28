@@ -117,7 +117,14 @@ func (r *socialRuntime) execute(ctx context.Context, project, space, id string, 
 		return r.finish(project, space, id, "unknown", job.PublishID, code, job.Attempt)
 	}
 	ctx = context.WithValue(ctx, socialConnectionKey{}, socialConnectionScope{project, space, job.ConnectionID})
-	token, e := r.token(project, space, job.ConnectionID)
+	wantScope := "video.publish"
+	if job.Mode == "draft" {
+		wantScope = "video.upload"
+	}
+	if poll {
+		wantScope = ""
+	}
+	token, e := r.authorizedToken(ctx, project, space, job.ConnectionID, wantScope)
 	if e != nil {
 		if poll || job.PublishID != "" {
 			return fail("connection_unavailable")
@@ -137,6 +144,9 @@ func (r *socialRuntime) execute(ctx context.Context, project, space, id string, 
 	}
 	if !socialScope(token.Scope, want) {
 		return r.finish(project, space, id, "failed", "", "scope_missing", job.Attempt)
+	}
+	if job.MediaType == "PHOTO" {
+		return r.dispatchPhoto(ctx, project, space, job, token)
 	}
 	path, mime, e := r.m.file(project, space, job.AssetID, false, false)
 	if job.ExportID != "" {

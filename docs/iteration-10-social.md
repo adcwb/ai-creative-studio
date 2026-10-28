@@ -5,18 +5,20 @@ Xiaohongshu. Preparing or downloading an owned image/video is not publishing.
 Xiaohongshu export rejects prefilled social title/body; official access is paused.
 No private server publishing endpoint is invented.
 
-## TikTok video vertical slice
+## TikTok video and PHOTO workflows
 
 An operator-approved **and Direct Post audited** app can enable web account linking,
 creator information, explicit privacy/interaction/AIGC/commercial consent, video
 Direct Post or inbox draft upload, and explicit status reconciliation. This version
 requires audited approval even for drafts; it does not enable unaudited sandbox
-publication. Photos, scheduling, webhook delivery and automated token refresh are
-not implemented. Expired accounts require explicit reconnect. Account reconnection
+publication. PHOTO and just-in-time token renewal were added after the first 50a7500 milestone; see
+[photo conversion and grants](social-photo.md) and [renewal/migration](social-token-refresh.md).
+Scheduling and webhook delivery remain unimplemented. Expired refresh authorization,
+legacy credentials without a trusted refresh deadline, and ambiguous renewal require reconnect. Account reconnection
 retains stable tenant/project/account identity so it cannot bypass an unresolved
 publication intent. Tokens are never returned through media/social APIs.
 
-The shipped path uses `FILE_UPLOAD`, one MP4 chunk up to 64 MiB, avoiding public
+The video path uses `FILE_UPLOAD`, one MP4 chunk up to 64 MiB, avoiding public
 media URLs. It validates actual local media, fetches current creator permissions
 and duration limits, and defaults comments/duet/stitch off. Privacy has no default.
 Only the fixed API host and exact official upload host are accepted. Redirects and

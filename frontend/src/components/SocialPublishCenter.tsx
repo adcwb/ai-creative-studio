@@ -77,7 +77,7 @@ export function SocialPublishCenter({projectId, space}: {projectId: string; spac
       <SocialTikTokPanel projectId={projectId} space={space} state={state} sources={sources} reload={() => setRevision(value => value + 1)} />
       <h3>{t('交付与发布记录')}</h3>{state.jobs.length === 0 ? <p>{t('尚无交付记录。')}</p> : <ul className="social-jobs">{state.jobs.map(job => {
         const download = socialDownloadPath(job.download_url)
-        return <li key={job.id}><strong>{t(socialPlatformLabels[job.platform])} · {label(job.status)}</strong><p>{label(job.mode)} · <time dateTime={job.created_at}>{formatDate(job.created_at)}</time></p><code>{job.id}</code>{download && <a href={`${baseURL}${download}`} download>{t('下载交付素材')}</a>}<SocialJobActions job={job} projectId={projectId} space={space} version={state.version} reload={() => setRevision(value => value + 1)} />{job.status === 'unknown' && <p>{t('请求结果未知。请刷新并检查已有记录，不要重复提交或重新上传。')}</p>}</li>
+        return <li key={job.id}><strong>{t(socialPlatformLabels[job.platform])} · {label(job.status)}</strong><p>{label(job.mode)} · <time dateTime={job.created_at}>{formatDate(job.created_at)}</time></p><code>{job.id}</code>{download && <a href={`${baseURL}${download}`} download>{t('下载交付素材')}</a>}<SocialJobActions sources={sources} job={job} projectId={projectId} space={space} version={state.version} reload={() => setRevision(value => value + 1)} />{job.status === 'unknown' && <p>{t('请求结果未知。请刷新并检查已有记录，不要重复提交或重新上传。')}</p>}</li>
       })}</ul>}
     </>}
   </section>

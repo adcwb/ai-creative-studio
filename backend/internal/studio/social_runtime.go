@@ -21,6 +21,7 @@ import (
 // Only the deployment operator can enable the reviewed application. HTTP callers
 // cannot supply hosts, app approval, encryption keys or client credentials.
 type socialRuntime struct {
+	photo                                   *socialPhotoBroker
 	douyin                                  *douyinRuntime
 	auth                                    *AuthStore
 	m                                       *MediaStore
@@ -30,13 +31,17 @@ type socialRuntime struct {
 	approved                                bool
 }
 type socialToken struct {
-	Access         string `json:"access_token"`
-	Refresh        string `json:"refresh_token"`
-	OpenID         string `json:"open_id"`
-	Scope          string `json:"scope"`
-	Expires        int64  `json:"expires_in"`
-	Error          string `json:"error"`
-	RefreshExpires int64  `json:"refresh_expires_in"`
+	TokenType        string `json:"token_type"`
+	AccessExpiresAt  int64  `json:"access_expires_at,omitempty"`
+	RefreshExpiresAt int64  `json:"refresh_expires_at,omitempty"`
+	RefreshAttempt   string `json:"refresh_attempt,omitempty"`
+	Access           string `json:"access_token"`
+	Refresh          string `json:"refresh_token"`
+	OpenID           string `json:"open_id"`
+	Scope            string `json:"scope"`
+	Expires          int64  `json:"expires_in"`
+	Error            string `json:"error"`
+	RefreshExpires   int64  `json:"refresh_expires_in"`
 }
 type socialPending struct {
 	User    string
@@ -45,6 +50,7 @@ type socialPending struct {
 	Expires int64
 }
 type SocialCreator struct {
+	Version         int      `json:"version,omitempty"`
 	Username        string   `json:"creator_username"`
 	Nickname        string   `json:"creator_nickname"`
 	Privacy         []string `json:"privacy_level_options"`
@@ -90,6 +96,21 @@ func (r *socialRuntime) ready() bool {
 }
 func (r *socialRuntime) view(p MediaState) SocialView {
 	v := socialView(p)
+	if r.photo != nil && r.photo.ready() {
+		v.Platforms[0].PhotoStatus = "available"
+	}
+	v.Connections = append([]SocialConnection(nil), v.Connections...)
+	if v.Connections == nil {
+		v.Connections = []SocialConnection{}
+	}
+	for i, c := range v.Connections {
+		if c.Status == "refreshing" {
+			until, e := time.Parse(time.RFC3339, c.RefreshLeaseUntil)
+			if e != nil || !time.Now().Before(until) {
+				v.Connections[i].Status = "refresh_unknown"
+			}
+		}
+	}
 	v.Jobs = append([]SocialJob(nil), v.Jobs...)
 	if v.Jobs == nil {
 		v.Jobs = []SocialJob{}
@@ -285,7 +306,7 @@ func (r *socialRuntime) complete(ctx context.Context, project, space, user, bind
 	// Consume state before exchange. Timeout does not replay a one-use code.
 	var token socialToken
 	e = r.request(ctx, "/v2/oauth/token/", "", url.Values{"client_key": {r.clientKey}, "client_secret": {r.clientSecret}, "code": {code}, "grant_type": {"authorization_code"}, "redirect_uri": {r.redirect}}, &token)
-	if e != nil || token.Error != "" || token.Access == "" || token.Refresh == "" || token.OpenID == "" || token.Expires <= 0 || token.Expires > 86400 || (!socialScope(token.Scope, "video.publish") && !socialScope(token.Scope, "video.upload")) {
+	if e != nil || !validSocialToken(token) {
 		return SocialView{}, mediaInvalid("OAuth exchange failed; reconnect explicitly")
 	}
 	if e = r.checkActor(ctx); e != nil {
@@ -297,6 +318,7 @@ func (r *socialRuntime) complete(ctx context.Context, project, space, user, bind
 	k := mediaKey(space, project)
 	media := mediaState(d, k)
 	ss := socialState(media)
+	stampSocialToken(&token, time.Now())
 	accountKey := authDigest(space + ":" + project + ":" + r.clientKey + ":" + token.OpenID)
 	existing := false
 	for _, c := range ss.Connections {
@@ -312,6 +334,11 @@ func (r *socialRuntime) complete(ctx context.Context, project, space, user, bind
 	for i, c := range ss.Connections {
 		if c.AccountKey == connection.AccountKey {
 			connection.ID = c.ID
+			for j := range ss.Jobs {
+				if ss.Jobs[j].ConnectionID == c.ID && ss.Jobs[j].MediaType == "PHOTO" {
+					ss.Jobs[j].PhotoAccessRevoked = true
+				}
+			}
 			connection.Version = c.Version + 1
 			ss.Connections[i] = connection
 			replaced = true
@@ -355,17 +382,17 @@ func (r *socialRuntime) token(project, space, id string) (socialToken, error) {
 			}
 			k := socialPrivate(space, project, "token", id)
 			e = r.open(k, d.Receipts[k].SocialSecret, &token)
+			if e == nil && token.AccessExpiresAt > 0 && time.Now().Unix() >= token.AccessExpiresAt {
+				return socialToken{}, errSocialUnavailable
+			}
 			return token, e
 		}
 	}
 	return token, errSocialUnavailable
 }
 func (r *socialRuntime) creator(ctx context.Context, project, space, id string) (SocialCreator, error) {
+	t, e := r.authorizedToken(ctx, project, space, id, "")
 	ctx = context.WithValue(ctx, socialConnectionKey{}, socialConnectionScope{project, space, id})
-	if e := r.checkActor(ctx); e != nil {
-		return SocialCreator{}, e
-	}
-	t, e := r.token(project, space, id)
 	if e != nil {
 		return SocialCreator{}, e
 	}
@@ -379,6 +406,7 @@ func (r *socialRuntime) creator(ctx context.Context, project, space, id string) 
 	if e != nil || result.Error.Code != "ok" || len(result.Data.Privacy) == 0 {
 		return SocialCreator{}, errors.New("creator information unavailable")
 	}
+	result.Data.Version = r.m.Get(project, space).Version
 	return result.Data, nil
 }
 func (r *socialRuntime) revoke(ctx context.Context, project, space, id string, version int) (SocialView, error) {
@@ -393,16 +421,23 @@ func (r *socialRuntime) revoke(ctx context.Context, project, space, id string, v
 	ss := socialState(p)
 	var token socialToken
 	found := false
+	revokedVersion := 0
 	for i := range ss.Connections {
 		if ss.Connections[i].ID == id {
 			found = true
 			ss.Connections[i].Status = "revoked_remote_unconfirmed"
 			ss.Connections[i].Version++
+			revokedVersion = ss.Connections[i].Version
 		}
 	}
 	if !found {
 		r.m.mu.Unlock()
 		return SocialView{}, ErrNotFound
+	}
+	for i := range ss.Jobs {
+		if ss.Jobs[i].ConnectionID == id && ss.Jobs[i].MediaType == "PHOTO" {
+			ss.Jobs[i].PhotoAccessRevoked = true
+		}
 	}
 	secretID := socialPrivate(space, project, "token", id)
 	_ = r.open(secretID, d.Receipts[secretID].SocialSecret, &token)
@@ -429,6 +464,9 @@ func (r *socialRuntime) revoke(ctx context.Context, project, space, id string, v
 	ss = socialState(p)
 	for i := range ss.Connections {
 		if ss.Connections[i].ID == id {
+			if ss.Connections[i].Status != "revoked_remote_unconfirmed" || ss.Connections[i].Version != revokedVersion {
+				return r.view(p), nil
+			}
 			ss.Connections[i].Status = "revoked"
 		}
 	}
@@ -511,6 +549,23 @@ func (r *socialRuntime) routes(mux *http.ServeMux, s *FileStore, base string, sc
 		}
 		respond(w, 200, v)
 	})
+	mux.HandleFunc("POST "+base+"/connections/{connection_id}/creator", func(w http.ResponseWriter, req *http.Request) {
+		req = r.actorRequest(req)
+		space, _, ok := scope(w, req, true)
+		if !ok {
+			return
+		}
+		var in struct{}
+		if !decodeProject(w, req, &in) {
+			return
+		}
+		v, e := r.creator(req.Context(), req.PathValue("id"), space, req.PathValue("connection_id"))
+		if e != nil {
+			socialError(w, e)
+			return
+		}
+		respond(w, 200, v)
+	})
 	mux.HandleFunc("POST "+base+"/connections/{connection_id}/revoke", func(w http.ResponseWriter, req *http.Request) {
 		req = r.actorRequest(req)
 		space, _, ok := scope(w, req, true)
@@ -578,14 +633,16 @@ func (r *socialRuntime) actorRequest(req *http.Request) *http.Request {
 		}
 		return nil
 	}
-	return req.WithContext(context.WithValue(req.Context(), socialGuardKey{}, guard))
+	ctx := context.WithValue(req.Context(), socialGuardKey{}, guard)
+	ctx = context.WithValue(ctx, socialRefreshAllowedKey{}, authWrite(req))
+	return req.WithContext(ctx)
 }
 
 type socialConnectionKey struct{}
 type socialConnectionScope struct{ project, space, id string }
 
 func (r *socialRuntime) checkActor(ctx context.Context) error {
-	if c, ok := ctx.Value(socialConnectionKey{}).(socialConnectionScope); ok {
+	if c, ok := ctx.Value(socialConnectionKey{}).(socialConnectionScope); ok && c.id != "" {
 		if _, e := r.token(c.project, c.space, c.id); e != nil {
 			return e
 		}

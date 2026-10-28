@@ -4,7 +4,7 @@ Checked against official documentation on 2026-10-28. These are protocol and eli
 
 | Platform | Official capability | Implemented scope / boundary |
 | --- | --- | --- |
-| TikTok | Creator information, direct video posting, inbox video upload, photos, status queries | This iteration's execution path is video. Application approval/audit and OAuth are required; privacy must be selected by the user. Uploading a draft is not publication. |
+| TikTok | Creator information, direct video posting, inbox video upload, photos, status queries | Video and PHOTO execution are implemented. Application approval/audit and OAuth are required; privacy must be selected by the user. Uploading a draft is not publication. |
 | Douyin | Approved H5/SDK handoff for creative apps; separate enterprise/bound-account server posting | H5 handoff uses an expiring server ticket and controlled media URL. Actual App behavior and permissions remain untested. Server posting is not implemented. |
 | Xiaohongshu | Approved App sharing; current access intake paused | Export only in this iteration. No invented server-side note publishing or final-publication status. |
 
@@ -16,7 +16,7 @@ Checked against official documentation on 2026-10-28. These are protocol and eli
 - [Status fetch](https://developers.tiktok.com/docs/en/content-posting-api-reference-get-video-status/)
 - [Media transfer](https://developers.tiktok.com/docs/en/content-posting-api-media-transfer-guide/)
 
-The API host is `open.tiktokapis.com`. Creator information and posting/status APIs use distinct endpoints and scopes. This implementation transfers existing controlled MP4 bytes with FILE_UPLOAD; it does not assume localhost is a remotely downloadable URL. Photo APIs require a different payload and are not claimed as implemented. Only a confirmed terminal platform result may produce `published`; unknown creation results do not authorize resubmission.
+The API host is `open.tiktokapis.com`. Creator information and posting/status APIs use distinct endpoints and scopes. This implementation transfers existing controlled MP4 bytes with FILE_UPLOAD; it does not assume localhost is a remotely downloadable URL. PHOTO uses its own payload and a separate consented public-media broker; it does not reuse video FILE_UPLOAD. Only a confirmed terminal platform result may produce `published`; unknown creation results do not authorize resubmission.
 
 ## Douyin sources
 
