@@ -46,7 +46,7 @@ def request(path, body=None, key=None, method=None, status=200, mime="applicatio
         value = json.loads(payload) if "application/json" in response.headers.get("Content-Type", "") else payload
         if isinstance(value, dict):
             global contract_count
-            schema_name = "MediaState" if "assets" in value and "timeline" in value else "MediaExport" if "timeline" in value and "status" in value else None
+            schema_name = "MediaUploadResult" if path.split("?")[0].endswith("/uploads") and status == 200 else "MediaState" if "assets" in value and "timeline" in value else "MediaExport" if "timeline" in value and "status" in value else None
             if schema_name:
                 Draft4Validator(spec["components"]["schemas"][schema_name], resolver=resolver).validate(value)
                 contract_count += 1
@@ -107,6 +107,7 @@ try:
     uploaded = request(upload_path, png, "media-valid-upload", mime="image/png")
     assert len(uploaded["assets"]) == len(media["assets"]) + 1
     assert uploaded["assets"][-1]["source"] == "uploaded"
+    assert uploaded["uploaded_asset_id"] == uploaded["assets"][-1]["id"]
     assert request(upload_path, png, "media-valid-upload", mime="image/png") == uploaded
     request(upload_path, b"invalid", "media-valid-upload", status=409, mime="image/png")
     media = uploaded

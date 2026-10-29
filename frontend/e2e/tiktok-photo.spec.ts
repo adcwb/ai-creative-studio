@@ -1,6 +1,11 @@
 import { navigateTo, openProject } from './support/navigation'
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
+// route.fetch uses the context's request client. Drain callbacks before the
+// Playwright context fixture closes it; do not suppress callback failures.
+test.afterEach(async ({page}) => {
+  await page.unrouteAll({behavior: 'wait'})
+})
 // Synthetic 64x64 FFmpeg orange JPEG; no private image or external model output.
 const image = Buffer.from('/9j/4AAQSkZJRgABAgAAAQABAAD//gAQTGF2YzYxLjE5LjEwMQD/2wBDAAgEBAQEBAUFBQUFBQYGBgYGBgYGBgYGBgYHBwcICAgHBwcGBgcHCAgICAkJCQgICAgJCQoKCgwMCwsODg4RERT/xABNAAEBAAAAAAAAAAAAAAAAAAAABgEBAQEAAAAAAAAAAAAAAAAAAAYHEAEAAAAAAAAAAAAAAAAAAAAAEQEAAAAAAAAAAAAAAAAAAAAA/8AAEQgAQABAAwEiAAIRAAMRAP/aAAwDAQACEQMRAD8ArQGOroAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/9k=', 'base64')
 for (const locale of ['zh-CN', 'en']) test(`TikTok photo intent, normalization receipt and refresh version (${locale})`, async ({page, request}, info) => {
@@ -105,7 +110,9 @@ for (const locale of ['zh-CN', 'en']) test(`TikTok photo intent, normalization r
   await panel.getByRole('combobox', {name: locale === 'en' ? 'Publishing mode' : '发布模式', exact: true}).selectOption('draft')
   await expect(title).toBeEnabled(); await expect(description).toBeEnabled(); await expect(privacy).toBeDisabled()
   await consent.check(); await save.click()
-  await expect.poll(() => jobs.length).toBe(2)
+  // The fixture array changes before the UI's social/media refresh completes.
+  await expect(page.locator('.social-job-actions')).toHaveCount(2)
+  expect(jobs).toHaveLength(2)
   expect(posts.filter(item => item.path.endsWith('/jobs'))[1].body).toMatchObject({media_type: 'PHOTO', mode: 'draft', is_aigc: true, title: 'Synthetic photo title', caption: 'Synthetic photo description', privacy_level: '', auto_add_music: false, brand_content: false, brand_organic: false})
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })

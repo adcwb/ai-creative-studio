@@ -1,4 +1,4 @@
-import { navigateTo, openProject, openCreativeTools } from '../e2e/support/navigation'
+import { navigateTo, openProject } from '../e2e/support/navigation'
 import {test, expect} from '@playwright/test'
 
 test('exact image and creative quote consent accepts queued work without a model worker', async ({page}, info) => {
@@ -42,18 +42,27 @@ test('exact image and creative quote consent accepts queued work without a model
  expect(created.status()).toBe(201)
  const project = await created.json()
  await navigateTo(page, '/projects')
- await openProject(page, project.title, 'brief')
- await openCreativeTools(page)
- const tools = page.locator('.creative-tools')
- const picker = tools.locator('.runtime-model-picker').last()
+ await openProject(page, project.title, 'production')
+ const tools = page.locator('.production-board')
+ await tools.getByLabel('制作内容', {exact: true}).selectOption('image')
+ await tools.locator('.production-model > summary').click()
+ const picker = tools.locator('.production-model .runtime-model-picker')
+ await expect(picker).toHaveCount(1)
  await picker.getByRole('button',{name:'刷新模型目录',exact:true}).click()
  await picker.getByRole('combobox',{name:'模型选择',exact:true}).selectOption(model.id)
- await tools.getByLabel('生成提示或配音文本',{exact:true}).fill('Synthetic quoted shot')
+ await tools.getByLabel('创作或修改要求',{exact:true}).fill('Synthetic quoted shot')
+ const generate = tools.getByRole('button',{name:'生成候选',exact:true})
+ await expect(generate).toBeDisabled()
  await picker.getByRole('button',{name:'获取当前请求报价（不调用模型）',exact:true}).click()
  await expect(picker.getByText(/单次预留上限：.*0.15/)).toBeVisible()
+ await expect(generate).toBeDisabled()
  await picker.getByRole('checkbox',{name:'确认本次报价与可能产生的费用',exact:true}).check()
  const mediaAccepted = page.waitForResponse(r=>r.url().includes('/creative-jobs?')&&r.request().method()==='POST')
- await tools.getByRole('button',{name:'提交真实生成（可能计费）',exact:true}).click()
- expect((await mediaAccepted).status()).toBe(202)
+ await expect(generate).toBeEnabled()
+ await generate.click()
+ const mediaResponse = await mediaAccepted
+ expect(mediaResponse.status()).toBe(202)
+ expect(mediaResponse.request().postDataJSON()).toMatchObject({kind:'image',prompt:'Synthetic quoted shot',expected_provider:'openai-images',expected_model:'synthetic-quote-image'})
+ expect((await mediaResponse.json()).status).toBe('queued')
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBeTruthy()
 })
