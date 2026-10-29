@@ -4,6 +4,7 @@ import { baseURL, errorMessage, request, type Catalog, type Task } from '../api'
 import { resultImageAlt, resultOriginLabel, resultProviderLabel, taskStatusLabel } from '../providerPresentation'
 import { Icon } from './Icon'
 import { TaskMetadata } from './TaskList'
+import { ContinueImage } from '../features/images/ContinueImage'
 
 export function TaskDetail({id, space, catalog, saved, saving, busy, actionError, notice, onClose, onUpdate, onSave, onEdit, onResume}: {
   id: string; space: string; catalog: Catalog | null; saved: boolean; saving: string | null; busy: boolean; actionError: string; notice: string
@@ -48,6 +49,7 @@ export function TaskDetail({id, space, catalog, saved, saving, busy, actionError
     {error && <div className="error" role="alert">{t("无法读取任务详情：")}{t(error)} <button onClick={() => setRevision(value => value + 1)}>{t("重新加载详情")}</button></div>}
     {!task && !error && <div className="loading-block" role="status">{t("正在加载任务详情…")}</div>}
     {task && <>
+      {task.status === 'succeeded' && task.result_mime !== 'image/svg+xml' && <ContinueImage task={task} space={space} onClose={onClose} />}
       <div className="detail-grid"><div className="detail-preview">{task.result_url ? <img src={`${baseURL}${task.result_url}`} alt={resultImageAlt(task)} /> : <div className="empty"><Icon name={task.status === 'failed' ? 'image' : 'spark'} /><p>{task.status === 'failed' ? t("本地暂无可用结果") : t("画面正在准备中")}</p></div>}<span>{task.result_url ? resultOriginLabel(task) : resultProviderLabel(task)}</span></div>
       <div className="detail-information" data-provider={task.provider}><span className={`status ${task.status}`}><span />{taskStatusLabel(task)}</span><h3>{t("画面描述")}</h3><p className="detail-prompt">{task.prompt}</p><TaskMetadata task={task} catalog={catalog} />
         {(task.status === 'queued' || task.status === 'running') && <div className="progress-block"><progress aria-label={t("详情任务进度")} value={task.progress} max="100" /><span>{t("任务进度 {progress}% · 自动更新",{progress:task.progress})}</span></div>}

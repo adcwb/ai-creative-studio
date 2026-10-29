@@ -6,6 +6,7 @@ import (
 )
 
 type MediaTimeline struct {
+	EpisodeNumber    int                 `json:"episode_number,omitempty"`
 	VideoOverlays    []MediaVideoOverlay `json:"video_overlays,omitempty"`
 	OutputResolution string              `json:"output_resolution,omitempty"`
 	AspectRatio      string              `json:"aspect_ratio,omitempty"`
@@ -26,6 +27,9 @@ func Asset(p MediaState, id string) (MediaAsset, bool) {
 }
 
 func ValidateTimeline(p MediaState, t MediaTimeline) error {
+	if t.EpisodeNumber < 0 || t.EpisodeNumber > 999 {
+		return Invalid("集数需为1–999")
+	}
 	if _, _, _, err := OutputSpec(t); err != nil {
 		return err
 	}
@@ -77,6 +81,12 @@ func ValidateTimeline(p MediaState, t MediaTimeline) error {
 			audio, ok := Asset(p, c.AudioAssetID)
 			if !ok || audio.Kind != "audio" {
 				return Invalid("配音素材无效")
+			}
+		}
+		if c.SourceAudioAssetID != "" {
+			source, ok := Asset(p, c.SourceAudioAssetID)
+			if !ok || source.Kind != "video" || !c.PreserveSourceAudio || math.IsNaN(c.SourceAudioTrimStart) || math.IsInf(c.SourceAudioTrimStart, 0) || c.SourceAudioTrimStart < 0 || c.SourceAudioTrimStart+c.Duration > source.Duration+.05 {
+				return Invalid("保留原音的来源或时间范围无效")
 			}
 		}
 		if c.CropWidth != 0 || c.CropHeight != 0 {

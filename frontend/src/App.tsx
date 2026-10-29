@@ -6,6 +6,7 @@ import { NotFoundPage } from './pages/NotFoundPage'
 import { RouteErrorPage } from './pages/RouteErrorPage'
 import './drama.css'
 import './layouts/app.css'
+import './layouts/production.css'
 
 function SessionGate() {
   return <AuthGate>{(session, logout) => <Outlet context={{session, logout}} />}</AuthGate>
@@ -18,6 +19,7 @@ const router = createBrowserRouter([
       {index: true, element: <Navigate to="/studio" replace />},
       {element: <ImageWorkspace />, errorElement: <RouteErrorPage />, children: [
         {path: 'studio', lazy: async () => ({Component: (await import('./pages/ImagePage')).ImagePage})},
+        ...['studio/workspaces', 'studio/workspaces/:workspaceId', 'digital-humans/:mode', 'digital-humans/:mode/:workspaceId', 'publish', 'publish/:workspaceId'].map(path => ({path, lazy: async () => ({Component: (await import('./pages/WorkspacesPage')).WorkspacesPage})})),
         {path: 'assets', lazy: async () => ({Component: (await import('./pages/AssetsPage')).AssetsPage})},
         {path: 'library', lazy: async () => ({Component: (await import('./pages/LibraryPage')).LibraryPage})},
         {path: 'projects', lazy: async () => ({Component: (await import('./pages/ProjectsPage')).ProjectsPage})},

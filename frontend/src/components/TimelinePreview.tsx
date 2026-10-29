@@ -3,12 +3,16 @@ import { baseURL } from '../api'
 import { translate as t, useI18n } from '../i18n'
 import { clipStarts, overlayAt, overlaps, timelineDuration, type ClipTiming, type VideoOverlay } from '../mediaTimeline'
 import './timelinePreview.css'
+import { TimelineAudio } from './TimelineAudio'
+import { audioRegions, type AudibleClip } from '../previewAudio'
+import type { AudioTiming } from '../mediaTimeline'
 
-interface PreviewClip extends ClipTiming {id: string; asset_id: string; trim_start: number; crop_x?: number; crop_y?: number; crop_width?: number; crop_height?: number; subtitle?: string; subtitle_cues?: {start: number; end: number; text: string}[]}
+interface PreviewClip extends ClipTiming, AudibleClip {id: string; asset_id: string; trim_start: number; crop_x?: number; crop_y?: number; crop_width?: number; crop_height?: number; subtitle?: string; subtitle_cues?: {start: number; end: number; text: string}[]}
 interface Asset {id: string; kind: 'image' | 'video' | 'audio'; file_url: string}
 type Source = HTMLImageElement | HTMLVideoElement
-export function TimelinePreview({clips, overlays, assets, aspect, subtitleMode, time, onTime}: {
+export function TimelinePreview({clips, overlays, assets, aspect, subtitleMode, time, onTime, audioTracks = [], musicAsset = '', musicVolume = .2}: {
   clips: PreviewClip[]; overlays: VideoOverlay[]; assets: Asset[]; aspect: string; subtitleMode: string; time: number; onTime: (time: number) => void
+  audioTracks?: AudioTiming[]; musicAsset?: string; musicVolume?: number
 }) {
   const {formatNumber} = useI18n()
   const canvas = useRef<HTMLCanvasElement>(null)
@@ -119,7 +123,8 @@ export function TimelinePreview({clips, overlays, assets, aspect, subtitleMode, 
   }, [clips, overlays, aspect, subtitleMode, time, width, height, duration])
   return <section className="timeline-preview" aria-label={t('实时画面预览')}>
     <h3>{t('实时画面预览')}</h3>
-    <p className="drama-help">{t('静音低清预览展示镜头、叠层与线性关键帧；浏览器寻帧、字体和转场边缘可能与导出不同。声音与最终像素请检查导出文件。')}</p>
+    <p className="drama-help">{t('预览同步画面、原音、配音和音乐；浏览器混音、字体和转场边缘可能与导出不同。最终成片请检查导出文件。')}</p>
+    <TimelineAudio regions={audioRegions(clips, audioTracks, overlays, musicAsset, musicVolume)} assets={assets} playing={playing} time={time} />
     {loadFailed && <p role="alert">{t('部分预览素材无法读取，请检查素材权限并重新打开项目。')}</p>}
     <canvas ref={canvas} width={width} height={height} aria-label={t('时间轴合成画面')} />
     <div className="media-actions"><button type="button" disabled={!duration} onClick={() => {if (!playing && time >= duration) onTime(0); setPlaying(!playing)}}>{playing ? t('暂停预览') : t('播放预览')}</button><output>{formatNumber(time, {maximumFractionDigits: 2})} / {formatNumber(duration, {maximumFractionDigits: 2})} {t('秒')}</output></div>

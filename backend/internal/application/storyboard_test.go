@@ -216,7 +216,7 @@ func TestStoryboardMigrationAndCorruption(t *testing.T) {
 }
 func TestStoryboardValidationAndWriteFailure(t *testing.T) {
 	shots := boardFixture(t)
-	cases := []func([]StoryboardShot){func(s []StoryboardShot) { s[0].SceneIndex = 4 }, func(s []StoryboardShot) { s[0].ID = s[1].ID }, func(s []StoryboardShot) { s[0].ShotSize = "unknown" }, func(s []StoryboardShot) { s[0].CameraMovement = "unknown" }, func(s []StoryboardShot) { s[0].DurationSeconds = 0 }, func(s []StoryboardShot) { s[0].Description = " " }}
+	cases := []func([]StoryboardShot){func(s []StoryboardShot) { s[0].SceneIndex = 121 }, func(s []StoryboardShot) { s[0].ID = s[1].ID }, func(s []StoryboardShot) { s[0].ShotSize = "unknown" }, func(s []StoryboardShot) { s[0].CameraMovement = "unknown" }, func(s []StoryboardShot) { s[0].DurationSeconds = 0 }, func(s []StoryboardShot) { s[0].Description = " " }}
 	for _, change := range cases {
 		copy := append([]StoryboardShot(nil), shots...)
 		change(copy)

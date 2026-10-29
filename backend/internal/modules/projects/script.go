@@ -22,9 +22,10 @@ type ScriptCharacter struct {
 }
 
 type ScriptScene struct {
-	Heading  string           `json:"heading"`
-	Action   string           `json:"action"`
-	Dialogue []ScriptDialogue `json:"dialogue"`
+	EpisodeNumber int              `json:"episode_number,omitempty"`
+	Heading       string           `json:"heading"`
+	Action        string           `json:"action"`
+	Dialogue      []ScriptDialogue `json:"dialogue"`
 }
 
 type ScriptDialogue struct {
@@ -52,10 +53,10 @@ type ScriptGeneration struct {
 }
 
 func CloneScript(script Script) Script {
-	script.Characters = append([]ScriptCharacter(nil), script.Characters...)
+	script.Characters = append([]ScriptCharacter{}, script.Characters...)
 	script.Scenes = append([]ScriptScene(nil), script.Scenes...)
 	for i := range script.Scenes {
-		script.Scenes[i].Dialogue = append([]ScriptDialogue(nil), script.Scenes[i].Dialogue...)
+		script.Scenes[i].Dialogue = append([]ScriptDialogue{}, script.Scenes[i].Dialogue...)
 	}
 	return script
 }
@@ -69,8 +70,8 @@ func NormalizeScript(script Script) (Script, error) {
 	if script.Logline, err = NormalizeText(script.Logline, "一句话梗概", 3, 300); err != nil {
 		return Script{}, err
 	}
-	if len(script.Characters) != 2 || len(script.Scenes) != 3 {
-		return Script{}, InputError("本轮剧本必须包含 2 个角色和 3 个场景")
+	if len(script.Characters) > 30 || len(script.Scenes) < 1 || len(script.Scenes) > 120 {
+		return Script{}, InputError("剧本支持最多30个角色和1–120个场景")
 	}
 	names := map[string]bool{}
 	for i := range script.Characters {
@@ -88,14 +89,17 @@ func NormalizeScript(script Script) (Script, error) {
 	}
 	for i := range script.Scenes {
 		scene := &script.Scenes[i]
+		if scene.EpisodeNumber < 0 || scene.EpisodeNumber > 999 {
+			return Script{}, InputError("集数需为1–999")
+		}
 		if scene.Heading, err = NormalizeText(scene.Heading, "场景标题", 1, 100); err != nil {
 			return Script{}, err
 		}
 		if scene.Action, err = NormalizeText(scene.Action, "场景动作", 1, 1000); err != nil {
 			return Script{}, err
 		}
-		if len(scene.Dialogue) < 1 || len(scene.Dialogue) > 6 {
-			return Script{}, InputError("每个场景需包含 1–6 条对白")
+		if len(scene.Dialogue) > 100 {
+			return Script{}, InputError("每个场景最多100条对白")
 		}
 		for j := range scene.Dialogue {
 			line := &scene.Dialogue[j]

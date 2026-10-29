@@ -15,7 +15,10 @@ import (
 var errAuthAudit = errors.New("authentication audit unavailable")
 
 type authScopeKey struct{}
-type authScope struct{ UserID, SpaceID, Role string }
+type authScope struct {
+	UserID, SpaceID, Role string
+	reviewMembers         func() []productionMember
+}
 type AuthOptions struct {
 	AllowRegistration bool
 	SecureCookie      bool
@@ -266,7 +269,7 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 			auth.models.serve(w, r, s)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), authScopeKey{}, authScope{UserID: user.ID, SpaceID: space, Role: role})))
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), authScopeKey{}, authScope{UserID: user.ID, SpaceID: space, Role: role, reviewMembers: func() []productionMember { return auth.productionMembers(space) }})))
 	})
 }
 func (s *AuthStore) createOrganization(w http.ResponseWriter, r *http.Request, user AuthUser) {

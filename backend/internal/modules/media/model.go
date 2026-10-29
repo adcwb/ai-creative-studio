@@ -24,20 +24,24 @@ type MediaAsset struct {
 }
 
 type MediaClip struct {
-	PreserveSourceAudio bool          `json:"preserve_source_audio,omitempty"`
-	SourceAudioVolume   float64       `json:"source_audio_volume,omitempty"`
-	Transition          string        `json:"transition,omitempty"`
-	TransitionDuration  float64       `json:"transition_duration,omitempty"`
-	SubtitleCues        []SubtitleCue `json:"subtitle_cues,omitempty"`
-	SubtitleSource      string        `json:"subtitle_source,omitempty"`
-	SubtitleAlignmentID string        `json:"subtitle_alignment_id,omitempty"`
-	ID                  string        `json:"id"`
-	AssetID             string        `json:"asset_id"`
-	Duration            float64       `json:"duration"`
-	TrimStart           float64       `json:"trim_start"`
-	Subtitle            string        `json:"subtitle"`
-	AudioAssetID        string        `json:"audio_asset_id"`
-	AudioVolume         float64       `json:"audio_volume"`
+	// A replacement may keep sound from an earlier video without copying bytes.
+	SourceAudioAssetID   string        `json:"source_audio_asset_id,omitempty"`
+	SourceAudioTrimStart float64       `json:"source_audio_trim_start,omitempty"`
+	ShotID               string        `json:"shot_id,omitempty"`
+	PreserveSourceAudio  bool          `json:"preserve_source_audio,omitempty"`
+	SourceAudioVolume    float64       `json:"source_audio_volume,omitempty"`
+	Transition           string        `json:"transition,omitempty"`
+	TransitionDuration   float64       `json:"transition_duration,omitempty"`
+	SubtitleCues         []SubtitleCue `json:"subtitle_cues,omitempty"`
+	SubtitleSource       string        `json:"subtitle_source,omitempty"`
+	SubtitleAlignmentID  string        `json:"subtitle_alignment_id,omitempty"`
+	ID                   string        `json:"id"`
+	AssetID              string        `json:"asset_id"`
+	Duration             float64       `json:"duration"`
+	TrimStart            float64       `json:"trim_start"`
+	Subtitle             string        `json:"subtitle"`
+	AudioAssetID         string        `json:"audio_asset_id"`
+	AudioVolume          float64       `json:"audio_volume"`
 	// A normalized crop, applied before fitting to the output frame.
 	CropX      float64 `json:"crop_x"`
 	CropY      float64 `json:"crop_y"`
@@ -71,6 +75,7 @@ type MediaVideoOverlay struct {
 }
 
 type MediaExport struct {
+	EpisodeNumber  int           `json:"episode_number,omitempty"`
 	TraceParent    string        `json:"trace_parent,omitempty"`
 	SubtitleVTTURL string        `json:"subtitle_vtt_url"`
 	ID             string        `json:"id"`
@@ -83,13 +88,16 @@ type MediaExport struct {
 }
 
 type MediaState struct {
-	LibraryBindings []LibraryBinding `json:"library_bindings,omitempty"`
-	Poster          *PosterDocument  `json:"poster,omitempty"`
-	Social          *SocialState     `json:"social,omitempty"`
-	Version         int              `json:"version"`
-	Assets          []MediaAsset     `json:"assets"`
-	Timeline        MediaTimeline    `json:"timeline"`
-	Exports         []MediaExport    `json:"exports"`
+	EpisodeTimelines map[int]MediaTimeline `json:"episode_timelines,omitempty"`
+	Selections       []Selection           `json:"selections,omitempty"`
+	Reviews          []ReviewNote          `json:"reviews,omitempty"`
+	LibraryBindings  []LibraryBinding      `json:"library_bindings,omitempty"`
+	Poster           *PosterDocument       `json:"poster,omitempty"`
+	Social           *SocialState          `json:"social,omitempty"`
+	Version          int                   `json:"version"`
+	Assets           []MediaAsset          `json:"assets"`
+	Timeline         MediaTimeline         `json:"timeline"`
+	Exports          []MediaExport         `json:"exports"`
 }
 
 // LibraryBinding records the exact library version copied into this project.

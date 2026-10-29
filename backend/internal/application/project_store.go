@@ -116,7 +116,11 @@ func (s *FileStore) CreateProject(space, key string, in ProjectInput) (Project, 
 		return Project{}, false, err
 	}
 	now := time.Now().UTC()
-	project := Project{ID: id, SpaceID: space, Title: in.Title, Brief: in.Brief, Version: 1, CreatedAt: now, UpdatedAt: now}
+	kind := in.Kind
+	if kind == "" {
+		kind = "drama"
+	}
+	project := Project{ID: id, Kind: kind, SpaceID: space, Title: in.Title, Brief: in.Brief, Version: 1, CreatedAt: now, UpdatedAt: now}
 	receipt.ProjectID = id
 	d := s.clone()
 	d.Projects[id] = project
@@ -296,8 +300,10 @@ func (s *FileStore) SaveProjectScript(space, id, key string, in ScriptSaveInput)
 	if s.generationActiveLocked(project) {
 		return Project{}, ErrGenerationActive
 	}
+	// A handwritten script can be the first draft; generation is optional.
 	if project.Script == nil {
-		return Project{}, ErrScriptMissing
+		project.ScriptProvider = "manual"
+		project.ScriptBrief = project.Brief
 	}
 	project.Script = &in.Script
 	project.ScriptVersion++

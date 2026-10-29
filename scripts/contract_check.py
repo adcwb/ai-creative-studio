@@ -258,8 +258,8 @@ def main():
                 sample = copy.deepcopy(spec["components"]["schemas"]["StoryboardShot"]["example"])
                 missing = project_call("POST", suffix + "/storyboard-generations", {"expected_version": 1}, "board-no-script", 409)
                 assert missing["error"]["code"] == "script_missing"
-                missing = project_call("PUT", suffix + "/storyboard", {"expected_version": 1, "shots": [sample]}, "board-no-plan", 409)
-                assert missing["error"]["code"] == "storyboard_missing"
+                missing = project_call("PUT", suffix + "/storyboard", {"expected_version": 1, "shots": [sample]}, "board-no-plan", 400)
+                assert missing["error"]["code"] == "invalid_input"
                 for method, tail, body in [("GET", "/storyboard-generations", None), ("POST", "/storyboard-generations", {"expected_version": 1}), ("PUT", "/storyboard", {"expected_version": 1, "shots": [sample]})]:
                     project_call(method, suffix + tail, body, "board-cross-space", 404, "team-demo")
                 project_call("POST", suffix + "/generations", {"expected_version": 1}, "board-source-generate", 202)
@@ -290,10 +290,10 @@ def main():
                 assert project_call("PUT", suffix + "/storyboard", save_body, "board-save-stale", 409)["error"]["code"] == "version_conflict"
                 different = copy.deepcopy(save_body); different["shots"][0]["description"] = "同键不同内容"
                 assert project_call("PUT", suffix + "/storyboard", different, "board-save-first", 409)["error"]["code"] == "idempotency_conflict"
-                for index, change in enumerate([{"scene_index": 0}, {"scene_index": 4}, {"duration_seconds": 0}, {"duration_seconds": 61}, {"duration_seconds": 1.5}, {"shot_size": "other"}, {"camera_movement": "other"}, {"description": ""}, {"description": "长" * 1001}, {"dialogue": "长" * 2001}, {"dialogue": None}, {"id": "invalid id"}]):
+                for index, change in enumerate([{"scene_index": -1}, {"scene_index": 4}, {"duration_seconds": 0}, {"duration_seconds": 61}, {"duration_seconds": 1.5}, {"shot_size": "other"}, {"camera_movement": "other"}, {"description": ""}, {"description": "长" * 1001}, {"dialogue": "长" * 2001}, {"dialogue": None}, {"id": "invalid id"}]):
                     invalid = copy.deepcopy(shots); invalid[0].update(change)
                     project_call("PUT", suffix + "/storyboard", {"expected_version": saved["version"], "shots": invalid}, f"board-invalid-shot-{index}", 400)
-                for index, invalid_shots in enumerate([[], [sample] * 31, [sample, sample], None]):
+                for index, invalid_shots in enumerate([[], [sample] * 121, [sample, sample], None]):
                     project_call("PUT", suffix + "/storyboard", {"expected_version": saved["version"], "shots": invalid_shots}, f"board-invalid-list-{index}", 400)
                 project_call("PUT", suffix + "/storyboard", dict(save_body, expected_version=saved["version"], source_script_version=1), "board-forged-source", 400)
                 missing_dialogue = copy.deepcopy(shots); del missing_dialogue[0]["dialogue"]
@@ -363,8 +363,9 @@ def main():
                     ("PUT", "/script", {"expected_version": 1, "script": sample}),
                 ]:
                     project_call(method, suffix + tail, body, "project-cross-space", 404, "team-demo")
-                missing = project_call("PUT", suffix + "/script", {"expected_version": 1, "script": sample}, "project-no-script", 409)
-                assert missing["error"]["code"] == "script_missing"
+                manual = project_call("POST", body={"title": "Manual script", "brief": "A manually authored short film."}, key="manual-project-create", expected=201)
+                authored = project_call("PUT", "/" + manual["id"] + "/script", {"expected_version": 1, "script": sample}, "manual-project-script")
+                assert authored["script"] == sample and authored["script_provider"] == "manual"
                 for index, invalid in enumerate([{}, {"expected_version": 0}, {"expected_version": None}, {"expected_version": "1"}, {"expected_version": 1, "brief": "不能绕过已保存需求"}]):
                     project_call("POST", suffix + "/generations", invalid, f"project-invalid-gen-{index}", 400)
                 generation_body = {"expected_version": 1}

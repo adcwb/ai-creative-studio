@@ -257,7 +257,17 @@ func (m *MediaStore) SaveTimeline(project, space, key string, version int, t Med
 	if err := m.validateAlignmentSources(project, space, t); err != nil {
 		return p, err
 	}
-	p.Timeline = t
+	if t.EpisodeNumber <= 1 {
+		p.Timeline = t
+	} else {
+		if p.EpisodeTimelines == nil {
+			p.EpisodeTimelines = map[int]MediaTimeline{}
+		}
+		if _, exists := p.EpisodeTimelines[t.EpisodeNumber]; !exists && len(p.EpisodeTimelines) >= 119 {
+			return p, errMediaLimit
+		}
+		p.EpisodeTimelines[t.EpisodeNumber] = t
+	}
 	p.Version++
 	d.Projects[k] = p
 	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest}

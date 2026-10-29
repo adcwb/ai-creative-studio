@@ -12,6 +12,7 @@ import (
 type RuntimeSelection = governance.RuntimeSelection
 
 type ProjectInput struct {
+	Kind  string `json:"kind,omitempty"`
 	Title string `json:"title"`
 	Brief string `json:"brief"`
 }
@@ -23,6 +24,7 @@ type ProjectUpdate struct {
 }
 
 type Project struct {
+	Kind                         string                `json:"kind,omitempty"`
 	ScriptProvider               string                `json:"script_provider,omitempty"`
 	ScriptVersion                int                   `json:"script_version"`
 	Storyboard                   *Storyboard           `json:"storyboard,omitempty"`
@@ -52,6 +54,9 @@ func NormalizeText(value, label string, minimum, maximum int) (string, error) {
 }
 
 func NormalizeProjectInput(in ProjectInput) (ProjectInput, error) {
+	if in.Kind != "" && in.Kind != "drama" && in.Kind != "image" && in.Kind != "digital-human" {
+		return ProjectInput{}, InputError("无效的创作类型")
+	}
 	var err error
 	if in.Title, err = NormalizeText(in.Title, "项目标题", 1, 80); err != nil {
 		return ProjectInput{}, err

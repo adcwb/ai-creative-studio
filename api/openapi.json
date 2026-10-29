@@ -4171,7 +4171,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MediaState"
+                  "$ref": "#/components/schemas/MediaUploadResult"
                 }
               }
             }
@@ -4399,7 +4399,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/MediaVersionInput"
+                "$ref": "#/components/schemas/MediaEpisodeExportInput"
               }
             }
           }
@@ -13812,6 +13812,404 @@
           }
         }
       }
+    },
+    "/api/v1/projects/{id}/media/decisions": {
+      "post": {
+        "operationId": "saveProductionDecision",
+        "summary": "Adopt a candidate or record/resolve an asset-bound review note",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "媒体域持久幂等键；项目+空间范围内共享，重试必须保留相同请求及标签。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaState"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "媒体资源限额：单项目120素材/30导出，同时最多2个合成，以及全局容量上限。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductionDecision"
+              }
+            }
+          }
+        },
+        "description": "Select requires an image/video asset in this project; review requires text and a valid asset time; resolve requires an existing review_id. Nonempty shot_id must exist. Appends adoption history without modifying timeline or calling models. Version conflict and idempotency protection apply; retries replay without duplication. Limits: 2000 selections and 2000 reviews per project."
+      }
+    },
+    "/api/v1/projects/{id}/creative-controls": {
+      "get": {
+        "operationId": "getCreativeControls",
+        "summary": "Read verified controls for a provider/model; does not imply credentials are configured",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "provider",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Current project controls or assignable organization members.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeControls"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/media/review-members": {
+      "get": {
+        "operationId": "getProductionMembers",
+        "summary": "List current organization editors available for review assignment",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Current project controls or assignable organization members.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "name"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -14572,8 +14970,14 @@
             "items": {
               "$ref": "#/components/schemas/ScriptDialogue"
             },
-            "minItems": 1,
-            "maxItems": 6
+            "minItems": 0,
+            "maxItems": 100
+          },
+          "episode_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999,
+            "default": 1
           }
         }
       },
@@ -14604,19 +15008,19 @@
             "items": {
               "$ref": "#/components/schemas/ScriptCharacter"
             },
-            "minItems": 2,
-            "maxItems": 2
+            "minItems": 0,
+            "maxItems": 30
           },
           "scenes": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ScriptScene"
             },
-            "minItems": 3,
-            "maxItems": 3
+            "minItems": 1,
+            "maxItems": 120
           }
         },
-        "description": "单集结构化模拟剧本，恰 2 名名称互异角色、恰 3 场，每场 1–6 句对白且角色引用有效。所有字符串规范化并校验；前端仅编辑标题、梗概、场景标题/动作及对白文本，不提供结构增删。API 保存的是完整合法结构。",
+        "description": "Editable story with up to 30 unique characters and 1–120 scenes. Scenes can be silent and carry an optional episode number. Saving a first handwritten draft does not require generation.",
         "example": {
           "title": "雨夜来信",
           "logline": "两名旧友因一封错寄的信，在雨夜车站重逢并决定合作。",
@@ -14874,6 +15278,15 @@
           "script_provider": {
             "type": "string",
             "description": "当前已保存剧本自身的生成来源；配置切换不修改此字段。"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "drama",
+              "image",
+              "digital-human"
+            ],
+            "description": "Creation workspace type; omitted legacy values mean drama. Immutable after creation."
           }
         },
         "description": "单项目只有一份当前剧本。无稿时省略 script/script_brief，无尝试时省略 latest_generation，不返回 null。生成活动期间拒绝内容修改和新生成，精确幂等重放仍返回当前投影。项目没有独立的伪状态字段。 第五轮每项目另有一份当前分镜；两种生成均锁定项目写操作。source_script_version 不随分镜编辑改变。",
@@ -14908,6 +15321,15 @@
             "minLength": 3,
             "maxLength": 2000,
             "description": "后端去除首尾空白后按 Unicode 字符计数；不接受 null。"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "drama",
+              "image",
+              "digital-human"
+            ],
+            "description": "Creation workspace type; omitted legacy values mean drama. Immutable after creation."
           }
         }
       },
@@ -15029,8 +15451,9 @@
           },
           "scene_index": {
             "type": "integer",
-            "minimum": 1,
-            "maximum": 3
+            "minimum": 0,
+            "maximum": 120,
+            "description": "Zero is a standalone shot. Nonzero indices must exist in the source script. Stale plans retain their original scene references."
           },
           "description": {
             "type": "string",
@@ -15064,6 +15487,18 @@
             "minLength": 0,
             "maxLength": 2000,
             "description": "去除首尾空白后按 Unicode 字符计数。"
+          },
+          "purpose": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "performance": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "continuity": {
+            "type": "string",
+            "maxLength": 1000
           }
         },
         "description": "镜头 ID 在计划内唯一；scene_index 为来源剧本场景数组的 1-based 序号，必须结合 source_script_version 理解，不能当作跨版本稳定场景 ID。",
@@ -15092,7 +15527,7 @@
           "shots": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 30,
+            "maxItems": 120,
             "items": {
               "$ref": "#/components/schemas/StoryboardShot"
             }
@@ -15133,7 +15568,7 @@
           "shots": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 30,
+            "maxItems": 120,
             "items": {
               "$ref": "#/components/schemas/StoryboardShot"
             }
@@ -15457,6 +15892,19 @@
             "type": "number",
             "minimum": 0,
             "maximum": 2
+          },
+          "shot_id": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "source_audio_asset_id": {
+            "type": "string",
+            "description": "Optional original video asset retained when replacing picture; must belong to the same project and preserve_source_audio must be true."
+          },
+          "source_audio_trim_start": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Offset in retained source audio; source duration must cover the clip."
           }
         },
         "required": [
@@ -15533,6 +15981,12 @@
             "items": {
               "$ref": "#/components/schemas/MediaVideoOverlay"
             }
+          },
+          "episode_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999,
+            "description": "Omitted means episode 1. Existing receipts retain their original payload."
           }
         },
         "required": [
@@ -15581,6 +16035,11 @@
             "readOnly": true,
             "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$",
             "description": "Optional server-captured correlation context; never authorization."
+          },
+          "episode_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999
           }
         },
         "required": [
@@ -15629,6 +16088,28 @@
             "items": {
               "$ref": "#/components/schemas/LibraryBinding"
             }
+          },
+          "selections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductionSelection"
+            },
+            "maxItems": 2000
+          },
+          "reviews": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductionReview"
+            },
+            "maxItems": 2000
+          },
+          "episode_timelines": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MediaTimeline"
+            },
+            "description": "Independent episode timelines keyed by episode number 2..999. timeline remains episode 1. At most 120 saved episodes.",
+            "maxProperties": 119
           }
         },
         "required": [
@@ -15837,6 +16318,26 @@
           "voice_confirmed": {
             "type": "boolean",
             "description": "Must be true for digital_human; this is an operator declaration, not automated rights verification."
+          },
+          "reference_asset_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4,
+            "uniqueItems": true,
+            "description": "Ordered project-owned image references. Cannot combine with legacy reference_asset_id or masks."
+          },
+          "first_frame_asset_id": {
+            "type": "string"
+          },
+          "last_frame_asset_id": {
+            "type": "string",
+            "description": "Requires first_frame_asset_id."
+          },
+          "motion_reference_asset_id": {
+            "type": "string",
+            "description": "Project MP4 used as reference guidance, not guaranteed motion transfer."
           }
         },
         "required": [
@@ -15958,6 +16459,26 @@
           "voice_consent_by": {
             "type": "string",
             "description": "Authenticated user recording the voice consent; omitted only in demo mode or non-avatar jobs."
+          },
+          "reference_asset_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4,
+            "uniqueItems": true,
+            "description": "Ordered project-owned image references. Cannot combine with legacy reference_asset_id or masks."
+          },
+          "first_frame_asset_id": {
+            "type": "string"
+          },
+          "last_frame_asset_id": {
+            "type": "string",
+            "description": "Requires first_frame_asset_id."
+          },
+          "motion_reference_asset_id": {
+            "type": "string",
+            "description": "Project MP4 used as reference guidance, not guaranteed motion transfer."
           }
         },
         "required": [
@@ -16121,6 +16642,11 @@
             "type": "string",
             "pattern": "^[a-f0-9]{64}$",
             "description": "Request-bound digest from runtime-quote; required for explicit managed execution."
+          },
+          "episode_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999
           }
         },
         "description": "任务只产生建议，不自动修改时间轴；用户应用仍须媒体版本CAS。真实ASR未配置时拒绝，不回退估算。"
@@ -16232,6 +16758,12 @@
             "type": "string",
             "maxLength": 2000,
             "description": "Text-only result for mode=transcription. No timestamps; cues is empty and this task cannot be applied as subtitle provenance."
+          },
+          "episode_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999,
+            "description": "Omitted means episode 1. Existing receipts retain their original payload."
           }
         },
         "required": [
@@ -18970,6 +19502,257 @@
         "required": [
           "items",
           "media_version"
+        ]
+      },
+      "ProductionSelection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "shot_id",
+          "asset_id",
+          "note",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "shot_id": {
+            "type": "string"
+          },
+          "asset_id": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductionReview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "asset_id",
+          "shot_id",
+          "time",
+          "text",
+          "resolved",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "asset_id": {
+            "type": "string"
+          },
+          "shot_id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "time": {
+            "type": "number",
+            "minimum": 0
+          },
+          "resolved": {
+            "type": "boolean"
+          },
+          "assignee_id": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "updated_by": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "high",
+              "low"
+            ]
+          }
+        }
+      },
+      "ProductionDecision": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_version",
+          "action"
+        ],
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "select",
+              "review",
+              "resolve",
+              "assign"
+            ]
+          },
+          "asset_id": {
+            "type": "string"
+          },
+          "shot_id": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "time": {
+            "type": "number",
+            "minimum": 0
+          },
+          "review_id": {
+            "type": "string"
+          },
+          "resolved": {
+            "type": "boolean"
+          },
+          "assignee_id": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "high",
+              "low"
+            ]
+          }
+        }
+      },
+      "MediaUploadResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaAsset"
+            }
+          },
+          "timeline": {
+            "$ref": "#/components/schemas/MediaTimeline"
+          },
+          "exports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaExport"
+            }
+          },
+          "poster": {
+            "$ref": "#/components/schemas/PosterDocument"
+          },
+          "social": {
+            "$ref": "#/components/schemas/SocialState"
+          },
+          "library_bindings": {
+            "type": "array",
+            "maxItems": 60,
+            "items": {
+              "$ref": "#/components/schemas/LibraryBinding"
+            }
+          },
+          "selections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductionSelection"
+            },
+            "maxItems": 2000
+          },
+          "reviews": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductionReview"
+            },
+            "maxItems": 2000
+          },
+          "uploaded_asset_id": {
+            "type": "string",
+            "description": "Immutable asset created by this upload request, including idempotent replay after later uploads."
+          },
+          "episode_timelines": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MediaTimeline"
+            },
+            "description": "Independent episode timelines keyed by episode number 2..999. timeline remains episode 1. At most 120 saved episodes.",
+            "maxProperties": 119
+          }
+        },
+        "required": [
+          "version",
+          "assets",
+          "timeline",
+          "exports",
+          "uploaded_asset_id"
+        ]
+      },
+      "CreativeControls": {
+        "type": "object",
+        "required": [
+          "max_references",
+          "frames",
+          "motion_reference"
+        ],
+        "properties": {
+          "max_references": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4
+          },
+          "frames": {
+            "type": "boolean"
+          },
+          "motion_reference": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MediaEpisodeExportInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "episode_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999
+          }
+        },
+        "required": [
+          "expected_version"
         ]
       }
     },

@@ -12,7 +12,7 @@ import (
 // field followed by null would otherwise leave its previous value unchanged.
 func decodeProject(w http.ResponseWriter, r *http.Request, value any) bool {
 	var raw json.RawMessage
-	if !decodeLimited(w, r, &raw, 64<<10) {
+	if !decodeLimited(w, r, &raw, 1<<20) {
 		return false
 	}
 	tokens := json.NewDecoder(bytes.NewReader(raw))

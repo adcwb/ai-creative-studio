@@ -117,15 +117,16 @@ func TestProjectHTTPRejectsInvalidWriteShapesWithoutMutation(t *testing.T) {
 		}
 		projectErrorCode(t, result, want)
 	}
-	for _, body := range []string{`null`, `{"title":"合法标题","title":null,"brief":"合法创作简报"}`, `{"title":"合法标题","brief":"合法创作简报"}` + strings.Repeat(" ", 64<<10)} {
+	for _, body := range []string{`null`, `{"title":"合法标题","title":null,"brief":"合法创作简报"}`, `{"title":"合法标题","brief":"合法创作简报"}` + strings.Repeat(" ", 1<<20)} {
 		projectErrorCode(t, projectHTTP(t, s, "POST", "/projects?space_id=personal-demo", "invalid-shape-key", body, 400), "invalid_json")
 	}
 	script := projectScriptFixture()
 	script["scenes"].([]any)[0].(map[string]any)["unexpected"] = "extra"
 	projectErrorCode(t, projectHTTP(t, s, "PUT", "/projects/"+p.ID+"/script?space_id=personal-demo", "invalid-script-key", projectJSON(t, map[string]any{"expected_version": 1, "script": script}), 400), "invalid_json")
-	projectErrorCode(t, projectHTTP(t, s, "PUT", "/projects/"+p.ID+"/script?space_id=personal-demo", "missing-script-key", projectJSON(t, map[string]any{"expected_version": 1, "script": projectScriptFixture()}), 409), "script_missing")
+	manual, _, _ := s.CreateProject("personal-demo", "manual-script-project", projectInput())
+	projectHTTP(t, s, "PUT", "/projects/"+manual.ID+"/script?space_id=personal-demo", "manual-script-save", projectJSON(t, map[string]any{"expected_version": 1, "script": projectScriptFixture()}), 200)
 	got, _ := s.GetProject("personal-demo", p.ID)
-	if got.Version != 1 || got.Script != nil || len(s.ListProjects("personal-demo")) != 1 {
+	if got.Version != 1 || got.Script != nil || len(s.ListProjects("personal-demo")) != 2 {
 		t.Fatal("invalid write mutated persistent project")
 	}
 }

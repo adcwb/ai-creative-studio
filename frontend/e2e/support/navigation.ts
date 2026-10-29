@@ -27,6 +27,18 @@ export async function openProject(page: Page, title: string, section = 'brief') 
   if (section !== 'brief') await projectStep(page, section)
 }
 export async function projectStep(page: Page, section: string) {
+  const current = new URL(page.url()).pathname
+  if (current.startsWith('/publish/')) {
+    if (section === 'publish') return
+    const id = current.split('/')[2]
+    await page.goto(`/projects/${id}/${section}`)
+    return
+  }
+  if (section === 'publish') {
+    await page.locator('.project-steps a[href$="/review"]').click()
+    await page.locator('a[href^="/publish/"]').click()
+    return
+  }
   await page.locator(`.project-steps a[href$="/${section}"]`).click()
 }
 export async function chooseSpace(page: Page, space: string) {

@@ -99,18 +99,18 @@ describe('keyframes and non-linear editing', () => {
   })
 })
 
-it('renders bilingual preview controls with an honest silent-preview boundary', () => {
+it('renders bilingual preview controls with the synchronized audio preview boundary', () => {
   const previous = getActiveLocale()
   try {
     setActiveLocale('en')
     const english = renderToStaticMarkup(<TimelinePreview clips={[]} overlays={[]} assets={[]} aspect="16:9" subtitleMode="soft" time={0} onTime={() => {}} />)
     expect(english).toContain('Timeline composite canvas')
-    expect(english).toContain('silent reduced-resolution preview')
+    expect(english).toContain('Preview synchronizes pictures')
     expect(english).toContain('Exact playhead (seconds)')
     expect(english).not.toMatch(/[\u3400-\u9fff]/)
     setActiveLocale('zh-CN')
     const chinese = renderToStaticMarkup(<TimelinePreview clips={[]} overlays={[]} assets={[]} aspect="9:16" subtitleMode="none" time={0} onTime={() => {}} />)
     expect(chinese).toContain('实时画面预览')
-    expect(chinese).toContain('静音低清预览')
+    expect(chinese).toContain('预览同步画面')
   } finally {setActiveLocale(previous)}
 })

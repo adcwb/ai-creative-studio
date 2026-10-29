@@ -16,12 +16,12 @@ export function ProjectsPage() {
   useEffect(() => {
     const controller = new AbortController()
     void request<DramaProject[]>(`/projects?${new URLSearchParams({space_id: space!.id})}`, {signal: controller.signal}).then(result => {
-      if (!controller.signal.aborted) {setProjects(result); setError(''); setLoading(false)}
+      if (!controller.signal.aborted) {setProjects(result.filter(p => !p.kind || p.kind === 'drama')); setError(''); setLoading(false)}
     }).catch(reason => {if (!controller.signal.aborted) {setError(errorMessage(reason, t('项目列表读取失败'))); setLoading(false)}})
     return () => controller.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [space?.id, revision])
-  return <div className="projects-page"><header className="page-heading"><div><h1>{t('短剧项目')}</h1><p>{t('从故事简报到成片发布，按项目推进每一步。')}</p></div><Link className="button-link primary" to="/projects/new/brief"><Icon name="spark" />{t('新建短剧项目')}</Link></header>
+  return <div className="projects-page"><header className="page-heading"><div><h1>{t('短剧创作')}</h1><p>{t('从故事简报到成片发布，按项目推进每一步。')}</p></div><Link className="button-link primary" to="/projects/new/brief"><Icon name="spark" />{t('新建短剧项目')}</Link></header>
     <div className="project-list-heading"><span>{t('全部项目')} <span className="count">{projects.length}</span></span><span>{t('最近更新')}</span></div>
     {loading && <p className="loading-block" role="status">{t('正在读取项目列表…')}</p>}
     {error && <div className="error" role="alert">{error}<button type="button" onClick={() => {setLoading(true); setRevision(value => value + 1)}}>{t('重新加载项目列表')}</button></div>}

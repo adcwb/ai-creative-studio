@@ -117,8 +117,29 @@ func (s *FileStore) SaveProjectStoryboard(space, id, key string, in StoryboardSa
 	if s.generationActiveLocked(p) {
 		return Project{}, ErrGenerationActive
 	}
+	// Manual shots may be created before a script. Scene zero is independent.
 	if p.Storyboard == nil {
-		return Project{}, ErrStoryboardMissing
+		p.Storyboard = &Storyboard{Provider: "manual", SourceScriptVersion: p.ScriptVersion}
+	}
+	for _, shot := range in.Shots {
+		if shot.SceneIndex == 0 {
+			continue
+		}
+		if p.Storyboard.SourceScriptVersion == p.ScriptVersion {
+			if p.Script == nil || shot.SceneIndex > len(p.Script.Scenes) {
+				return Project{}, projectInputError("镜头引用了不存在的场景")
+			}
+		} else {
+			found := false
+			for _, old := range p.Storyboard.Shots {
+				if old.SceneIndex == shot.SceneIndex {
+					found = true
+				}
+			}
+			if !found {
+				return Project{}, projectInputError("过期分镜不能新增旧剧本场景引用，请使用独立镜头或重新生成")
+			}
+		}
 	}
 	plan := *p.Storyboard
 	plan.Shots = in.Shots
@@ -183,6 +204,14 @@ func (s *FileStore) finishStoryboardLocked(g StoryboardGeneration, shots []Story
 	}
 	if runErr == nil {
 		shots, err = NormalizeStoryboardShots(shots)
+		if err == nil {
+			for _, shot := range shots {
+				if current.SourceScript == nil || shot.SceneIndex > len(current.SourceScript.Scenes) {
+					err = projectInputError("镜头引用了不存在的场景")
+					break
+				}
+			}
+		}
 		if err != nil {
 			runErr = &StoryboardError{Code: "invalid_storyboard_output"}
 		}

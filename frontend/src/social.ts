@@ -14,14 +14,14 @@ export interface SocialState {
   connections: SocialConnection[]
 }
 export interface SocialConnection {id: string; platform: SocialPlatform; status: string; display_name?: string; username?: string; expires_at?: string; refresh_expires_at?: string}
-export interface SocialSource {id: string; kind: 'asset' | 'export'; name: string; mime_type: string; file_url?: string}
+export interface SocialSource {id: string; kind: 'asset' | 'export'; episode_number?: number; name: string; mime_type: string; file_url?: string}
 export interface SocialMedia {
   assets: {id: string; kind: string; name: string; mime_type: string; file_url?: string}[]
-  exports: {id: string; status: string; file_url?: string}[]
+  exports: {episode_number?: number; id: string; status: string; file_url?: string}[]
 }
 export function socialSources(media: SocialMedia): SocialSource[] {
   return [...media.assets.filter(asset => asset.kind === 'image' || asset.kind === 'video').map(asset => ({id: asset.id, kind: 'asset' as const, name: asset.name, mime_type: asset.mime_type, file_url: asset.file_url})),
-    ...media.exports.filter(item => item.status === 'succeeded').map(item => ({id: item.id, kind: 'export' as const, name: item.id, mime_type: 'video/mp4', file_url: item.file_url}))]
+    ...media.exports.filter(item => item.status === 'succeeded').map(item => ({id: item.id, kind: 'export' as const, episode_number: item.episode_number ?? 1, name: item.id, mime_type: 'video/mp4', file_url: item.file_url}))]
 }
 // Only authenticated application paths may become download links. Never trust an
 // adapter response to navigate the user to a vendor or credential-bearing URL.

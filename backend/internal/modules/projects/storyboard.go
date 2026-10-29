@@ -9,6 +9,9 @@ import (
 )
 
 type StoryboardShot struct {
+	Purpose         string `json:"purpose,omitempty"`
+	Performance     string `json:"performance,omitempty"`
+	Continuity      string `json:"continuity,omitempty"`
 	ID              string `json:"id"`
 	SceneIndex      int    `json:"scene_index"`
 	Description     string `json:"description"`
@@ -64,8 +67,8 @@ func StoryboardGenerationView(g StoryboardGeneration) StoryboardGeneration {
 }
 
 func NormalizeStoryboardShots(shots []StoryboardShot) ([]StoryboardShot, error) {
-	if len(shots) < 1 || len(shots) > 30 {
-		return nil, InputError("分镜需包含 1–30 个镜头")
+	if len(shots) < 1 || len(shots) > 120 {
+		return nil, InputError("分镜需包含 1–120 个镜头")
 	}
 	shots = append([]StoryboardShot(nil), shots...)
 	ids := map[string]bool{}
@@ -75,10 +78,15 @@ func NormalizeStoryboardShots(shots []StoryboardShot) ([]StoryboardShot, error) 
 			return nil, InputError("镜头标识无效或重复")
 		}
 		ids[shot.ID] = true
-		if shot.SceneIndex < 1 || shot.SceneIndex > 3 {
-			return nil, InputError("场景引用需为 1–3")
+		if shot.SceneIndex < 0 || shot.SceneIndex > 120 {
+			return nil, InputError("场景引用需为0–120，0表示独立镜头")
 		}
 		var err error
+		for _, field := range []*string{&shot.Purpose, &shot.Performance, &shot.Continuity} {
+			if *field, err = NormalizeText(*field, "导演说明", 0, 1000); err != nil {
+				return nil, err
+			}
+		}
 		if shot.Description, err = NormalizeText(shot.Description, "画面描述", 1, 1000); err != nil {
 			return nil, err
 		}

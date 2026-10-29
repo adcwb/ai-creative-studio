@@ -13,13 +13,13 @@ describe('storyboard bounded editing', () => {
   it('validates every shot, bounded references and integer durations', () => {
     const valid = [{...shot}, {...shot, id: 'shot-2', scene_index: 3, duration_seconds: 60}]
     expect(storyboardDraftError(valid)).toBe('')
-    for (const scene_index of [0, 4, 1.5]) expect(storyboardDraftError([{...shot, scene_index}])).toContain('引用')
+    for (const scene_index of [-1, 121, 1.5]) expect(storyboardDraftError([{...shot, scene_index}])).toContain('引用')
     for (const duration_seconds of [0, 61, 1.5, NaN]) expect(storyboardDraftError([valid[0], {...valid[1], duration_seconds}])).toContain('第 2 镜时长')
     expect(storyboardDraftError([valid[0], {...valid[1], description: ' '}])).toContain('第 2 镜画面描述')
   })
   it('rejects invalid identity, cardinality and unsupported choices', () => {
     expect(storyboardDraftError([])).not.toBe('')
-    expect(storyboardDraftError(Array.from({length: 31}, (_, n) => ({...shot, id: `shot-${n}`})))).not.toBe('')
+    expect(storyboardDraftError(Array.from({length: 121}, (_, n) => ({...shot, id: `shot-${n}`})))).not.toBe('')
     expect(storyboardDraftError([shot, shot])).toContain('重复')
     expect(storyboardDraftError([{...shot, id: 'bad id'}])).toContain('标识')
     expect(storyboardDraftError([{...shot, shot_size: 'invalid' as StoryboardShot['shot_size']}])).toContain('景别')

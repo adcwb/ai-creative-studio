@@ -196,7 +196,7 @@ func (p *NativeTextProvider) Script(ctx context.Context, in ProjectInput) (Scrip
 		return Script{}, err
 	}
 	var out Script
-	if err = p.json(ctx, in, `Schema: {"title":string 1..80,"logline":string 3..300,"characters":[{"name":string 1..40,"description":string 1..200}],"scenes":[{"heading":string 1..100,"action":string 1..1000,"dialogue":[{"character":string,"text":string 1..300}]}]}. Exactly 2 distinct characters, exactly 3 scenes, each with 1..6 dialogue lines referencing a character name. Chinese prose.`, &out); err != nil {
+	if err = p.json(ctx, in, `Schema: {"title":string 1..80,"logline":string 3..300,"characters":[{"name":string 1..40,"description":string 1..200}],"scenes":[{"heading":string 1..100,"action":string 1..1000,"dialogue":[{"character":string,"text":string 1..300}]}]}. Use 0..30 distinct characters and 1..120 scenes as required by the story. Each scene has episode_number (1..999) and 0..100 dialogue lines referencing a declared character. Silent scenes have an empty dialogue array. Chinese prose.`, &out); err != nil {
 		return Script{}, err
 	}
 	out, err = NormalizeScript(out)
@@ -213,7 +213,7 @@ func (p *NativeTextProvider) Storyboard(ctx context.Context, in Script) ([]Story
 	var out struct {
 		Shots []StoryboardShot `json:"shots"`
 	}
-	if err = p.json(ctx, in, `Return {"shots":[{"id":string,"scene_index":integer,"description":string,"shot_size":string,"camera_movement":string,"duration_seconds":integer,"dialogue":string}]}. 1..30 shots. Unique id ASCII letters/digits/-/_ 1..40. scene_index 1..3. description 1..1000 characters. shot_size wide/medium/close_up; camera_movement static/pan/track. duration_seconds 1..60. dialogue required, may be empty, <=2000 characters.`, &out); err != nil {
+	if err = p.json(ctx, in, `Return {"shots":[{"id":string,"scene_index":integer,"description":string,"shot_size":string,"camera_movement":string,"duration_seconds":integer,"dialogue":string}]}. 1..120 shots. Unique id ASCII letters/digits/-/_ 1..40. scene_index is a 1-based index into the supplied scenes; never reference a missing scene. description 1..1000 characters. shot_size wide/medium/close_up; camera_movement static/pan/track. duration_seconds 1..60. dialogue required, may be empty, <=2000 characters.`, &out); err != nil {
 		return nil, err
 	}
 	shots, err := NormalizeStoryboardShots(out.Shots)

@@ -55,6 +55,55 @@ func registerMediaRoutes(mux *http.ServeMux, s *FileStore) {
 		return space, key, true
 	}
 	base := "/api/v1/projects/{id}/media"
+	mux.HandleFunc("GET "+base+"/review-members", func(w http.ResponseWriter, r *http.Request) {
+		if _, _, ok := scope(w, r, false); !ok {
+			return
+		}
+		_, members := reviewActors(r)
+		respond(w, 200, members)
+	})
+	// Adoption and review share the project's authorization and media CAS boundary.
+	mux.HandleFunc("POST "+base+"/decisions", func(w http.ResponseWriter, r *http.Request) {
+		space, key, ok := scope(w, r, true)
+		if !ok {
+			return
+		}
+		var in ProductionDecision
+		if !decodeProject(w, r, &in) {
+			return
+		}
+		if in.ShotID != "" {
+			project, err := s.GetProject(space, r.PathValue("id"))
+			if err != nil {
+				storeError(w, err)
+				return
+			}
+			found := false
+			if project.Storyboard != nil {
+				for _, shot := range project.Storyboard.Shots {
+					if shot.ID == in.ShotID {
+						found = true
+					}
+				}
+			}
+			if !found {
+				mediaError(w, mediaInvalid("镜头不存在"))
+				return
+			}
+		}
+		actor, members := reviewActors(r)
+		in.actor = actor
+		in.assignees = map[string]bool{}
+		for _, member := range members {
+			in.assignees[member.ID] = true
+		}
+		p, err := m.SaveProductionDecision(r.PathValue("id"), space, key, in)
+		if err != nil {
+			mediaError(w, err)
+			return
+		}
+		respond(w, 200, p)
+	})
 	mux.HandleFunc("GET "+base, func(w http.ResponseWriter, r *http.Request) {
 		space, _, ok := scope(w, r, false)
 		if !ok {
@@ -96,7 +145,15 @@ func registerMediaRoutes(mux *http.ServeMux, s *FileStore) {
 			mediaError(w, err)
 			return
 		}
-		respond(w, 200, p)
+		asset, err := m.AssetForReceipt(r.PathValue("id"), space, key)
+		if err != nil {
+			mediaError(w, err)
+			return
+		}
+		respond(w, 200, struct {
+			MediaState
+			UploadedAssetID string `json:"uploaded_asset_id"`
+		}{p, asset.ID})
 	})
 	mux.HandleFunc("PUT "+base+"/timeline", func(w http.ResponseWriter, r *http.Request) {
 		space, key, ok := scope(w, r, true)
@@ -147,11 +204,12 @@ func registerMediaRoutes(mux *http.ServeMux, s *FileStore) {
 		}
 		var in struct {
 			ExpectedVersion int `json:"expected_version"`
+			EpisodeNumber   int `json:"episode_number,omitempty"`
 		}
 		if !decodeProject(w, r, &in) {
 			return
 		}
-		e, err := m.StartExport(r.PathValue("id"), space, key, in.ExpectedVersion, tracing.Parent(r.Context()))
+		e, err := m.StartEpisodeExport(r.PathValue("id"), space, key, in.ExpectedVersion, in.EpisodeNumber, tracing.Parent(r.Context()))
 		if err != nil {
 			mediaError(w, err)
 			return

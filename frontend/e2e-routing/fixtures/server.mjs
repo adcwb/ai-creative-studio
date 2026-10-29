@@ -115,6 +115,8 @@ const server = http.createServer(async (req, res) => {
       return send(result, 201)
     }
     if (match[2] === '/script' && req.method === 'PUT') {item.script = input.script; item.version++; return send(item)}
+    if (match[2] === '/creative-controls') return send({max_references: 0, frames: false, motion_reference: false})
+    if (match[2] === '/media/review-members') return send([{id: 'user-1', name: 'studio@example.com'}])
     if (match[2] === '/media') return send({version: 1, assets: [], exports: [], timeline: {clips: [], music_asset_id: '', music_volume: 0.2}})
     if (['/generations', '/history', '/creative-jobs', '/media/alignments'].includes(match[2])) return send([])
     if (match[2] === '/social') return send({version: 1, platforms: [], connections: [], jobs: []})

@@ -123,12 +123,22 @@ func srtTime(t float64) string {
 	return fmt.Sprintf("%02d:%02d:%02d,%03d", ms/3600000, ms/60000%60, ms/1000%60, ms%1000)
 }
 func (m *MediaStore) StartExport(project, space, key string, version int, traceParents ...string) (MediaExport, error) {
+	return m.StartEpisodeExport(project, space, key, version, 0, traceParents...)
+}
+func (m *MediaStore) StartEpisodeExport(project, space, key string, version, episode int, traceParents ...string) (MediaExport, error) {
+	if episode < 0 || episode > 999 {
+		return MediaExport{}, mediaInvalid("集数需为1–999")
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	d := m.clone()
 	k := mediaKey(space, project)
 	p := mediaState(d, k)
 	digest := mediaDigest([]any{"export", version})
+	if episode > 1 {
+		digest = mediaDigest([]any{"export", version, episode})
+	}
+	selected := timelineForEpisode(p, episode)
 	if replay, err := m.check(d, k, key, digest); err != nil {
 		return MediaExport{}, err
 	} else if replay {
@@ -142,24 +152,27 @@ func (m *MediaStore) StartExport(project, space, key string, version int, traceP
 	if p.Version != version {
 		return MediaExport{}, errMediaVersion
 	}
-	if err := validateTimeline(p, p.Timeline); err != nil {
+	if err := validateTimeline(p, selected); err != nil {
 		return MediaExport{}, err
 	}
 	if m.blobs != nil {
 		ids := map[string]bool{}
-		for _, clip := range p.Timeline.Clips {
+		for _, clip := range selected.Clips {
 			ids[clip.AssetID] = true
+			if clip.SourceAudioAssetID != "" {
+				ids[clip.SourceAudioAssetID] = true
+			}
 			if clip.AudioAssetID != "" {
 				ids[clip.AudioAssetID] = true
 			}
 		}
-		if p.Timeline.MusicAssetID != "" {
-			ids[p.Timeline.MusicAssetID] = true
+		if selected.MusicAssetID != "" {
+			ids[selected.MusicAssetID] = true
 		}
-		for _, track := range p.Timeline.AudioTracks {
+		for _, track := range selected.AudioTracks {
 			ids[track.AssetID] = true
 		}
-		for _, overlay := range p.Timeline.VideoOverlays {
+		for _, overlay := range selected.VideoOverlays {
 			ids[overlay.AssetID] = true
 		}
 		for id := range ids {
@@ -183,7 +196,7 @@ func (m *MediaStore) StartExport(project, space, key string, version int, traceP
 	if len(traceParents) == 1 && tracing.ValidParent(traceParents[0]) {
 		parent = traceParents[0]
 	}
-	e := MediaExport{TraceParent: parent, ID: mediaID(), Status: "running", Timeline: p.Timeline}
+	e := MediaExport{EpisodeNumber: episode, TraceParent: parent, ID: mediaID(), Status: "running", Timeline: selected}
 	if m.pg != nil {
 		e.Status = "queued"
 	}
@@ -344,14 +357,19 @@ func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) er
 			vf += fmt.Sprintf(",fade=t=in:st=0:d=%s,fade=t=out:st=%s:d=%s", seconds(c.TransitionDuration), seconds(c.Duration-c.TransitionDuration), seconds(c.TransitionDuration))
 		}
 		audioFilter := "[1:a]apad,volume=" + seconds(c.AudioVolume) + "[clipaudio]"
-		if c.PreserveSourceAudio && a.Kind == "video" {
-			probe, probeErr := probeMedia(input)
+		if c.PreserveSourceAudio && (a.Kind == "video" || c.SourceAudioAssetID != "") {
+			sourcePath, sourceIndex := input, "0"
+			if c.SourceAudioAssetID != "" {
+				sourcePath, sourceIndex = filepath.Join(m.dir, c.SourceAudioAssetID), "2"
+				args = append(args, "-ss", seconds(c.SourceAudioTrimStart), "-protocol_whitelist", "file,pipe", "-i", sourcePath)
+			}
+			probe, probeErr := probeMedia(sourcePath)
 			if probeErr != nil {
 				return probeErr
 			}
 			for _, stream := range probe.Streams {
 				if stream.CodecType == "audio" {
-					audioFilter = "[1:a]apad,volume=" + seconds(c.AudioVolume) + "[dub];[0:a]apad,volume=" + seconds(c.SourceAudioVolume) + "[source];[dub][source]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.95:latency=1[clipaudio]"
+					audioFilter = "[1:a]apad,volume=" + seconds(c.AudioVolume) + "[dub];[" + sourceIndex + ":a]apad,volume=" + seconds(c.SourceAudioVolume) + "[source];[dub][source]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.95:latency=1[clipaudio]"
 					break
 				}
 			}

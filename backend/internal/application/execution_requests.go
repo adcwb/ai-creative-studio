@@ -31,10 +31,23 @@ func (s *FileStore) creativeExecutionRequest(job CreativeJob) (ExecutionRequest,
 		request.HasMedia = true
 		request.Media = append(request.Media, ExecutionMedia{Data: data, MIME: mime})
 	}
+	var roles []string
+	controls := CreativeJobInput{Kind: job.Kind, ReferenceAssetIDs: job.ReferenceAssetIDs, FirstFrameAssetID: job.FirstFrameAssetID, LastFrameAssetID: job.LastFrameAssetID, MotionReferenceAssetID: job.MotionReferenceAssetID}
+	if hasCreativeControls(controls) {
+		refs, err := s.media.loadCreativeReferences(job.ProjectID, job.SpaceID, controls)
+		if err != nil {
+			return ExecutionRequest{}, err
+		}
+		for _, ref := range refs {
+			request.HasMedia = true
+			request.Media = append(request.Media, ExecutionMedia{Data: ref.Data, MIME: ref.MIME})
+			roles = append(roles, ref.Role)
+		}
+	}
 	var spec *reviewedVideoSpecification
 	var imageSpec *reviewedImageSpecification
 	if job.Kind == "video" {
-		spec = videoCandidateSpecification(job.Provider, job.Model, job.ReferenceAssetID != "")
+		spec = videoCandidateSpecification(job.Provider, job.Model, job.ReferenceAssetID != "" || hasCreativeControls(controls))
 	}
 	if job.Kind == "image" {
 		imageSpec = imageCandidateSpecification(job.Provider, job.Model)
@@ -43,7 +56,8 @@ func (s *FileStore) creativeExecutionRequest(job CreativeJob) (ExecutionRequest,
 		Kind, Shot, Character string
 		VideoSpecification    *reviewedVideoSpecification `json:"video_specification,omitempty"`
 		ImageSpecification    *reviewedImageSpecification `json:"image_specification,omitempty"`
-	}{job.Kind, job.ShotID, job.Character, spec, imageSpec})
+		ReferenceRoles        []string                    `json:"reference_roles,omitempty"`
+	}{job.Kind, job.ShotID, job.Character, spec, imageSpec, roles})
 	return request, nil
 }
 
@@ -51,6 +65,7 @@ func alignmentExecutionRequest(task AlignmentTask, data []byte, mime string) Exe
 	parameters, _ := json.Marshal(struct {
 		Mode                               string
 		AudioDuration, Duration, TrimStart float64
-	}{task.Mode, task.AudioDuration, task.Duration, task.TrimStart})
+		EpisodeNumber                      int `json:"episode_number,omitempty"`
+	}{task.Mode, task.AudioDuration, task.Duration, task.TrimStart, task.EpisodeNumber})
 	return ExecutionRequest{ID: "alignment:" + task.ID, Tenant: task.SpaceID, Provider: task.Provider, Model: task.Model, Capability: "asr", Text: task.Text, Parameters: parameters, HasMedia: true, Media: []ExecutionMedia{{Data: data, MIME: mime}}, Selection: task.RuntimeSelection}
 }

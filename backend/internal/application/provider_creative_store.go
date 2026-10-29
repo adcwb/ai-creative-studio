@@ -19,6 +19,11 @@ import (
 )
 
 type CreativeJobInput struct {
+	ReferenceAssetIDs      []string `json:"reference_asset_ids,omitempty"`
+	FirstFrameAssetID      string   `json:"first_frame_asset_id,omitempty"`
+	LastFrameAssetID       string   `json:"last_frame_asset_id,omitempty"`
+	MotionReferenceAssetID string   `json:"motion_reference_asset_id,omitempty"`
+
 	ModelRequest
 	consentActor          string
 	AvatarID              string `json:"avatar_id,omitempty"`
@@ -37,6 +42,11 @@ type CreativeJobInput struct {
 	Character             string `json:"character,omitempty"`
 }
 type CreativeJob struct {
+	ReferenceAssetIDs      []string `json:"reference_asset_ids,omitempty"`
+	FirstFrameAssetID      string   `json:"first_frame_asset_id,omitempty"`
+	LastFrameAssetID       string   `json:"last_frame_asset_id,omitempty"`
+	MotionReferenceAssetID string   `json:"motion_reference_asset_id,omitempty"`
+
 	VoiceConsentBy        string `json:"voice_consent_by,omitempty"`
 	AvatarID              string `json:"avatar_id,omitempty"`
 	VoiceConsentReference string `json:"voice_consent_reference,omitempty"`
@@ -299,7 +309,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		if r.Fingerprint != fingerprint {
 			return CreativeJob{}, false, ErrIdempotencyConflict
 		}
-		return c.data.Jobs[r.JobID], false, nil
+		return cloneCreativeJob(c.data.Jobs[r.JobID]), false, nil
 	}
 	if p.Version != in.ExpectedVersion {
 		return CreativeJob{}, false, ErrVersionConflict
@@ -373,6 +383,9 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		}
 	} else if in.AvatarID != "" || in.VoiceConfirmed || in.VoiceConsentReference != "" {
 		return CreativeJob{}, false, ErrInvalidProjectInput
+	}
+	if err := s.validateCreativeControls(id, space, in, caps); err != nil {
+		return CreativeJob{}, false, err
 	}
 	if !caps.Ready {
 		return CreativeJob{}, false, ErrProviderNotReady
@@ -487,7 +500,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		return CreativeJob{}, false, err
 	}
 	now := time.Now().UTC()
-	job := CreativeJob{TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), AudioAssetID: in.AudioAssetID, ComparisonAssetID: in.ComparisonAssetID, MaskAssetID: in.MaskAssetID, ReferenceAssetID: in.ReferenceAssetID, ID: jid, SpaceID: space, ProjectID: id, Kind: in.Kind, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Prompt: in.Prompt, ShotID: in.ShotID, Character: in.Character, Source: ProjectInput{Title: p.Title, Brief: p.Brief}, CreatedAt: now, UpdatedAt: now}
+	job := CreativeJob{ReferenceAssetIDs: append([]string(nil), in.ReferenceAssetIDs...), FirstFrameAssetID: in.FirstFrameAssetID, LastFrameAssetID: in.LastFrameAssetID, MotionReferenceAssetID: in.MotionReferenceAssetID, TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), AudioAssetID: in.AudioAssetID, ComparisonAssetID: in.ComparisonAssetID, MaskAssetID: in.MaskAssetID, ReferenceAssetID: in.ReferenceAssetID, ID: jid, SpaceID: space, ProjectID: id, Kind: in.Kind, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Prompt: in.Prompt, ShotID: in.ShotID, Character: in.Character, Source: ProjectInput{Title: p.Title, Brief: p.Brief}, CreatedAt: now, UpdatedAt: now}
 	job.AvatarID, job.VoiceConsentReference, job.VoiceConfirmed, job.AIGenerated = in.AvatarID, in.VoiceConsentReference, in.VoiceConfirmed, in.Kind == "digital_human"
 	if in.Kind == "digital_human" {
 		job.VoiceConsentBy = in.consentActor
@@ -512,7 +525,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		delete(c.data.Receipts, rk)
 		return CreativeJob{}, false, err
 	}
-	return job, true, nil
+	return cloneCreativeJob(job), true, nil
 }
 func (s *FileStore) listCreativeJobs(space, id string) ([]CreativeJob, error) {
 	if _, err := s.GetProject(space, id); err != nil {
@@ -524,6 +537,7 @@ func (s *FileStore) listCreativeJobs(space, id string) ([]CreativeJob, error) {
 	jobs := []CreativeJob{}
 	for _, j := range c.data.Jobs {
 		if j.SpaceID == space && j.ProjectID == id {
+			j.ReferenceAssetIDs = append([]string(nil), j.ReferenceAssetIDs...)
 			jobs = append(jobs, j)
 		}
 	}
@@ -547,7 +561,7 @@ func (s *FileStore) cancelCreativeJob(space, id, jid, key string) (CreativeJob, 
 		if r.Fingerprint != fingerprint {
 			return CreativeJob{}, ErrIdempotencyConflict
 		}
-		return job, nil
+		return cloneCreativeJob(job), nil
 	}
 	if len(c.data.Receipts) >= 1000 {
 		return CreativeJob{}, ErrProviderNotReady
@@ -575,7 +589,7 @@ func (s *FileStore) cancelCreativeJob(space, id, jid, key string) (CreativeJob, 
 	if cancel := c.cancels[jid]; cancel != nil {
 		cancel()
 	}
-	return job, nil
+	return cloneCreativeJob(job), nil
 }
 func (c *creativeStore) updateJob(job CreativeJob) error {
 	c.mu.Lock()
@@ -815,7 +829,17 @@ func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob
 		} else {
 			var result GenerationResult
 			input := Input{Kind: "general", Prompt: job.Prompt, Ratio: "16:9", Style: "natural"}
-			if job.ReferenceAssetID != "" {
+			if len(job.ReferenceAssetIDs) > 0 {
+				adapter, ok := imageProvider.(multiReferenceImageProvider)
+				if !ok {
+					return providerFailure("unsupported_capability")
+				}
+				refs, e := s.media.loadCreativeReferences(job.ProjectID, job.SpaceID, CreativeJobInput{ReferenceAssetIDs: job.ReferenceAssetIDs})
+				if e != nil {
+					return e
+				}
+				result, err = adapter.GenerateWithReferences(ctx, input, refs)
+			} else if job.ReferenceAssetID != "" {
 				adapter, ok := imageProvider.(ReferenceImageProvider)
 				if !ok {
 					return providerFailure("unsupported_capability")
@@ -928,7 +952,17 @@ func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob
 		role = "shot"
 		var v VideoJob
 		if job.UpstreamID == "" {
-			if job.ReferenceAssetID != "" {
+			if len(job.ReferenceAssetIDs) > 0 || job.FirstFrameAssetID != "" || job.LastFrameAssetID != "" || job.MotionReferenceAssetID != "" {
+				adapter, ok := videoProvider.(controlledVideoProvider)
+				if !ok {
+					return providerFailure("unsupported_capability")
+				}
+				refs, e := s.media.loadCreativeReferences(job.ProjectID, job.SpaceID, CreativeJobInput{ReferenceAssetIDs: job.ReferenceAssetIDs, FirstFrameAssetID: job.FirstFrameAssetID, LastFrameAssetID: job.LastFrameAssetID, MotionReferenceAssetID: job.MotionReferenceAssetID})
+				if e != nil {
+					return e
+				}
+				v, err = adapter.SubmitControlledVideo(ctx, job.Prompt, refs)
+			} else if job.ReferenceAssetID != "" {
 				adapter, ok := videoProvider.(referenceVideoProvider)
 				if !ok {
 					return providerFailure("unsupported_capability")
@@ -1025,7 +1059,7 @@ func (s *FileStore) resumeCreativeJob(space, id, jid, key string) (CreativeJob, 
 		if r.Fingerprint != fingerprint {
 			return CreativeJob{}, ErrIdempotencyConflict
 		}
-		return job, nil
+		return cloneCreativeJob(job), nil
 	}
 	if _, running := c.cancels[jid]; running {
 		return CreativeJob{}, ErrGenerationActive
@@ -1082,7 +1116,7 @@ func (s *FileStore) resumeCreativeJob(space, id, jid, key string) (CreativeJob, 
 		delete(c.data.Receipts, rk)
 		return CreativeJob{}, err
 	}
-	return job, nil
+	return cloneCreativeJob(job), nil
 }
 
 type referenceVideoProvider interface {
@@ -1103,4 +1137,9 @@ type editVideoProvider interface {
 type asyncReferenceImageProvider interface {
 	AsyncImageProvider
 	SubmitImageWithReference(context.Context, Input, []byte, string) (AsyncImageJob, error)
+}
+
+func cloneCreativeJob(job CreativeJob) CreativeJob {
+	job.ReferenceAssetIDs = append([]string(nil), job.ReferenceAssetIDs...)
+	return job
 }

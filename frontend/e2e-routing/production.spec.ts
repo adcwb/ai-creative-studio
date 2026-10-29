@@ -1,0 +1,83 @@
+import {test, expect} from '@playwright/test'
+
+const fixture = 'http://127.0.0.1:5189'
+test.beforeEach(async ({request, page}) => {
+  await request.post(fixture + '/__test__/reset', {data: {}})
+  page.on('pageerror', error => {throw error})
+})
+
+test('independent creative workspaces and unavailable engines are clearly separated', async ({page}) => {
+  await page.goto('/studio/workspaces')
+  await page.getByLabel('作品名称', {exact: true}).fill('人物定妆')
+  await page.getByRole('button', {name: '新建作品', exact: true}).click()
+  await expect(page).toHaveURL(/studio\/workspaces\/story-2$/)
+  await expect(page.getByRole('heading', {name: '图像编辑工作区', exact: true})).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('heading', {name: '人物定妆', exact: true})).toBeVisible()
+  await page.goto('/projects')
+  await expect(page.locator('.project-card')).toHaveCount(1)
+  await page.goto('/digital-humans/interactive')
+  await expect(page.getByRole('heading', {name: '尚未接入制作引擎'})).toBeVisible()
+  await page.goto('/digital-humans/3d')
+  await expect(page.getByRole('heading', {name: '3D 数字人', exact: true})).toBeVisible()
+  await page.goto('/digital-humans/video')
+  await page.getByLabel('作品名称', {exact: true}).fill('产品介绍')
+  await page.getByRole('button', {name: '新建作品', exact: true}).click()
+  await expect(page).toHaveURL(/digital-humans\/video\/story-3$/)
+  await expect(page.getByRole('button', {name: '形象与口播制作', exact: true})).toBeVisible()
+  await expect(page.locator('.project-steps')).toHaveCount(0)
+  await page.getByRole('link', {name: '准备发布', exact: true}).click()
+  await expect(page).toHaveURL(/publish\/story-3$/)
+  await expect(page.locator('.social-center')).toBeVisible()
+})
+
+test('candidate adoption and review survive refresh without changing the timeline', async ({page}, info) => {
+  const media = {version: 1, assets: ['A', 'B'].map((name, i) => ({id: 'asset-' + i, name: '候选' + name, kind: 'image', role: 'shot', shot_id: 'shot-1', file_url: '/fixture.svg', duration: 0})), selections: [] as object[], reviews: [] as {id: string; asset_id: string; text: string; time: number; resolved: boolean; assignee_id?: string; priority?: string; created_by?: string}[], timeline: {clips: [{id: 'original'}]}, exports: []}
+  const initialTimeline = JSON.stringify(media.timeline)
+  const receipts = new Map<string, object>()
+  const keys: string[] = []
+  let dropReply = true
+  await page.route('**/projects/story-1/media?*', route => route.fulfill({json: media}))
+  await page.route('**/projects/story-1/media/decisions?*', async route => {
+    const body = route.request().postDataJSON()
+    const key = route.request().headers()['idempotency-key']; keys.push(key)
+    if (receipts.has(key)) return route.fulfill({json: receipts.get(key)})
+    if (body.action === 'select') media.selections.push({id: 'selection-1', shot_id: body.shot_id, asset_id: body.asset_id, note: body.text, created_at: '2026-10-29T10:00:00Z'})
+    if (body.action === 'review') media.reviews.push({id: 'review-1', asset_id: body.asset_id, text: body.text, time: body.time, resolved: false, assignee_id:body.assignee_id, priority:body.priority, created_by: 'user-1'})
+    if (body.action === 'assign') {media.reviews[0].assignee_id = body.assignee_id;media.reviews[0].priority = body.priority}
+    if (body.action === 'resolve') media.reviews[0].resolved = body.resolved
+    media.version++; receipts.set(key, JSON.parse(JSON.stringify(media)))
+    if (dropReply) {dropReply = false; return route.abort()}
+    await route.fulfill({json: media})
+  })
+  await page.goto('/projects/story-1/production')
+  await page.getByLabel('当前镜头', {exact: true}).selectOption('shot-1')
+  await page.getByRole('button', {name: '候选A', exact: true}).click()
+  await page.getByRole('button', {name: '设为比较基准', exact: true}).click()
+  await page.getByRole('button', {name: '候选B', exact: true}).click()
+  await expect(page.locator('.candidate-view figure')).toHaveCount(2)
+  await page.getByRole('button', {name: '采用此版本', exact: true}).click()
+  await expect(page.getByRole('button', {name: '重试同一请求', exact: true})).toBeVisible()
+  await page.reload()
+  await page.getByRole('button', {name: '重试同一请求', exact: true}).click()
+  await expect(page.getByText('已采用此版本，剪辑保持不变。', {exact: true})).toBeVisible()
+  expect(keys[0]).toBe(keys[1]); expect(media.selections).toHaveLength(1)
+  await page.getByLabel('当前镜头', {exact: true}).selectOption('shot-1')
+  await page.locator('.candidate-strip button').filter({hasText: '候选B'}).click()
+  await page.getByLabel('批注或采用理由', {exact: true}).fill('保持角色服装颜色一致')
+  await page.getByLabel('负责人', {exact: true}).selectOption('user-1')
+  await page.getByLabel('优先级', {exact: true}).selectOption('high')
+  await page.getByRole('button', {name: '添加返修批注', exact: true}).click()
+  await expect(page.locator('.production-review li strong').filter({hasText:'待返修'})).toBeVisible()
+  expect(media.reviews[0]).toMatchObject({assignee_id:'user-1', priority:'high'})
+  await page.getByLabel('批注负责人', {exact:true}).selectOption('')
+  await expect.poll(()=>media.reviews[0].assignee_id).toBe('')
+  await page.getByLabel('批注优先级', {exact:true}).selectOption('low')
+  await expect.poll(()=>media.reviews[0].priority).toBe('low')
+  await page.getByRole('button', {name: '标记已处理', exact: true}).click()
+  await expect(page.locator('.production-review li strong').filter({hasText:'已处理'})).toBeVisible()
+  expect(JSON.stringify(media.timeline)).toBe(initialTimeline)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.screenshot({path: info.outputPath('production.png'), fullPage: true})
+})

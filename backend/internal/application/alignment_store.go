@@ -18,6 +18,7 @@ import (
 )
 
 type AlignmentInput struct {
+	EpisodeNumber int `json:"episode_number,omitempty"`
 	ModelRequest
 	ClipID           string `json:"clip_id"`
 	AudioAssetID     string `json:"audio_asset_id,omitempty"`
@@ -28,6 +29,7 @@ type AlignmentInput struct {
 	ExpectedModel    string `json:"expected_model,omitempty"`
 }
 type AlignmentTask struct {
+	EpisodeNumber    int               `json:"episode_number,omitempty"`
 	TraceParent      string            `json:"trace_parent,omitempty"`
 	RuntimeSelection *RuntimeSelection `json:"runtime_selection,omitempty"`
 	ID               string            `json:"id"`
@@ -191,7 +193,7 @@ func (a *AlignmentStore) close() {
 	a.wg.Wait()
 }
 func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInput) (AlignmentTask, bool, error) {
-	if in.ExpectedVersion < 1 || !shotIDPattern.MatchString(in.ClipID) || (in.Mode != "estimate" && in.Mode != "asr" && in.Mode != "forced" && in.Mode != "transcription") {
+	if in.EpisodeNumber < 0 || in.EpisodeNumber > 999 || in.ExpectedVersion < 1 || !shotIDPattern.MatchString(in.ClipID) || (in.Mode != "estimate" && in.Mode != "asr" && in.Mode != "forced" && in.Mode != "transcription") {
 		return AlignmentTask{}, false, mediaInvalid("字幕对齐输入无效")
 	}
 	in.Text = strings.TrimSpace(in.Text)
@@ -228,7 +230,7 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 		return AlignmentTask{}, false, errMediaVersion
 	}
 	var clip MediaClip
-	for _, c := range p.Timeline.Clips {
+	for _, c := range timelineForEpisode(p, in.EpisodeNumber).Clips {
 		if c.ID == in.ClipID {
 			clip = c
 			break
@@ -293,7 +295,7 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 		}
 	}
 	now := time.Now().UTC()
-	task := AlignmentTask{TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), ID: mediaID(), ProjectID: project, SpaceID: space, ClipID: clip.ID, AudioAssetID: clip.AudioAssetID, AudioMIME: audio.MIMEType, AudioDuration: audio.Duration, Mode: in.Mode, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Duration: clip.Duration, TrimStart: clip.TrimStart, Text: in.Text, Cues: []SubtitleCue{}, Warnings: []string{}, CreatedAt: now, UpdatedAt: now}
+	task := AlignmentTask{EpisodeNumber: in.EpisodeNumber, TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), ID: mediaID(), ProjectID: project, SpaceID: space, ClipID: clip.ID, AudioAssetID: clip.AudioAssetID, AudioMIME: audio.MIMEType, AudioDuration: audio.Duration, Mode: in.Mode, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Duration: clip.Duration, TrimStart: clip.TrimStart, Text: in.Text, Cues: []SubtitleCue{}, Warnings: []string{}, CreatedAt: now, UpdatedAt: now}
 	d := a.cloneLocked()
 	d.Tasks[task.ID] = task
 	d.Receipts[rk] = alignmentReceipt{Digest: digest, TaskID: task.ID}
@@ -550,7 +552,7 @@ func (m *MediaStore) validateAlignmentSources(project, space string, t MediaTime
 			continue
 		}
 		task, ok := a.data.Tasks[clip.SubtitleAlignmentID]
-		if !ok || task.ProjectID != project || task.SpaceID != space || task.Status != "succeeded" || task.Mode == "transcription" || task.ClipID != clip.ID {
+		if !ok || task.ProjectID != project || task.SpaceID != space || task.Status != "succeeded" || task.Mode == "transcription" || task.ClipID != clip.ID || !sameEpisode(task.EpisodeNumber, t.EpisodeNumber) {
 			return mediaInvalid("字幕来源任务无效")
 		}
 		if clip.SubtitleSource == "estimated" || clip.SubtitleSource == "asr" || clip.SubtitleSource == "forced" {

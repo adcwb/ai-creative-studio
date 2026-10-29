@@ -23,6 +23,29 @@ func TestCrossfadeUsesShortenedTimelineForOverlays(t *testing.T) {
 	}
 }
 
+func TestReplacementRetainsOnlyValidProjectAudio(t *testing.T) {
+	state := media.MediaState{Assets: []media.MediaAsset{{ID: "picture", Kind: "image"}, {ID: "original", Kind: "video", Duration: 6}}}
+	clip := media.MediaClip{ID: "one", AssetID: "picture", Duration: 3, PreserveSourceAudio: true, SourceAudioAssetID: "original", SourceAudioTrimStart: 2, SourceAudioVolume: 1}
+	timeline := media.MediaTimeline{Clips: []media.MediaClip{clip}}
+	if err := media.ValidateTimeline(state, timeline); err != nil {
+		t.Fatalf("valid replacement lost its source sound: %v", err)
+	}
+	for _, change := range []func(*media.MediaClip){
+		func(c *media.MediaClip) { c.SourceAudioAssetID = "foreign" },
+		func(c *media.MediaClip) { c.SourceAudioAssetID = "picture" },
+		func(c *media.MediaClip) { c.SourceAudioTrimStart = -1 },
+		func(c *media.MediaClip) { c.SourceAudioTrimStart = 4 },
+		func(c *media.MediaClip) { c.PreserveSourceAudio = false },
+	} {
+		invalid := clip
+		change(&invalid)
+		timeline.Clips = []media.MediaClip{invalid}
+		if err := media.ValidateTimeline(state, timeline); !errors.Is(err, media.ErrInput) {
+			t.Fatalf("invalid source sound accepted: %+v, %v", invalid, err)
+		}
+	}
+}
+
 func TestSubtitleRequiredFieldsAndTimeBounds(t *testing.T) {
 	var cue media.SubtitleCue
 	if err := json.Unmarshal([]byte(`{"start":0,"text":"合成字幕"}`), &cue); err == nil {

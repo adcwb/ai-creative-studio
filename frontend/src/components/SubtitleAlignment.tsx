@@ -1,7 +1,7 @@
 import { localizedError } from '../api'
 import { translate, useI18n } from '../i18n'
 export interface SubtitleCue { start: number; end: number; text: string }
-export interface AlignmentTask {
+export interface AlignmentTask { episode_number?: number;
   id: string; status: string; mode: 'estimate' | 'asr' | 'forced' | 'transcription'; provider: string; model?: string; source_version: number
   clip_id: string; audio_asset_id: string; duration: number; transcript?: string; cues: SubtitleCue[]; warnings: string[]; error?: string
 }

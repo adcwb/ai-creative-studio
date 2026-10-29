@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react'
+import { createContext, useCallback, useContext } from 'react'
 import core from './locales/core'
 import mediaLegacy from './locales/mediaLegacy'
 import drama from './locales/drama'
@@ -11,9 +11,10 @@ import poster from './locales/poster'
 import navigation from './locales/navigation'
 import digitalHuman from './locales/digitalHuman'
 import library from './locales/library'
+import production from './locales/production'
 export type Locale = 'zh-CN' | 'en'
 export type TranslationParams = Record<string, string | number>
-const dictionaries: Record<string, string> = {...drama, ...mediaLegacy, ...core, ...governance, ...runtime, ...mediaComposite, ...poster, ...social, ...douyin, ...navigation, ...digitalHuman, ...library}
+const dictionaries: Record<string, string> = {...drama, ...mediaLegacy, ...core, ...governance, ...runtime, ...mediaComposite, ...poster, ...social, ...douyin, ...navigation, ...digitalHuman, ...library, ...production}
 export function resolveLocale(saved: string | null, languages: readonly string[]): Locale {
   if (saved === 'zh-CN' || saved === 'en') return saved
   return languages[0]?.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'
@@ -36,7 +37,8 @@ interface LanguageContext {locale: Locale; setLocale: (locale: Locale) => void}
 export const LocaleContext = createContext<LanguageContext>({locale: activeLocale, setLocale: () => {}})
 export function useI18n() {
   const {locale, setLocale} = useContext(LocaleContext)
-  return {locale, setLocale, t: (key: string, params?: TranslationParams) => translate(key, params, locale),
+  const t = useCallback((key: string, params?: TranslationParams) => translate(key, params, locale), [locale])
+  return {locale, setLocale, t,
     formatDate: (date: string | Date, options?: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(locale, options ?? {dateStyle: 'medium', timeStyle: 'short'}).format(new Date(date)),
     formatNumber: (value: number, options?: Intl.NumberFormatOptions) => new Intl.NumberFormat(locale, options).format(value),
     formatCurrency: (value: number, currency = 'USD') => new Intl.NumberFormat(locale, {style: 'currency', currency}).format(value)}

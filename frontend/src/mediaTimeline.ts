@@ -89,9 +89,16 @@ export function overlayAt(layer: VideoOverlay, localTime: number): {x: number; y
   return keys[keys.length - 1]
 }
 export interface EditableClip extends ClipTiming {
-  id: string; asset_id: string; trim_start: number; audio_asset_id: string
+  id: string; asset_id: string; trim_start: number; audio_asset_id: string; source_audio_asset_id?: string; source_audio_trim_start?: number
   subtitle_cues?: {start: number; end: number; text: string}[]
   subtitle_source?: 'manual' | 'estimated' | 'asr' | 'forced'; subtitle_alignment_id?: string
+}
+
+// An equal-duration visual replacement leaves dialogue, captions and other clips
+// intact. Source sound retains an explicit reference to its previous video.
+export function replaceClipVisual<T extends EditableClip & {preserve_source_audio?: boolean; source_audio_asset_id?: string; source_audio_trim_start?: number}>(clip: T, asset: VisualAsset): T | null {
+  if (asset.kind === 'audio' || (asset.kind === 'video' && asset.duration + .05 < clip.duration)) return null
+  return {...clip, asset_id: asset.id, trim_start: 0, ...(clip.preserve_source_audio ? {source_audio_asset_id: clip.source_audio_asset_id || clip.asset_id, source_audio_trim_start: clip.source_audio_asset_id ? clip.source_audio_trim_start ?? 0 : clip.trim_start} : {})}
 }
 // Splitting per-shot dialogue requires an audio source offset not present in the
 // existing contract; require moving it to an independently trimmed audio track.
@@ -103,5 +110,5 @@ export function splitClip<T extends EditableClip>(clip: T, offset: number, video
   }
   const manual = {subtitle_source: 'manual' as const, subtitle_alignment_id: ''}
   return [{...clip, ...manual, duration: offset, transition: '', transition_duration: 0, subtitle_cues: sliceCues(0, offset)},
-    {...clip, ...manual, id: secondID, duration: clip.duration - offset, trim_start: video ? clip.trim_start + offset : 0, subtitle_cues: sliceCues(offset, clip.duration)}]
+    {...clip, ...manual, ...(clip.source_audio_asset_id ? {source_audio_trim_start: (clip.source_audio_trim_start ?? 0) + offset} : {}), id: secondID, duration: clip.duration - offset, trim_start: video ? clip.trim_start + offset : 0, subtitle_cues: sliceCues(offset, clip.duration)}]
 }

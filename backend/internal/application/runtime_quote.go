@@ -160,19 +160,22 @@ func (s *FileStore) buildQuoteExecutionRequest(tenant string, in RuntimeQuoteInp
 				return ExecutionRequest{}, err
 			}
 		}
-		job := CreativeJob{SpaceID: tenant, ProjectID: project.ID, Provider: entry.Provider, Model: entry.Model, Kind: input.Kind, Prompt: input.Prompt, ShotID: input.ShotID, Character: input.Character, ReferenceAssetID: input.ReferenceAssetID, ComparisonAssetID: input.ComparisonAssetID, MaskAssetID: input.MaskAssetID, AudioAssetID: input.AudioAssetID, Source: ProjectInput{Title: project.Title, Brief: project.Brief}, RuntimeSelection: &selection}
+		if err := s.validateCreativeControls(project.ID, tenant, input, Capabilities{Provider: entry.Provider, Model: entry.Model}); err != nil {
+			return ExecutionRequest{}, err
+		}
+		job := CreativeJob{ReferenceAssetIDs: input.ReferenceAssetIDs, FirstFrameAssetID: input.FirstFrameAssetID, LastFrameAssetID: input.LastFrameAssetID, MotionReferenceAssetID: input.MotionReferenceAssetID, SpaceID: tenant, ProjectID: project.ID, Provider: entry.Provider, Model: entry.Model, Kind: input.Kind, Prompt: input.Prompt, ShotID: input.ShotID, Character: input.Character, ReferenceAssetID: input.ReferenceAssetID, ComparisonAssetID: input.ComparisonAssetID, MaskAssetID: input.MaskAssetID, AudioAssetID: input.AudioAssetID, Source: ProjectInput{Title: project.Title, Brief: project.Brief}, RuntimeSelection: &selection}
 		return s.creativeExecutionRequest(job)
 	}
 	if in.Operation == "alignment" {
 		var input AlignmentInput
-		if decodeQuotePayload(in.Input, &input) != nil || input.ModelRequest != (ModelRequest{}) || !validAlignmentModeModel(input.Mode, entry.Model) || strings.TrimSpace(input.Text) != "" {
+		if decodeQuotePayload(in.Input, &input) != nil || input.EpisodeNumber < 0 || input.EpisodeNumber > 999 || input.ModelRequest != (ModelRequest{}) || !validAlignmentModeModel(input.Mode, entry.Model) || strings.TrimSpace(input.Text) != "" {
 			return ExecutionRequest{}, ErrInvalidProjectInput
 		}
 		media := s.media.Get(project.ID, tenant)
 		if media.Version != input.ExpectedVersion {
 			return ExecutionRequest{}, ErrVersionConflict
 		}
-		for _, clip := range media.Timeline.Clips {
+		for _, clip := range timelineForEpisode(media, input.EpisodeNumber).Clips {
 			if clip.ID != input.ClipID {
 				continue
 			}
@@ -196,7 +199,7 @@ func (s *FileStore) buildQuoteExecutionRequest(tenant string, in RuntimeQuoteInp
 			if e != nil || len(data) == 0 || len(data) > 24<<20 {
 				return ExecutionRequest{}, ErrInvalidProjectInput
 			}
-			task := AlignmentTask{SpaceID: tenant, ProjectID: project.ID, Provider: entry.Provider, Model: entry.Model, Mode: input.Mode, ClipID: clip.ID, AudioAssetID: asset.ID, AudioDuration: asset.Duration, Duration: clip.Duration, TrimStart: clip.TrimStart, RuntimeSelection: &selection}
+			task := AlignmentTask{EpisodeNumber: input.EpisodeNumber, SpaceID: tenant, ProjectID: project.ID, Provider: entry.Provider, Model: entry.Model, Mode: input.Mode, ClipID: clip.ID, AudioAssetID: asset.ID, AudioDuration: asset.Duration, Duration: clip.Duration, TrimStart: clip.TrimStart, RuntimeSelection: &selection}
 			return alignmentExecutionRequest(task, data, mime), nil
 		}
 		return ExecutionRequest{}, ErrNotFound
