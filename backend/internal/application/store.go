@@ -12,6 +12,8 @@ import (
 	"sort"
 	"syscall"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
 )
 
 type snapshot struct {
@@ -41,6 +43,7 @@ type Repository interface {
 	Finish(Task, GenerationResult, error) error
 }
 type FileStore struct {
+	library      *libraryrepo.Store
 	pg           *postgresScope
 	blobs        *managedBlobs
 	execution    *ExecutionGovernor
@@ -283,6 +286,11 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 		return nil, err
 	}
 	s.budget, err = OpenBudgetLedger(filepath.Dir(s.path))
+	if err != nil {
+		s.Close()
+		return nil, err
+	}
+	s.library, err = libraryrepo.Open(filepath.Join(dir, "library"), nil)
 	if err != nil {
 		s.Close()
 		return nil, err

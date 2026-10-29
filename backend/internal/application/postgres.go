@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -149,6 +150,9 @@ func InitPostgres(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, jobqueue.Schema); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, libraryrepo.Schema); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -488,6 +492,11 @@ func OpenPostgresStore(dir string, db *sql.DB, options ...Capabilities) (*FileSt
 	if err == nil {
 		s.budget.pg, err = attachPostgres(db, "budget", &s.budget.data, &s.budget.mu)
 	}
+	if err != nil {
+		s.Close()
+		return nil, err
+	}
+	s.library, err = libraryrepo.Open(filepath.Join(dir, "library"), db)
 	if err != nil {
 		s.Close()
 		return nil, err

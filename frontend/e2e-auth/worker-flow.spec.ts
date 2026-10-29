@@ -15,7 +15,7 @@ test('secure browser creates image, script and storyboard through execution work
   await expect(card.getByText('模拟完成', {exact: true})).toBeVisible({timeout: 15000})
   await expect.poll(() => card.locator('img').evaluate((node: HTMLImageElement) => node.naturalWidth)).toBeGreaterThan(0)
   await navigateTo(page, '/projects')
-  await page.getByRole('link', {name: '新建短剧项目', exact: true}).click()
+  await page.locator('.projects-page > .page-heading').getByRole('link', {name: '新建短剧项目', exact: true}).click()
   const title = `独立任务创作验收 ${info.project.name}`
   await page.getByLabel('项目名称').fill(title)
   await page.getByLabel('创作简报').fill('合成验收：修钟师与快递员合作，将一封旧信送到钟楼。')

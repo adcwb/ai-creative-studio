@@ -16,7 +16,7 @@ const project = {id: 'story-1', space_id: 'personal-demo', title: '钟楼来信'
 const baseTask = {id: 'image-1', space_id: 'personal-demo', prompt: '春日咖啡海报', kind: 'poster', ratio: '4:5', style: 'natural', provider: 'mock-svg', status: 'succeeded', progress: 100, result_url: '/fixture.svg', created_at: now}
 let state
 function reset(options = {}) {
-  state = {mode: 'secure', role: 'owner', empty: false, projects: [clone(project)], tasks: [clone(baseTask)], assets: [{...baseTask, id: 'asset-1', task_id: baseTask.id}], receipts: new Map(), requests: [], ...options}
+  state = {mode: 'secure', role: 'owner', empty: false, projects: [clone(project)], tasks: [clone(baseTask)], assets: [{...baseTask, id: 'asset-1', task_id: baseTask.id}], library: [], libraryVersions: [], bindings: {}, receipts: new Map(), requests: [], ...options}
 }
 reset()
 const server = http.createServer(async (req, res) => {
@@ -51,6 +51,33 @@ const server = http.createServer(async (req, res) => {
   }
   if (path === '/tasks') return send(state.tasks.filter(task => task.space_id === spaceID))
   if (path === '/assets') return send(state.assets.filter(asset => asset.space_id === spaceID))
+  if (path.startsWith('/library/assets')) {
+    if (req.method !== 'GET' && state.role === 'viewer') return send({error: {code: 'role_denied', message: '只读成员不能修改内容'}}, 403)
+    const match = path.match(/^\/library\/assets(?:\/([^/]+))?(?:\/(versions|archive))?(?:\/([^/]+))?$/)
+    if (!match) return send({error: {code: 'not_implemented', message: 'Fixture route not implemented'}}, 501)
+    const [, id, action, versionID] = match
+    const asset = state.library.find(a => a.id === id && a.space_id === spaceID)
+    if (id && !asset) return send({error: {code: 'not_found', message: '资产不存在'}}, 404)
+    if (req.method === 'GET') {
+      if (!id) return send({items: state.library.filter(a => a.space_id === spaceID && (!url.searchParams.get('kind') || a.kind === url.searchParams.get('kind')) && (!url.searchParams.get('status') || a.status === url.searchParams.get('status'))), next_cursor: ''})
+      if (action === 'versions') return versionID ? send(state.libraryVersions.find(v => v.asset_id === id && v.id === versionID)) : send({items: state.libraryVersions.filter(v => v.asset_id === id), next_cursor: ''})
+      return send({asset, version: state.libraryVersions.find(v => v.id === asset.head_version_id)})
+    }
+    const key = `library:${spaceID}:${req.headers['idempotency-key']}`
+    const old = state.receipts.get(key)
+    if (old) return old.body === body ? send(old.result) : send({error: {code: 'idempotency_conflict', message: '请求键冲突'}}, 409)
+    if (asset && input.expected_asset_version_id !== asset.head_version_id) return send({error: {code: 'asset_version_conflict', message: '资产版本已更新'}}, 409)
+    if (asset?.status === 'archived') return send({error: {code: 'asset_archived', message: '资产已归档'}}, 409)
+    const assetID = id ?? `library-${state.library.length + 1}`
+    const oldVersion = asset && state.libraryVersions.find(v => v.id === asset.head_version_id)
+    const version = action === 'archive' ? oldVersion : {id: `version-${state.libraryVersions.length + 1}`, asset_id: assetID, space_id: spaceID, number: (oldVersion?.number ?? 0) + 1, card: input.card, references: [], content_sha256: 'a'.repeat(64), created_at: now, created_by: 'user-1'}
+    if (action !== 'archive') state.libraryVersions.push(version)
+    const updated = {...asset, id: assetID, space_id: spaceID, kind: asset?.kind ?? input.kind, name: version.card.name, status: action === 'archive' ? 'archived' : 'active', head_version_id: version.id, created_at: asset?.created_at ?? now, updated_at: now}
+    state.library = [...state.library.filter(a => a.id !== assetID), updated]
+    const result = clone({asset: updated, version}); state.receipts.set(key, {body, result})
+    if (state.libraryDropReply) {state.libraryDropReply = false; return send({error: {code: 'library_storage_error', message: '资产保存结果未确认，请使用原请求键核对'}}, 503)}
+    return send(result, action === 'archive' ? 200 : 201)
+  }
   if (/^\/organizations\/.+\/members$/.test(path)) return send([{id: 'user-1', email: 'studio@example.com', role: state.role}])
   if (path === '/model-config') return send({version: 1, entries: [], adapters: [{provider: 'openai-images', credential_refs: [], capabilities: ['image'], regions: ['global'], endpoint: 'https://api.openai.com/v1'}], secret_storage_available: false, live_enabled: false, runtime_applied: false})
   if (path === '/governance') return send({currency: url.searchParams.get('currency') ?? 'USD', minor_units: 2, limit_minor: 10000, exposure_minor: 1200, available_minor: 8800, entries: [], total_entries: 0, next_offset: null, budget_changes: [], live_execution_enabled: false, fx_available: false})
@@ -67,6 +94,26 @@ const server = http.createServer(async (req, res) => {
     if (!item) return send({error: {message: 'Project not found'}}, 404)
     if (!match[2] && req.method === 'PUT') {Object.assign(item, input, {version: item.version + 1}); return send(item)}
     if (!match[2]) return send(item)
+    if (match[2] === '/library-bindings') {
+      const viewKey = `${spaceID}:${item.id}`
+      const view = state.bindings[viewKey] ?? {items: [], media_version: 1}
+      if (req.method === 'GET') return send(view)
+      if (state.role === 'viewer') return send({error: {code: 'role_denied', message: '只读成员不能修改内容'}}, 403)
+      const key = `binding:${viewKey}:${req.headers['idempotency-key']}`
+      const old = state.receipts.get(key)
+      if (old) return old.body === body ? send(old.result) : send({error: {code: 'idempotency_conflict', message: '请求键冲突'}}, 409)
+      if (input.expected_media_version !== view.media_version) return send({error: {code: 'media_version_conflict', message: '媒体版本已更新'}}, 409)
+      const asset = state.library.find(a => a.id === input.library_asset_id && a.space_id === spaceID && a.status === 'active')
+      const version = state.libraryVersions.find(v => v.asset_id === asset?.id && v.id === input.asset_version_id)
+      if (!version) return send({error: {code: 'not_found', message: '资产版本不存在'}}, 404)
+      view.items.push({id: `binding-${view.items.length + 1}`, library_asset_id: asset.id, asset_version_id: version.id, name: version.card.name, kind: asset.kind, usage: input.usage, shot_id: input.shot_id, media_asset_ids: [], created_at: now})
+      view.media_version++
+      state.bindings[viewKey] = view
+      const result = {version: view.media_version, assets: [], library_bindings: clone(view.items), exports: [], timeline: {clips: [], music_asset_id: '', music_volume: 0.2}}
+      state.receipts.set(key, {body, result})
+      if (state.libraryBindingDropReply) {state.libraryBindingDropReply = false; return send({error: {code: 'storage_error', message: '保存结果未确认'}}, 503)}
+      return send(result, 201)
+    }
     if (match[2] === '/script' && req.method === 'PUT') {item.script = input.script; item.version++; return send(item)}
     if (match[2] === '/media') return send({version: 1, assets: [], exports: [], timeline: {clips: [], music_asset_id: '', music_volume: 0.2}})
     if (['/generations', '/history', '/creative-jobs', '/media/alignments'].includes(match[2])) return send([])

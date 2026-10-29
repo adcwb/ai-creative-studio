@@ -72,7 +72,7 @@ export function AppLayout() {
     document.getElementById('page-content')?.focus({preventScroll: true})
   }, [location.pathname])
   useEffect(() => {
-    const titles: Record<string, string> = {'/studio': '图像创作', '/assets': '素材库', '/projects': '短剧项目', '/settings/organization': '组织与成员', '/settings/models': '模型接入管理', '/settings/billing': '预算与费用记录'}
+    const titles: Record<string, string> = {'/library': '创作资产库', '/studio': '图像创作', '/assets': '素材库', '/projects': '短剧项目', '/settings/organization': '组织与成员', '/settings/models': '模型接入管理', '/settings/billing': '预算与费用记录'}
     document.title = `${t(titles[location.pathname] ?? '短剧工作台')} · ${t('映创')}`
   }, [location.pathname, locale, t])
 

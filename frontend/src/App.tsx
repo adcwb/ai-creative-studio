@@ -19,6 +19,7 @@ const router = createBrowserRouter([
       {element: <ImageWorkspace />, errorElement: <RouteErrorPage />, children: [
         {path: 'studio', lazy: async () => ({Component: (await import('./pages/ImagePage')).ImagePage})},
         {path: 'assets', lazy: async () => ({Component: (await import('./pages/AssetsPage')).AssetsPage})},
+        {path: 'library', lazy: async () => ({Component: (await import('./pages/LibraryPage')).LibraryPage})},
         {path: 'projects', lazy: async () => ({Component: (await import('./pages/ProjectsPage')).ProjectsPage})},
         {path: 'projects/:projectId/:section', lazy: async () => ({Component: (await import('./pages/ProjectPage')).ProjectPage})},
         {path: 'settings/:section', lazy: async () => ({Component: (await import('./pages/SettingsPage')).SettingsPage})},

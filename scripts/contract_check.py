@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import shutil
 import socket
 import subprocess
 import tempfile
@@ -31,6 +32,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, default=Path.cwd())
     parser.add_argument("--go", default="go", help="Go executable, defaults to PATH")
+    parser.add_argument("--server-binary", type=Path, help="Use an already built server for this runtime instead of invoking Go")
     args = parser.parse_args()
     repo = args.repo.resolve()
     spec = json.loads((repo / "api/openapi.json").read_text())
@@ -45,10 +47,14 @@ def main():
     with tempfile.TemporaryDirectory(prefix="studio-contract-") as temporary:
         temp = Path(temporary)
         binary = temp / "server"
-        subprocess.run(
-            [args.go, "build", "-o", str(binary), "./cmd/server"],
-            cwd=repo / "backend", check=True,
-        )
+        if args.server_binary:
+            shutil.copyfile(args.server_binary.resolve(), binary)
+            binary.chmod(0o700)
+        else:
+            subprocess.run(
+                [args.go, "build", "-o", str(binary), "./cmd/server"],
+                cwd=repo / "backend", check=True,
+            )
         # Do not inspect/inherit any existing OPENAI_* credential or configuration.
         env = {
             "PATH": os.environ.get("PATH", ""),
@@ -177,6 +183,39 @@ def main():
                 assert conflict["error"]["code"] == "idempotency_conflict"
                 stop(); start()
                 assert call("POST", root + "/analysis" + q, route + "/analysis", body, "creative-analysis")["status"] == "succeeded"
+
+            def check_library():
+                route = "/api/v1/library/assets"
+                q = "?space_id=personal-demo"
+                body = {"kind": "character", "card": {"name": "Reference actor", "description": "Stable costume", "prohibited_changes": ["Copper button"], "character": {"appearance": "", "hair": "Short", "costume": "Green coat", "expression": "", "voice_notes": ""}}, "references": []}
+                original = call("POST", route + q, route, body, "library-contract-create", 201)
+                asset = original["asset"]["id"]
+                root = route + "/" + asset
+                detail_route = route + "/{assetId}"
+                call("GET", root + "?space_id=team-demo", detail_route, expected=404)
+                next_body = copy.deepcopy(body)
+                next_body["expected_asset_version_id"] = original["version"]["id"]
+                next_body["card"]["character"]["costume"] = "Blue coat"
+                newer = call("POST", root + "/versions" + q, detail_route + "/versions", next_body, "library-contract-next", 201)
+                call("POST", root + "/versions" + q, detail_route + "/versions", next_body, "library-contract-stale", 409)
+                versions = call("GET", root + "/versions" + q, detail_route + "/versions")
+                assert [v["number"] for v in versions["items"]] == [2, 1]
+                old = call("GET", root + "/versions/" + original["version"]["id"] + q, detail_route + "/versions/{versionId}")
+                assert old == original["version"]
+                project = project_call("POST", body={"title": "Library binding", "brief": "Reuse one pinned character version."}, key="library-contract-project", expected=201)
+                bind_url = "/api/v1/projects/" + project["id"] + "/library-bindings" + q
+                bind_route = "/api/v1/projects/{id}/library-bindings"
+                binding = {"expected_media_version": 1, "library_asset_id": asset, "asset_version_id": old["id"], "usage": "character", "shot_id": ""}
+                call("POST", bind_url, bind_route, binding, "library-contract-bind", 201)
+                view = call("GET", bind_url, bind_route)
+                assert view["items"][0]["asset_version_id"] == old["id"]
+                archive = {"expected_asset_version_id": newer["version"]["id"]}
+                call("POST", root + "/archive" + q, detail_route + "/archive", archive, "library-contract-archive")
+                stop(); start()
+                assert call("POST", route + q, route, body, "library-contract-create") == original
+                call("POST", bind_url, bind_route, binding, "library-contract-bind")
+                assert len(call("GET", bind_url, bind_route)["items"]) == 1
+                call("GET", route + q + "&status=archived", route)
 
             def check_history():
                 project = project_call("POST", body={"title": "历史合同", "brief": "两位旧友在车站相遇并交换一本书。"}, key="history-create", expected=201)
@@ -471,6 +510,7 @@ def main():
                 check_storyboards()
                 check_history()
                 check_creative()
+                check_library()
                 stop()
                 configurations = [
                     ("openai-images", "", "missing_api_key"),
@@ -516,6 +556,7 @@ def main():
                 print("Verified: real project create/detail/edit, Eino structured mock script, 400/404/409 paths, version/source preservation, failed generation keeps draft, all-write accepted-key replay across restarts, and script execution independent of unavailable image configuration.")
                 print("Verified: storyboard mock generation/editing, 400/404/409 guards, source script revision/staleness, failed generation keeps old plan, persisted receipts across restart and successful regeneration clears staleness.")
                 print("Verified: immutable script history restoration, monotonic versions, replay/conflict/cross-space/restart guards; asynchronous brief analysis, provider registry and creative job persistence.")
+                print("Verified: library card versions, ordered history, cross-space isolation, pinned project bindings and original receipts across archive and restart.")
                 print("No real credential was read and no external provider was enabled; all runtime data and processes were temporary.")
             finally:
                 stop()

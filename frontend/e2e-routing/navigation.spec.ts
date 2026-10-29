@@ -82,7 +82,7 @@ test('project steps are routed and drafts block links, browser back and space ch
 
 test('new projects get a durable URL and organization changes leave the old project', async ({page}) => {
   await page.goto('/projects')
-  await page.getByRole('link', {name: '新建短剧项目', exact: true}).click()
+  await page.locator('.projects-page > .page-heading').getByRole('link', {name: '新建短剧项目', exact: true}).click()
   await page.getByLabel('项目名称').fill('新的测试项目')
   await page.getByLabel('创作简报').fill('这是用于路由回归的合成故事。')
   await page.getByRole('button', {name: '创建项目', exact: true}).click()

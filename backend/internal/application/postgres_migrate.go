@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	"golang.org/x/sys/unix"
 )
@@ -225,6 +226,10 @@ func ImportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 	if err = importQueuedTasks(ctx, tx, values); err != nil {
 		return report, err
 	}
+	report.Records["library"], err = libraryrepo.ImportFiles(ctx, tx, filepath.Join(dir, "library"))
+	if err != nil {
+		return report, err
+	}
 	// The manifest contains metadata only; S3 credentials and objects are external.
 	manifestPath := filepath.Join(dir, "blobs.json")
 	if raw, e := safeReadLocal(manifestPath, 32<<20); e == nil {
@@ -309,6 +314,10 @@ func ExportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 		}
 	}
 	if err = ExportBlobManifest(ctx, stage, db); err != nil {
+		return report, err
+	}
+	report.Records["library"], err = libraryrepo.ExportFiles(ctx, tx, filepath.Join(stage, "library"))
+	if err != nil {
 		return report, err
 	}
 	report.Records["audit"], err = exportPostgresAudit(ctx, tx, stage)

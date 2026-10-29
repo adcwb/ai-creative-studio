@@ -2,7 +2,14 @@ import { expect, type Page } from '@playwright/test'
 
 export async function openNavigation(page: Page) {
   const toggle = page.locator('.menu-toggle')
-  if (await toggle.isVisible() && await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click()
+  // Auth and workspace loading mount the shell asynchronously. isVisible()
+  // alone returns false immediately when the toggle has not mounted yet.
+  await expect(toggle).toBeAttached()
+  if (await toggle.isVisible()) {
+    if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    await expect(page.locator('#app-navigation')).toBeVisible()
+  }
 }
 export async function closeNavigation(page: Page) {
   const close = page.locator('.sidebar-close')

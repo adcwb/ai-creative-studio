@@ -83,10 +83,25 @@ type MediaExport struct {
 }
 
 type MediaState struct {
-	Poster   *PosterDocument `json:"poster,omitempty"`
-	Social   *SocialState    `json:"social,omitempty"`
-	Version  int             `json:"version"`
-	Assets   []MediaAsset    `json:"assets"`
-	Timeline MediaTimeline   `json:"timeline"`
-	Exports  []MediaExport   `json:"exports"`
+	LibraryBindings []LibraryBinding `json:"library_bindings,omitempty"`
+	Poster          *PosterDocument  `json:"poster,omitempty"`
+	Social          *SocialState     `json:"social,omitempty"`
+	Version         int              `json:"version"`
+	Assets          []MediaAsset     `json:"assets"`
+	Timeline        MediaTimeline    `json:"timeline"`
+	Exports         []MediaExport    `json:"exports"`
+}
+
+// LibraryBinding records the exact library version copied into this project.
+// Later library edits cannot alter these project-owned media references.
+type LibraryBinding struct {
+	ID            string   `json:"id"`
+	AssetID       string   `json:"library_asset_id"`
+	VersionID     string   `json:"asset_version_id"`
+	Name          string   `json:"name"`
+	Kind          string   `json:"kind"`
+	Usage         string   `json:"usage"`
+	ShotID        string   `json:"shot_id"`
+	MediaAssetIDs []string `json:"media_asset_ids"`
+	CreatedAt     string   `json:"created_at"`
 }

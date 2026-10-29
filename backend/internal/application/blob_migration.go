@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
 	"os"
 	"path/filepath"
 	"sort"
@@ -93,6 +94,18 @@ func MigrateBlobStorage(ctx context.Context, dir string, store BlobStore, toFile
 					objects = append(objects, migrationBlob{blobKey(parts[0], parts[1], x.ID+ext), filepath.Join(dir, "media", x.ID+ext)})
 				}
 			}
+		}
+	}
+	libraryRefs, e := libraryrepo.FileReferences(filepath.Join(dir, "library"))
+	if e != nil {
+		return report, e
+	}
+	for space, refs := range libraryRefs {
+		for _, ref := range refs {
+			if !mediaFileID(ref.ID) {
+				return report, ErrBlobIntegrity
+			}
+			objects = append(objects, migrationBlob{blobKey(space, "library", ref.ID), filepath.Join(dir, "media", ref.ID)})
 		}
 	}
 	sort.Slice(objects, func(i, j int) bool { return objects[i].key < objects[j].key })

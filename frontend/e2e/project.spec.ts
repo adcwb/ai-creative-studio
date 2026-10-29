@@ -34,7 +34,7 @@ async function capture(page: Page, path: string) {
 
 test('project creation, asynchronous script generation and lost-save response use durable backend receipts', async ({ page, request }, info) => {
   await openDrama(page)
-  if (await page.getByRole('link', { name: '新建短剧项目', exact: false }).isEnabled()) await page.getByRole('link', { name: '新建短剧项目', exact: false }).click()
+  if (await page.locator('.projects-page > .page-heading').getByRole('link', { name: '新建短剧项目', exact: false }).isEnabled()) await page.locator('.projects-page > .page-heading').getByRole('link', { name: '新建短剧项目', exact: false }).click()
   const title = `合成短剧-${info.project.name}-${randomUUID()}`
   await page.getByLabel('项目名称').fill(title)
   await page.getByLabel('创作简报').fill('合成验收：修钟师与快递员合作送达一封旧信。')
@@ -45,10 +45,19 @@ test('project creation, asynchronous script generation and lost-save response us
   await expect(page.getByLabel('项目名称')).toHaveValue(title)
   await expect(page).toHaveURL(new RegExp('/projects/' + project.id + '/brief' + '$'))
   await projectStep(page, 'script')
+  let releaseGeneration!: () => void
+  const generationHeld = new Promise<void>(resolve => {releaseGeneration = resolve})
+  await page.route(`**/api/v1/projects/${project.id}/generations?*`, async route => {
+    const response = await route.fetch()
+    await generationHeld
+    await route.fulfill({response})
+  }, {times: 1})
   const accepted = page.waitForResponse(r => r.request().method() === 'POST' && r.url().includes(`/projects/${project.id}/generations`))
-  await page.getByRole('button', { name: '生成模拟剧本', exact: true }).dblclick()
+  try {
+    await page.getByRole('button', { name: '生成模拟剧本', exact: true }).dblclick()
+    await expect(page.locator('.drama-generation button.primary')).toBeDisabled()
+  } finally { releaseGeneration() }
   expect((await accepted).status()).toBe(202)
-  await expect(page.getByRole('button', {name: '生成模拟剧本', exact: true})).toBeDisabled()
   await expect(page.locator('.drama-script')).toBeVisible()
   const generated = await readProject(request, project.id)
   expect(generated.version).toBe(2); expect(generated.script?.characters).toHaveLength(2); expect(generated.script?.scenes).toHaveLength(3)
@@ -159,8 +168,8 @@ test('project list errors recover and a late create response cannot leak across 
   await page.goto('/'); await navigateTo(page, '/projects')
   await expect(page.locator('.projects-page').getByRole('alert')).toBeVisible()
   await page.unroute('**/api/v1/projects?*'); await page.getByRole('button', { name: '重新加载项目列表', exact: true }).click()
-  await expect(page.getByLabel('项目名称')).toBeVisible()
-  if (await page.getByRole('link', { name: '新建短剧项目', exact: false }).isEnabled()) await page.getByRole('link', { name: '新建短剧项目', exact: false }).click()
+  await expect(page.locator('.projects-page').getByRole('alert')).toHaveCount(0)
+  if (await page.locator('.projects-page > .page-heading').getByRole('link', { name: '新建短剧项目', exact: false }).isEnabled()) await page.locator('.projects-page > .page-heading').getByRole('link', { name: '新建短剧项目', exact: false }).click()
   const title = `迟到响应-${info.project.name}-${randomUUID()}`
   await page.getByLabel('项目名称').fill(title); await page.getByLabel('创作简报').fill('迟到响应只能属于创建时的个人演示空间。')
   let release: () => void = () => undefined

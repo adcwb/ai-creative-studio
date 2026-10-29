@@ -55,6 +55,7 @@ jobs:
         run: |
           npx playwright install --with-deps chrome
           npm run test:e2e
+          npm run test:routing
           npx playwright test -c playwright.auth.config.ts
       - name: Local image provider integration
         run: node scripts/provider_check.mjs

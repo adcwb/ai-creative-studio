@@ -291,6 +291,8 @@ test('late submission response cannot leak across spaces; reload resumes durable
   await page.getByRole('button', { name: '创建模拟图像', exact: false }).click()
   const task = await created
   await chooseSpace(page, 'team-demo')
+  await page.getByRole('dialog').getByRole('button', {name: /放弃/}).click()
+  await expect(page.locator('#space')).toHaveValue('team-demo')
   releaseResponse?.()
   await expect(page.locator('.task').filter({ hasText: prompt })).toHaveCount(0)
   await expect(page.getByLabel('描述你的画面')).toHaveValue('')

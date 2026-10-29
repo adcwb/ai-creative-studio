@@ -10,8 +10,9 @@ import { ProjectMedia } from './ProjectMedia'
 import { DigitalHumanStudio } from '../../components/DigitalHumanStudio'
 import { ProjectPublish } from './ProjectPublish'
 import { ProjectConfirmations } from './ProjectConfirmations'
+import { ProjectReferences } from '../library/ProjectReferences'
 
-const steps = [['brief', '项目简报'], ['script', '剧本创作'], ['storyboard', '分镜计划'], ['avatar', '数字人口播'], ['media', '素材与成片'], ['publish', '社交发布中心']]
+const steps = [['brief', '项目简报'], ['script', '剧本创作'], ['references', '项目参考资产'], ['storyboard', '分镜计划'], ['avatar', '数字人口播'], ['media', '素材与成片'], ['publish', '社交发布中心']]
 
 export function ProjectEditor(props: {
   space: string; id: string | null; section: string; onDirtyChange: (dirty: boolean) => void; requestLeave: (action: () => void) => void
@@ -39,6 +40,7 @@ export function ProjectEditor(props: {
         {props.id && editor.project && <>
           {props.section === 'script' && <ProjectScript state={state} />}
           {props.section === 'storyboard' && <ProjectStoryboard state={state} />}
+          {props.section === 'references' && <ProjectReferences space={props.space} projectId={editor.project.id} shots={editor.project.storyboard?.shots ?? []} disabled={editor.locked || editor.dirty} />}
           {props.section === 'media' && <ProjectMedia state={state} />}
           {props.section === 'avatar' && <DigitalHumanStudio key={editor.project.id} project={editor.project} space={props.space} disabled={editor.locked || editor.dirty || state.mediaDirty} onDirtyChange={state.setToolsDirty} />}
           {props.section === 'publish' && <ProjectPublish state={state} />}

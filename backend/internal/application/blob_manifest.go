@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
 	"io"
 	"os"
 	"path/filepath"
@@ -284,6 +285,19 @@ func configureBlobStorage(s *FileStore, store BlobStore) error {
 					if !m.has(blobKey(parts[0], parts[1], x.ID+ext)) {
 						return errors.New("exports require offline blob migration")
 					}
+				}
+			}
+		}
+	}
+	if s.pg == nil {
+		refs, e := libraryrepo.FileReferences(filepath.Join(filepath.Dir(s.path), "library"))
+		if e != nil {
+			return e
+		}
+		for space, items := range refs {
+			for _, ref := range items {
+				if !m.has(blobKey(space, "library", ref.ID)) {
+					return errors.New("library references require offline blob migration")
 				}
 			}
 		}
