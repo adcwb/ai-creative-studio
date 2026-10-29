@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import { checkNavigationLayout } from './support/layout.mjs'
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(join(repo, 'frontend/package.json'))
@@ -108,7 +109,8 @@ try {
   const measurements = []
   async function measure(state, count) {
     for (const { page, viewport, errors } of pages) {
-      await page.goto(origin)
+      console.log(`Checking image layout ${state}/${viewport.name}`)
+      await page.goto(`${origin}/studio`)
       await expect(page.locator('.template-card')).toHaveCount(3)
       if (count === 0) await expect(page.getByText('给你的灵感，一张画布')).toBeVisible()
       else await expect(page.locator('.task')).toHaveCount(count)
@@ -133,24 +135,19 @@ try {
           return { top: box.top + scrollY, bottom: box.bottom + scrollY, left: box.left, right: box.right, height: box.height }
         }
         return {
-          composer: rect('.composer'), results: rect('.results'), sidebar: rect('.sidebar'), shell: rect('.shell'),
+          controls: rect('.creation-controls'), composer: rect('.composer'), results: rect('.results'),
           viewport: innerWidth, documentWidth: document.documentElement.scrollWidth,
           clippedPrompts: [...document.querySelectorAll('.task-prompt')].filter(node => node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1).length,
         }
       })
       expect(geometry.documentWidth, `${state}/${viewport.name} horizontal overflow`).toBeLessThanOrEqual(geometry.viewport)
       expect(geometry.clippedPrompts, `${state}/${viewport.name} clipped task description`).toBe(0)
-      if (viewport.width > 1050) {
-        expect(Math.abs(geometry.composer.top - geometry.results.top), `${state}/${viewport.name} panel tops`).toBeLessThanOrEqual(1)
-        expect(Math.abs(geometry.composer.bottom - geometry.results.bottom), `${state}/${viewport.name} panel bottoms`).toBeLessThanOrEqual(1)
+      if (viewport.width > 1150) {
+        expect(Math.abs(geometry.controls.top - geometry.results.top), `${state}/${viewport.name} column tops`).toBeLessThanOrEqual(1)
+        expect(geometry.controls.right, `${state}/${viewport.name} column overlap`).toBeLessThanOrEqual(geometry.results.left)
       } else {
-        expect(geometry.results.top, `${state}/${viewport.name} stacked overlap`).toBeGreaterThanOrEqual(geometry.composer.bottom)
+        expect(geometry.results.top, `${state}/${viewport.name} stacked overlap`).toBeGreaterThanOrEqual(geometry.controls.bottom)
       }
-      if (viewport.width > 700) {
-        expect(Math.abs(geometry.sidebar.bottom - geometry.shell.bottom), `${state}/${viewport.name} sidebar page coverage`).toBeLessThanOrEqual(1)
-      }
-      expect(errors).toEqual([])
-      measurements.push({ state, name: viewport.name, ...geometry })
       if (state === 'empty' || state === 'completed') await page.screenshot({ path: join(output, `${state}-${viewport.name}.png`), fullPage: true })
       if (state === 'editing') {
         await page.getByRole('button', { name: '创建重试任务' }).scrollIntoViewIfNeeded()
@@ -160,10 +157,9 @@ try {
         await page.locator('.task-bottom').last().getByRole('button', { name: '查看详情' }).scrollIntoViewIfNeeded()
         await expect(page.locator('.task-bottom').last().getByRole('button', { name: '查看详情' })).toBeInViewport()
       }
-      if (viewport.name === 'desktop-short') {
-        await page.locator('.demo-id').scrollIntoViewIfNeeded()
-        await expect(page.locator('.demo-id')).toBeInViewport()
-      }
+      geometry.sidebar = await checkNavigationLayout(page, expect)
+      expect(errors).toEqual([])
+      measurements.push({ state, name: viewport.name, ...geometry })
     }
   }
   await measure('empty', 0)

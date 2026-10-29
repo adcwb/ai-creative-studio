@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import { checkProjectLayout } from './support/layout.mjs'
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(join(repo, 'frontend/package.json'))
@@ -96,34 +97,23 @@ try {
   const measurements = []
   async function measure(state, project) {
     for (const {page,view,errors} of pages) {
-      await page.goto(origin); await page.getByRole('button',{name:'短剧工作台',exact:true}).click()
-      if (project) await page.locator('.drama-project-list button').filter({hasText:project.title}).click()
-      await expect(page.getByLabel('项目名称')).toBeVisible()
+      console.log(`Checking storyboard ${state}/${view.name}`)
+      await page.goto(`${origin}/projects`)
+      await page.locator(`.project-card[href="/projects/${project.id}/brief"]`).click()
+      await expect(page.getByLabel('项目名称')).toHaveValue(project.title)
+      await page.locator(`.project-steps a[href="/projects/${project.id}/storyboard"]`).click()
+      await expect(page).toHaveURL(`${origin}/projects/${project.id}/storyboard`)
       if (state === 'empty') await expect(page.locator('.storyboard-empty')).toBeVisible()
       else await expect(page.locator('.storyboard-shot')).toHaveCount(project.storyboard.shots.length)
       if(state === 'failed') await expect(page.locator('.storyboard-generation')).toContainText('mock_storyboard_failed')
       if(state === 'stale') await expect(page.locator('.storyboard-stale')).toContainText('已过期')
       if (state === 'editing') await page.getByRole('button',{name:'编辑分镜',exact:true}).click()
-      await page.evaluate(async () => { await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); window.scrollTo(0,0) })
-      await expect.poll(() => page.evaluate(() => scrollY)).toBe(0)
-      const geometry = await page.evaluate(() => {
-        const rect = selector => {const r = document.querySelector(selector).getBoundingClientRect();return {left:r.left,right:r.right,top:r.top+scrollY,bottom:r.bottom+scrollY}}
-        return {viewport:innerWidth,documentWidth:document.documentElement.scrollWidth,sidebar:rect('.sidebar'),shell:rect('.shell'),projects:rect('.drama-projects'),editor:rect('.drama-editor'),
-          clippedText:[...document.querySelectorAll('.drama-action,.drama-dialogue p,.drama-project-title,.drama-character-index + div p')].filter(n=>n.scrollHeight>n.clientHeight+1||n.scrollWidth>n.clientWidth+1).length}
-      })
-      expect(geometry.documentWidth,`${state}/${view.name} overflow`).toBeLessThanOrEqual(geometry.viewport)
-      expect(geometry.clippedText,`${state}/${view.name} clipped reading text`).toBe(0)
-      if (view.width>1100) {
-        expect(Math.abs(geometry.projects.top-geometry.editor.top)).toBeLessThanOrEqual(1)
-        expect(geometry.projects.right).toBeLessThanOrEqual(geometry.editor.left)
-      } else expect(geometry.editor.top).toBeGreaterThanOrEqual(geometry.projects.bottom)
-      if (view.width>700) expect(Math.abs(geometry.sidebar.bottom-geometry.shell.bottom)).toBeLessThanOrEqual(1)
+      const geometry = await checkProjectLayout(page, expect)
       expect(errors).toEqual([]); measurements.push({state,name:view.name,...geometry})
       if (state==='generated' && ['desktop-1440','mobile-390'].includes(view.name)) await page.screenshot({path:join(output,`storyboard-${view.name}.png`),fullPage:true})
       const lastControl = state==='editing' ? page.getByRole('button',{name:'保存分镜',exact:true}) : state==='empty' ? page.getByRole('button',{name:'生成模拟分镜',exact:true}) : page.locator('.storyboard-shot').last()
       await lastControl.scrollIntoViewIfNeeded(); await expect(lastControl).toBeInViewport()
       if (state==='long') {const last=page.locator('.storyboard-shot').last().locator('.drama-dialogue p');await last.scrollIntoViewIfNeeded();await expect(last).toBeInViewport()}
-      if (view.name==='desktop-short') {await page.locator('.demo-id').scrollIntoViewIfNeeded();await expect(page.locator('.demo-id')).toBeInViewport()}
     }
   }
   const empty = await seed('合成分镜空态','storyboard-empty',false)
