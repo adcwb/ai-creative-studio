@@ -156,11 +156,6 @@
 .alignment-task > p { font-size: 12px; line-height: 1.8; }
 @media (max-width: 700px) { .subtitle-methods { grid-template-columns: minmax(0, 1fr); } }
 
-.auth-screen { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--color-background, #f5f4ef); }
-.auth-panel { width: min(100%, 460px); padding: 32px; }
-.auth-panel label { display: block; margin-top: 18px; }
-.auth-panel input { width: 100%; margin: 8px 0 12px; }
-.auth-panel button { margin: 8px 8px 0 0; }
 .organization-panel { margin-top: 20px; padding: 18px; }
 .organization-panel summary { cursor: pointer; font-weight: 600; }
 .organization-panel form { margin-top: 18px; }
