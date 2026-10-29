@@ -32,6 +32,9 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
   const replaceOnLoad = useRef(false)
   const requestEpoch = useRef(0)
   const latestVersion = useRef(0)
+  // A route-change effect can run from an older render after a load has been
+  // accepted. Cancellation must use that accepted baseline, not its closure.
+  const baselineRef = useRef<DramaProject | null>(null)
   const briefDirty = draft.title !== (baseline?.title ?? '') || draft.brief !== (baseline?.brief ?? '')
   const scriptDirty = editingScript && JSON.stringify(script) !== JSON.stringify(baseline?.script ?? null)
   const storyboardDirty = editingStoryboard && JSON.stringify(shots) !== JSON.stringify(baseline?.storyboard?.shots ?? [])
@@ -49,6 +52,7 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
     latestVersion.current = result.version
     setProject(result); onProject(result)
     if (replace || !dirtyRef.current) {
+      baselineRef.current = result
       setBaseline(result); setDraft({title: result.title, brief: result.brief}); setScript(result.script ?? null); setShots(result.storyboard?.shots ?? [])
       if (replace) {setEditingScript(false); setEditingStoryboard(false); setConflict(false); setActionError('')}
     }
@@ -130,9 +134,9 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
     if (discard) {attempt.current = null; setUncertain(false)}
     setRevision(value => value + 1)
   }
-  function cancelScript() {setScript(baseline?.script ?? null); setEditingScript(false); setActionError('')}
-  function cancelStoryboard() {setShots(baseline?.storyboard?.shots ?? []); setEditingStoryboard(false); setActionError('')}
-  function cancelBrief() {setDraft({title: baseline?.title ?? '', brief: baseline?.brief ?? ''}); setActionError('')}
+  function cancelScript() {setScript(baselineRef.current?.script ?? null); setEditingScript(false); setActionError('')}
+  function cancelStoryboard() {setShots(baselineRef.current?.storyboard?.shots ?? []); setEditingStoryboard(false); setActionError('')}
+  function cancelBrief() {setDraft({title: baselineRef.current?.title ?? '', brief: baselineRef.current?.brief ?? ''}); setActionError('')}
 
   return {shots, setShots, editingStoryboard, setEditingStoryboard, storyboardDirty, cancelStoryboard, project, baseline, draft, setDraft, script, setScript, editingScript, setEditingScript, loading, loadError, actionError, conflict, notice, busy, uncertain, dirty, briefDirty, scriptDirty, historyRevision, submit, reload, cancelScript, cancelBrief,
     retry: () => {if (attempt.current) void execute(attempt.current)}, locked: Boolean(busy) || uncertain || generationActive(project) || loading || conflict}
