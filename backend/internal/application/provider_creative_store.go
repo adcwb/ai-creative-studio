@@ -450,7 +450,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		}
 		_, supportsMask := c.image.(MaskImageProvider)
 		if in.selection != nil {
-			supportsMask = caps.Provider == "openai-images"
+			supportsMask = caps.Provider == "openai-images" || caps.Provider == "gateway-images"
 		}
 		if !supportsMask {
 			return CreativeJob{}, false, projectInputError("当前供应商不支持局部蒙版编辑")

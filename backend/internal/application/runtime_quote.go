@@ -53,6 +53,7 @@ func registerRuntimeQuote(mux *http.ServeMux, s *FileStore) {
 			return
 		}
 		capability := in.Operation
+		feature := operationFeature(in.Operation, nil)
 		switch in.Operation {
 		case "script", "storyboard", "analysis":
 			capability = "text"
@@ -63,8 +64,17 @@ func registerRuntimeQuote(mux *http.ServeMux, s *FileStore) {
 				return
 			}
 			capability = creativeRuntimeCapability(job.Kind)
+			feature = operationFeature("creative", &job)
 		case "alignment":
 			capability = "asr"
+			var alignment AlignmentInput
+			if decodeQuotePayload(in.Input, &alignment) != nil {
+				problem(w, 400, "invalid_input", "转写请求格式无效")
+				return
+			}
+			if alignment.Mode == "transcription" {
+				feature = "speech_transcription"
+			}
 		case "image":
 		default:
 			problem(w, 400, "invalid_input", "不支持此执行类型的费用预览")
@@ -80,6 +90,15 @@ func registerRuntimeQuote(mux *http.ServeMux, s *FileStore) {
 			return
 		}
 		selection.Voice = in.Voice
+		if selection.GatewayID != "" || feature != "" {
+			if _, allowed := s.runtime.authorizeFeature(scope.SpaceID, feature, in.ModelConfigID); !allowed {
+				problem(w, 403, "feature_model_denied", "此功能未绑定该模型或不允许切换")
+				return
+			}
+			if selection.GatewayID != "" {
+				selection.FeatureKey = feature
+			}
+		}
 		if !s.execution.Ready() {
 			problem(w, 503, "provider_not_ready", "费用与内容审核治理未就绪，不能执行远端模型")
 			return
@@ -168,7 +187,7 @@ func (s *FileStore) buildQuoteExecutionRequest(tenant string, in RuntimeQuoteInp
 	}
 	if in.Operation == "alignment" {
 		var input AlignmentInput
-		if decodeQuotePayload(in.Input, &input) != nil || input.EpisodeNumber < 0 || input.EpisodeNumber > 999 || input.ModelRequest != (ModelRequest{}) || !validAlignmentModeModel(input.Mode, entry.Model) || strings.TrimSpace(input.Text) != "" {
+		if decodeQuotePayload(in.Input, &input) != nil || input.EpisodeNumber < 0 || input.EpisodeNumber > 999 || input.ModelRequest != (ModelRequest{}) || !validRuntimeAlignmentMode(input.Mode, entry.Model, &selection) || strings.TrimSpace(input.Text) != "" {
 			return ExecutionRequest{}, ErrInvalidProjectInput
 		}
 		media := s.media.Get(project.ID, tenant)

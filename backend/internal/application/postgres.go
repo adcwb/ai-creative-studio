@@ -70,6 +70,7 @@ var pgCollections = map[string][]pgCollection{
 	"auth":      {{"users", "studio_users", "map"}, {"organizations", "studio_organizations", "map"}, {"sessions", "studio_sessions", "map"}},
 	"budget":    {{"limits", "studio_budget_limits", "map"}, {"entries", "studio_cost_entries", "map"}, {"changes", "studio_budget_changes", "array"}},
 	"models":    {{"tenants", "studio_model_tenants", "map"}},
+	"usage":     {{"calls", "studio_model_calls", "map"}},
 	"creative":  {{"jobs", "studio_creative_jobs", "map"}, {"receipts", "studio_creative_receipts", "map"}, {"digital_humans", "studio_digital_humans", "map"}},
 	"media":     {{"projects", "studio_media_projects", "map"}, {"receipts", "studio_media_receipts", "map"}},
 	"alignment": {{"tasks", "studio_alignment_tasks", "map"}, {"receipts", "studio_alignment_receipts", "map"}},
@@ -439,7 +440,7 @@ func OpenPostgresStore(dir string, db *sql.DB, options ...Capabilities) (*FileSt
 	if db == nil {
 		return nil, errors.New("postgres database required")
 	}
-	for _, name := range []string{"state.json", "auth.json", "budget.json", "creative.json", "model-config.json", "media/state.json", "media/alignments.json"} {
+	for _, name := range []string{"state.json", "auth.json", "budget.json", "creative.json", "model-config.json", "model-usage.json", "media/state.json", "media/alignments.json"} {
 		if _, err := os.Lstat(filepath.Join(dir, name)); err == nil {
 			return nil, errors.New("postgres cache contains legacy snapshots; use explicit offline migration and a fresh cache directory")
 		} else if !os.IsNotExist(err) {
@@ -536,9 +537,15 @@ func OpenPostgresModelConfigStore(dir string, db *sql.DB, key []byte) (*ModelCon
 			if err := json.Unmarshal(raw, &d); err != nil {
 				return err
 			}
+			if err := validateGatewaySnapshot(d); err != nil {
+				return err
+			}
 			s.publishRuntimeSnapshot(d)
 			return nil
 		}
+	}
+	if err == nil {
+		s.usage.pg, err = attachPostgres(db, "usage", &s.usage.data, &s.usage.mu)
 	}
 	return s, err
 }

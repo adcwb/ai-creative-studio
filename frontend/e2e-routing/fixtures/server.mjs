@@ -16,14 +16,14 @@ const project = {id: 'story-1', space_id: 'personal-demo', title: '钟楼来信'
 const baseTask = {id: 'image-1', space_id: 'personal-demo', prompt: '春日咖啡海报', kind: 'poster', ratio: '4:5', style: 'natural', provider: 'mock-svg', status: 'succeeded', progress: 100, result_url: '/fixture.svg', created_at: now}
 let state
 function reset(options = {}) {
-  state = {mode: 'secure', role: 'owner', empty: false, projects: [clone(project)], tasks: [clone(baseTask)], assets: [{...baseTask, id: 'asset-1', task_id: baseTask.id}], library: [], libraryVersions: [], bindings: {}, receipts: new Map(), requests: [], ...options}
+  state = {mode: 'secure', role: 'owner', empty: false, projects: [clone(project)], tasks: [clone(baseTask)], assets: [{...baseTask, id: 'asset-1', task_id: baseTask.id}], library: [], libraryVersions: [], bindings: {}, receipts: new Map(), requests: [], management: {version: 0, gateways: [], models: [], bindings: [], features: [{key: 'script_generation', name: '剧本生成', capability: 'text'}, {key: 'storyboard_planning', name: '分镜规划', capability: 'text'}, {key: 'shot_image', name: '镜头图片', capability: 'image'}], secret_storage_available: true, governance_ready: true, legacy_models: 0}, usage: {items: [], summary: [], total: 0, next_offset: null}, ...options}
 }
 reset()
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5178')
   res.setHeader('Access-Control-Allow-Credentials', 'true')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-CSRF-Token, Idempotency-Key')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, OPTIONS')
   if (req.method === 'OPTIONS') {res.writeHead(204); res.end(); return}
   const url = new URL(req.url, 'http://127.0.0.1:5189')
   const path = url.pathname.replace(/^\/api\/v1/, '')
@@ -34,7 +34,7 @@ const server = http.createServer(async (req, res) => {
   try {input = body ? JSON.parse(body) : {}} catch {send({error: {message: 'Invalid JSON'}}, 400); return}
   if (path === '/__test__/health') return send({ready: true})
   if (path === '/__test__/reset') {reset(input); return send({ready: true})}
-  if (path === '/__test__/state') return send({requests: state.requests, projects: state.projects, tasks: state.tasks})
+  if (path === '/__test__/state') return send({requests: state.requests, projects: state.projects, tasks: state.tasks, management: state.management})
   if (path === '/fixture.svg') {res.writeHead(200, {'Content-Type': 'image/svg+xml'}); res.end('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="750"><rect width="600" height="750" fill="#e8edda"/><circle cx="300" cy="300" r="150" fill="#52715b"/><text x="300" y="570" text-anchor="middle" font-size="36" fill="#193b2e">Coffee &amp; spring</text></svg>'); return}
   const spaceID = url.searchParams.get('space_id') ?? 'personal-demo'
   state.requests.push({method: req.method, path, space: spaceID, key: req.headers['idempotency-key']})
@@ -42,7 +42,26 @@ const server = http.createServer(async (req, res) => {
   if (path === '/spaces') return send(state.empty ? [] : [{id: 'personal-demo', name: '我的工作空间', type: 'personal', owner_id: 'user-1', role: state.role}, {id: 'team-demo', name: '品牌内容团队', type: 'team', owner_id: 'user-2', role: 'viewer'}])
   if (path === '/capabilities') return send({provider: 'mock-svg', mode: 'mock', ready: true, message: '模拟模式：程序绘制 SVG，不调用 AI 模型或产生模型费用。'})
   if (path === '/templates') return send({templates: [{id: 'poster', name: '春日咖啡', description: '为日常留一份清新', prompt: '春日咖啡海报', kind: 'poster', ratio: '4:5', style: 'natural'}, {id: 'portrait', name: '人物肖像', description: '记录人物的光影', prompt: '自然光肖像', kind: 'portrait', ratio: '4:5', style: 'studio'}, {id: 'general', name: '自由想象', description: '从一个画面开始', prompt: '雨后的森林', kind: 'general', ratio: '16:9', style: 'illustration'}], ratios: [{value: '1:1', label: '方形'}, {value: '4:5', label: '竖版'}, {value: '16:9', label: '横版'}], styles: [{value: 'natural', label: '自然'}, {value: 'studio', label: '棚拍'}, {value: 'illustration', label: '插画'}]})
-  if (path === '/runtime-models') return send({governance_ready: false, models: []})
+  if (path === '/model-management') return send(state.management)
+  if (path === '/model-usage') return send(state.usage)
+  if (path === '/runtime-models') return send({governance_ready: true, bindings: state.management.bindings, models: state.management.models.flatMap(model => model.capabilities.map(capability => ({id: model.id, version: model.version, provider: `gateway-${capability}`, model: model.model, capability, capabilities: model.capabilities, gateway_id: model.gateway_id, gateway_name: state.management.gateways.find(gateway => gateway.id === model.gateway_id)?.name, name: model.name, available: true, is_default: state.management.bindings.some(binding => binding.feature_key === url.searchParams.get('feature_key') && binding.model_config_id === model.id)})))})
+  if (path === '/ai-gateways' || /^\/ai-gateways\/[^/]+$/.test(path)) {
+    const old = state.management.gateways.find(item => item.id === path.split('/')[2])
+    if (input.expected_version !== (old?.version ?? 0)) return send({error: {code: 'model_config_conflict', message: '配置已更新'}}, 409)
+    const item = {...input.gateway, id: old?.id ?? `gateway-${state.management.gateways.length + 1}`, version: (old?.version ?? 0) + 1, secret_status: input.credential.action === 'set' ? 'encrypted' : old?.secret_status ?? 'not_configured'}
+    state.management.gateways = [...state.management.gateways.filter(value => value.id !== item.id), item]; state.management.version++; return send(state.management)
+  }
+  if (path === '/gateway-models' || /^\/gateway-models\/[^/]+$/.test(path)) {
+    const old = state.management.models.find(item => item.id === path.split('/')[2])
+    if (input.expected_version !== (old?.version ?? 0)) return send({error: {code: 'model_config_conflict', message: '配置已更新'}}, 409)
+    const item = {...input.model, id: old?.id ?? `model-${state.management.models.length + 1}`, version: (old?.version ?? 0) + 1}
+    state.management.models = [...state.management.models.filter(value => value.id !== item.id), item]; state.management.version++; return send(state.management)
+  }
+  if (path.startsWith('/model-features/')) {
+    const key = path.split('/')[2], old = state.management.bindings.find(item => item.feature_key === key)
+    if (input.expected_version !== (old?.version ?? 0)) return send({error: {code: 'model_config_conflict', message: '配置已更新'}}, 409)
+    state.management.bindings = [...state.management.bindings.filter(item => item.feature_key !== key), {...input.binding, feature_key: key, version: (old?.version ?? 0) + 1}]; state.management.version++; return send(state.management)
+  }
   if (path === '/tasks' && req.method === 'POST') {
     const key = req.headers['idempotency-key']
     if (state.receipts.has(key)) return send(state.receipts.get(key))

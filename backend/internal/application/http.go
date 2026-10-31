@@ -192,7 +192,7 @@ func createTask(w http.ResponseWriter, r *http.Request, repo Repository, parentI
 		problem(w, 400, "invalid_input", err.Error())
 		return
 	}
-	if !resolveModelRequest(w, r, repo, &in.ModelRequest, "image") {
+	if !resolveModelRequest(w, r, repo, &in.ModelRequest, "image", "image_generation") {
 		return
 	}
 	if !validateModelPreview(w, r, repo, in.ModelRequest, "image", "", in) {

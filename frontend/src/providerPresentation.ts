@@ -1,7 +1,7 @@
 import {translate as t} from './i18n'
 import type { Capabilities, Provider, ResultSource, Task } from './api'
 
-const names: Record<Provider, string> = {'mock-svg': 'mock-svg', 'openai-images': 'OpenAI', 'gemini-images': 'Gemini generateContent', 'gemini-interactions-images': 'Gemini Interactions', 'ark-images': '火山方舟', 'jimeng-images': '即梦', 'minimax-images': 'MiniMax'}
+const names: Record<Provider, string> = {'gateway-images': 'AI 网关', 'mock-svg': 'mock-svg', 'openai-images': 'OpenAI', 'gemini-images': 'Gemini generateContent', 'gemini-interactions-images': 'Gemini Interactions', 'ark-images': '火山方舟', 'jimeng-images': '即梦', 'minimax-images': 'MiniMax'}
 
 export function resultOriginLabel(source: ResultSource) {
   return source.provider === 'mock-svg' ? t('模拟图像 · 非 AI 生成') : t('{provider} 图像服务返回', {provider: t(names[source.provider] ?? source.provider)})

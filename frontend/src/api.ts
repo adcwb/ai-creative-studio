@@ -2,7 +2,7 @@ import { translate, getLocale } from './i18n'
 export type Kind = 'poster' | 'portrait' | 'general'
 export type Ratio = '1:1' | '4:5' | '16:9'
 export type Style = 'natural' | 'studio' | 'illustration'
-export type Provider = 'mock-svg' | 'openai-images' | 'gemini-images' | 'gemini-interactions-images' | 'ark-images' | 'jimeng-images' | 'minimax-images'
+export type Provider = 'gateway-images' | 'mock-svg' | 'openai-images' | 'gemini-images' | 'gemini-interactions-images' | 'ark-images' | 'jimeng-images' | 'minimax-images'
 export interface Capabilities {
   provider: Provider | 'unavailable'; mode: 'mock' | 'real' | 'unavailable'; ready: boolean
   model?: string; reason_code?: string; message: string

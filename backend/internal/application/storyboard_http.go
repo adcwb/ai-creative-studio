@@ -26,7 +26,7 @@ func registerStoryboardRoutes(mux *http.ServeMux, repo StoryboardRepository) {
 		if !decodeProject(w, r, &in) {
 			return
 		}
-		if !resolveModelRequest(w, r, repo, &in.ModelRequest, "text") {
+		if !resolveModelRequest(w, r, repo, &in.ModelRequest, "text", "storyboard_planning") {
 			return
 		}
 		if !validateModelPreview(w, r, repo, in.ModelRequest, "storyboard", r.PathValue("id"), in) {

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -32,15 +33,20 @@ func ExecutionRequestDigest(r ExecutionRequest) string {
 		hashes = append(hashes, m.MIME+":"+hex.EncodeToString(sum[:]))
 	}
 	voice := ""
+	binding := ""
 	if r.Selection != nil {
 		voice = r.Selection.Voice
+		if r.Selection.GatewayID != "" {
+			binding = fmt.Sprintf("%s:%d:%s:%d:%s", r.Selection.GatewayID, r.Selection.GatewayVersion, r.Selection.ModelID, r.Selection.Version, r.Selection.FeatureKey)
+		}
 	}
 	raw, _ := json.Marshal(struct {
 		Contract, Provider, Model, Capability, Text, Voice string
 		HasMedia                                           bool
 		Parameters                                         json.RawMessage
 		MediaHashes                                        []string
-	}{"studio-request-v1", r.Provider, r.Model, r.Capability, r.Text, voice, r.HasMedia, r.Parameters, hashes})
+		Binding                                            string `json:",omitempty"`
+	}{"studio-request-v1", r.Provider, r.Model, r.Capability, r.Text, voice, r.HasMedia, r.Parameters, hashes, binding})
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
 }
