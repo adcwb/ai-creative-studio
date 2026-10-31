@@ -71,6 +71,17 @@ func (r *ModelRuntime) Resolve(ctx context.Context, tenant, actor, id, capabilit
 		return selection, ModelConfigEntry{}, errRuntimeUnavailable
 	}
 	t := s.data.Tenants[tenant]
+	if model, exists := t.Models[id]; exists {
+		gateway := t.Gateways[model.GatewayID]
+		selection.ModelID = id
+		selection.Version = model.Version
+		selection.GatewayID = model.GatewayID
+		selection.GatewayVersion = gateway.Gateway.Version
+		if !gatewaySelectionCurrent(s.data, selection) || s.aead == nil {
+			return selection, ModelConfigEntry{}, errRuntimeUnavailable
+		}
+		return selection, gatewayModelEntry(model, gateway.Gateway, capability), nil
+	}
 	if id == "" {
 		for _, m := range t.Entries {
 			if m.Entry.Capability == capability && m.Entry.IsDefault {
@@ -126,6 +137,9 @@ func (r *ModelRuntime) check(ctx context.Context, selection RuntimeSelection) er
 	t := s.data.Tenants[selection.TenantID]
 	m, ok := t.Entries[selection.ModelID]
 	valid := s.failed == nil && ok && t.Version == selection.Version && r.entryAllowed(m.Entry, selection.TenantID, selection.Capability, t.Version)
+	if selection.GatewayID != "" {
+		valid = s.failed == nil && s.aead != nil && gatewaySelectionCurrent(s.data, selection)
+	}
 	s.mu.Unlock()
 	if !valid {
 		return errRuntimeUnavailable
@@ -152,6 +166,9 @@ func (r *ModelRuntime) Execute(ctx context.Context, selection RuntimeSelection, 
 	}
 	if err := r.check(ctx, selection); err != nil {
 		return err
+	}
+	if selection.GatewayID != "" {
+		return r.executeGateway(ctx, selection, dispatch, func() { attempts.Add(1) })
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

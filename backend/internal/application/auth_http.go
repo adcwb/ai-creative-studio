@@ -264,6 +264,10 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 		if authWrite(r) && !beginAuthAudit(w, r) {
 			return
 		}
+		if gatewayManagementPath(r.URL.Path) {
+			auth.models.serveGatewayManagement(w, r, authScope{UserID: user.ID, SpaceID: space, Role: role})
+			return
+		}
 		if r.URL.Path == "/api/v1/model-config" || strings.HasPrefix(r.URL.Path, "/api/v1/model-config/") {
 			s := authScope{UserID: user.ID, SpaceID: space, Role: role}
 			auth.models.serve(w, r, s)

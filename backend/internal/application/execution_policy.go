@@ -172,6 +172,14 @@ func validatePolicyCommand(path string) error {
 func ConfigureExecutionFromEnv(s *FileStore) error {
 	path := os.Getenv("EXECUTION_POLICY_FILE")
 	if path == "" {
+		if command := os.Getenv("GATEWAY_MODERATION_COMMAND"); command != "" {
+			expiry, e := time.Parse(time.RFC3339, os.Getenv("GATEWAY_MODERATION_EXPIRES_AT"))
+			policy := &ExecutionPolicy{ModerationCommand: command, ModerationContract: "local-or-free-v1", ModerationSource: os.Getenv("GATEWAY_MODERATION_SOURCE"), ModerationExpiresAt: expiry}
+			if e != nil || !policy.moderationIsNonbillable() || validatePolicyCommand(command) != nil {
+				return ErrExecutionGovernance
+			}
+			ConfigureExecutionGovernance(s, &ExecutionGovernor{Ledger: s.budget, Quoter: policy, Moderator: policy})
+		}
 		return nil
 	}
 	f, e := os.Open(path)

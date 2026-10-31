@@ -61,6 +61,9 @@ func rotateModelSnapshot(d modelSnapshot, oldKey, newKey, confirmation []byte) (
 	if d.Version != 1 || d.Tenants == nil {
 		return modelSnapshot{}, report, ErrModelRotation
 	}
+	if validateGatewaySnapshot(d) != nil {
+		return modelSnapshot{}, report, ErrModelRotation
+	}
 	raw, e := json.Marshal(d)
 	if e != nil || len(raw) > maxRotationBytes {
 		return modelSnapshot{}, report, ErrModelRotation
@@ -75,6 +78,44 @@ func rotateModelSnapshot(d modelSnapshot, oldKey, newKey, confirmation []byte) (
 			return modelSnapshot{}, report, ErrModelRotation
 		}
 		changed := false
+		for id, g := range t.Gateways {
+			if id != g.Gateway.ID || g.Gateway.Version < 1 {
+				return modelSnapshot{}, report, ErrModelRotation
+			}
+			if g.Gateway.SecretStatus != "encrypted" {
+				if g.Ciphertext != "" {
+					return modelSnapshot{}, report, ErrModelRotation
+				}
+				continue
+			}
+			raw, e := base64.StdEncoding.DecodeString(g.Ciphertext)
+			if e != nil || len(raw) < old.NonceSize()+old.Overhead() {
+				return modelSnapshot{}, report, ErrModelRotation
+			}
+			plain, e := old.Open(nil, raw[:old.NonceSize()], raw[old.NonceSize():], gatewayAAD(tenant, g.Gateway))
+			if e != nil {
+				return modelSnapshot{}, report, ErrModelRotation
+			}
+			if !validCredential(string(plain)) {
+				clear(plain)
+				return modelSnapshot{}, report, ErrModelRotation
+			}
+			nonce := make([]byte, next.NonceSize())
+			if _, e = rand.Read(nonce); e != nil {
+				clear(plain)
+				return modelSnapshot{}, report, ErrModelRotation
+			}
+			g.Ciphertext = base64.StdEncoding.EncodeToString(next.Seal(nonce, nonce, plain, gatewayAAD(tenant, g.Gateway)))
+			clear(plain)
+			if g.Gateway.Version == math.MaxInt64 {
+				return modelSnapshot{}, report, ErrModelRotation
+			}
+			g.Gateway.Version++
+			g.Gateway.UpdatedAt = time.Now().UTC()
+			t.Gateways[id] = g
+			report.Credentials++
+			changed = true
+		}
 		for id, m := range t.Entries {
 			if id == "" || len(id) > 128 || strings.ContainsRune(id, 0) || m.Entry.ID != id {
 				return modelSnapshot{}, report, ErrModelRotation

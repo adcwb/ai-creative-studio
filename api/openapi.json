@@ -8664,6 +8664,14 @@
               "type": "string"
             },
             "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "feature_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -14210,6 +14218,724 @@
           }
         }
       }
+    },
+    "/api/v1/model-management": {
+      "get": {
+        "operationId": "getModelManagement",
+        "summary": "List organization gateways, models, and feature routes; administrators only.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Authenticated organization ID; never grants access by itself."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelManagementReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or incompatible capability."
+          },
+          "403": {
+            "description": "Organization membership and operation role required."
+          },
+          "409": {
+            "description": "Configuration version conflict."
+          },
+          "503": {
+            "description": "Storage, encryption, or execution prerequisites unavailable."
+          }
+        }
+      }
+    },
+    "/api/v1/ai-gateways": {
+      "post": {
+        "operationId": "createAIGateway",
+        "summary": "Create a connection with tenant-encrypted credentials; no generation.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Authenticated organization ID; never grants access by itself."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "expected_version",
+                  "gateway",
+                  "credential"
+                ],
+                "properties": {
+                  "expected_version": {
+                    "type": "integer",
+                    "enum": [
+                      0
+                    ]
+                  },
+                  "gateway": {
+                    "$ref": "#/components/schemas/AIGatewayInput"
+                  },
+                  "credential": {
+                    "$ref": "#/components/schemas/GatewayCredentialInput"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelManagementReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or incompatible capability."
+          },
+          "403": {
+            "description": "Organization membership and operation role required."
+          },
+          "409": {
+            "description": "Configuration version conflict."
+          },
+          "503": {
+            "description": "Storage, encryption, or execution prerequisites unavailable."
+          }
+        }
+      }
+    },
+    "/api/v1/ai-gateways/{id}": {
+      "patch": {
+        "operationId": "updateAIGateway",
+        "summary": "Update a connection using its version. Changing origin requires a new key.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Authenticated organization ID; never grants access by itself."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "expected_version",
+                  "gateway",
+                  "credential"
+                ],
+                "properties": {
+                  "expected_version": {
+                    "type": "integer",
+                    "format": "int64",
+                    "minimum": 0
+                  },
+                  "gateway": {
+                    "$ref": "#/components/schemas/AIGatewayInput"
+                  },
+                  "credential": {
+                    "$ref": "#/components/schemas/GatewayCredentialInput"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelManagementReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or incompatible capability."
+          },
+          "403": {
+            "description": "Organization membership and operation role required."
+          },
+          "409": {
+            "description": "Configuration version conflict."
+          },
+          "503": {
+            "description": "Storage, encryption, or execution prerequisites unavailable."
+          }
+        }
+      }
+    },
+    "/api/v1/ai-gateways/{id}/check": {
+      "post": {
+        "operationId": "checkAIGateway",
+        "summary": "Explicit GET /models check. Never generates, imports, or enables models.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Authenticated organization ID; never grants access by itself."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "expected_version"
+                ],
+                "properties": {
+                  "expected_version": {
+                    "type": "integer",
+                    "format": "int64",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayCheckResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or incompatible capability."
+          },
+          "403": {
+            "description": "Organization membership and operation role required."
+          },
+          "409": {
+            "description": "Configuration version conflict."
+          },
+          "503": {
+            "description": "Storage, encryption, or execution prerequisites unavailable."
+          }
+        }
+      }
+    },
+    "/api/v1/gateway-models": {
+      "post": {
+        "operationId": "createGatewayModel",
+        "summary": "Add a model under a gateway owned by this organization.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Authenticated organization ID; never grants access by itself."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "expected_version",
+                  "model"
+                ],
+                "properties": {
+                  "expected_version": {
+                    "type": "integer",
+                    "enum": [
+                      0
+                    ]
+                  },
+                  "model": {
+                    "$ref": "#/components/schemas/GatewayModelInput"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelManagementReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or incompatible capability."
+          },
+          "403": {
+            "description": "Organization membership and operation role required."
+          },
+          "409": {
+            "description": "Configuration version conflict."
+          },
+          "503": {
+            "description": "Storage, encryption, or execution prerequisites unavailable."
+          }
+        }
+      }
+    },
+    "/api/v1/gateway-models/{id}": {
+      "patch": {
+        "operationId": "updateGatewayModel",
+        "summary": "Update a model without moving its connection or breaking referenced capabilities.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Authenticated organization ID; never grants access by itself."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "expected_version",
+                  "model"
+                ],
+                "properties": {
+                  "expected_version": {
+                    "type": "integer",
+                    "format": "int64",
+                    "minimum": 0
+                  },
+                  "model": {
+                    "$ref": "#/components/schemas/GatewayModelInput"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelManagementReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or incompatible capability."
+          },
+          "403": {
+            "description": "Organization membership and operation role required."
+          },
+          "409": {
+            "description": "Configuration version conflict."
+          },
+          "503": {
+            "description": "Storage, encryption, or execution prerequisites unavailable."
+          }
+        }
+      }
+    },
+    "/api/v1/model-features": {
+      "get": {
+        "operationId": "listModelFeatures",
+        "summary": "List feature definitions and configuration for organization administrators.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Authenticated organization ID; never grants access by itself."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelManagementReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or incompatible capability."
+          },
+          "403": {
+            "description": "Organization membership and operation role required."
+          },
+          "409": {
+            "description": "Configuration version conflict."
+          },
+          "503": {
+            "description": "Storage, encryption, or execution prerequisites unavailable."
+          }
+        }
+      }
+    },
+    "/api/v1/model-features/{feature_key}": {
+      "put": {
+        "operationId": "saveModelFeature",
+        "summary": "Save feature routing. The selected model determines its gateway.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Authenticated organization ID; never grants access by itself."
+          },
+          {
+            "name": "feature_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "expected_version",
+                  "binding"
+                ],
+                "properties": {
+                  "expected_version": {
+                    "type": "integer",
+                    "format": "int64",
+                    "minimum": 0
+                  },
+                  "binding": {
+                    "$ref": "#/components/schemas/FeatureBindingInput"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelManagementReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or incompatible capability."
+          },
+          "403": {
+            "description": "Organization membership and operation role required."
+          },
+          "409": {
+            "description": "Configuration version conflict."
+          },
+          "503": {
+            "description": "Storage, encryption, or execution prerequisites unavailable."
+          }
+        }
+      }
+    },
+    "/api/v1/model-usage": {
+      "get": {
+        "operationId": "getModelUsage",
+        "summary": "Filtered summaries across all matched calls, plus up to 100 details. Cost ceilings are not bills.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Authenticated organization ID; never grants access by itself."
+          },
+          {
+            "name": "gateway_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "model_config_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "feature_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelUsageReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or incompatible capability."
+          },
+          "403": {
+            "description": "Organization membership and operation role required."
+          },
+          "409": {
+            "description": "Configuration version conflict."
+          },
+          "503": {
+            "description": "Storage, encryption, or execution prerequisites unavailable."
+          }
+        }
+      }
+    },
+    "/api/v1/model-usage/calls": {
+      "get": {
+        "operationId": "getModelUsageCalls",
+        "summary": "Read paginated organization call records; no secrets or prompts.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Authenticated organization ID; never grants access by itself."
+          },
+          {
+            "name": "gateway_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "model_config_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "feature_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelUsageReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or incompatible capability."
+          },
+          "403": {
+            "description": "Organization membership and operation role required."
+          },
+          "409": {
+            "description": "Configuration version conflict."
+          },
+          "503": {
+            "description": "Storage, encryption, or execution prerequisites unavailable."
+          }
+        }
+      }
     }
   },
   "components": {
@@ -17768,6 +18494,24 @@
           },
           "quote": {
             "$ref": "#/components/schemas/RuntimeQuotePreview"
+          },
+          "gateway_id": {
+            "type": "string"
+          },
+          "gateway_name": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reason_code": {
+            "type": "string"
           }
         }
       },
@@ -17786,6 +18530,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/RuntimeModelOption"
+            }
+          },
+          "bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuntimeFeatureBinding"
             }
           }
         }
@@ -19754,6 +20504,811 @@
         "required": [
           "expected_version"
         ]
+      },
+      "AIGateway": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "base_url",
+          "enabled",
+          "timeout_seconds",
+          "version",
+          "secret_status",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "base_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "timeout_seconds": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 600
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "secret_status": {
+            "type": "string",
+            "enum": [
+              "encrypted",
+              "not_configured",
+              "revoked"
+            ]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "GatewayModel": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "gateway_id",
+          "name",
+          "model",
+          "capabilities",
+          "enabled",
+          "version",
+          "max_output_tokens",
+          "json_output",
+          "video_seconds",
+          "video_size",
+          "currency",
+          "maximum_minor",
+          "price_source",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "gateway_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "capabilities": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "text",
+                "vision",
+                "image",
+                "image_edit",
+                "video",
+                "speech",
+                "asr",
+                "asr_timestamps"
+              ]
+            }
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6000
+          },
+          "json_output": {
+            "type": "boolean"
+          },
+          "video_seconds": {
+            "type": "integer"
+          },
+          "video_size": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "maximum_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "price_source": {
+            "type": "string",
+            "maxLength": 240
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FeatureDefinition": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "name",
+          "capability"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "capability": {
+            "type": "string"
+          }
+        }
+      },
+      "FeatureBinding": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "feature_key",
+          "model_config_id",
+          "enabled",
+          "allow_override",
+          "version",
+          "updated_by",
+          "updated_at"
+        ],
+        "properties": {
+          "feature_key": {
+            "type": "string"
+          },
+          "model_config_id": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "allow_override": {
+            "type": "boolean"
+          },
+          "voice": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "updated_by": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ModelManagementReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "gateways",
+          "models",
+          "bindings",
+          "features",
+          "secret_storage_available",
+          "governance_ready",
+          "legacy_models"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "gateways": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AIGateway"
+            }
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GatewayModel"
+            }
+          },
+          "bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeatureBinding"
+            }
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeatureDefinition"
+            }
+          },
+          "secret_storage_available": {
+            "type": "boolean"
+          },
+          "governance_ready": {
+            "type": "boolean"
+          },
+          "legacy_models": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "GatewayCredentialInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "keep",
+              "set",
+              "revoke"
+            ]
+          },
+          "secret": {
+            "type": "string",
+            "writeOnly": true,
+            "maxLength": 4096
+          }
+        }
+      },
+      "RuntimeFeatureBinding": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "feature_key",
+          "model_config_id",
+          "allow_override",
+          "enabled"
+        ],
+        "properties": {
+          "feature_key": {
+            "type": "string"
+          },
+          "model_config_id": {
+            "type": "string"
+          },
+          "allow_override": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "voice": {
+            "type": "string"
+          }
+        }
+      },
+      "ModelCall": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tenant",
+          "gateway_id",
+          "gateway_name",
+          "model_config_id",
+          "model_name",
+          "model",
+          "feature_key",
+          "capability",
+          "state",
+          "http_calls",
+          "http_status",
+          "input_tokens",
+          "output_tokens",
+          "cached_tokens",
+          "reasoning_tokens",
+          "duration_ms",
+          "started_at",
+          "currency",
+          "maximum_minor"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "tenant": {
+            "type": "string"
+          },
+          "gateway_id": {
+            "type": "string"
+          },
+          "gateway_name": {
+            "type": "string"
+          },
+          "model_config_id": {
+            "type": "string"
+          },
+          "model_name": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "feature_key": {
+            "type": "string"
+          },
+          "capability": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "failed",
+              "unknown"
+            ]
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "http_calls": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "http_status": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "input_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "nullable": true
+          },
+          "output_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "nullable": true
+          },
+          "cached_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "nullable": true
+          },
+          "reasoning_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "nullable": true
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "maximum_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "task_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ModelUsageSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "gateway_id",
+          "gateway_name",
+          "model_config_id",
+          "model_name",
+          "model",
+          "capability",
+          "currency",
+          "calls",
+          "succeeded",
+          "failed",
+          "unknown",
+          "http_calls",
+          "duration_ms",
+          "average_ms",
+          "p95_ms",
+          "input_tokens",
+          "output_tokens",
+          "metered_calls",
+          "maximum_minor"
+        ],
+        "properties": {
+          "gateway_id": {
+            "type": "string"
+          },
+          "gateway_name": {
+            "type": "string"
+          },
+          "model_config_id": {
+            "type": "string"
+          },
+          "model_name": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "capability": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "calls": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "succeeded": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "unknown": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "http_calls": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "average_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "p95_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "input_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "output_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "metered_calls": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "maximum_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "ModelUsageReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "summary",
+          "total",
+          "next_offset"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelCall"
+            }
+          },
+          "summary": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelUsageSummary"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "next_offset": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "nullable": true
+          }
+        }
+      },
+      "GatewayCheckResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reachable",
+          "models",
+          "generation_verified",
+          "checked_at"
+        ],
+        "properties": {
+          "reachable": {
+            "type": "boolean"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "generation_verified": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "checked_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "http_status": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "error_code": {
+            "type": "string"
+          }
+        }
+      },
+      "AIGatewayInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "base_url",
+          "enabled",
+          "timeout_seconds"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "base_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "timeout_seconds": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 600
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "secret_status": {
+            "type": "string",
+            "enum": [
+              "encrypted",
+              "not_configured",
+              "revoked"
+            ]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "GatewayModelInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "gateway_id",
+          "name",
+          "model",
+          "capabilities",
+          "enabled",
+          "max_output_tokens",
+          "json_output",
+          "currency",
+          "maximum_minor",
+          "price_source"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "gateway_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "capabilities": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "text",
+                "vision",
+                "image",
+                "image_edit",
+                "video",
+                "speech",
+                "asr",
+                "asr_timestamps"
+              ]
+            }
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6000
+          },
+          "json_output": {
+            "type": "boolean"
+          },
+          "video_seconds": {
+            "type": "integer"
+          },
+          "video_size": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "maximum_minor": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "price_source": {
+            "type": "string",
+            "maxLength": 240
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FeatureBindingInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "model_config_id",
+          "enabled",
+          "allow_override"
+        ],
+        "properties": {
+          "feature_key": {
+            "type": "string"
+          },
+          "model_config_id": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "allow_override": {
+            "type": "boolean"
+          },
+          "voice": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "updated_by": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       }
     },
     "securitySchemes": {

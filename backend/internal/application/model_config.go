@@ -58,8 +58,11 @@ type storedModel struct {
 	Ciphertext string           `json:"ciphertext,omitempty"`
 }
 type modelTenant struct {
-	Version int64                  `json:"version"`
-	Entries map[string]storedModel `json:"entries"`
+	Version  int64                     `json:"version"`
+	Entries  map[string]storedModel    `json:"entries"`
+	Gateways map[string]storedGateway  `json:"gateways,omitempty"`
+	Models   map[string]GatewayModel   `json:"models,omitempty"`
+	Bindings map[string]FeatureBinding `json:"bindings,omitempty"`
 }
 type modelSnapshot struct {
 	Version int                    `json:"version"`
@@ -74,6 +77,7 @@ type ModelConfigStore struct {
 	data           modelSnapshot
 	aead           cipher.AEAD
 	failed         error
+	usage          *ModelUsageStore
 }
 
 var errModelConflict = errors.New("model configuration version conflict")
@@ -109,6 +113,9 @@ func OpenModelConfigStore(dir string, key []byte) (*ModelConfigStore, error) {
 	if s.data.Version != 1 || s.data.Tenants == nil {
 		return nil, errors.New("incomplete model configuration state")
 	}
+	if err := validateGatewaySnapshot(s.data); err != nil {
+		return nil, err
+	}
 	for tenant, t := range s.data.Tenants {
 		if tenant == "" || t.Version < 1 || t.Entries == nil {
 			return nil, errors.New("invalid tenant configuration")
@@ -143,6 +150,10 @@ func OpenModelConfigStore(dir string, key []byte) (*ModelConfigStore, error) {
 				return nil, errModelInput
 			}
 		}
+	}
+	s.usage, err = openModelUsageStore(dir)
+	if err != nil {
+		return nil, err
 	}
 	return s, nil
 }
@@ -254,7 +265,7 @@ func (s *ModelConfigStore) commit(d modelSnapshot) error {
 
 func (s *ModelConfigStore) publishRuntimeSnapshot(d modelSnapshot) {
 	for call := range s.runtimeCancels {
-		if d.Tenants[call.selection.TenantID].Version != call.selection.Version {
+		if !gatewaySelectionCurrent(d, call.selection) {
 			call.cancel()
 		}
 	}

@@ -568,7 +568,7 @@ func (s *FileStore) finishLocked(t Task, result GenerationResult, runErr error) 
 			} else {
 				runErr = validatePNG(result.Data, width, height)
 			}
-		case "gemini-images", "gemini-interactions-images", "ark-images", "jimeng-images", "minimax-images":
+		case "gateway-images", "gemini-images", "gemini-interactions-images", "ark-images", "jimeng-images", "minimax-images":
 			if result.MIMEType != "image/png" {
 				runErr = providerFailure("invalid_provider_response")
 			} else {

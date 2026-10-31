@@ -69,6 +69,9 @@ func (s *FileStore) PersistenceFailureEpoch() uint64 {
 		add(s.runtime.auth.pg)
 		if s.runtime.auth.models != nil {
 			add(s.runtime.auth.models.pg)
+			if s.runtime.auth.models.usage != nil {
+				add(s.runtime.auth.models.usage.pg)
+			}
 		}
 	}
 	return n

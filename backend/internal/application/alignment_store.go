@@ -259,10 +259,10 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 	if in.selection != nil {
 		caps = in.selectedCaps
 	}
-	if in.Mode == "transcription" && (in.selection == nil || !validAlignmentModeModel(in.Mode, caps.Model) || audio.Duration > 30) {
+	if in.Mode == "transcription" && (in.selection == nil || !validRuntimeAlignmentMode(in.Mode, caps.Model, in.selection) || audio.Duration > 30) {
 		return AlignmentTask{}, false, ErrProviderNotReady
 	}
-	if in.Mode == "asr" && !validAlignmentModeModel(in.Mode, caps.Model) {
+	if in.Mode == "asr" && !validRuntimeAlignmentMode(in.Mode, caps.Model, in.selection) {
 		return AlignmentTask{}, false, ErrProviderNotReady
 	}
 	if !caps.Ready || (in.selection == nil && ((in.Mode == "asr" && a.provider == nil) || (in.Mode == "forced" && a.forced == nil))) {

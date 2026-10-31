@@ -7,7 +7,7 @@ import (
 )
 
 func realImageProvider(name string) bool {
-	return name == "openai-images" || name == "gemini-images" || name == "gemini-interactions-images" || name == "ark-images" || name == "jimeng-images" || name == "minimax-images"
+	return name == "gateway-images" || name == "openai-images" || name == "gemini-images" || name == "gemini-interactions-images" || name == "ark-images" || name == "jimeng-images" || name == "minimax-images"
 }
 func validateLargePNG(data []byte, width, height int) error {
 	if len(data) == 0 || len(data) > maxPNGBytes || width <= 0 || height <= 0 || width > 20_000_000/height {

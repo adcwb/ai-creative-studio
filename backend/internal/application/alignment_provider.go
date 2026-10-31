@@ -24,6 +24,8 @@ type AlignmentProvider interface {
 	Transcribe(context.Context, []byte, string, float64) (AlignmentResult, error)
 }
 type OpenAIAlignmentProvider struct {
+	gateway              bool
+	plainTranscript      bool
 	key, model, endpoint string
 	client               *http.Client
 }
@@ -72,13 +74,13 @@ func (p *OpenAIAlignmentProvider) Transcribe(ctx context.Context, audio []byte, 
 	fail := func() (AlignmentResult, error) {
 		return AlignmentResult{}, providerFailure("invalid_provider_response")
 	}
-	if (p.model != "whisper-1" && p.model != "gpt-transcribe") || len(audio) == 0 || len(audio) > 24<<20 || duration <= 0 || duration > 180 || (mime != "audio/wav" && mime != "audio/mpeg") {
+	if (!p.gateway && p.model != "whisper-1" && p.model != "gpt-transcribe") || len(audio) == 0 || len(audio) > 24<<20 || duration <= 0 || duration > 180 || (mime != "audio/wav" && mime != "audio/mpeg") {
 		return AlignmentResult{}, providerFailure("provider_rejected")
 	}
 	var body bytes.Buffer
 	form := multipart.NewWriter(&body)
 	fields := [][2]string{{"model", p.model}, {"response_format", "verbose_json"}, {"timestamp_granularities[]", "segment"}, {"timestamp_granularities[]", "word"}}
-	if p.model == "gpt-transcribe" {
+	if (!p.gateway && p.model == "gpt-transcribe") || p.plainTranscript {
 		if duration > 30 {
 			return AlignmentResult{}, providerFailure("provider_rejected")
 		}
@@ -137,7 +139,7 @@ func (p *OpenAIAlignmentProvider) Transcribe(ctx context.Context, audio []byte, 
 	if err != nil || len(b) > 1<<20 {
 		return fail()
 	}
-	if p.model == "gpt-transcribe" {
+	if (!p.gateway && p.model == "gpt-transcribe") || p.plainTranscript {
 		var out struct {
 			Text string `json:"text"`
 		}
@@ -234,4 +236,10 @@ func validTranscript(text string) bool {
 }
 func validAlignmentModeModel(mode, model string) bool {
 	return (mode == "transcription" && model == "gpt-transcribe") || (mode == "asr" && model == "whisper-1")
+}
+func validRuntimeAlignmentMode(mode, model string, selection *RuntimeSelection) bool {
+	if selection != nil && selection.GatewayID != "" {
+		return mode == "transcription" && selection.FeatureKey == "speech_transcription" || mode == "asr" && selection.FeatureKey == "subtitle_alignment"
+	}
+	return validAlignmentModeModel(mode, model)
 }

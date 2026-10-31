@@ -60,7 +60,11 @@ func registerAlignmentRoutes(mux *http.ServeMux, s *FileStore) {
 		if capability == "transcription" {
 			capability = "asr"
 		}
-		if !resolveModelRequest(w, r, s, &in.ModelRequest, capability) {
+		feature := "subtitle_alignment"
+		if in.Mode == "transcription" {
+			feature = "speech_transcription"
+		}
+		if !resolveModelRequest(w, r, s, &in.ModelRequest, capability, feature) {
 			return
 		}
 		if !validateModelPreview(w, r, s, in.ModelRequest, "alignment", r.PathValue("id"), in) {

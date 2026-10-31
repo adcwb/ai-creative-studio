@@ -46,9 +46,25 @@ func creativeRuntimeCapability(kind string) string {
 	}
 }
 
-func resolveModelRequest(w http.ResponseWriter, r *http.Request, repo any, in *ModelRequest, capability string) bool {
+func resolveModelRequest(w http.ResponseWriter, r *http.Request, repo any, in *ModelRequest, capability string, features ...string) bool {
 	in.traceParent = tracing.Parent(r.Context())
+	feature := ""
+	if len(features) > 0 {
+		feature = features[0]
+	}
 	if in.ModelConfigID == "" && in.ModelConfigVersion == 0 && in.Voice == "" && in.BudgetCurrency == "" && in.BudgetMaximumMinor == 0 && in.QuoteRequestDigest == "" {
+		if s, ok := repo.(*FileStore); ok && s.runtime != nil && feature != "" {
+			if scope, ok := r.Context().Value(authScopeKey{}).(authScope); ok {
+				models := s.runtime.auth.models
+				models.mu.Lock()
+				b := models.data.Tenants[scope.SpaceID].Bindings[feature]
+				models.mu.Unlock()
+				if b.Enabled {
+					problem(w, 409, "model_selection_required", "此功能已配置真实模型，请选择并确认本次调用")
+					return false
+				}
+			}
+		}
 		return true
 	}
 	if in.ModelConfigID == "" || in.ModelConfigVersion < 1 || (capability == "speech" && !configToken.MatchString(in.Voice)) || len(in.Voice) > 128 || (in.Voice != "" && capability != "speech") {
@@ -73,6 +89,15 @@ func resolveModelRequest(w http.ResponseWriter, r *http.Request, repo any, in *M
 	if selection.Version != in.ModelConfigVersion {
 		problem(w, 409, "model_config_conflict", "模型配置已更新，请刷新后确认")
 		return false
+	}
+	if selection.GatewayID != "" || feature != "" {
+		if _, allowed := s.runtime.authorizeFeature(scope.SpaceID, feature, in.ModelConfigID); !allowed {
+			problem(w, 403, "feature_model_denied", "此功能未绑定该模型或不允许切换")
+			return false
+		}
+		if selection.GatewayID != "" {
+			selection.FeatureKey = feature
+		}
 	}
 	if s.execution == nil || !s.execution.Ready() {
 		problem(w, 503, "provider_not_ready", "费用与内容审核治理未就绪，不能执行远端模型")
@@ -108,7 +133,7 @@ func (s *FileStore) guardModelRequestLocked(in ModelRequest, provider, model str
 
 func runtimeImageReferenceSupported(provider string) bool {
 	switch provider {
-	case "openai-images", "gemini-images", "gemini-interactions-images", "ark-images", "minimax-images":
+	case "gateway-images", "openai-images", "gemini-images", "gemini-interactions-images", "ark-images", "minimax-images":
 		return true
 	default:
 		return false
@@ -118,6 +143,11 @@ func runtimeImageReferenceSupported(provider string) bool {
 // ConfigureManagedRuntime installs the same fresh authorization boundary in API
 // and independent worker processes. It performs no credential lookup or calls.
 func ConfigureManagedRuntime(s *FileStore, auth *AuthStore) {
+	if s.execution != nil && s.execution.Quoter != nil {
+		if _, ok := s.execution.Quoter.(*gatewayQuoter); !ok {
+			s.execution.Quoter = &gatewayQuoter{models: auth.models, fallback: s.execution.Quoter}
+		}
+	}
 	s.runtime = NewModelRuntime(auth, func(ctx context.Context, selection RuntimeSelection) error {
 		if s.execution == nil {
 			return errRuntimeDenied
@@ -128,14 +158,14 @@ func ConfigureManagedRuntime(s *FileStore, auth *AuthStore) {
 		if s.execution == nil {
 			return false
 		}
-		policy, ok := s.execution.Quoter.(*ExecutionPolicy)
+		policy, ok := underlyingExecutionPolicy(s.execution.Quoter)
 		return ok && policy.MusicEntitled(tenant, version, entry)
 	}
 	s.runtime.referenceBridge = func(selection RuntimeSelection, model string) ReferenceObjectBridge {
 		if s.execution == nil {
 			return nil
 		}
-		policy, ok := s.execution.Quoter.(*ExecutionPolicy)
+		policy, ok := underlyingExecutionPolicy(s.execution.Quoter)
 		if !ok {
 			return nil
 		}

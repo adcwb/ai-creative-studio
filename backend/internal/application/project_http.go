@@ -128,7 +128,7 @@ func registerProjectRoutes(mux *http.ServeMux, repo ProjectRepository) {
 		if !decodeProject(w, r, &in) {
 			return
 		}
-		if !resolveModelRequest(w, r, repo, &in.ModelRequest, "text") {
+		if !resolveModelRequest(w, r, repo, &in.ModelRequest, "text", "script_generation") {
 			return
 		}
 		if !validateModelPreview(w, r, repo, in.ModelRequest, "script", r.PathValue("id"), in) {
