@@ -1,13 +1,14 @@
-import { translate as t, useI18n } from "../i18n"
+import { useI18n } from "../i18n"
 import { useEffect, useState, type ReactNode } from 'react'
-import { LanguagePicker } from './LanguagePicker'
+import { LanguageButtons } from './LanguagePicker'
 import { errorMessage, request, setCSRFToken, type Space } from '../api'
+import { UserPreferences } from './UserPreferences'
 import { AuthBrand } from './AuthBrand'
 import './auth.css'
 
 export interface Session { mode: 'demo' | 'secure'; authenticated: boolean; registration_enabled: boolean; sso_available: boolean; user?: {id: string; email: string}; csrf_token?: string; spaces?: Space[] }
 export function AuthGate({children}: {children: (session: Session, logout: () => void) => ReactNode}) {
-  useI18n()
+  const {t} = useI18n()
 
   const [session, setSession] = useState<Session | null>(null)
   const [email, setEmail] = useState('')
@@ -21,10 +22,10 @@ export function AuthGate({children}: {children: (session: Session, logout: () =>
   useEffect(() => {
     const controller = new AbortController()
     void request<Session>('/auth/session', {signal: controller.signal}).then(value => {if (!controller.signal.aborted) {setCSRFToken(value.csrf_token ?? ''); setSession(value); setError('')}}).catch(reason => {if (!controller.signal.aborted) setError(errorMessage(reason, t("无法读取登录状态")))}).finally(() => {if (!controller.signal.aborted) setLoadingSession(false)})
-    function expired() {setCSRFToken(''); setSession(previous => previous ? {...previous, authenticated: false, user: undefined} : null); setError(t("登录已过期，请重新登录。未提交的草稿不会自动保存。"))}
+    function expired() {setCSRFToken(''); setRegister(false); setEmail(''); setPassword(''); setShowPassword(false); setSession(previous => previous ? {...previous, authenticated: false, user: undefined} : null); setError(t("登录已过期，请重新登录。未提交的草稿不会自动保存。"))}
     window.addEventListener('studio-session-expired', expired)
     return () => {controller.abort(); window.removeEventListener('studio-session-expired', expired)}
-  }, [revision])
+  }, [revision, t])
   async function authenticate() {
     if (busy) return
     setBusy(true); setError('')
@@ -36,13 +37,13 @@ export function AuthGate({children}: {children: (session: Session, logout: () =>
     try {const result = await request<{authorization_url: string}>('/auth/sso/start', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'}); window.location.assign(result.authorization_url)} catch (reason) {setError(errorMessage(reason, t('企业登录暂不可用'))); setBusy(false)}
   }
   async function logout() {
-    try {await request('/auth/logout', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'}); setCSRFToken(''); setSession(previous => previous ? {...previous, authenticated: false, user: undefined} : null)} catch (reason) {setError(errorMessage(reason, t("退出失败，请重试")))}
+    try {await request('/auth/logout', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'}); setCSRFToken(''); setRegister(false); setEmail(''); setPassword(''); setShowPassword(false); setSession(previous => previous ? {...previous, authenticated: false, user: undefined} : null)} catch (reason) {setError(errorMessage(reason, t("退出失败，请重试")))}
   }
-  if (session?.mode === 'demo' || session?.authenticated) return <>{error && <p role="alert" className="error">{error}</p>}{children(session, () => {void logout()})}</>
+  if (session?.mode === 'demo' || session?.authenticated) return <UserPreferences key={session.user?.id ?? 'demo'} userID={session.user?.id ?? 'demo'}>{error && <p role="alert" className="error">{error}</p>}{children(session, () => {void logout()})}</UserPreferences>
   return <main className="auth-screen">
     <AuthBrand />
     <section className="auth-content" aria-labelledby="auth-title">
-      <header className="auth-toolbar"><LanguagePicker /></header>
+      <header className="auth-toolbar"><LanguageButtons /></header>
       <div className="auth-panel">
         <div className="auth-heading">
           <span className="auth-heading-mark" aria-hidden="true"><img src="/brand/mark.svg" width="40" height="40" alt="" /></span>

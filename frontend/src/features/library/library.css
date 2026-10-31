@@ -6,14 +6,14 @@
 .library-card-fields .library-wide{grid-column:1/-1}
 .library-reference-input{border:1px solid var(--border,#dce4df);border-radius:12px;padding:16px;margin-top:24px}
 .library-reference-list{padding:0;list-style:none;display:grid;gap:8px}
-.library-reference-list li{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #e4ebe7;padding:8px 0}
+.library-reference-list li{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid var(--border);padding:8px 0}
 .library-identity{text-align:left;cursor:pointer;color:inherit;font:inherit}
 .library-identity h2{font-size:20px;margin:8px 0}
 .library-version-list{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
-.library-version-list button[aria-pressed=true]{background:#193b2e;color:white}
+.library-version-list button[aria-pressed=true]{background:var(--primary);color:white}
 .library-reference-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px}
 .library-reference-grid figure{margin:0;min-width:0}
-.library-reference-grid img{width:100%;height:180px;object-fit:contain;background:#f4f6f5;border-radius:8px}
+.library-reference-grid img{width:100%;height:180px;object-fit:contain;background:var(--surface-soft);border-radius:8px}
 .library-reference-grid figcaption{font-size:13px;overflow-wrap:anywhere;padding:8px 0}
 .library-details{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .library-details dt{font-weight:600}.library-details dd{margin:4px 0;white-space:pre-wrap;overflow-wrap:anywhere}

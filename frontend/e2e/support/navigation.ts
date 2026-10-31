@@ -49,9 +49,8 @@ export async function chooseSpace(page: Page, space: string) {
 export async function chooseLanguage(page: Page, locale: string) {
   const picker = page.locator('.language-picker select')
   const authScreen = await page.locator('.auth-screen').count()
-  if (!authScreen) await openNavigation(page)
-  await picker.selectOption(locale)
-  if (!authScreen) await closeNavigation(page)
+  if (authScreen) await page.locator('.auth-toolbar').getByRole('button', {name: locale === 'en' ? 'English' : '简体中文', exact: true}).click()
+  else {await openNavigation(page); await picker.selectOption(locale); await closeNavigation(page)}
 }
 export async function openCreativeTools(page: Page) {
   await projectStep(page, 'script')

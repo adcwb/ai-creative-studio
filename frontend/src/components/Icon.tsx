@@ -1,6 +1,14 @@
-type IconName = 'spark' | 'grid' | 'image' | 'arrow' | 'close' | 'search' | 'check' | 'refresh' | 'poster' | 'portrait' | 'general' | 'script' | 'users' | 'settings' | 'wallet' | 'menu'
+type IconName = 'clapper' | 'person' | 'videoPerson' | 'conversation' | 'cube' | 'folder' | 'layers' | 'publish' | 'spark' | 'grid' | 'image' | 'arrow' | 'close' | 'search' | 'check' | 'refresh' | 'poster' | 'portrait' | 'general' | 'script' | 'users' | 'settings' | 'wallet' | 'menu'
 
 const paths: Record<IconName, string> = {
+  clapper: 'M3 9h18v12H3zM3 9 2 4l18-3 1 5-18 3ZM7 3l3 4M14 2l3 4',
+  person: 'M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a8 8 0 0 1 16 0v2',
+  videoPerson: 'M3 4h18v16H3zM10 14l5-3-5-3z',
+  conversation: 'M3 4h18v13H9l-6 4V4ZM7 8h10M7 12h6',
+  cube: 'm12 2 9 5v10l-9 5-9-5V7l9-5Zm0 10 9-5M12 12 3 7M12 12v10',
+  folder: 'M3 6V3h6l3 3h9v15H3V6Z',
+  layers: 'm12 3 10 5-10 5L2 8l10-5ZM2 12l10 5 10-5M2 16l10 5 10-5',
+  publish: 'M12 16V3m-5 5 5-5 5 5M4 13v8h16v-8',
   menu: 'M4 6h16M4 12h16M4 18h16',
   users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
   settings: 'M4 7h16M4 17h16M8 4v6M16 14v6',

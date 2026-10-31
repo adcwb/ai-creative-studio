@@ -72,13 +72,14 @@ export function AppLayout() {
     document.getElementById('page-content')?.focus({preventScroll: true})
   }, [location.pathname])
   useEffect(() => {
-    const titles: Record<string, string> = {'/publish': '发布中心', '/studio/workspaces': '图像作品', '/digital-humans/video': '视频型数字人', '/digital-humans/interactive': '交互型数字人', '/digital-humans/3d': '3D 数字人', '/library': '创作资产库', '/studio': '图像创作', '/assets': '素材库', '/projects': '短剧项目', '/settings/organization': '组织与成员', '/settings/models': '模型接入管理', '/settings/billing': '预算与费用记录'}
+    const titles: Record<string, string> = {'/settings/preferences': '系统设置', '/publish': '发布中心', '/studio/workspaces': '图像作品', '/digital-humans/video': '视频型数字人', '/digital-humans/interactive': '交互型数字人', '/digital-humans/3d': '3D 数字人', '/library': '创作资产库', '/studio': '图像创作', '/assets': '素材库', '/projects': '短剧项目', '/settings/organization': '组织与成员', '/settings/models': '模型接入管理', '/settings/billing': '预算与费用记录'}
     document.title = `${t(titles[location.pathname] ?? '短剧工作台')} · ${t('映创')}`
   }, [location.pathname, locale, t])
 
   const space = spaces.find(item => item.id === spaceID)
   const context: WorkspaceContext = {session, space, capability: provider.capability, capabilityError: provider.error, refreshCapability: provider.refresh, refreshSpaces, setDirty, setImageDirty, requestLeave}
-  const isOrganization = location.pathname === '/settings/organization'
+  const isPersonalSettings = location.pathname === '/settings/preferences'
+  const isOrganization = ['/settings/organization', '/settings/preferences'].includes(location.pathname)
   return <NavigationTaskContext.Provider value={setTaskDirty}><StudioShell session={session} spaces={spaces} space={spaceID} onSpaceChange={next => {
     if (next === spaceID) return
     requestLeave(() => {
@@ -86,7 +87,7 @@ export function AppLayout() {
       if (location.pathname.startsWith('/projects/')) setTimeout(() => {void navigate('/projects')}, 0)
     })
   }} onLogout={() => requestLeave(logout)} capability={provider.capability} capabilityError={provider.error}>
-    {error ? <div className="error space-error" role="alert">{t('无法加载工作空间：')}{error} <button onClick={refreshSpaces}>{t('重新加载空间')}</button></div>
+    {error && !isPersonalSettings ? <div className="error space-error" role="alert">{t('无法加载工作空间：')}{error} <button onClick={refreshSpaces}>{t('重新加载空间')}</button></div>
       : !loaded ? <div className="loading-block" role="status">{t('正在加载工作空间…')}</div>
       : space || isOrganization ? <Outlet key={spaceID} context={context} />
       : <section className="page-empty"><h1>{t('没有可用组织')}</h1><p>{t('请创建组织或联系组织管理员。')}</p><Link to="/settings/organization">{t('组织与成员')}</Link></section>}

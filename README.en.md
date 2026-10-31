@@ -6,6 +6,8 @@ A creative workspace from briefs, scripts and storyboards to images, voice, subt
 
 The UI supports **Simplified Chinese and English**, remembers language selection and falls back to the browser language on first use. Currency is independent of language: USD is the default, with integer minor-unit budgets and ledgers separated by currency. There is no silent conversion. The translation structure is extensible; other languages are not yet translated.
 
+The sign-in gallery has direct Chinese/English controls, three original high-resolution concept illustrations, and pause controls. The future interactive-avatar engine is explicitly marked Planned. Personal settings offer Forest studio, Paper gallery, and Screening room themes. Language and appearance are stored per account in the current browser, isolated on sign-out and account changes; cross-device preference sync is not provided. [Design and asset notes](docs/design/2026-10-31-appearance.md)
+
 ## What you can do
 
 | Workflow | Features |

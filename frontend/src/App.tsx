@@ -7,6 +7,7 @@ import { RouteErrorPage } from './pages/RouteErrorPage'
 import './drama.css'
 import './layouts/app.css'
 import './layouts/production.css'
+import './layouts/themes.css'
 
 function SessionGate() {
   return <AuthGate>{(session, logout) => <Outlet context={{session, logout}} />}</AuthGate>
@@ -24,6 +25,7 @@ const router = createBrowserRouter([
         {path: 'library', lazy: async () => ({Component: (await import('./pages/LibraryPage')).LibraryPage})},
         {path: 'projects', lazy: async () => ({Component: (await import('./pages/ProjectsPage')).ProjectsPage})},
         {path: 'projects/:projectId/:section', lazy: async () => ({Component: (await import('./pages/ProjectPage')).ProjectPage})},
+        {path: 'settings/preferences', lazy: async () => ({Component: (await import('./pages/PreferencesPage')).PreferencesPage})},
         {path: 'settings/:section', lazy: async () => ({Component: (await import('./pages/SettingsPage')).SettingsPage})},
         {path: '*', element: <NotFoundPage />},
       ]},

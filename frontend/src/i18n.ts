@@ -12,9 +12,10 @@ import navigation from './locales/navigation'
 import digitalHuman from './locales/digitalHuman'
 import library from './locales/library'
 import production from './locales/production'
+import appearance from './locales/appearance'
 export type Locale = 'zh-CN' | 'en'
 export type TranslationParams = Record<string, string | number>
-const dictionaries: Record<string, string> = {...drama, ...mediaLegacy, ...core, ...governance, ...runtime, ...mediaComposite, ...poster, ...social, ...douyin, ...navigation, ...digitalHuman, ...library, ...production}
+const dictionaries: Record<string, string> = {...drama, ...mediaLegacy, ...core, ...governance, ...runtime, ...mediaComposite, ...poster, ...social, ...douyin, ...navigation, ...digitalHuman, ...library, ...production, ...appearance}
 export function resolveLocale(saved: string | null, languages: readonly string[]): Locale {
   if (saved === 'zh-CN' || saved === 'en') return saved
   return languages[0]?.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'
@@ -33,12 +34,12 @@ export function translate(key: string, params: TranslationParams = {}, locale = 
 export function setActiveLocale(locale: Locale) { activeLocale = locale }
 export function getActiveLocale() { return activeLocale }
 export const getLocale = getActiveLocale
-interface LanguageContext {locale: Locale; setLocale: (locale: Locale) => void}
+interface LanguageContext {locale: Locale; setLocale: (locale: Locale) => void; localeSaved?: boolean}
 export const LocaleContext = createContext<LanguageContext>({locale: activeLocale, setLocale: () => {}})
 export function useI18n() {
-  const {locale, setLocale} = useContext(LocaleContext)
+  const {locale, setLocale, localeSaved = true} = useContext(LocaleContext)
   const t = useCallback((key: string, params?: TranslationParams) => translate(key, params, locale), [locale])
-  return {locale, setLocale, t,
+  return {locale, setLocale, localeSaved, t,
     formatDate: (date: string | Date, options?: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(locale, options ?? {dateStyle: 'medium', timeStyle: 'short'}).format(new Date(date)),
     formatNumber: (value: number, options?: Intl.NumberFormatOptions) => new Intl.NumberFormat(locale, options).format(value),
     formatCurrency: (value: number, currency = 'USD') => new Intl.NumberFormat(locale, {style: 'currency', currency}).format(value)}
