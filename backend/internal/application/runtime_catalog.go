@@ -90,6 +90,8 @@ func registerRuntimeCatalog(mux *http.ServeMux, s *FileStore) {
 				seen[cap] = true
 				reason := ""
 				switch {
+				case gatewayCapabilityRetired(g, cap):
+					reason = "gateway_capability_retired"
 				case !g.Enabled:
 					reason = "gateway_disabled"
 				case g.SecretStatus != "encrypted" || models.aead == nil:

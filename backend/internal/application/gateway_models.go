@@ -133,8 +133,16 @@ func gatewaySelectionCurrent(d modelSnapshot, q RuntimeSelection) bool {
 	}
 	m, ok := t.Models[q.ModelID]
 	g, exists := t.Gateways[q.GatewayID]
-	return ok && exists && m.Enabled && g.Gateway.Enabled && m.GatewayID == q.GatewayID && m.Version == q.Version && g.Gateway.Version == q.GatewayVersion && g.Gateway.SecretStatus == "encrypted" && supportsRuntimeCapability(m, q.Capability)
+	return ok && exists && !gatewayCapabilityRetired(g.Gateway, q.Capability) && m.Enabled && g.Gateway.Enabled && m.GatewayID == q.GatewayID && m.Version == q.Version && g.Gateway.Version == q.GatewayVersion && g.Gateway.SecretStatus == "encrypted" && supportsRuntimeCapability(m, q.Capability)
 }
+
+// A configurable compatible gateway must not revive a known retired official
+// endpoint. Private implementations of this protocol retain their own lifecycle.
+func gatewayCapabilityRetired(g AIGateway, capability string) bool {
+	u, err := url.Parse(g.BaseURL)
+	return err == nil && capability == "video" && strings.EqualFold(strings.TrimSuffix(u.Hostname(), "."), "api.openai.com")
+}
+
 func supportsRuntimeCapability(m GatewayModel, capability string) bool {
 	return modelHasCapability(m, capability) || capability == "image" && modelHasCapability(m, "image_edit") || capability == "asr" && modelHasCapability(m, "asr_timestamps")
 }

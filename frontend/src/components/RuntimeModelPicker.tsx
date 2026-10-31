@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { request, errorMessage } from '../api'
+import { useAppWorkspace } from '../app/workspace'
 import { useI18n } from '../i18n'
 import { formatMinorCurrency } from '../money'
 import { previewFeature, readinessNames } from '../gatewayModels'
@@ -10,6 +11,7 @@ export function RuntimeModelPicker({space, capability, value, onChange, preview,
   space: string; capability: string; value: RuntimeChoice | null; onChange: (value: RuntimeChoice | null) => void; disabled?: boolean; preview?: RuntimePreview
 }) {
   const {t, locale, formatDate} = useI18n()
+  const demo = useAppWorkspace()?.session.mode === 'demo'
   const [catalog, setCatalog] = useState<{governance_ready: boolean; models: RuntimeModelOption[]; bindings?: {feature_key: string; model_config_id: string; allow_override: boolean; enabled: boolean; voice?: string}[]} | null>(null)
   const [revision, setRevision] = useState(0)
   const [error, setError] = useState(false)
@@ -18,12 +20,13 @@ export function RuntimeModelPicker({space, capability, value, onChange, preview,
   const feature = previewFeature(preview)
   const binding = catalog?.bindings?.find(item => item.feature_key === feature && item.enabled)
   useEffect(() => {
+    if (demo) return
     const controller = new AbortController()
     void request<NonNullable<typeof catalog>>(`/runtime-models?${new URLSearchParams({space_id: space, feature_key: feature})}`, {signal: controller.signal})
       .then(result => {if (!controller.signal.aborted) {setCatalog(result); setError(false)}})
       .catch(() => {if (!controller.signal.aborted) setError(true)})
     return () => controller.abort()
-  }, [space, revision, feature])
+  }, [space, revision, feature, demo])
   useEffect(() => {
     if (!catalog || value || !binding) return
     const model = catalog.models.find(item => item.id === binding.model_config_id && item.capability === capability)
@@ -47,6 +50,7 @@ export function RuntimeModelPicker({space, capability, value, onChange, preview,
     } catch (reason) {setQuoteError(errorMessage(reason, t('当前请求没有可用报价，请调整请求或联系管理员。')))} finally {setQuoting(false)}
   }
   // Legacy demo mode has no runtime catalog. Its layout and local behavior remain unchanged.
+  if (demo) return null
   if (!catalog) return error ? <p role="alert">{t('模型目录读取失败，请刷新后重试。')}</p> : null
   const requiredCapability = feature === 'image_edit' ? 'image_edit' : feature === 'subtitle_alignment' ? 'asr_timestamps' : capability
   const options = catalog.models.filter(model => model.capability === capability && (!model.gateway_id || (model.capabilities?.includes(requiredCapability) && (!binding || binding.allow_override || model.id === binding.model_config_id))) && (!binding || !!model.gateway_id))

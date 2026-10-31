@@ -1,4 +1,5 @@
 const models: Record<string, string> = {
+  '此官方能力已退役': 'This official capability has been retired',
  '操作': 'Actions', '编辑': 'Edit', '启用': 'Enable', '执行状态': 'Execution state',
  '模型管理': 'Model management', '模型使用统计': 'Model usage', '功能绑定': 'Feature routing', 'AI 网关': 'AI gateways', '网关模型': 'Gateway models',
  '管理 AI 网关、网关模型以及每个创作功能的默认绑定。': 'Manage AI gateways, their models, and defaults for each creative feature.',

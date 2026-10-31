@@ -115,9 +115,40 @@ def main():
                 validate_route = model_route + '/validate'
                 call(alice, 'POST', validate_route + query, validate_route, {'id': model['entries'][0]['id']}, aq)
                 call(alice, 'POST', model_route + '/live' + query, model_route + '/live', {}, aq, status=403)
+                management = '/api/v1/model-management'
+                gateways = '/api/v1/ai-gateways'
+                gateway_models = '/api/v1/gateway-models'
+                call(bob, 'GET', management + query, management, status=403)
+                assert call(alice, 'GET', management + query, management)['gateways'] == []
+                gateway_payload = {'expected_version': 0, 'gateway': {'name': 'Synthetic contract gateway', 'base_url': 'https://gateway.example.invalid/v1', 'enabled': True, 'timeout_seconds': 30}, 'credential': {'action': 'keep'}}
+                call(alice, 'POST', gateways + query, gateways, gateway_payload, status=403)
+                configured = call(alice, 'POST', gateways + query, gateways, gateway_payload, aq)
+                gateway = configured['gateways'][0]
+                assert gateway['secret_status'] == 'not_configured'
+                entry = {'gateway_id': gateway['id'], 'name': 'Synthetic model', 'model': 'vendor/synthetic', 'capabilities': ['text'], 'enabled': True, 'max_output_tokens': 128, 'json_output': True, 'currency': 'USD', 'maximum_minor': 10, 'price_source': 'Synthetic test bound'}
+                model_payload = {'expected_version': 0, 'model': entry}
+                call(bob, 'POST', gateway_models + '?space_id=' + other, gateway_models, model_payload, bq, status=400)
+                configured = call(alice, 'POST', gateway_models + query, gateway_models, model_payload, aq)
+                gateway_model = configured['models'][0]
+                feature = '/api/v1/model-features/script_generation'
+                feature_route = '/api/v1/model-features/{feature_key}'
+                binding = {'expected_version': 0, 'binding': {'feature_key': 'script_generation', 'model_config_id': gateway_model['id'], 'enabled': True, 'allow_override': False}}
+                call(alice, 'PUT', feature + query, feature_route, binding, aq)
+                call(alice, 'PUT', feature + query, feature_route, binding, aq, status=409)
+                call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'viewer'}, aq)
+                call(bob, 'GET', management + query, management, status=403)
+                call(bob, 'POST', gateways + query, gateways, gateway_payload, bq, status=403)
+                catalog = call(bob, 'GET', '/api/v1/runtime-models' + query + '&feature_key=script_generation', '/api/v1/runtime-models')
+                assert any(item['id'] == gateway_model['id'] and not item['available'] for item in catalog['models'])
+                wire = json.dumps(catalog)
+                assert 'base_url' not in wire and 'ciphertext' not in wire and 'secret_status' not in wire
+                for usage in ['/api/v1/model-usage', '/api/v1/model-usage/calls']:
+                    assert call(bob, 'GET', usage + query, usage)['total'] == 0
+                call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'remove'}, aq)
+                call(bob, 'GET', '/api/v1/model-usage' + query, '/api/v1/model-usage', status=403)
                 call(alice, 'POST', '/api/v1/auth/logout', '/api/v1/auth/logout', {}, aq)
                 assert call(alice, 'GET', session_route, session_route)['authenticated'] is False
-                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused'], 'live_provider_calls': 0}))
+                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation'], 'live_provider_calls': 0}))
             finally:
                 process.terminate()
                 process.wait(timeout=15)

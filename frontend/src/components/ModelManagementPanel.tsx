@@ -33,7 +33,7 @@ export function ModelManagementPanel({space, onDirtyChange}: {space: Space; onDi
   }, [query, revision])
   async function save(path: string, method: string, body: unknown) {
     setBusy(true); setError(''); setNotice('')
-    try {const next = await request<ModelManagementReport>(`${path}${query}`, {method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)}); setReport(next); setGateway(null); setModel(null); setNotice(t('配置已保存，新任务使用最新绑定。')); return true}
+    try {const next = await request<ModelManagementReport>(`${path}${query}`, {method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)}); setReport(next); if (path.startsWith('/ai-gateways')) setGateway(null); if (path.startsWith('/gateway-models')) setModel(null); setNotice(t('配置已保存，新任务使用最新绑定。')); return true}
     catch (reason) {setError(errorMessage(reason, t('保存未确认，请刷新配置后核对。'))); return false}
     finally {setBusy(false)}
   }
@@ -67,7 +67,7 @@ export function ModelManagementPanel({space, onDirtyChange}: {space: Space; onDi
         {!report.models.length ? <p className="model-management-empty">{t('尚无网关模型。')}</p> : <div className="table-scroll"><table><thead><tr><th>{t('模型')}</th><th>{t('AI 网关')}</th><th>{t('模型能力')}</th><th>{t('功能引用')}</th><th>{t('状态')}</th><th>{t('操作')}</th></tr></thead><tbody>{report.models.filter(item => !filter || item.gateway_id === filter).map(item => <tr key={item.id}><td><strong>{item.name}</strong><small>{item.model}</small></td><td>{report.gateways.find(value => value.id === item.gateway_id)?.name}</td><td><div className="model-capability-tags">{item.capabilities.map(capability => <span key={capability}>{t(capabilityNames[capability] ?? capability)}</span>)}</div></td><td>{report.bindings.filter(value => value.model_config_id === item.id).map(value => t(report.features.find(feature => feature.key === value.feature_key)?.name ?? value.feature_key)).join(' / ') || '—'}</td><td>{t(item.enabled ? '已启用' : '已停用')}</td><td><button disabled={busy} onClick={() => setModel({...item})}>{t('编辑')}</button></td></tr>)}</tbody></table></div>}
         {model && <GatewayModelForm key={`${model.id}-${model.version}`} value={model} gateways={report.gateways} busy={busy} onDirty={markDirty} onCancel={() => setModel(null)} onSave={value => save(value.id ? `/gateway-models/${value.id}` : '/gateway-models', value.id ? 'PATCH' : 'POST', {expected_version: model.version, model: value})} />}
       </div>
-      {report.legacy_models > 0 && <details className="panel legacy-model-config"><summary>{t('已有供应商配置（兼容保留）')}</summary><ModelConfigPanel space={space} onDirtyChange={value => markDirty('legacy', value)} /></details>}
+      {<details className="panel legacy-model-config"><summary>{t('已有供应商配置（兼容保留）')}</summary><ModelConfigPanel space={space} onDirtyChange={value => markDirty('legacy', value)} /></details>}
     </>}
   </section>
 }

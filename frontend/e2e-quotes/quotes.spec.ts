@@ -13,6 +13,7 @@ test('exact image and creative quote consent accepts queued work without a model
  const query = '?space_id=' + session.spaces[0].id
  const headers = {'Origin': 'http://localhost:5175', 'X-CSRF-Token': session.csrf_token}
  await navigateTo(page, '/settings/billing')
+ await page.getByText('调用限制与费用账本', {exact: true}).click()
  await page.getByLabel('新的预算上限（USD）', {exact: true}).fill('1.00')
  await page.getByRole('button', {name: '保存预算', exact: true}).click()
  await expect(page.getByText('预算已保存。此操作不会启用真实模型调用。', {exact: true})).toBeVisible()

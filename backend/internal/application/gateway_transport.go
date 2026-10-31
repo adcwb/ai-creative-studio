@@ -57,24 +57,32 @@ func newGatewayClient(g AIGateway) *http.Client {
 }
 
 type gatewayObservation struct {
-	mu      sync.Mutex
-	store   *ModelUsageStore
-	call    ModelCall
-	started bool
+	mu        sync.Mutex
+	store     *ModelUsageStore
+	call      ModelCall
+	started   bool
+	ambiguous bool
 }
 
 func (o *gatewayObservation) before() error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if !o.started {
-		if e := o.store.save(o.call); e != nil {
-			return errRuntimeUnavailable
-		}
-		o.started = true
-	}
+	// Persist the attempt before handing it to the network so a crash cannot
+	// leave a dispatched request with a zero HTTP count.
 	o.call.HTTPCalls++
+	if e := o.store.save(o.call); e != nil {
+		o.call.HTTPCalls--
+		return errRuntimeUnavailable
+	}
+	o.started = true
 	return nil
 }
+func (o *gatewayObservation) markAmbiguous() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.ambiguous = true
+}
+
 func safeGatewayRequestID(s string) string {
 	if len(s) > 200 {
 		return ""
@@ -153,7 +161,7 @@ func (o *gatewayObservation) finish(runErr error) error {
 		if errors.As(runErr, &p) {
 			o.call.ErrorCode = p.Code
 		}
-		if errors.Is(runErr, context.Canceled) || errors.Is(runErr, context.DeadlineExceeded) {
+		if o.ambiguous || errors.Is(runErr, context.Canceled) || errors.Is(runErr, context.DeadlineExceeded) {
 			o.call.State = "unknown"
 		}
 	}
@@ -177,6 +185,9 @@ func (t gatewayObservedTransport) RoundTrip(req *http.Request) (*http.Response, 
 	}
 	res, e := t.base.RoundTrip(req)
 	if e != nil {
+		if t.observation != nil {
+			t.observation.markAmbiguous()
+		}
 		return nil, e
 	}
 	if t.observation != nil {
@@ -195,6 +206,9 @@ type gatewayObservedBody struct {
 
 func (b *gatewayObservedBody) Read(p []byte) (int, error) {
 	n, e := b.ReadCloser.Read(p)
+	if e != nil && e != io.EOF {
+		b.observation.markAmbiguous()
+	}
 	if b.buf.Len()+n <= 256<<10 {
 		_, _ = b.buf.Write(p[:n])
 	}
