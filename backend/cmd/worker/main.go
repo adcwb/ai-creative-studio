@@ -14,6 +14,7 @@ import (
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/application"
 	"github.com/adcwb/ai-creative-studio/backend/internal/bootstrap"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/deployconfig"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -25,6 +26,9 @@ func main() {
 	}
 }
 func run() error {
+	if err := deployconfig.Load(); err != nil {
+		return err
+	}
 	flushTraces, traceErr := application.ConfigureTracingFromEnv("worker")
 	if traceErr != nil {
 		return traceErr

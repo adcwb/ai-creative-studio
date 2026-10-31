@@ -44,6 +44,21 @@ func (s *ModelConfigStore) serveGatewayManagement(w http.ResponseWriter, r *http
 	var out ModelManagementReport
 	var e error
 	switch {
+	case strings.HasSuffix(path, "/sync-models") && strings.HasPrefix(path, "ai-gateways/") && r.Method == "POST":
+		id := strings.TrimSuffix(strings.TrimPrefix(path, "ai-gateways/"), "/sync-models")
+		var in struct {
+			ExpectedVersion int64 `json:"expected_version"`
+		}
+		if !decode(w, r, &in) {
+			return
+		}
+		result, err := s.syncGatewayModels(r.Context(), scope.SpaceID, id, in.ExpectedVersion)
+		if err != nil {
+			modelConfigError(w, err)
+			return
+		}
+		respond(w, 200, result)
+		return
 	case path == "ai-gateways" && r.Method == "POST" || strings.HasPrefix(path, "ai-gateways/") && r.Method == "PATCH":
 		var in struct {
 			ExpectedVersion int64                `json:"expected_version"`

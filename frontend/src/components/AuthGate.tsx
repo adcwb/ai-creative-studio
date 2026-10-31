@@ -6,7 +6,7 @@ import { UserPreferences } from './UserPreferences'
 import { AuthBrand } from './AuthBrand'
 import './auth.css'
 
-export interface Session { mode: 'demo' | 'secure'; authenticated: boolean; registration_enabled: boolean; sso_available: boolean; user?: {id: string; email: string}; csrf_token?: string; spaces?: Space[] }
+export interface Session { deployment_admin?: boolean; mode: 'demo' | 'secure'; authenticated: boolean; registration_enabled: boolean; sso_available: boolean; user?: {id: string; email: string}; csrf_token?: string; spaces?: Space[] }
 export function AuthGate({children}: {children: (session: Session, logout: () => void) => ReactNode}) {
   const {t} = useI18n()
 

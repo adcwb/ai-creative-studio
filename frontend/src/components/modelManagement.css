@@ -12,6 +12,17 @@
 .model-management-panel[hidden] {display:none}
 .model-management-panel .section-heading {align-items:flex-start;gap:20px;margin-bottom:22px}
 .model-management-panel h2 {margin:0 0 6px}
+.model-management .notice {display:block}
+.model-management .notice code {white-space:nowrap;overflow-wrap:normal;font:inherit;font-family:monospace}
+.model-management-panel .gateway-actions {display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0;min-width:190px}
+.gateway-actions button {white-space:nowrap;font-size:12px}
+.model-management-panel .gateway-table td {vertical-align:middle}
+.model-management-panel .model-check-label {display:flex;align-items:center;gap:8px;margin:12px 0}
+.model-editor-grid label {margin:0;min-width:0;align-content:start}
+.model-editor-grid label input,.model-editor-grid label select {margin-top:0;font-weight:400}
+.model-key-field {grid-column:1/-1}
+.model-key-field small {font-weight:400;color:var(--ink-muted)}
+.model-management-panel .section-heading .gateway-actions {justify-content:flex-end}
 .model-management-panel .section-heading p {color:var(--ink-muted);margin:0;max-width:55em}
 .model-management-panel table {width:100%;border-collapse:collapse;text-align:left}
 .model-management-panel th {font-size:12px;font-weight:500;color:var(--ink-muted);background:var(--surface-soft);white-space:nowrap}

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/deployconfig"
 )
 
 var errAuthAudit = errors.New("authentication audit unavailable")
@@ -20,6 +22,8 @@ type authScope struct {
 	reviewMembers         func() []productionMember
 }
 type AuthOptions struct {
+	SystemConfig      *deployconfig.Store
+	SystemAdmins      []string
 	AllowRegistration bool
 	SecureCookie      bool
 	OIDC              *OIDCLogin
@@ -56,7 +60,7 @@ func HandlerFromEnv(repo Repository, origin, dir string) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	modelKey, err := modelKeyFromEnv()
+	modelKey, err := deploymentModelKey(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -71,6 +75,9 @@ func HandlerFromEnv(repo Repository, origin, dir string) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err = s.models.verifyDeploymentModelKey(); err != nil {
+		return nil, err
+	}
 	oidcLogin, err := oidcFromEnv()
 	if err != nil {
 		return nil, err
@@ -83,7 +90,11 @@ func HandlerFromEnv(repo Repository, origin, dir string) (http.Handler, error) {
 		return nil, err
 	}
 	secure := os.Getenv("AUTH_COOKIE_SECURE") != "false"
-	return SecureHandler(repo, origin, s, AuthOptions{AllowRegistration: os.Getenv("AUTH_ALLOW_REGISTRATION") == "true", SecureCookie: secure, OIDC: oidcLogin, TrustedProxies: trustedProxies}), nil
+	configuration, err := deployconfig.Open()
+	if err != nil {
+		return nil, err
+	}
+	return SecureHandler(repo, origin, s, AuthOptions{SystemConfig: configuration, SystemAdmins: deployconfig.Admins(), AllowRegistration: os.Getenv("AUTH_ALLOW_REGISTRATION") == "true", SecureCookie: secure, OIDC: oidcLogin, TrustedProxies: trustedProxies}), nil
 }
 func authWrite(r *http.Request) bool {
 	return r.Method != "GET" && r.Method != "HEAD" && r.Method != "OPTIONS"
@@ -128,6 +139,7 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 				out["user"] = user
 				out["csrf_token"] = session.CSRF
 				out["spaces"] = auth.spaces(user.ID)
+				out["deployment_admin"] = deployconfig.IsAdmin(user.Email, options.SystemAdmins)
 			}
 			return out
 		}
@@ -245,6 +257,18 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/v1/organizations/") {
 			auth.members(w, r, user)
+			return
+		}
+		if r.URL.Path == "/api/v1/system-config" {
+			if !deployconfig.IsAdmin(user.Email, options.SystemAdmins) || options.SystemConfig == nil {
+				problem(w, 403, "deployment_admin_required", "仅部署管理员可以管理后端配置")
+				return
+			}
+			SetAuditIdentity(r.Context(), user.ID, "", "deployment_admin")
+			if authWrite(r) && !beginAuthAudit(w, r) {
+				return
+			}
+			serveSystemConfig(w, r, options.SystemConfig)
 			return
 		}
 		// Every data route requires an explicit organization membership. Capability/catalog

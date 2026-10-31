@@ -12,6 +12,7 @@ import (
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/application"
 	"github.com/adcwb/ai-creative-studio/backend/internal/bootstrap"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/deployconfig"
 )
 
 func env(key, fallback string) string {
@@ -27,6 +28,9 @@ func main() {
 	}
 }
 func run() error {
+	if err := deployconfig.Load(); err != nil {
+		return err
+	}
 	flushTraces, traceErr := application.ConfigureTracingFromEnv("api")
 	if traceErr != nil {
 		return traceErr
@@ -74,6 +78,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	go application.RunGatewayModelSync(ctx, store)
 	var ops *application.Operations
 	if db != nil {
 		ops, err = application.OpenPostgresOperations(db)

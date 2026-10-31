@@ -14,20 +14,25 @@ import (
 
 // Gateway credentials belong to the connection, never to individual models.
 type AIGateway struct {
-	ID             string    `json:"id"`
-	Name           string    `json:"name"`
-	BaseURL        string    `json:"base_url"`
-	Enabled        bool      `json:"enabled"`
-	TimeoutSeconds int       `json:"timeout_seconds"`
-	Version        int64     `json:"version"`
-	SecretStatus   string    `json:"secret_status"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	SyncIntervalMinutes int        `json:"sync_interval_minutes"`
+	LastSyncedAt        *time.Time `json:"last_synced_at,omitempty"`
+	SyncError           string     `json:"sync_error,omitempty"`
+	SyncAttemptedAt     *time.Time `json:"sync_attempted_at,omitempty"`
+	ID                  string     `json:"id"`
+	Name                string     `json:"name"`
+	BaseURL             string     `json:"base_url"`
+	Enabled             bool       `json:"enabled"`
+	TimeoutSeconds      int        `json:"timeout_seconds"`
+	Version             int64      `json:"version"`
+	SecretStatus        string     `json:"secret_status"`
+	UpdatedAt           time.Time  `json:"updated_at"`
 }
 type storedGateway struct {
 	Gateway    AIGateway `json:"gateway"`
 	Ciphertext string    `json:"ciphertext,omitempty"`
 }
 type GatewayModel struct {
+	Pending         bool      `json:"pending,omitempty"`
 	ID              string    `json:"id"`
 	GatewayID       string    `json:"gateway_id"`
 	Name            string    `json:"name"`
@@ -157,7 +162,7 @@ func validateGatewaySnapshot(d modelSnapshot) error {
 	for tenant, t := range d.Tenants {
 		for id, g := range t.Gateways {
 			u, e := normalizeGatewayURL(g.Gateway.BaseURL)
-			if tenant == "" || id != g.Gateway.ID || id == "" || e != nil || u != g.Gateway.BaseURL || g.Gateway.Version < 1 || g.Gateway.TimeoutSeconds < 5 || g.Gateway.TimeoutSeconds > 600 {
+			if tenant == "" || id != g.Gateway.ID || id == "" || e != nil || u != g.Gateway.BaseURL || g.Gateway.Version < 1 || g.Gateway.TimeoutSeconds < 5 || g.Gateway.TimeoutSeconds > 600 || !validSyncInterval(g.Gateway.SyncIntervalMinutes) {
 				return errModelInput
 			}
 			if g.Gateway.SecretStatus == "encrypted" {
@@ -188,7 +193,7 @@ func validateGatewayModel(m GatewayModel) error {
 	if m.Currency == "" {
 		return errModelInput
 	}
-	if !validGatewayModelID(m.Model) || utf8.RuneCountInString(m.Name) < 1 || utf8.RuneCountInString(m.Name) > 80 || len(m.Capabilities) == 0 || len(m.Capabilities) > 8 || m.MaxOutputTokens < 1 || m.MaxOutputTokens > 6000 || m.MaximumMinor < 0 || m.MaximumMinor > 9007199254740991 || len(m.PriceSource) > 240 {
+	if !validGatewayModelID(m.Model) || utf8.RuneCountInString(m.Name) < 1 || utf8.RuneCountInString(m.Name) > 80 || len(m.Capabilities) == 0 && !m.Pending || m.Pending && m.Enabled || len(m.Capabilities) > 8 || m.MaxOutputTokens < 1 || m.MaxOutputTokens > 6000 || m.MaximumMinor < 0 || m.MaximumMinor > 9007199254740991 || len(m.PriceSource) > 240 {
 		return errModelInput
 	}
 	if _, e := CurrencyMinorUnits(m.Currency); e != nil {
@@ -270,7 +275,7 @@ func (s *ModelConfigStore) saveGateway(tenant string, expected int64, in AIGatew
 		return ModelManagementReport{}, errModelConflict
 	}
 	u, e := normalizeGatewayURL(in.BaseURL)
-	if e != nil || utf8.RuneCountInString(strings.TrimSpace(in.Name)) < 1 || utf8.RuneCountInString(in.Name) > 80 || in.TimeoutSeconds < 5 || in.TimeoutSeconds > 600 || len(t.Gateways) >= 50 && !exists {
+	if e != nil || utf8.RuneCountInString(strings.TrimSpace(in.Name)) < 1 || utf8.RuneCountInString(in.Name) > 80 || in.TimeoutSeconds < 5 || in.TimeoutSeconds > 600 || !validSyncInterval(in.SyncIntervalMinutes) || len(t.Gateways) >= 50 && !exists {
 		return ModelManagementReport{}, errModelInput
 	}
 	if in.ID == "" {
@@ -281,6 +286,9 @@ func (s *ModelConfigStore) saveGateway(tenant string, expected int64, in AIGatew
 	in.Version = expected + 1
 	in.UpdatedAt = time.Now().UTC()
 	in.SecretStatus = old.Gateway.SecretStatus
+	in.LastSyncedAt = old.Gateway.LastSyncedAt
+	in.SyncAttemptedAt = old.Gateway.SyncAttemptedAt
+	in.SyncError = old.Gateway.SyncError
 	if in.SecretStatus == "" {
 		in.SecretStatus = "not_configured"
 	}

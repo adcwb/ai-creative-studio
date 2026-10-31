@@ -16,7 +16,7 @@ const project = {id: 'story-1', space_id: 'personal-demo', title: '钟楼来信'
 const baseTask = {id: 'image-1', space_id: 'personal-demo', prompt: '春日咖啡海报', kind: 'poster', ratio: '4:5', style: 'natural', provider: 'mock-svg', status: 'succeeded', progress: 100, result_url: '/fixture.svg', created_at: now}
 let state
 function reset(options = {}) {
-  state = {mode: 'secure', role: 'owner', empty: false, projects: [clone(project)], tasks: [clone(baseTask)], assets: [{...baseTask, id: 'asset-1', task_id: baseTask.id}], library: [], libraryVersions: [], bindings: {}, receipts: new Map(), requests: [], management: {version: 0, gateways: [], models: [], bindings: [], features: [{key: 'script_generation', name: '剧本生成', capability: 'text'}, {key: 'storyboard_planning', name: '分镜规划', capability: 'text'}, {key: 'shot_image', name: '镜头图片', capability: 'image'}], secret_storage_available: true, governance_ready: true, legacy_models: 0}, usage: {items: [], summary: [], total: 0, next_offset: null}, ...options}
+  state = {deploymentAdmin: false, system: {version: '1', restart_required: false, fields: [{key:'FRONTEND_ORIGIN',group:'service',value:'https://original.example',secret:false,read_only:false,source:'environment',configured:true,pending:false},{key:'DATA_DIR',group:'service',value:'/private/data',secret:false,read_only:true,source:'environment',configured:true,pending:false},{key:'DATABASE_URL',group:'storage',value:'',secret:true,read_only:false,source:'environment',configured:true,pending:false}]}, mode: 'secure', role: 'owner', empty: false, projects: [clone(project)], tasks: [clone(baseTask)], assets: [{...baseTask, id: 'asset-1', task_id: baseTask.id}], library: [], libraryVersions: [], bindings: {}, receipts: new Map(), requests: [], management: {version: 0, gateways: [], models: [], bindings: [], features: [{key: 'script_generation', name: '剧本生成', capability: 'text'}, {key: 'storyboard_planning', name: '分镜规划', capability: 'text'}, {key: 'shot_image', name: '镜头图片', capability: 'image'}], secret_storage_available: true, governance_ready: true, legacy_models: 0}, usage: {items: [], summary: [], total: 0, next_offset: null}, ...options}
 }
 reset()
 const server = http.createServer(async (req, res) => {
@@ -34,14 +34,39 @@ const server = http.createServer(async (req, res) => {
   try {input = body ? JSON.parse(body) : {}} catch {send({error: {message: 'Invalid JSON'}}, 400); return}
   if (path === '/__test__/health') return send({ready: true})
   if (path === '/__test__/reset') {reset(input); return send({ready: true})}
-  if (path === '/__test__/state') return send({requests: state.requests, projects: state.projects, tasks: state.tasks, management: state.management})
+  if (path === '/__test__/state') return send({requests: state.requests, projects: state.projects, tasks: state.tasks, management: state.management, system: state.system})
   if (path === '/fixture.svg') {res.writeHead(200, {'Content-Type': 'image/svg+xml'}); res.end('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="750"><rect width="600" height="750" fill="#e8edda"/><circle cx="300" cy="300" r="150" fill="#52715b"/><text x="300" y="570" text-anchor="middle" font-size="36" fill="#193b2e">Coffee &amp; spring</text></svg>'); return}
   const spaceID = url.searchParams.get('space_id') ?? 'personal-demo'
   state.requests.push({method: req.method, path, space: spaceID, key: req.headers['idempotency-key']})
-  if (path === '/auth/session') return send({mode: state.mode, authenticated: true, registration_enabled: false, sso_available: false, user: {id: 'user-1', email: 'studio@example.com'}, csrf_token: 'fixture-csrf'})
+  if (path === '/auth/session') return send({mode: state.mode, authenticated: true, registration_enabled: false, sso_available: false, user: {id: 'user-1', email: 'studio@example.com'}, csrf_token: 'fixture-csrf', deployment_admin: state.deploymentAdmin})
   if (path === '/spaces') return send(state.empty ? [] : [{id: 'personal-demo', name: '我的工作空间', type: 'personal', owner_id: 'user-1', role: state.role}, {id: 'team-demo', name: '品牌内容团队', type: 'team', owner_id: 'user-2', role: 'viewer'}])
   if (path === '/capabilities') return send({provider: 'mock-svg', mode: 'mock', ready: true, message: '模拟模式：程序绘制 SVG，不调用 AI 模型或产生模型费用。'})
   if (path === '/templates') return send({templates: [{id: 'poster', name: '春日咖啡', description: '为日常留一份清新', prompt: '春日咖啡海报', kind: 'poster', ratio: '4:5', style: 'natural'}, {id: 'portrait', name: '人物肖像', description: '记录人物的光影', prompt: '自然光肖像', kind: 'portrait', ratio: '4:5', style: 'studio'}, {id: 'general', name: '自由想象', description: '从一个画面开始', prompt: '雨后的森林', kind: 'general', ratio: '16:9', style: 'illustration'}], ratios: [{value: '1:1', label: '方形'}, {value: '4:5', label: '竖版'}, {value: '16:9', label: '横版'}], styles: [{value: 'natural', label: '自然'}, {value: 'studio', label: '棚拍'}, {value: 'illustration', label: '插画'}]})
+  if (path === '/system-config') {
+    if (!state.deploymentAdmin) return send({error:{code:'deployment_admin_required',message:'仅部署管理员可以管理后端配置'}},403)
+    if (req.method === 'PATCH') {
+      if (input.expected_version !== state.system.version) return send({error:{code:'config_conflict',message:'配置已更新'}},409)
+      for (const [key,value] of Object.entries(input.changes)) {
+        const field=state.system.fields.find(item=>item.key===key)
+        if(!field || field.read_only) return send({error:{code:'invalid_config',message:'配置项无效'}},400)
+        field.value=field.secret?'':value??'https://original.example';field.configured=value!=='';field.pending=true;field.source=value===null?'environment':'file'
+      }
+      state.system.version=String(Number(state.system.version)+1);state.system.restart_required=true
+    }
+    return send(state.system)
+  }
+  if (/^\/ai-gateways\/[^/]+\/(sync-models|check)$/.test(path)) {
+    const item=state.management.gateways.find(g=>g.id===path.split('/')[2])
+    if (!item || input.expected_version!==item.version) return send({error:{code:'model_config_conflict',message:'配置已更新'}},409)
+    if(state.catalogError)return send({error:{code:'gateway_catalog_unavailable',message:'模型目录同步失败'}},502)
+    if(path.endsWith('/check'))return send({reachable:true,models:['vendor/catalog-model'],generation_verified:false})
+    let added=0
+    if(!state.management.models.some(m=>m.gateway_id===item.id&&m.model==='vendor/catalog-model')){
+      state.management.models.push({id:'synced-model',gateway_id:item.id,name:'vendor/catalog-model',model:'vendor/catalog-model',capabilities:[],enabled:false,pending:true,version:1,max_output_tokens:3000,json_output:true,video_seconds:4,video_size:'1280x720',currency:'USD',maximum_minor:0,price_source:''});added++
+    }
+    item.last_synced_at=new Date().toISOString()
+    return send({report:state.management,added,existing:added?0:1})
+  }
   if (path === '/model-management') return send(state.management)
   if (path === '/model-usage') return send(state.usage)
   if (path === '/runtime-models') return send({governance_ready: true, bindings: state.management.bindings, models: state.management.models.flatMap(model => model.capabilities.map(capability => ({id: model.id, version: model.version, provider: `gateway-${capability}`, model: model.model, capability, capabilities: model.capabilities, gateway_id: model.gateway_id, gateway_name: state.management.gateways.find(gateway => gateway.id === model.gateway_id)?.name, name: model.name, available: true, is_default: state.management.bindings.some(binding => binding.feature_key === url.searchParams.get('feature_key') && binding.model_config_id === model.id)})))})

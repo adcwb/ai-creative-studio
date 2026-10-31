@@ -9,6 +9,7 @@ test-results/
 /temp/
 backend/data/
 backend/bin/
+backend/temp/
 *.log
 .DS_Store
 *.tsbuildinfo

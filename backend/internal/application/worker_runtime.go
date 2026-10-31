@@ -14,7 +14,7 @@ func ConfigureWorkerRuntimeFromEnv(s *FileStore, dir string) error {
 	if err != nil {
 		return err
 	}
-	key, err := modelKeyFromEnv()
+	key, err := deploymentModelKey(dir)
 	if err != nil {
 		return err
 	}
@@ -25,6 +25,9 @@ func ConfigureWorkerRuntimeFromEnv(s *FileStore, dir string) error {
 	}()
 	auth.models, err = OpenPostgresModelConfigStore(dir, s.pg.db, key)
 	if err != nil {
+		return err
+	}
+	if err = auth.models.verifyDeploymentModelKey(); err != nil {
 		return err
 	}
 	ConfigureManagedRuntime(s, auth)

@@ -5,8 +5,15 @@ import (
 	"net/http"
 )
 
+var errGatewayCatalog = errors.New("gateway catalog unavailable")
+var errGatewayCapacity = errors.New("gateway model capacity exceeded")
+
 func modelConfigError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, errGatewayCatalog):
+		problem(w, 502, "gateway_catalog_unavailable", "模型目录同步失败，请检查网关地址和 API Key 后重试")
+	case errors.Is(err, errGatewayCapacity):
+		problem(w, 409, "gateway_model_capacity", "模型数量超过组织上限，本次同步未导入模型")
 	case errors.Is(err, errModelConflict):
 		problem(w, 409, "model_config_conflict", "配置已更新，请刷新后重试")
 	case errors.Is(err, ErrNotFound):

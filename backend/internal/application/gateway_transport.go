@@ -249,7 +249,7 @@ func (s *ModelConfigStore) checkGateway(ctx context.Context, tenant, id string, 
 		return nil, e
 	}
 	defer clear(plain)
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 7*time.Second)
 	defer cancel()
 	client := newGatewayClient(g.Gateway)
 	req, e := http.NewRequestWithContext(ctx, "GET", g.Gateway.BaseURL+"/models", nil)
@@ -274,18 +274,24 @@ func (s *ModelConfigStore) checkGateway(ctx context.Context, tenant, id string, 
 		return nil, errRuntimeUnavailable
 	}
 	var catalog struct {
-		Data []struct {
+		Data *[]struct {
 			ID string `json:"id"`
 		} `json:"data"`
 	}
-	if json.Unmarshal(raw, &catalog) != nil {
+	if json.Unmarshal(raw, &catalog) != nil || catalog.Data == nil || len(*catalog.Data) > 200 {
 		result["error_code"] = "invalid_gateway_catalog"
 		return result, nil
 	}
 	models := []string{}
-	for _, m := range catalog.Data {
-		if validGatewayModelID(m.ID) && len(models) < 200 {
+	seen := map[string]bool{}
+	for _, m := range *catalog.Data {
+		if !validGatewayModelID(m.ID) {
+			result["error_code"] = "invalid_gateway_catalog"
+			return result, nil
+		}
+		if !seen[m.ID] {
 			models = append(models, m.ID)
+			seen[m.ID] = true
 		}
 	}
 	result["reachable"] = true

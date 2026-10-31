@@ -15620,6 +15620,319 @@
         },
         "description": "Local configuration validation only. Does not contact providers, check quota, or verify model permissions; remote_verified/model_verified remain false."
       }
+    },
+    "/api/v1/ai-gateways/{id}/sync-models": {
+      "post": {
+        "operationId": "synchronizeGatewayModels",
+        "summary": "Import a complete gateway model catalog as disabled pending entries.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Authenticated organization ID; never grants access by itself."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "expected_version"
+                ],
+                "properties": {
+                  "expected_version": {
+                    "type": "integer",
+                    "format": "int64",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewaySyncResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or incompatible capability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected; no credential values are returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Organization membership and operation role required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected; no credential values are returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request rejected; no credential values are returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Configuration version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The gateway catalog is unavailable or invalid; no model entries were imported.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage, encryption, or execution prerequisites unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Owner/admin only. Uses the saved encrypted gateway key and expected gateway version. Deduplicates by gateway and upstream ID, preserving existing configuration and bindings. No generation calls. Invalid or over-capacity catalogs are not partially imported. At most 200 catalog entries, 1 MiB, 7 seconds; no redirects. Scheduling uses sync_interval_minutes."
+      }
+    },
+    "/api/v1/system-config": {
+      "get": {
+        "operationId": "getBackendConfiguration",
+        "summary": "Read redacted global backend configuration; explicit deployment administrator only.",
+        "description": "Requires an authenticated user whose login email is in deployment-owned STUDIO_ADMIN_EMAILS. Organization ownership alone is insufficient. No space_id is required.",
+        "responses": {
+          "200": {
+            "description": "Successful operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendConfigReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or save not confirmed. Sensitive values are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or save not confirmed. Sensitive values are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or save not confirmed. Sensitive values are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or save not confirmed. Sensitive values are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or save not confirmed. Sensitive values are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchBackendConfiguration",
+        "summary": "Persist a backend configuration patch for application after process restart.",
+        "description": "Same deployment administrator boundary as GET, plus normal session CSRF and audit. Omitted keys preserve existing values. Null deletes the file override; an empty string explicitly clears a value. Bootstrap paths, administrator identities, auth mode and encryption key cannot be changed here. Does not restart any process. File values override environment at next API/worker startup.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "expected_version",
+                  "changes"
+                ],
+                "properties": {
+                  "expected_version": {
+                    "type": "string"
+                  },
+                  "changes": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "nullable": true,
+                      "maxLength": 8192
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendConfigReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or save not confirmed. Sensitive values are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or save not confirmed. Sensitive values are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or save not confirmed. Sensitive values are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or save not confirmed. Sensitive values are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or save not confirmed. Sensitive values are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -18284,6 +18597,10 @@
             "items": {
               "$ref": "#/components/schemas/Space"
             }
+          },
+          "deployment_admin": {
+            "type": "boolean",
+            "description": "Explicit deployment administrator, independently of organization roles."
           }
         },
         "required": [
@@ -21240,6 +21557,36 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "sync_interval_minutes": {
+            "type": "integer",
+            "default": 0,
+            "description": "0 disables scheduling; otherwise 5–10080 minutes. Runs on the API, independent of the browser.",
+            "oneOf": [
+              {
+                "enum": [
+                  0
+                ]
+              },
+              {
+                "minimum": 5,
+                "maximum": 10080
+              }
+            ]
+          },
+          "last_synced_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "sync_attempted_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "sync_error": {
+            "type": "string",
+            "readOnly": true
           }
         }
       },
@@ -21282,7 +21629,7 @@
           },
           "capabilities": {
             "type": "array",
-            "minItems": 1,
+            "minItems": 0,
             "maxItems": 8,
             "uniqueItems": true,
             "items": {
@@ -21337,6 +21684,11 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "pending": {
+            "type": "boolean",
+            "default": false,
+            "description": "Imported catalog entry awaiting administrator configuration. Pending models must be disabled; no capabilities are inferred."
           }
         }
       },
@@ -21862,6 +22214,22 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "sync_interval_minutes": {
+            "type": "integer",
+            "default": 0,
+            "description": "0 disables scheduling; otherwise 5–10080 minutes. Runs on the API, independent of the browser.",
+            "oneOf": [
+              {
+                "enum": [
+                  0
+                ]
+              },
+              {
+                "minimum": 5,
+                "maximum": 10080
+              }
+            ]
           }
         }
       },
@@ -21899,7 +22267,7 @@
           },
           "capabilities": {
             "type": "array",
-            "minItems": 1,
+            "minItems": 0,
             "maxItems": 8,
             "uniqueItems": true,
             "items": {
@@ -21954,6 +22322,11 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "pending": {
+            "type": "boolean",
+            "default": false,
+            "description": "Imported catalog entry awaiting administrator configuration. Pending models must be disabled; no capabilities are inferred."
           }
         }
       },
@@ -21992,6 +22365,94 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "GatewaySyncResult": {
+        "type": "object",
+        "required": [
+          "report",
+          "added",
+          "existing"
+        ],
+        "properties": {
+          "report": {
+            "$ref": "#/components/schemas/ModelManagementReport"
+          },
+          "added": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "existing": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "BackendConfigField": {
+        "type": "object",
+        "required": [
+          "key",
+          "group",
+          "secret",
+          "read_only",
+          "value",
+          "configured",
+          "source",
+          "pending"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "boolean"
+          },
+          "read_only": {
+            "type": "boolean"
+          },
+          "value": {
+            "type": "string",
+            "description": "Always empty for secrets, including on successful PATCH."
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "environment",
+              "file"
+            ]
+          },
+          "pending": {
+            "type": "boolean"
+          }
+        }
+      },
+      "BackendConfigReport": {
+        "type": "object",
+        "required": [
+          "version",
+          "fields",
+          "restart_required"
+        ],
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "Opaque SHA-256 of the private configuration file; use as expected_version."
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BackendConfigField"
+            }
+          },
+          "restart_required": {
+            "type": "boolean"
           }
         }
       }
