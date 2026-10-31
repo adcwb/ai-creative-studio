@@ -1,0 +1,31 @@
+{
+  "synthetic_only": true,
+  "library_upload": "failed_before_prepare_tools_list_network",
+  "screenshots": [
+    {
+      "file": "login-desktop-zh-CN-vision.png",
+      "bytes": 243362,
+      "sha256": "9397517fc6e3afa148cb3241e06d39664026b3a5794821fc9cd99f02b7cd800d"
+    },
+    {
+      "file": "login-mobile-en-vision.png",
+      "bytes": 649250,
+      "sha256": "8a15d718e2f6f5e84f807bb19fc223e999c57495801bd78152ca0df229317297"
+    },
+    {
+      "file": "settings-desktop-en-paper.png",
+      "bytes": 158695,
+      "sha256": "1a628ec7efd806bb31764107e5477dcf2e5e63dc223ab62cab4b5294d43b0ca7"
+    },
+    {
+      "file": "settings-desktop-zh-CN-forest.png",
+      "bytes": 146460,
+      "sha256": "c9fe064087515c1dcd8d5824bb8df49c7d79058c7f212ea75a3c44def119aeb9"
+    },
+    {
+      "file": "settings-mobile-en-screening.png",
+      "bytes": 501681,
+      "sha256": "d0ad53e93238c21d33904485abb9640ec4f98ca83e25e6c8c85dd427908b1ff7"
+    }
+  ]
+}

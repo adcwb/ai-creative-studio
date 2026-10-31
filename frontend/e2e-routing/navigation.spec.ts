@@ -1,3 +1,4 @@
+import {chooseLanguage} from '../e2e/support/navigation'
 import { test, expect, type Page } from '@playwright/test'
 
 const fixture = 'http://127.0.0.1:5189'
@@ -171,8 +172,8 @@ test('desktop and mobile layouts expose navigation and preserve language selecti
     await expect(page.getByRole('button', {name: '打开导航'})).toBeFocused()
     await page.getByRole('button', {name: '打开导航'}).click()
   }
-  await page.getByLabel('界面语言').selectOption('en')
-  if (info.project.name === 'mobile') await page.getByRole('button', {name: 'Close navigation', exact: true}).last().click()
+  await expect(page.locator('.sidebar .language-picker')).toHaveCount(0)
+  await chooseLanguage(page, 'en')
   await expect(page.getByRole('heading', {name: 'Image creation', exact: true})).toBeVisible()
   await page.reload()
   await expect(page.getByRole('heading', {name: 'Image creation', exact: true})).toBeVisible()

@@ -1,4 +1,4 @@
-import { navigateTo, openProject, projectStep, chooseLanguage, openNavigation, closeNavigation } from './support/navigation'
+import { navigateTo, openProject, projectStep, chooseLanguage } from './support/navigation'
 import { test, expect } from '@playwright/test'
 
 test.use({locale: 'en-US'})
@@ -6,9 +6,9 @@ test('English image workflow preserves provenance warnings and language switchin
   await page.goto('/')
   await expect(page.getByText('Simulation demo mode', {exact: true})).toBeVisible()
   await expect(page.getByText('Simulation mode: program-drawn SVGs with no AI calls or model charges.', {exact: true})).toBeVisible()
-  await openNavigation(page)
-  await expect(page.getByRole('combobox', {name: 'Interface language'})).toHaveValue('en')
-  await closeNavigation(page)
+  await navigateTo(page, '/settings/preferences')
+  await expect(page.getByRole('button', {name: 'English', exact: true})).toHaveAttribute('aria-pressed', 'true')
+  await navigateTo(page, '/studio')
   const prompt = `Synthetic English fixture ${info.project.name} ${Date.now()}`
   await page.getByLabel('Describe your image', {exact: true}).fill(prompt)
   await page.getByRole('button', {name: 'Create simulated image', exact: true}).click()
@@ -22,8 +22,8 @@ test('English image workflow preserves provenance warnings and language switchin
   await expect(card.getByRole('button', {name: '已保存', exact: true})).toBeDisabled()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.reload()
-  await openNavigation(page)
-  await expect(page.getByRole('combobox', {name: '界面语言'})).toHaveValue('zh-CN')
+  await navigateTo(page, '/settings/preferences')
+  await expect(page.getByRole('button', {name: '简体中文', exact: true})).toHaveAttribute('aria-pressed', 'true')
 })
 
 test('English story, validation, storyboard and media controls use translated dynamic messages', async ({page}, info) => {

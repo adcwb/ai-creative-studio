@@ -137,3 +137,8 @@
  .auth-scene-images { max-height: 180px; }
 }
 .language-buttons button[aria-pressed=true]:hover:not(:disabled) { background: var(--primary-hover); color: #fff; }
+.auth-gallery-controls {justify-content:flex-end}
+.auth-gallery-controls .auth-playback {opacity:.8;min-width:44px}
+.auth-scene-images {background:#173c2f;box-shadow:none;border-radius:8px}
+.auth-scene-copy {padding-top:22px}
+@media(max-width:760px){.auth-scene-images{aspect-ratio:3/2;max-height:240px}}

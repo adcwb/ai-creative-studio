@@ -22,11 +22,11 @@ import urllib.request
 import uuid
 
 PROVIDERS = {
-    'analysis': ['openai-text', 'anthropic-text', 'gemini-text', 'ark-text', 'minimax-text'],
-    'image': ['openai-images', 'gemini-images', 'gemini-interactions-images', 'ark-images', 'minimax-images', 'jimeng-images'],
-    'speech': ['openai-speech', 'gemini-speech', 'bytedance-speech', 'minimax-speech'],
-    'video': ['gemini-video', 'ark-video', 'minimax-video'],
-    'transcription': ['openai-asr'],
+    'analysis': ['gateway-text', 'openai-text', 'anthropic-text', 'gemini-text', 'ark-text', 'minimax-text'],
+    'image': ['gateway-images', 'openai-images', 'gemini-images', 'gemini-interactions-images', 'ark-images', 'minimax-images', 'jimeng-images'],
+    'speech': ['gateway-speech', 'openai-speech', 'gemini-speech', 'bytedance-speech', 'minimax-speech'],
+    'video': ['gateway-video', 'gemini-video', 'ark-video', 'minimax-video'],
+    'transcription': ['gateway-asr', 'openai-asr'],
 }
 FIXTURE = {'title': 'Synthetic clockwork garden', 'brief': '合成测试：纸片机器人在虚构花园寻找一枚蓝色齿轮。没有真人、品牌或个人数据。'}
 PROMPT = 'Synthetic test only: a paper robot finds a blue gear in an imaginary garden. No real people or brands.'

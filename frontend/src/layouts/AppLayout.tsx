@@ -3,6 +3,7 @@ import { Link, Outlet, useBlocker, useLocation, useNavigate, useOutletContext } 
 import { errorMessage, request, type Space } from '../api'
 import { useI18n } from '../i18n'
 import { useCapabilities } from '../hooks/useCapabilities'
+import { workspaceTitle } from '../workspaceTitle'
 import { StudioShell } from '../components/StudioShell'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import type { SessionContext, WorkspaceContext } from '../app/workspace'
@@ -72,8 +73,7 @@ export function AppLayout() {
     document.getElementById('page-content')?.focus({preventScroll: true})
   }, [location.pathname])
   useEffect(() => {
-    const titles: Record<string, string> = {'/settings/preferences': '系统设置', '/publish': '发布中心', '/studio/workspaces': '图像作品', '/digital-humans/video': '视频型数字人', '/digital-humans/interactive': '交互型数字人', '/digital-humans/3d': '3D 数字人', '/library': '创作资产库', '/studio': '图像创作', '/assets': '素材库', '/projects': '短剧项目', '/settings/organization': '组织与成员', '/settings/models': '模型管理', '/settings/billing': '模型使用统计'}
-    document.title = `${t(titles[location.pathname] ?? '短剧工作台')} · ${t('映创')}`
+    document.title = `${t(workspaceTitle(location.pathname))} · ${t('映创')}`
   }, [location.pathname, locale, t])
 
   const space = spaces.find(item => item.id === spaceID)

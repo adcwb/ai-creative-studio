@@ -8338,7 +8338,7 @@
       },
       "put": {
         "operationId": "updateModelConfig",
-        "summary": "updateModelConfig",
+        "summary": "Retired legacy configuration editor",
         "parameters": [
           {
             "name": "space_id",
@@ -8360,18 +8360,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ModelConfigReport"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Rejected request",
+          "410": {
+            "description": "Legacy configuration is read-only; use model gateways",
             "content": {
               "application/json": {
                 "schema": {
@@ -8381,7 +8371,7 @@
             }
           },
           "401": {
-            "description": "Rejected request",
+            "description": "Request rejected",
             "content": {
               "application/json": {
                 "schema": {
@@ -8391,7 +8381,7 @@
             }
           },
           "403": {
-            "description": "Rejected request",
+            "description": "Request rejected",
             "content": {
               "application/json": {
                 "schema": {
@@ -8400,18 +8390,8 @@
               }
             }
           },
-          "404": {
-            "description": "Rejected request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Rejected request",
+          "405": {
+            "description": "Request rejected",
             "content": {
               "application/json": {
                 "schema": {
@@ -8421,7 +8401,7 @@
             }
           },
           "503": {
-            "description": "Rejected request",
+            "description": "Request rejected",
             "content": {
               "application/json": {
                 "schema": {
@@ -8441,7 +8421,8 @@
             }
           }
         },
-        "description": "Authenticated tenant owner/admin only. Stores desired tenant configuration, not live runtime configuration. Endpoints and credential references are server allowlisted. Never returns secrets or ciphertext."
+        "description": "Authenticated tenant owner/admin only. Stores desired tenant configuration, not live runtime configuration. Endpoints and credential references are server allowlisted. Never returns secrets or ciphertext.",
+        "deprecated": true
       }
     },
     "/api/v1/model-config/validate": {
@@ -15515,6 +15496,129 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/model-config/revoke": {
+      "post": {
+        "operationId": "revokeLegacyModel",
+        "summary": "Revoke an existing historical model credential",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Authenticated session CSRF token. Also requires a non-empty Origin; all origins are accepted."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelConfigReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "expected_version"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "expected_version": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "Local configuration validation only. Does not contact providers, check quota, or verify model permissions; remote_verified/model_verified remain false."
       }
     }
   },

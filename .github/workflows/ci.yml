@@ -57,6 +57,7 @@ jobs:
           npm run test:e2e
           npm run test:routing
           npx playwright test -c playwright.auth.config.ts
+          npx playwright test -c playwright.gateway.config.ts
       - name: Local image provider integration
         run: node scripts/provider_check.mjs
       - name: Script workspace integration and layout

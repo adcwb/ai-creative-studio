@@ -1,0 +1,54 @@
+{
+  "base_sha": "8c707240f36eec16fc29be823efeebc7509182e3",
+  "execution": "local only; synthetic accounts, keys and upstreams",
+  "passed": {
+    "frontend_unit": 48,
+    "auth_browser": 22,
+    "postgres_auth_browser": 22,
+    "gateway_key_browser": 2,
+    "routing_browser": 46,
+    "avatar_repeat_browser": 6,
+    "screenshot_browser": 6,
+    "layout_states": 90,
+    "openapi_responses": 443,
+    "i18n_messages": 1618,
+    "go": [
+      "test -race ./... with PostgreSQL and restore",
+      "vet ./...",
+      "build"
+    ],
+    "frontend": [
+      "typecheck",
+      "lint",
+      "build"
+    ],
+    "integration": [
+      "multiservice",
+      "postgres quote fixture",
+      "managed evaluation without provider worker"
+    ],
+    "other": [
+      "secure contracts",
+      "actual media and 4K",
+      "recovery",
+      "alignment",
+      "Python and local model contracts"
+    ],
+    "general_e2e": 94
+  },
+  "pending": [],
+  "blocked": [
+    {
+      "action": "Docker compose build and subsequent dual-container validation",
+      "reason": "proxy.golang.org TLS certificate signed by unknown authority",
+      "state": "build failed; dual-container validation not run"
+    },
+    {
+      "action": "Library upload of five screenshots",
+      "reason": "hosted apps tools/list request failed: network",
+      "state": "failed before prepare; no file IDs"
+    }
+  ],
+  "external_calls": false,
+  "pushed": false
+}

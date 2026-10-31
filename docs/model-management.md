@@ -1,14 +1,14 @@
 # 模型接入管理：配置与执行边界
 
-多网关与功能绑定入口见 [AI 网关与功能模型管理](gateway-model-management.md)。下文保留旧官方供应商配置的协议与安全边界；其固定地址、默认项及本地检查规则不适用于新增的网关连接对象。
+多网关与功能绑定入口见 [AI 网关与功能模型管理](gateway-model-management.md)。旧供应商编辑 UI 已移除，PUT 已返回 410；下文仅记录历史存储与协议边界，不能作为新增配置操作指南。GET 保留，POST `/api/v1/model-config/revoke` 按 `{id, expected_version}` 显式撤销历史凭据。配置范围见 [系统设置](settings-configuration.md)。下文保留旧官方供应商配置的协议与安全边界；其固定地址、默认项及本地检查规则不适用于新增的网关连接对象。
 
-租户管理员在页面维护真实持久化配置：协议适配器、固定区域、模型ID、能力、生命周期、启停及每种能力的默认项。管理配置保存到 `DATA_DIR/model-config.json`，与全局运行环境配置分离。平台级适配器仍仅由部署操作者配置环境；租户不能通过管理API修改平台运行配置。
+历史存储包含：协议适配器、固定区域、模型ID、能力、生命周期、启停及每种能力的默认项。管理配置保存到 `DATA_DIR/model-config.json`，与全局运行环境配置分离。平台级适配器仍仅由部署操作者配置环境；租户不能通过管理API修改平台运行配置。
 
 **保存不是启用付费调用。** 第八轮已增加租户配置运行时：接收任务时显式选择配置ID与版本，服务端绑定认证actor和租户；worker在治理许可后才解密并构造固定官方端点adapter。配置默认项不会自动把现有mock任务改成付费请求。`runtime_applied`由当前治理就绪回调动态计算，表示运行时机制已接线且治理基础就绪，不表示某次任务已获得费用许可；`live_enabled=false`和独立live验证拒绝保持不变。没有执行真实模型调用，管理页面本地校验不能冒充账号权限、模型可用性或效果验证。
 
 ## 授权和协议
 
-- `GET /api/v1/model-config?space_id=…` 和 `PUT` 仅该空间owner/admin可用，editor/viewer拒绝读取管理员接入配置；查询不是其他租户或平台配置的入口。
+- `GET /api/v1/model-config?space_id=…` 仅该空间owner/admin可用；旧 `PUT` 在权限验证后返回 410，editor/viewer拒绝读取管理员接入配置；查询不是其他租户或平台配置的入口。
 - PUT要求 `expected_version`，以及entry和credential对象。每租户整体版本CAS；新建entry不传id，更新必须引用同租户已有id。最多100条配置，默认项按能力唯一。
 - entry为 `{id?, provider, model, capability, region, enabled, is_default, lifecycle}`。lifecycle仅active/deprecated/disabled；默认项须启用且active。
 - endpoint、protocol由服务端已实现适配器和区域表生成，客户端不能传入任意URL、文件路径、内网地址或代理。旧OpenAI视频及未提供的即梦视频不在可选择列表。模型ID可配置不等于该模型仍可用，返回 `model_verified=false`。

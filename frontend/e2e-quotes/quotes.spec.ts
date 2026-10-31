@@ -17,9 +17,14 @@ test('exact image and creative quote consent accepts queued work without a model
  await page.getByLabel('新的预算上限（USD）', {exact: true}).fill('1.00')
  await page.getByRole('button', {name: '保存预算', exact: true}).click()
  await expect(page.getByText('预算已保存。此操作不会启用真实模型调用。', {exact: true})).toBeVisible()
- const cfg = await page.request.put(api + '/model-config' + query, {headers, data: {expected_version: 0, entry: {provider:'openai-images',model:'synthetic-quote-image',capability:'image',region:'global',lifecycle:'active',enabled:true,is_default:false},credential:{action:'set',secret:'synthetic-never-transmitted'}}})
+ const gatewayResponse = await page.request.post(api+'/ai-gateways'+query,{headers,data:{expected_version:0,gateway:{name:'Synthetic quote gateway',base_url:'https://gateway.example.invalid/v1',enabled:true,timeout_seconds:30},credential:{action:'set',secret:'synthetic-never-transmitted'}}})
+ expect(gatewayResponse.status()).toBe(200)
+ const gateway = (await gatewayResponse.json()).gateways[0]
+ const cfg = await page.request.post(api+'/gateway-models'+query,{headers,data:{expected_version:0,model:{gateway_id:gateway.id,name:'Synthetic quote image',model:'synthetic-quote-image',capabilities:['image'],enabled:true,max_output_tokens:128,json_output:true,currency:'USD',maximum_minor:15,price_source:'Synthetic test ceiling'}}})
  expect(cfg.status()).toBe(200)
- const model = (await cfg.json()).entries[0]
+ const model = (await cfg.json()).models[0]
+ const binding = await page.request.put(api+'/model-features/image_generation'+query,{headers,data:{expected_version:0,binding:{feature_key:'image_generation',model_config_id:model.id,enabled:true,allow_override:true}}})
+ expect(binding.status()).toBe(200)
  await navigateTo(page, '/studio')
  await page.getByRole('button', {name:'刷新模型目录',exact:true}).click()
  await page.getByRole('combobox',{name:'模型选择',exact:true}).selectOption(model.id)
@@ -63,7 +68,7 @@ test('exact image and creative quote consent accepts queued work without a model
  await generate.click()
  const mediaResponse = await mediaAccepted
  expect(mediaResponse.status()).toBe(202)
- expect(mediaResponse.request().postDataJSON()).toMatchObject({kind:'image',prompt:'Synthetic quoted shot',expected_provider:'openai-images',expected_model:'synthetic-quote-image'})
+ expect(mediaResponse.request().postDataJSON()).toMatchObject({kind:'image',prompt:'Synthetic quoted shot',expected_provider:'gateway-images',expected_model:'synthetic-quote-image'})
  expect((await mediaResponse.json()).status).toBe('queued')
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBeTruthy()
 })

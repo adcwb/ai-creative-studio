@@ -18,6 +18,8 @@ export async function closeNavigation(page: Page) {
 export async function navigateTo(page: Page, path: string) {
   const link = page.locator(`.app-nav a[href="${path}"]`)
   await openNavigation(page)
+  const group = link.locator('xpath=ancestor::section[contains(@class,"navigation-group")]')
+  if (await group.count()) {const toggle = group.locator('.group-toggle'); if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click()}
   await link.click()
 }
 export async function openProject(page: Page, title: string, section = 'brief') {
@@ -47,10 +49,14 @@ export async function chooseSpace(page: Page, space: string) {
   await picker.selectOption(space)
 }
 export async function chooseLanguage(page: Page, locale: string) {
-  const picker = page.locator('.language-picker select')
   const authScreen = await page.locator('.auth-screen').count()
   if (authScreen) await page.locator('.auth-toolbar').getByRole('button', {name: locale === 'en' ? 'English' : '简体中文', exact: true}).click()
-  else {await openNavigation(page); await picker.selectOption(locale); await closeNavigation(page)}
+  else {
+    const previous = new URL(page.url()).pathname
+    await navigateTo(page, '/settings/preferences')
+    await page.locator('.preferences-page .language-buttons').getByRole('button', {name: locale === 'en' ? 'English' : '简体中文', exact: true}).click()
+    if (previous !== '/settings/preferences') {await page.goBack(); await expect.poll(() => new URL(page.url()).pathname).toBe(previous)}
+  }
 }
 export async function openCreativeTools(page: Page) {
   await projectStep(page, 'script')

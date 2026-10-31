@@ -151,3 +151,32 @@
   .project-steps > a, .project-steps > span { font-size: 13px; }
   .page-empty { padding: 40px 18px; }
 }
+/* Shared workspace context and keyboard-operable navigation. */
+.workspace-page-context {display:grid;gap:3px;min-width:0}
+.workspace-page-context strong {font-size:15px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.workspace-page-context>span {font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app-shell .topbar.workspace-page-header {min-height:76px;height:auto;padding-block:14px}
+.sidebar-collapse {display:flex;align-items:center;gap:10px;background:transparent;border:1px solid var(--forest-line);color:var(--on-forest-muted);margin:18px 8px 0;padding:8px;font-size:11px}
+.sidebar-collapse .icon {width:18px;height:18px;flex-shrink:0}
+.app-shell .brand .brand-symbol {display:none}
+.navigation-group {margin:8px 0}
+.app-nav .group-toggle {width:100%;display:flex;align-items:center;gap:10px;border:0;background:transparent;color:var(--on-forest-muted);font-size:11px;padding:10px 12px;min-height:38px;text-align:left}
+.app-nav .group-toggle:hover {background:var(--forest-raised);color:var(--on-forest)}
+.app-nav .group-toggle .icon {width:16px;height:16px;flex-shrink:0}
+.group-chevron {margin-left:auto}
+.app-nav .nav-subgroup[hidden] {display:none}
+@media(min-width:761px){
+ .navigation-collapsed .sidebar {width:80px}
+ .navigation-collapsed .sidebar-inner {padding:24px 10px 16px}
+ .navigation-collapsed .brand-lockup,.navigation-collapsed .sidebar-collapse span,.navigation-collapsed .space-picker,.navigation-collapsed .group-toggle span,.navigation-collapsed .app-nav a span,.navigation-collapsed .account-profile,.navigation-collapsed .demo-description {display:none}
+ .navigation-collapsed .brand .brand-symbol {display:block;width:32px;height:32px}
+ .navigation-collapsed .sidebar-brand {justify-content:center;padding:0}
+ .navigation-collapsed .sidebar-collapse {margin:18px auto 6px;justify-content:center}
+ .navigation-collapsed .app-nav a,.navigation-collapsed .group-toggle {justify-content:center;padding:10px;gap:0}
+ .navigation-collapsed .nav-subgroup {padding-left:0}
+ .navigation-collapsed .sidebar-account {padding:16px 0 0}
+ .navigation-collapsed .account-signout {font-size:10px;padding:8px 2px}
+}
+@media(max-width:760px){.sidebar-collapse{display:none}.workspace-page-context strong{font-size:13px}.workspace-page-context>span{max-width:44vw}.app-shell .topbar.workspace-page-header{min-height:68px}.workspace-page-header .provider-badge{max-width:30vw;white-space:normal;text-align:right}}
+@media(min-width:761px){.navigation-collapsed main#workspace{width:calc(100% - 80px)}}
+.navigation-group[data-active=true]>.group-toggle{color:var(--accent)}

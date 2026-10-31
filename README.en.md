@@ -8,6 +8,9 @@ The UI supports **Simplified Chinese and English**, remembers language selection
 
 The sign-in gallery has direct Chinese/English controls, three original high-resolution concept illustrations, and pause controls. The future interactive-avatar engine is explicitly marked Planned. Personal settings offer Forest studio, Paper gallery, and Screening room themes. Language and appearance are stored per account in the current browser, isolated on sign-out and account changes; cross-device preference sync is not provided. [Design and asset notes](docs/design/2026-10-31-appearance.md)
 
+
+The sign-in gallery starts automatically without page numbers and respects reduced motion. The sidebar and navigation groups collapse independently; workspace routes share a context header. Signed-in language choices live in Personal settings, alongside administrator-only organization gateway settings. The legacy provider editor is retired without deleting historical data. [Configuration boundaries and migration](docs/settings-configuration.md) · [Updated design](docs/design/2026-10-31-navigation-gateway.md)
+
 ## What you can do
 
 | Workflow | Features |

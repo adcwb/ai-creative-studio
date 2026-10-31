@@ -211,9 +211,11 @@ test('image drafts and an uncertain image idempotency key survive a round trip t
   await page.route('**/api/v1/tasks?space_id=personal-demo', async route => {
     if (route.request().method() !== 'POST') return route.continue()
     await route.fetch(); await route.abort('failed')
-  }, { times: 1 })
+  })
   await page.getByRole('button', { name: '创建模拟图像', exact: true }).click()
   await expect(page.getByRole('alert')).toBeVisible()
+  // GET polling must not consume a one-shot route before the POST under test.
+  await page.unroute('**/api/v1/tasks?space_id=personal-demo')
   await navigateTo(page, '/projects')
   await navigateTo(page, '/studio')
   await expect(page.getByLabel('描述你的画面')).toHaveValue(prompt)

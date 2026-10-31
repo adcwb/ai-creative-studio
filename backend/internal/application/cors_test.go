@@ -30,7 +30,7 @@ func TestCORSAllowsAllOrigins(t *testing.T) {
 						r := httptest.NewRequest(method, "/api/v1/spaces", nil)
 						r.Header.Set("Origin", origin)
 						if method == http.MethodOptions {
-							r.Header.Set("Access-Control-Request-Method", "POST")
+							r.Header.Set("Access-Control-Request-Method", "PATCH")
 							r.Header.Set("Access-Control-Request-Headers", "content-type, idempotency-key, x-csrf-token")
 						} else {
 							r.AddCookie(&http.Cookie{Name: "studio_session", Value: token})
@@ -40,7 +40,7 @@ func TestCORSAllowsAllOrigins(t *testing.T) {
 						want := http.StatusOK
 						if method == http.MethodOptions {
 							want = http.StatusNoContent
-							if w.Header().Get("Access-Control-Allow-Methods") != "GET, POST, PUT, OPTIONS" || w.Header().Get("Access-Control-Allow-Headers") != "Content-Type, Idempotency-Key, X-CSRF-Token" {
+							if w.Header().Get("Access-Control-Allow-Methods") != "GET, POST, PUT, PATCH, OPTIONS" || w.Header().Get("Access-Control-Allow-Headers") != "Content-Type, Idempotency-Key, X-CSRF-Token" {
 								t.Fatal("preflight omitted supported methods or headers", w.Header())
 							}
 						}

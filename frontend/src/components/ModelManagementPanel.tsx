@@ -3,7 +3,6 @@ import { errorMessage, request, type Space } from '../api'
 import { useI18n } from '../i18n'
 import { capabilityNames, featureModelStatus, type AIGateway, type FeatureBinding, type FeatureDefinition, type GatewayModel, type ModelManagementReport } from '../gatewayModels'
 import { minorAmountInput, parseMinorAmount } from '../money'
-import { ModelConfigPanel } from './ModelConfigPanel'
 import './modelManagement.css'
 
 const blankGateway: AIGateway = {id: '', name: '', base_url: '', enabled: true, timeout_seconds: 120, version: 0, secret_status: 'not_configured'}
@@ -57,7 +56,7 @@ export function ModelManagementPanel({space, onDirtyChange}: {space: Space; onDi
       </div>
       <div role="tabpanel" id="model-panel-gateways" aria-labelledby="model-tab-gateways" hidden={tab !== 'gateways'} className="panel model-management-panel">
         <div className="section-heading"><div><h2>{t('AI 网关')}</h2><p>{t('每个网关独立保存服务地址和加密凭据，其下模型共用连接。')}</p></div><button disabled={busy} onClick={() => setGateway({...blankGateway})}>{t('添加 AI 网关')}</button></div>
-        {!report.secret_storage_available && <p className="notice">{t('部署尚未配置凭据加密密钥，可以保存连接信息，配置密钥后再录入 API Key。')}</p>}
+        {!report.secret_storage_available && <p className="notice">{t('部署尚未配置凭据加密密钥，可以保存连接信息，配置密钥后再录入 API Key。')} <code>MODEL_CONFIG_KEK_BASE64</code> {t('由部署管理员为所有 API 与 worker 注入同一加密主密钥并重启；不要在此输入主密钥。')}</p>}
         {!report.gateways.length ? <p className="model-management-empty">{t('尚无 AI 网关。')}</p> : <div className="table-scroll"><table><thead><tr><th>{t('网关名称')}</th><th>{t('服务地址')}</th><th>{t('凭据')}</th><th>{t('模型数')}</th><th>{t('状态')}</th><th>{t('操作')}</th></tr></thead><tbody>{report.gateways.map(item => <tr key={item.id}><td><strong>{item.name}</strong><small>OpenAI compatible</small></td><td className="gateway-address">{item.base_url}</td><td>{t(item.secret_status === 'encrypted' ? '已加密' : item.secret_status === 'revoked' ? '已撤销' : '未配置')}</td><td>{report.models.filter(value => value.gateway_id === item.id).length}</td><td>{t(item.enabled ? '已启用' : '已停用')}</td><td><div className="media-actions"><button disabled={busy} onClick={() => setGateway({...item})}>{t('编辑')}</button><button disabled={busy || item.secret_status !== 'encrypted'} onClick={() => void check(item)}>{t('检查连接')}</button><button disabled={busy} onClick={() => {setTab('models'); setFilter(item.id); setModel({...blankModel, gateway_id: item.id})}}>{t('添加模型')}</button></div></td></tr>)}</tbody></table></div>}
         {gateway && <GatewayForm key={`${gateway.id}-${gateway.version}`} value={gateway} secretStorage={report.secret_storage_available} busy={busy} onDirty={markDirty} onCancel={() => setGateway(null)} onSave={(value, credential) => save(value.id ? `/ai-gateways/${value.id}` : '/ai-gateways', value.id ? 'PATCH' : 'POST', {expected_version: gateway.version, gateway: value, credential})} />}
       </div>
@@ -67,7 +66,7 @@ export function ModelManagementPanel({space, onDirtyChange}: {space: Space; onDi
         {!report.models.length ? <p className="model-management-empty">{t('尚无网关模型。')}</p> : <div className="table-scroll"><table><thead><tr><th>{t('模型')}</th><th>{t('AI 网关')}</th><th>{t('模型能力')}</th><th>{t('功能引用')}</th><th>{t('状态')}</th><th>{t('操作')}</th></tr></thead><tbody>{report.models.filter(item => !filter || item.gateway_id === filter).map(item => <tr key={item.id}><td><strong>{item.name}</strong><small>{item.model}</small></td><td>{report.gateways.find(value => value.id === item.gateway_id)?.name}</td><td><div className="model-capability-tags">{item.capabilities.map(capability => <span key={capability}>{t(capabilityNames[capability] ?? capability)}</span>)}</div></td><td>{report.bindings.filter(value => value.model_config_id === item.id).map(value => t(report.features.find(feature => feature.key === value.feature_key)?.name ?? value.feature_key)).join(' / ') || '—'}</td><td>{t(item.enabled ? '已启用' : '已停用')}</td><td><button disabled={busy} onClick={() => setModel({...item})}>{t('编辑')}</button></td></tr>)}</tbody></table></div>}
         {model && <GatewayModelForm key={`${model.id}-${model.version}`} value={model} gateways={report.gateways} busy={busy} onDirty={markDirty} onCancel={() => setModel(null)} onSave={value => save(value.id ? `/gateway-models/${value.id}` : '/gateway-models', value.id ? 'PATCH' : 'POST', {expected_version: model.version, model: value})} />}
       </div>
-      {<details className="panel legacy-model-config"><summary>{t('已有供应商配置（兼容保留）')}</summary><ModelConfigPanel space={space} onDirtyChange={value => markDirty('legacy', value)} /></details>}
+
     </>}
   </section>
 }
@@ -93,7 +92,7 @@ function GatewayForm({value, secretStorage, busy, onDirty, onCancel, onSave}: {v
   const {t} = useI18n()
   const [draft, setDraft] = useState(value)
   const [secret, setSecret] = useState('')
-  const [action, setAction] = useState('keep')
+  const [action, setAction] = useState(value.id ? 'keep' : 'set')
   const dirty = JSON.stringify(value) !== JSON.stringify(draft) || !!secret || action !== 'keep'
   useEffect(() => {onDirty('gateway-form', dirty); return () => onDirty('gateway-form', false)}, [dirty, onDirty])
   async function submit() {const credential = action === 'set' ? {action, secret} : {action}; setSecret(''); await onSave(draft, credential)}
@@ -101,9 +100,9 @@ function GatewayForm({value, secretStorage, busy, onDirty, onCancel, onSave}: {v
     <label>{t('网关名称')}<input required maxLength={80} value={draft.name} onChange={event => setDraft({...draft, name: event.target.value})} /></label>
     <label>{t('服务地址')}<input required type="url" placeholder="https://gateway.example.com/v1" maxLength={2048} value={draft.base_url} onChange={event => setDraft({...draft, base_url: event.target.value})} /></label>
     <label>{t('请求超时（秒）')}<input required type="number" min={5} max={600} value={draft.timeout_seconds} onChange={event => setDraft({...draft, timeout_seconds: Number(event.target.value)})} /></label>
-    <label>{t('凭据操作')}<select value={action} onChange={event => {setAction(event.target.value); setSecret('')}}><option value="keep">{t('保留现有凭据')}</option><option value="set" disabled={!secretStorage}>{t('设置 API Key')}</option><option value="revoke">{t('撤销凭据并停用')}</option></select></label>
-    {action === 'set' && <label>{t('新的 API Key')}<input type="password" autoComplete="new-password" required value={secret} onChange={event => setSecret(event.target.value)} /></label>}
-  </div><p className="drama-help">{t('地址包含 API 前缀，例如 /v1。更换地址需重新设置凭据；内网地址需部署方授权。')}</p><label className="model-check-label"><input type="checkbox" checked={draft.enabled} onChange={event => setDraft({...draft, enabled: event.target.checked})} />{t('启用此网关')}</label><div className="media-actions"><button className="primary" type="submit">{t('保存网关')}</button><button type="button" onClick={onCancel}>{t('取消')}</button></div></fieldset></form>
+    <label>{t('凭据操作')}<select value={action} onChange={event => {setAction(event.target.value); setSecret('')}}><option value="keep">{t('保留现有凭据')}</option><option value="set">{t('设置 API Key')}</option><option value="revoke">{t('撤销凭据并停用')}</option></select></label>
+    {action === 'set' && <label>{t('新的 API Key')}<input type="password" autoComplete="new-password" disabled={!secretStorage} required maxLength={4096} value={secret} onChange={event => setSecret(event.target.value)} /></label>}
+  </div><p className="drama-help">{t('地址包含 API 前缀，例如 /v1。更换地址需重新设置凭据；内网地址需部署方授权。')} {t('API Key 仅提交到服务器加密保存，不会读回明文。保存失败后请先重新读取，核对版本再决定是否重新输入。')}</p><label className="model-check-label"><input type="checkbox" checked={draft.enabled} onChange={event => setDraft({...draft, enabled: event.target.checked})} />{t('启用此网关')}</label><div className="media-actions"><button className="primary" type="submit" disabled={action === 'set' && !secretStorage}>{t('保存网关')}</button><button type="button" onClick={onCancel}>{t('取消')}</button></div></fieldset></form>
 }
 
 function GatewayModelForm({value, gateways, busy, onDirty, onCancel, onSave}: {value: GatewayModel; gateways: AIGateway[]; busy: boolean; onDirty: (key: string, value: boolean) => void; onCancel: () => void; onSave: (value: GatewayModel) => Promise<boolean>}) {

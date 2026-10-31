@@ -52,3 +52,7 @@
 .user-workspace[data-theme=screening] :is(.text-button, .skip-link, .media-exports a, .workbench-nav button[aria-current], .template-art) { color: var(--green-soft); }
 
 .user-workspace a:not([class]) { color: var(--green-soft); }
+.configuration-boundaries {display:block}
+.configuration-boundaries>div>p,.configuration-boundaries>p {max-width:76ch;line-height:1.8;color:var(--ink-muted)}
+.organization-settings {margin-top:20px}
+.organization-settings>.model-management,.organization-settings>div {margin-top:20px}

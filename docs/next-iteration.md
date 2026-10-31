@@ -1,3 +1,5 @@
+> 2026-10-31 更新：登录画廊、菜单收折、统一页眉与网关配置收敛见 [本轮设计](design/2026-10-31-navigation-gateway.md) 和 [配置归属](settings-configuration.md)。旧供应商表单及写入接口退役，历史数据兼容保留。下文早期能力描述以最新 registry、README 和交付证据为准。
+
 > 第十轮后续从本地提交 `50a7500e00fd6ba396354b0df99d976d0e8fd30f` 补齐 TikTok PHOTO 和自动令牌续期。当前仍仅本地开发／提交，不推送、不部署、不实际发布。最新验证见 [追加记录](iteration-10-followup-verification.md)；旧50a7500成绩不能替代追加源码验收。
 
 # 当前交接（第十轮，2026-10-28）

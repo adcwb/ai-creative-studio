@@ -17,6 +17,7 @@ import time
 import urllib.parse
 import urllib.request
 import uuid
+from unittest.mock import patch
 
 import live_eval
 
@@ -93,18 +94,24 @@ def main():
         csrf = registration['csrf_token']; tenant = registration['spaces'][0]['id']
         query = '?' + urllib.parse.urlencode({'space_id':tenant})
         call('/api/v1/governance/budget'+query, {'currency':'USD','limit_minor':300,'expected_limit_minor':0}, 'PUT')
-        config = call('/api/v1/model-config'+query)
-        entry = {'provider':'openai-text','model':'gpt-6.1-sol','capability':'text','region':'global','enabled':True,'is_default':False,'lifecycle':'active'}
-        config = call('/api/v1/model-config'+query, {'expected_version':config['version'],'entry':entry,
-            'credential':{'action':'set','secret':'synthetic-managed-eval-secret'}}, 'PUT')
-        config_id = config['entries'][0]['id']
+        configured = call('/api/v1/ai-gateways'+query, {'expected_version':0,'gateway':{'name':'Synthetic eval gateway','base_url':'https://gateway.example.invalid/v1','enabled':True,'timeout_seconds':30},'credential':{'action':'set','secret':'synthetic-managed-eval-secret'}}, 'POST')
+        gateway = configured['gateways'][0]
+        configured = call('/api/v1/gateway-models'+query, {'expected_version':0,'model':{'gateway_id':gateway['id'],'name':'Synthetic eval model','model':'synthetic-eval','capabilities':['text'],'enabled':True,'max_output_tokens':128,'json_output':True,'currency':'USD','maximum_minor':10,'price_source':'Synthetic fixture ceiling'}}, 'POST')
+        model = configured['models'][0]
+        config_id = model['id']
+        call('/api/v1/model-features/brief_analysis'+query, {'expected_version':0,'binding':{'feature_key':'brief_analysis','model_config_id':config_id,'enabled':True,'allow_override':False}}, 'PUT')
         session = {'cookie':'; '.join(f'{cookie.name}={cookie.value}' for cookie in jar), 'csrf_token':csrf,'space_id':tenant}
-        execution = argparse.Namespace(kind='analysis',provider='openai-text',model='gpt-6.1-sol',case_id='case-01',
-            model_config_id=config_id,model_config_version=config['version'],currency='USD',budget_micros=3000000,
+        execution = argparse.Namespace(kind='analysis',provider='gateway-text',model='synthetic-eval',case_id='case-01',
+            model_config_id=config_id,model_config_version=model['version'],currency='USD',budget_micros=3000000,
             reserve_micros=100000,timeout=1,base_url=origin,origin=origin,voice='',scenario='original',
             authorize_provider_model_budget=True,authorize_session_transmission=True,ledger=evidence/'ledger.json')
         report = {'run_id':'eval-'+uuid.uuid4().hex,'mode':'synthetic_api_acceptance_fixture','cost_state':'not_called'}
-        assert live_eval.run(execution, session, report) == 1  # queued, not falsely reported as generation success
+        # Substitute only the reviewed-candidate lookup in this isolated rehearsal.
+        # Production CLI still requires its exact reviewed plan; no vendor is called.
+        fixture_candidate = {'harness_supported': True, 'execution_blockers': []}
+        with patch.object(live_eval, 'candidate', return_value=fixture_candidate):
+            outcome = live_eval.run(execution, session, report)
+        assert outcome == 1  # queued, not falsely reported as generation success
         assert report['status'] == 'queued' and report['cost_state'] == 'unknown_reserved'
         budget = call('/api/v1/governance'+query+'&currency=USD')
         assert budget['exposure_minor'] == 10 and budget['available_minor'] == 290
@@ -112,10 +119,10 @@ def main():
         result = subprocess.run([str(args.pg_bin/'psql'),*pg_args,'-d',database,'-At','-c',
             'SELECT state||\':\'||attempt FROM execution_jobs'], env=pg_env, capture_output=True, text=True, check=True).stdout.strip()
         assert result == 'queued:0', result
-        revoked = {**entry, 'id':config_id, 'enabled':False,'lifecycle':'disabled'}
-        call('/api/v1/model-config'+query, {'expected_version':config['version'],'entry':revoked,'credential':{'action':'revoke'}}, 'PUT')
+        call('/api/v1/ai-gateways/'+gateway['id']+query, {'expected_version':gateway['version'],'gateway':gateway,'credential':{'action':'revoke'}}, 'PATCH')
         try:
-            live_eval.run(execution, session, {'run_id':'eval-revoked','cost_state':'not_called'})
+            with patch.object(live_eval, 'candidate', return_value=fixture_candidate):
+                live_eval.run(execution, session, {'run_id':'eval-revoked','cost_state':'not_called'})
         except ValueError:
             pass
         else:

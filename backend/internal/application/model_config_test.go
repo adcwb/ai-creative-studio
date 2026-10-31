@@ -160,16 +160,25 @@ func TestModelConfigHTTPRequiresAdminTenantCSRFAndRejectsEndpoint(t *testing.T) 
 	input := map[string]any{"expected_version": 0, "entry": syntheticModel(), "credential": ModelCredentialInput{Action: "reference", Reference: "OPENAI_API_KEY"}}
 	raw, _ := json.Marshal(input)
 	authRequest(t, h, "PUT", route, string(raw), ta, "", 403)
-	w := authRequest(t, h, "PUT", route, string(raw), ta, sa.CSRF, 200)
-	var report ModelConfigReport
-	_ = json.Unmarshal(w.Body.Bytes(), &report)
+	authRequest(t, h, "PUT", route, string(raw), ta, sa.CSRF, 410)
+	// Seed a pre-upgrade record directly; the retired HTTP editor cannot create it.
+	report, err := auth.models.update(org, 0, syntheticModel(), ModelCredentialInput{Action: "reference", Reference: "OPENAI_API_KEY"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	id := report.Entries[0].ID
 	authRequest(t, h, "POST", "/api/v1/model-config/validate?space_id="+other, `{"id":"`+id+`"}`, tb, sb.CSRF, 404)
 	authRequest(t, h, "POST", "/api/v1/model-config/live?space_id="+org, `{}`, ta, sa.CSRF, 403)
 	bad := strings.Replace(string(raw), `"provider":"openai-text"`, `"endpoint":"http://127.0.0.1","provider":"openai-text"`, 1)
-	authRequest(t, h, "PUT", route, bad, ta, sa.CSRF, 400)
+	authRequest(t, h, "PUT", route, bad, ta, sa.CSRF, 410)
 	authRequest(t, h, "PUT", "/api/v1/organizations/"+org+"/members", `{"email":"model-other@example.test","role":"editor"}`, ta, sa.CSRF, 200)
 	authRequest(t, h, "GET", route, "", tb, "", 403)
 	authRequest(t, h, "PUT", "/api/v1/organizations/"+org+"/members", `{"email":"model-other@example.test","role":"admin"}`, ta, sa.CSRF, 200)
 	authRequest(t, h, "GET", route, "", tb, "", 200)
+	authRequest(t, h, "POST", "/api/v1/model-config/revoke?space_id="+other, `{"id":"`+id+`","expected_version":0}`, tb, sb.CSRF, 404)
+	authRequest(t, h, "POST", "/api/v1/model-config/revoke?space_id="+org, `{"id":"`+id+`","expected_version":1}`, ta, sa.CSRF, 200)
+	after, err := auth.models.report(org)
+	if err != nil || after.Entries[0].SecretStatus != "revoked" || after.Entries[0].Enabled {
+		t.Fatal("legacy revocation failed", err)
+	}
 }

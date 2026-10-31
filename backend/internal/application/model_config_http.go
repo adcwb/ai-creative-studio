@@ -34,15 +34,18 @@ func (s *ModelConfigStore) serve(w http.ResponseWriter, r *http.Request, scope a
 		return
 	}
 	if r.URL.Path == "/api/v1/model-config" && r.Method == "PUT" {
+		problem(w, 410, "legacy_model_read_only", "旧供应商配置已停止维护，请使用模型网关；历史记录与执行兼容保留")
+		return
+	}
+	if r.URL.Path == "/api/v1/model-config/revoke" && r.Method == "POST" {
 		var in struct {
-			ExpectedVersion int64                `json:"expected_version"`
-			Entry           ModelConfigInput     `json:"entry"`
-			Credential      ModelCredentialInput `json:"credential"`
+			ID              string `json:"id"`
+			ExpectedVersion int64  `json:"expected_version"`
 		}
 		if !decode(w, r, &in) {
 			return
 		}
-		report, err := s.update(scope.SpaceID, in.ExpectedVersion, in.Entry, in.Credential)
+		report, err := s.revokeLegacy(scope.SpaceID, in.ExpectedVersion, in.ID)
 		if err != nil {
 			modelConfigError(w, err)
 			return
@@ -70,4 +73,23 @@ func (s *ModelConfigStore) serve(w http.ResponseWriter, r *http.Request, scope a
 		return
 	}
 	problem(w, 405, "method_not_allowed", "方法不支持")
+}
+
+// Historical configurations are immutable through HTTP. Explicit revocation is
+// retained so retiring the editor cannot strand an active credential.
+func (s *ModelConfigStore) revokeLegacy(tenant string, expected int64, id string) (ModelConfigReport, error) {
+	report, err := s.report(tenant)
+	if err != nil {
+		return ModelConfigReport{}, err
+	}
+	if report.Version != expected {
+		return ModelConfigReport{}, errModelConflict
+	}
+	for _, old := range report.Entries {
+		if old.ID == id {
+			in := ModelConfigInput{ID: old.ID, Provider: old.Provider, Model: old.Model, Capability: old.Capability, Region: old.Region, Enabled: false, IsDefault: false, Lifecycle: "disabled"}
+			return s.update(tenant, expected, in, ModelCredentialInput{Action: "revoke"})
+		}
+	}
+	return ModelConfigReport{}, ErrNotFound
 }

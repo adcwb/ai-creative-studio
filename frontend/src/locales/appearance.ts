@@ -1,4 +1,5 @@
 export default {
+ '制作工作台': 'Production workspace',
  '规划中': 'Planned',
  '创作灵感画廊': 'A gallery of creative possibilities', '轮播': 'carousel', '平台创作能力': 'Creative possibilities',
  '让想象，有迹可循。': 'Give imagination a form.', '从图像构思到参考编辑，把灵感留在画面里。': 'Shape a visual idea, refine it with references, and make it your own.', '图像创作与编辑': 'Image creation & editing',
@@ -9,4 +10,19 @@ export default {
  '语言与币种独立，不会修改项目内容。': 'Language is independent of currency and does not change project content.', '工作室外观': 'Studio appearance', '在不同光线与创作状态下，选择适合你的工作台。': 'Choose a workspace for your light, your focus, and your way of creating.', '选择页面主题': 'Choose a workspace theme',
  '森林工作室': 'Forest studio', '鼠尾草绿与纸白，让灵感安静生长。': 'Sage green and paper white. A quiet space for ideas to grow.', '暖纸画廊': 'Paper gallery', '暖灰、陶土与象牙白，像一本展开的作品集。': 'Warm greys, terracotta and ivory. An open portfolio on your desk.', '深色放映室': 'Screening room', '石墨与银灰，减少明亮界面对画面的干扰。': 'Graphite and silver. Let the image take the spotlight.',
  '偏好自动保存在当前浏览器，仅应用于当前账户；不会同步到其他设备。': 'Preferences are saved in this browser for this account only. They do not sync across devices.', '浏览器无法保存偏好，本次选择仅在当前页面有效。': 'Your browser cannot save preferences. This selection lasts for this page only.',
+
+"展开侧栏": "Expand sidebar",
+"收起侧栏": "Collapse sidebar",
+"页面信息": "Page information",
+"项目概览": "Project overview",
+"审片与导出": "Review and export",
+"由部署管理员为所有 API 与 worker 注入同一加密主密钥并重启；不要在此输入主密钥。": "Ask the deployment administrator to inject the same encryption master key into every API and worker and restart them. Do not enter the master key here.",
+"API Key 仅提交到服务器加密保存，不会读回明文。保存失败后请先重新读取，核对版本再决定是否重新输入。": "API keys are sent only to the server for encrypted storage and are never returned as plaintext. After a failed save, reload and verify the version before entering a key again.",
+"组织运行配置": "Organization runtime settings",
+"服务地址、模型 ID、超时、输出上限与默认音色由组织管理员管理，保存后用于新任务，无需重启。": "Organization administrators manage endpoints, model IDs, timeouts, output limits and default voices. Saved changes apply to new tasks without a restart.",
+"管理当前组织的模型网关": "Manage model gateways for this organization",
+"此区域仅对当前组织所有者和管理员开放。": "Only owners and administrators of this organization can manage these settings.",
+"部署与安全边界": "Deployment and security boundaries",
+"数据库、加密主密钥、SSO 信任、网络授权和服务监听由部署管理员配置，变更需重启相关进程。这里不读取或显示这些敏感值。": "Deployment administrators configure databases, encryption master keys, SSO trust, network grants and server listeners. Changes require restarting the relevant processes. Sensitive values are never read or displayed here.",
+"优先级：本次明确选择 → 当前组织功能绑定。历史配置仅用于兼容读取，不会静默转换协议或替换供应商。预算与审核限制始终生效。": "Priority: explicit selection for this request \u2192 current organization feature binding. Historical configurations remain readable for compatibility; protocols and providers are never silently replaced. Budget and moderation rules always apply.",
 }

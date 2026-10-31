@@ -31,16 +31,16 @@ export function AuthBrand() {
   const scene = authScenes[index]
   return <aside className="auth-brand" aria-label={t('创作灵感画廊')}>
     <img className="auth-brand-logo" src="/brand/lockup-dark.svg" width="158" height="48" alt={t('映创 Creative Studio')} />
-    <div className="auth-gallery" role="region" aria-roledescription={t('轮播')} aria-label={t('平台创作能力')} onFocusCapture={event => {if (!(event.target as HTMLElement).closest('.auth-playback')) setPaused(true)}}>
+    <div className="auth-gallery" role="region" aria-roledescription={t('轮播')} aria-label={t('平台创作能力')} data-scene={scene.id}>
       <div className="auth-scene-images" aria-hidden="true">
-        {authScenes.map((item, i) => <img key={item.id} src={`/brand/scenes/${item.id}.webp`} width="1536" height="1024" alt="" decoding="async" fetchPriority={i === 0 ? 'high' : 'low'} className={i === index ? 'is-active' : ''} onLoad={() => setReady(current => current.includes(item.id) ? current : [...current, item.id])} />)}
+        {authScenes.map((item, i) => <img key={item.id} src={`/brand/scenes/${item.id}.webp`} width="1536" height="1024" alt="" loading="eager" decoding="async" fetchPriority={i === 0 ? 'high' : 'low'} className={i === index ? 'is-active' : ''} onLoad={() => setReady(current => current.includes(item.id) ? current : [...current, item.id])} />)}
       </div>
       <div className="auth-scene-copy" aria-live={paused || reduced ? 'polite' : 'off'} aria-atomic="true">
-        <div className="auth-scene-kicker"><span>{String(index + 1).padStart(2, '0')} / 03</span><span>{t(scene.label)}</span>{scene.planned && <span className="planned-badge">{t('规划中')}</span>}</div>
+        <div className="auth-scene-kicker"><span>{t(scene.label)}</span>{scene.planned && <span className="planned-badge">{t('规划中')}</span>}</div>
         <h2>{t(scene.title)}</h2><p>{t(scene.description)}</p>
       </div>
       <div className="auth-gallery-controls">
-        <div className="auth-scene-select">{authScenes.map((item, i) => <button key={item.id} type="button" aria-label={t('查看画面：{name}', {name: t(item.label)})} aria-pressed={index === i} disabled={!ready.includes(item.id)} onClick={() => {setIndex(i); setPaused(true)}}><span />{String(i + 1).padStart(2, '0')}</button>)}</div>
+
         <button type="button" className="auth-playback" disabled={reduced} aria-label={t(reduced ? '已按系统偏好停止动画' : paused ? '播放轮播' : '暂停轮播')} onClick={() => setPaused(value => !value)}>{t(reduced ? '静态展示' : paused ? '播放' : '暂停')}</button>
       </div>
     </div>

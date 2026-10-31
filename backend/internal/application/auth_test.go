@@ -233,9 +233,9 @@ func TestAuthAuditRejectsMutationAndDoesNotLogCredentials(t *testing.T) {
 		t.Fatal("anonymous request consumed audit capacity", err)
 	}
 	secret := "synthetic-audit-api-secret"
-	body := map[string]any{"expected_version": 0, "entry": syntheticModel(), "credential": ModelCredentialInput{Action: "set", Secret: secret}}
+	body := map[string]any{"expected_version": 0, "gateway": AIGateway{Name: "Synthetic audit gateway", BaseURL: "https://gateway.example.invalid/v1", Enabled: true, TimeoutSeconds: 30}, "credential": ModelCredentialInput{Action: "set", Secret: secret}}
 	raw, _ := json.Marshal(body)
-	authRequest(t, h, "PUT", "/api/v1/model-config?space_id="+org, string(raw), token, session.CSRF, 200)
+	authRequest(t, h, "POST", "/api/v1/ai-gateways?space_id="+org, string(raw), token, session.CSRF, 200)
 	contents, err = os.ReadFile(filepath.Join(dir, "audit.jsonl"))
 	if err != nil {
 		t.Fatal(err)
