@@ -83,12 +83,24 @@ test('owner manages separate currency budgets and credential-free model declarat
   await expect(page.locator('.legacy-model-config')).toHaveCount(0)
   await page.getByRole('tab', {name:'AI 网关',exact:true}).click()
   await page.getByRole('button',{name:'添加 AI 网关',exact:true}).click()
-  await expect(page.getByLabel('新的 API Key',{exact:true})).toBeDisabled()
-  await expect(page.getByRole('button',{name:'保存网关',exact:true})).toBeDisabled()
-  await expect(page.getByText('MODEL_CONFIG_KEK_BASE64',{exact:true})).toBeVisible()
+  const secretStorage = info.config.metadata.secretStorageAvailable
+  expect(typeof secretStorage).toBe('boolean')
+  if (secretStorage) {
+    await expect(page.getByRole('combobox', {name: '凭据操作', exact: true})).toHaveValue('set')
+    await expect(page.getByLabel('新的 API Key', {exact: true})).toBeEnabled()
+    await expect(page.getByRole('button', {name: '保存网关', exact: true})).toBeDisabled()
+    await expect(page.getByText('MODEL_CONFIG_KEK_BASE64', {exact: true})).toHaveCount(0)
+  } else {
+    await expect(page.getByRole('combobox', {name: '凭据操作', exact: true})).toHaveValue('keep')
+    await expect(page.getByLabel('新的 API Key', {exact: true})).toHaveCount(0)
+    await expect(page.getByRole('option', {name: '设置 API Key', exact: true})).toHaveJSProperty('disabled', true)
+    await expect(page.getByText('MODEL_CONFIG_KEK_BASE64', {exact: true})).toBeVisible()
+  }
   await page.getByLabel('网关名称',{exact:true}).fill('Synthetic declaration gateway')
   await page.getByLabel('服务地址',{exact:true}).fill('https://gateway.example.invalid/v1')
   await page.getByRole('combobox',{name:'凭据操作',exact:true}).selectOption('keep')
+  await expect(page.getByLabel('新的 API Key', {exact: true})).toHaveCount(0)
+  await expect(page.getByRole('button', {name: '保存网关', exact: true})).toBeEnabled()
   await page.getByRole('button',{name:'保存网关',exact:true}).click()
   await expect(page.getByText('配置已保存，新任务使用最新绑定。',{exact:true})).toBeVisible()
   await page.getByRole('tab',{name:'网关模型',exact:true}).click()

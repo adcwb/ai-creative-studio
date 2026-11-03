@@ -23,10 +23,10 @@ func (s *ModelConfigStore) verifyDeploymentModelKey() error {
 	if s.failed != nil {
 		return s.failed
 	}
-	if s.aead == nil {
-		return nil
-	}
 	check := func(encoded string, aad []byte) error {
+		if s.aead == nil {
+			return errModelKey
+		}
 		raw, err := base64.StdEncoding.DecodeString(encoded)
 		if err != nil || len(raw) < s.aead.NonceSize() {
 			return errModelKey

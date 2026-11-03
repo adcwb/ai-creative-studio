@@ -40,6 +40,10 @@ func TestPatchRedactionCASAndRestore(t *testing.T) {
 	if err != nil || !saved.RestartRequired {
 		t.Fatal("save failed", err)
 	}
+	info, err := os.Stat(s.path)
+	if err != nil || info.Mode().Perm() != 0600 {
+		t.Fatal("configuration file is not private", err)
+	}
 	raw, _ := json.Marshal(saved)
 	if strings.Contains(string(raw), "synthetic:password") {
 		t.Fatal("report leaked password")

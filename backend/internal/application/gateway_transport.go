@@ -271,7 +271,8 @@ func (s *ModelConfigStore) checkGateway(ctx context.Context, tenant, id string, 
 	}
 	raw, e := io.ReadAll(io.LimitReader(res.Body, (1<<20)+1))
 	if e != nil || len(raw) > 1<<20 {
-		return nil, errRuntimeUnavailable
+		result["error_code"] = "invalid_gateway_catalog"
+		return result, nil
 	}
 	var catalog struct {
 		Data *[]struct {

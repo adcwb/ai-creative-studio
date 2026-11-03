@@ -106,7 +106,7 @@ def main():
                 call(alice, 'GET', exchange + query + '&from=USD&to=USD', exchange)
                 model_route = '/api/v1/model-config'
                 model = call(alice, 'GET', model_route + query, model_route)
-                assert model['secret_storage_available'] is False and model['live_enabled'] is False and model['runtime_applied'] is False
+                assert model['secret_storage_available'] is True and model['live_enabled'] is False and model['runtime_applied'] is False
                 call(bob, 'GET', model_route + query, model_route, status=403)
                 declaration = {'expected_version': model['version'], 'entry': {'provider': 'openai-text', 'model': 'synthetic-model-declaration', 'capability': 'text', 'region': 'global', 'enabled': False, 'is_default': False, 'lifecycle': 'active'}, 'credential': {'action': 'keep'}}
                 call(alice, 'PUT', model_route + query, model_route, declaration, aq, status=410)

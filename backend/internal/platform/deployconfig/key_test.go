@@ -19,6 +19,10 @@ func TestModelKeyPersistsAndHonorsExplicitKey(t *testing.T) {
 	if err != nil || len(first) != 32 {
 		t.Fatal("initialization failed", err)
 	}
+	info, err := os.Stat(filepath.Join(dir, "model-config.key"))
+	if err != nil || info.Mode().Perm() != 0600 {
+		t.Fatal("key file is not private", err)
+	}
 	second, err := ModelKey(dir)
 	if err != nil || !bytes.Equal(first, second) {
 		t.Fatal("key changed after restart", err)

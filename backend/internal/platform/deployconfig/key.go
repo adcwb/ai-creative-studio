@@ -69,6 +69,9 @@ func ModelKey(dir string) ([]byte, error) {
 			if err = os.Link(f.Name(), path); err != nil && !os.IsExist(err) {
 				return nil, err
 			}
+			if err = syncDirectory(filepath.Dir(path)); err != nil {
+				return nil, err
+			}
 		} else {
 			return nil, createErr
 		}

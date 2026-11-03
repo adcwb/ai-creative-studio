@@ -6,6 +6,7 @@ import { defineConfig, devices } from '@playwright/test'
 // Backend and independent worker are created and cleaned up by
 // scripts/postgres_browser_check.py against a newly created synthetic database.
 export default defineConfig({
+  metadata: {secretStorageAvailable: false},
   testDir: './e2e-auth', fullyParallel: false, workers: 1, timeout: 45000,
   use: {locale: 'zh-CN', baseURL: 'http://localhost:5175', trace: 'retain-on-failure', launchOptions: {executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH}},
   projects: [{name: 'desktop', use: {...devices['Desktop Chrome']}}, {name: 'mobile', use: {...devices['iPhone 13'], defaultBrowserType: 'chromium'}}],

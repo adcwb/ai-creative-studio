@@ -3,12 +3,16 @@ package application
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -26,6 +30,31 @@ func TestDeploymentKeyMatchesPersistedCiphertexts(t *testing.T) {
 	}
 	if err = wrong.verifyDeploymentModelKey(); !errors.Is(err, errModelKey) {
 		t.Fatal("mismatched deployment key accepted", err)
+	}
+	missing, err := OpenModelConfigStore(filepath.Dir(s.path), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = missing.verifyDeploymentModelKey(); !errors.Is(err, errModelKey) {
+		t.Fatal("missing deployment key accepted with ciphertext", err)
+	}
+}
+
+func TestGatewayWithoutKeyAllowsMetadataButRejectsCredentials(t *testing.T) {
+	s, err := OpenModelConfigStore(t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.verifyDeploymentModelKey(); err != nil {
+		t.Fatal("empty store should remain usable without credentials", err)
+	}
+	g := AIGateway{Name: "Metadata only", BaseURL: "https://synthetic.example/v1", Enabled: true, TimeoutSeconds: 30}
+	if _, err := s.saveGateway("tenant-a", 0, g, ModelCredentialInput{Action: "set", Secret: "synthetic-secret"}); !errors.Is(err, errModelKey) {
+		t.Fatal("credential stored without encryption key", err)
+	}
+	report, err := s.saveGateway("tenant-a", 0, g, ModelCredentialInput{Action: "keep"})
+	if err != nil || report.SecretStorageAvailable || len(report.Gateways) != 1 || report.Gateways[0].SecretStatus != "not_configured" {
+		t.Fatal("metadata-only mode broken", report, err)
 	}
 }
 
@@ -114,5 +143,115 @@ func TestGatewayCatalogRejectsMalformedAndPartialData(t *testing.T) {
 	report, _ := runtime.auth.models.managementReport("tenant-a")
 	if len(report.Models) != 1 {
 		t.Fatal("partial import committed")
+	}
+}
+
+func TestGatewaySyncRecordsIncompleteAndOversizeCatalogFailures(t *testing.T) {
+	for _, mode := range []string{"oversize", "incomplete"} {
+		t.Run(mode, func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if mode == "incomplete" {
+					w.Header().Set("Content-Length", "1000")
+					fmt.Fprint(w, `{"data":[{"id":"partial"}]}`)
+					return
+				}
+				fmt.Fprint(w, strings.Repeat(" ", (1<<20)+1))
+			}))
+			defer upstream.Close()
+			u, _ := url.Parse(upstream.URL)
+			t.Setenv("MODEL_GATEWAY_ALLOWED_HOSTS", u.Host)
+			runtime, g, original := gatewayFixture(t, upstream.URL+"/v1")
+			s := runtime.auth.models
+			if _, err := s.syncGatewayModels(context.Background(), "tenant-a", g.ID, g.Version); !errors.Is(err, errGatewayCatalog) {
+				t.Fatal("catalog failure not reported", err)
+			}
+			report, _ := s.managementReport("tenant-a")
+			if len(report.Models) != 1 || !reflect.DeepEqual(report.Models[0], original) || report.Gateways[0].SyncAttemptedAt == nil || report.Gateways[0].SyncError == "" {
+				t.Fatal("failure changed model or lost retry state", report)
+			}
+			reopened, err := OpenModelConfigStore(filepath.Dir(s.path), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			persisted, _ := reopened.managementReport("tenant-a")
+			if !reflect.DeepEqual(report.Gateways, persisted.Gateways) || !reflect.DeepEqual(report.Models, persisted.Models) {
+				t.Fatal("failure state not persisted")
+			}
+		})
+	}
+}
+
+func TestGatewaySyncRejectsConcurrentGatewayEdit(t *testing.T) {
+	entered, release := make(chan struct{}), make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(entered)
+		<-release
+		fmt.Fprint(w, `{"data":[{"id":"new-model"}]}`)
+	}))
+	defer upstream.Close()
+	defer close(release)
+	u, _ := url.Parse(upstream.URL)
+	t.Setenv("MODEL_GATEWAY_ALLOWED_HOSTS", u.Host)
+	runtime, g, original := gatewayFixture(t, upstream.URL+"/v1")
+	s := runtime.auth.models
+	done := make(chan error, 1)
+	go func() { _, err := s.syncGatewayModels(context.Background(), "tenant-a", g.ID, g.Version); done <- err }()
+	<-entered
+	g.Enabled = false
+	if _, err := s.saveGateway("tenant-a", g.Version, g, ModelCredentialInput{Action: "keep"}); err != nil {
+		t.Fatal(err)
+	}
+	release <- struct{}{}
+	if err := <-done; !errors.Is(err, errModelConflict) {
+		t.Fatal("stale catalog committed", err)
+	}
+	report, _ := s.managementReport("tenant-a")
+	if len(report.Models) != 1 || !reflect.DeepEqual(report.Models[0], original) || report.Gateways[0].LastSyncedAt != nil {
+		t.Fatal("stale sync mutated state")
+	}
+}
+
+func TestGatewaySyncCommitFailureLeavesSnapshotUnchanged(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `{"data":[{"id":"new-model"}]}`) }))
+	defer upstream.Close()
+	u, _ := url.Parse(upstream.URL)
+	t.Setenv("MODEL_GATEWAY_ALLOWED_HOSTS", u.Host)
+	runtime, g, _ := gatewayFixture(t, upstream.URL+"/v1")
+	s := runtime.auth.models
+	before, _ := s.managementReport("tenant-a")
+	originalPath := s.path
+	s.path = filepath.Join(t.TempDir(), "directory")
+	if err := os.Mkdir(s.path, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.syncGatewayModels(context.Background(), "tenant-a", g.ID, g.Version); err == nil {
+		t.Fatal("failed persistence reported success")
+	}
+	s.path = originalPath
+	after, _ := s.managementReport("tenant-a")
+	if !reflect.DeepEqual(before, after) {
+		t.Fatal("failed commit published partial state")
+	}
+}
+
+func TestGatewaySyncCapacityFailureDoesNotImportPartialCatalog(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ids := make([]map[string]string, 200)
+		for i := range ids {
+			ids[i] = map[string]string{"id": fmt.Sprintf("vendor/new-%d", i)}
+		}
+		json.NewEncoder(w).Encode(map[string]any{"data": ids})
+	}))
+	defer upstream.Close()
+	u, _ := url.Parse(upstream.URL)
+	t.Setenv("MODEL_GATEWAY_ALLOWED_HOSTS", u.Host)
+	runtime, g, original := gatewayFixture(t, upstream.URL+"/v1")
+	s := runtime.auth.models
+	if _, err := s.syncGatewayModels(context.Background(), "tenant-a", g.ID, g.Version); !errors.Is(err, errGatewayCapacity) {
+		t.Fatal("capacity overflow accepted", err)
+	}
+	report, _ := s.managementReport("tenant-a")
+	if len(report.Models) != 1 || !reflect.DeepEqual(report.Models[0], original) || report.Gateways[0].SyncError != "gateway_model_capacity" || report.Gateways[0].LastSyncedAt != nil {
+		t.Fatal("capacity failure imported or removed models", report)
 	}
 }

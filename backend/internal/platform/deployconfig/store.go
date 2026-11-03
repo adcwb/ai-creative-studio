@@ -267,10 +267,23 @@ func (s *Store) Save(expected string, changes map[string]*string) (Report, error
 	if err == nil {
 		err = os.Rename(name, s.path)
 	}
+	if err == nil {
+		err = syncDirectory(filepath.Dir(s.path))
+	}
 	if err != nil {
 		return Report{}, err
 	}
 	return s.report()
+}
+
+// A synced temporary file alone does not make its directory entry durable.
+func syncDirectory(path string) error {
+	dir, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	return dir.Sync()
 }
 
 func Admins() []string {

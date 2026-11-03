@@ -4,6 +4,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 export default defineConfig({
+  metadata: {secretStorageAvailable: true},
   testDir: './e2e-auth', fullyParallel: false, workers: 1, timeout: 30000,
   use: { locale: 'zh-CN', baseURL: 'http://localhost:5175', channel: process.env.PLAYWRIGHT_BROWSER_CHANNEL, trace: 'retain-on-failure', launchOptions: {executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH} },
   projects: [{name: 'desktop', use: {...devices['Desktop Chrome']}}, {name: 'mobile', use: {...devices['iPhone 13'], defaultBrowserType: 'chromium'}}],
