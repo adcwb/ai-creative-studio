@@ -52,6 +52,10 @@ func resolveModelRequest(w http.ResponseWriter, r *http.Request, repo any, in *M
 	if len(features) > 0 {
 		feature = features[0]
 	}
+	if gatewayCreation(r) && in.ModelConfigID == "" {
+		problem(w, 409, "gateway_model_required", "请配置并选择此功能的网关模型，获取报价并确认费用后再生成")
+		return false
+	}
 	if in.ModelConfigID == "" && in.ModelConfigVersion == 0 && in.Voice == "" && in.BudgetCurrency == "" && in.BudgetMaximumMinor == 0 && in.QuoteRequestDigest == "" {
 		if s, ok := repo.(*FileStore); ok && s.runtime != nil && feature != "" {
 			if scope, ok := r.Context().Value(authScopeKey{}).(authScope); ok {
@@ -84,6 +88,10 @@ func resolveModelRequest(w http.ResponseWriter, r *http.Request, repo any, in *M
 		} else {
 			problem(w, 409, "model_config_conflict", "模型配置不可用，请刷新后选择")
 		}
+		return false
+	}
+	if gatewayCreation(r) && selection.GatewayID == "" {
+		problem(w, 409, "gateway_model_required", "此创作入口需要已绑定的网关模型，不支持本地或演示生成")
 		return false
 	}
 	if selection.Version != in.ModelConfigVersion {

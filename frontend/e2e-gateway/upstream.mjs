@@ -1,10 +1,29 @@
 import http from 'node:http'
-let calls=0
-http.createServer((req,res)=>{
+import {Buffer} from 'node:buffer'
+import {deflateSync} from 'node:zlib'
+let calls = 0
+const requests = []
+function png() {
+ const chunk=(name,data)=>{const tag=Buffer.from(name), payload=Buffer.concat([tag,data]);let crc=0xffffffff;for(const b of payload){crc^=b;for(let i=0;i<8;i++)crc=(crc>>>1)^((crc&1)?0xedb88320:0)}const result=Buffer.alloc(data.length+12);result.writeUInt32BE(data.length);payload.copy(result,4);result.writeUInt32BE((crc^0xffffffff)>>>0,result.length-4);return result}
+ const header=Buffer.alloc(13);header.writeUInt32BE(64);header.writeUInt32BE(64,4);header[8]=8;header[9]=2
+ return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('IDAT',deflateSync(Buffer.alloc(64*(64*3+1),0))),chunk('IEND',Buffer.alloc(0))]).toString('base64')
+}
+http.createServer(async (req,res)=>{
  res.setHeader('Content-Type','application/json')
  if(req.url==='/__health'){res.end('{}');return}
- if(req.url==='/__state'){res.end(JSON.stringify({calls}));return}
+ if(req.url==='/__state'){res.end(JSON.stringify({calls,requests}));return}
  calls++
- if(req.url==='/v1/models' && ['Bearer synthetic-key-A','Bearer synthetic-key-B'].includes(req.headers.authorization)) {res.end(JSON.stringify({data:[{id:'synthetic-model'}]}));return}
- res.writeHead(401);res.end(JSON.stringify({error:'Synthetic authentication rejected'}))
+ if(!['Bearer synthetic-key-A','Bearer synthetic-key-B'].includes(req.headers.authorization)){res.writeHead(401);res.end(JSON.stringify({error:'Synthetic authentication rejected'}));return}
+ if(req.url==='/v1/models'){res.end(JSON.stringify({data:[{id:'synthetic-model'}]}));return}
+ let raw='';for await(const part of req)raw+=part
+ const body=JSON.parse(raw||'{}')
+ requests.push({path:req.url,body})
+ if(body.model==='synthetic-reject'){res.writeHead(429);res.end(JSON.stringify({error:'Synthetic upstream refusal'}));return}
+ if(req.url==='/v1/images/generations' && body.model==='synthetic-image') {res.end(JSON.stringify({data:[{b64_json:png()}]}));return}
+ if(req.url==='/v1/chat/completions' && body.model==='synthetic-text') {
+  const instruction=body.messages?.[0]?.content??''
+  const content=instruction.includes('"shots"') ? {shots:[{id:'synthetic-shot',scene_index:1,description:'本地协议验收画面，非真实模型生成。',shot_size:'medium',camera_movement:'static',duration_seconds:4,dialogue:''}]} : instruction.includes('"scenes"') ? {title:'本地协议验收剧本',logline:'这是一份验证真实网关链路的本地合成测试结果。',characters:[{name:'甲',description:'本地合成角色甲。'},{name:'乙',description:'本地合成角色乙。'}],scenes:[1,2,3].map(i=>({heading:`本地测试场次${i}`,action:'本地合成场景动作，仅作协议验收。',dialogue:[{character:'甲',text:'这是本地测试对白。'},{character:'乙',text:'不调用真实供应商。'}]}))} : {summary:'本地协议验收分析。',questions:[],suggestions:[]}
+  res.end(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(content)}}],usage:{prompt_tokens:20,completion_tokens:30}}));return
+ }
+ res.writeHead(400);res.end(JSON.stringify({error:'Unsupported synthetic protocol request'}))
 }).listen(5193,'127.0.0.1')

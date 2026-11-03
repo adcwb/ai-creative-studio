@@ -85,6 +85,10 @@ func registerRuntimeQuote(mux *http.ServeMux, s *FileStore) {
 			problem(w, 409, "model_config_conflict", "模型配置不可用或已更新，请重新选择")
 			return
 		}
+		if gatewayCreation(r) && selection.GatewayID == "" {
+			problem(w, 409, "gateway_model_required", "此创作入口需要已绑定的网关模型，不支持本地或演示生成")
+			return
+		}
 		if (capability == "speech" && !configToken.MatchString(in.Voice)) || (capability != "speech" && in.Voice != "") {
 			problem(w, 400, "invalid_input", "声音标识无效")
 			return

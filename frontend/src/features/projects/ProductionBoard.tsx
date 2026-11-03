@@ -1,3 +1,4 @@
+import {creationPath, creationReady, gatewayCreationRequired} from '../../creationGateway'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, baseURL, errorMessage, request } from '../../api'
@@ -65,11 +66,12 @@ export function ProductionBoard({project, space, onDirtyChange, disabled = false
   const advanced = references.length>0 || !!firstFrame || !!lastFrame || !!motion
   const creativeInput = {kind, expected_version: project.version, prompt: prompt.trim(), shot_id: shot, character, ...(references.length ? {reference_asset_ids: references} : {}), ...(firstFrame ? {first_frame_asset_id: firstFrame} : {}), ...(lastFrame ? {last_frame_asset_id: lastFrame} : {}), ...(motion ? {motion_reference_asset_id: motion} : {}), ...(kind === 'consistency' ? {comparison_asset_id: comparison} : {}), ...(kind === 'lip_sync' ? {audio_asset_id: audio} : {}), ...(reference ? {reference_asset_id: reference} : {}), ...(kind === 'image' && mask ? {mask_asset_id: mask} : {})}
   const preview = {operation: 'creative' as const, project_id: project.id, input: creativeInput}
-  const cap: Capability | undefined = choice ? {provider: choice.model.provider, model: choice.model.model, mode: 'real', ready: runtimeReady(choice, preview)} : caps[kind]
+  const requiresGateway = gatewayCreationRequired && ['image', 'video', 'speech', 'vision', 'consistency'].includes(kind)
+  const cap: Capability | undefined = choice ? {provider: choice.model.provider, model: choice.model.model, mode: 'real', ready: requiresGateway ? creationReady(choice, preview) : runtimeReady(choice, preview)} : requiresGateway ? undefined : caps[kind]
   const provider = cap?.provider ?? '', model = cap?.model ?? ''
   const controlsCurrent = controls?.key === `${provider}:${model}:${kind}` ? controls : null
   const controlsValid = !advanced || (!!controlsCurrent && references.length<=controlsCurrent.max_references && (!firstFrame || controlsCurrent.frames) && (!lastFrame || (!!firstFrame && controlsCurrent.frames)) && (!motion || controlsCurrent.motion_reference) && !reference && !mask)
-  const canGenerate = controlsValid && !!cap?.ready && runtimeReady(choice, preview) && prompt.trim().length >= 3 && (!mask || !!reference) && (!['vision', 'consistency', 'lip_sync'].includes(kind) || !!reference) && (kind !== 'consistency' || (!!comparison && comparison !== reference)) && (kind !== 'lip_sync' || !!audio)
+  const canGenerate = controlsValid && !!cap?.ready && (requiresGateway ? creationReady(choice, preview) : runtimeReady(choice, preview)) && prompt.trim().length >= 3 && (!mask || !!reference) && (!['vision', 'consistency', 'lip_sync'].includes(kind) || !!reference) && (kind !== 'consistency' || (!!comparison && comparison !== reference)) && (kind !== 'lip_sync' || !!audio)
   useEffect(() => {
     const controller = new AbortController()
     const params = new URLSearchParams({space_id: space, provider, model, kind})
@@ -93,6 +95,10 @@ export function ProductionBoard({project, space, onDirtyChange, disabled = false
   useEffect(() => {onDirtyChange(busy || uncertain || !!prompt.trim() || !!note.trim() || maskOpen || advanced); return () => onDirtyChange(false)}, [busy, uncertain, prompt, note, maskOpen, advanced, onDirtyChange])
   async function execute(attempt: Attempt) {
     if (flight.current) return
+    // Old persisted synthetic attempts must not create new mock work after an upgrade.
+    if (gatewayCreationRequired && attempt.purpose === 'generate' && typeof attempt.body === 'string') {
+      try {if (['image', 'video', 'speech', 'vision', 'consistency'].includes(JSON.parse(attempt.body).kind)) attempt = {...attempt, path: creationPath(attempt.path)}} catch { /* The server rejects invalid payloads. */ }
+    }
     pending.current = attempt
     if (typeof attempt.body === 'string') try {sessionStorage.setItem(storageKey, JSON.stringify(attempt))} catch { /* In-memory idempotency still applies. */ }
     flight.current = true; setBusy(true); setError(''); setNotice('')
@@ -106,7 +112,7 @@ export function ProductionBoard({project, space, onDirtyChange, disabled = false
         if (attempt.purpose === 'mask') setMask(result.uploaded_asset_id ?? '')
         if (attempt.purpose === 'upload') {const asset = result.assets.find(a => a.id === result.uploaded_asset_id); if (asset) {setFocus(asset.id); if (asset.kind === 'image') setReference(asset.id)}}
       }
-      if (attempt.purpose === 'generate') setPrompt('')
+      if (attempt.purpose === 'generate') {setPrompt(''); if (gatewayCreationRequired) setChoice(current => current ? {...current, confirmed: false, quoteReady: false} : null)}
       if (attempt.purpose === 'review' || attempt.purpose === 'select') setNote('')
       setNotice(t(attempt.purpose === 'select' ? '已采用此版本，剪辑保持不变。' : '操作已保存。'))
       await load()
@@ -118,8 +124,8 @@ export function ProductionBoard({project, space, onDirtyChange, disabled = false
     } finally {flight.current = false; if (alive.current) setBusy(false)}
   }
   function mutate(suffix: string, data: unknown, purpose: string) {
-    if (locked) return
-    void execute({path: `${path}${suffix}?${query}`, body: JSON.stringify(data), mime: 'application/json', key: crypto.randomUUID(), purpose})
+    if (locked || purpose === 'generate' && !canGenerate) return
+    void execute({path: purpose === 'generate' && requiresGateway ? creationPath(`${path}${suffix}?${query}`) : `${path}${suffix}?${query}`, body: JSON.stringify(data), mime: 'application/json', key: crypto.randomUUID(), purpose})
   }
   function upload(file: Blob, name: string, purpose = 'upload') {
     if (locked) return
@@ -160,7 +166,7 @@ export function ProductionBoard({project, space, onDirtyChange, disabled = false
       </details>}
       {referenceAsset && <div className="reference-thumbnail">{renderAsset(referenceAsset)}{kind === 'image' && <button type="button" onClick={() => setMaskOpen(true)}>{t('圈选修改区域')}</button>}{mask && <button type="button" onClick={() => setMask('')}>{t('清除修改区域')}</button>}</div>}
       <label>{t('创作或修改要求')}<textarea value={prompt} maxLength={2000} onChange={e => setPrompt(e.target.value)} placeholder={t('描述需要保留的内容，以及本次要改变的部分。')} /></label>
-    </fieldset><details className="production-model"><summary>{t('生成模型与费用')}</summary><RuntimeModelPicker space={space} capability={kind === 'consistency' ? 'vision' : kind} preview={preview} value={choice} onChange={setChoice} disabled={locked} /></details>
+    </fieldset><details className="production-model" open={requiresGateway || undefined}><summary>{t('生成模型与费用')}</summary><RuntimeModelPicker gatewayOnly={requiresGateway} space={space} capability={kind === 'consistency' ? 'vision' : kind} preview={preview} value={choice} onChange={setChoice} disabled={locked} /></details>
     <button className="primary" disabled={locked || !canGenerate} onClick={() => mutate('/creative-jobs', {...creativeInput, ...runtimeFields(choice), expected_provider: cap?.provider, expected_model: cap?.model ?? ''}, 'generate')}>{t(kind === 'vision' ? '图片创作分析' : kind === 'consistency' ? '跨镜头外观检查' : kind === 'lip_sync' ? '口型同步' : reference ? '生成修改版本' : '生成候选')}</button>
     {cap?.ready && <p className="drama-help">{t(cap.mode === 'mock' ? '当前为本地合成演示，不是AI生成。' : '已接入生成服务，提交可能产生模型费用。')}</p>}
     {!cap?.ready && <p className="drama-help">{t('生成能力尚未就绪，可以先上传、比较和整理素材。')}</p>}

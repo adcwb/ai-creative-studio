@@ -18,11 +18,25 @@ with warnings.catch_warnings():
     warnings.simplefilter('ignore', DeprecationWarning)
     from jsonschema import RefResolver
 from openapi_schema_validator import OAS30Validator
+from jsonschema.exceptions import ValidationError
 ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     spec = json.loads((ROOT / 'api/openapi.json').read_text())
     resolver = RefResolver.from_schema(spec)
+    consent = dict(model_config_id='synthetic-config-id', model_config_version=1, budget_currency='USD', budget_maximum_minor=10, quote_request_sha256='a'*64)
+    for name, business in [('GatewayCreateTask', dict(prompt='Synthetic gateway request', kind='general')), ('GatewayGenerateScript', dict(expected_version=1)), ('GatewayCreativeJobInput', dict(expected_version=1, kind='image', prompt='Synthetic gateway request'))]:
+        validator = OAS30Validator(spec['components']['schemas'][name], resolver=resolver)
+        validator.validate({**business, **consent})
+        for field in consent:
+            invalid = {**business, **consent}
+            del invalid[field]
+            try:
+                validator.validate(invalid)
+            except ValidationError:
+                pass
+            else:
+                raise AssertionError((name, field, 'gateway request must require model and cost consent'))
     count = 0
     with tempfile.TemporaryDirectory(prefix='studio-secure-contract-') as folder:
         root = Path(folder)
@@ -122,6 +136,20 @@ def main():
                 assert call(alice, 'GET', management + query, management)['gateways'] == []
                 gateway_payload = {'expected_version': 0, 'gateway': {'name': 'Synthetic contract gateway', 'base_url': 'https://gateway.example.invalid/v1', 'enabled': True, 'timeout_seconds': 30}, 'credential': {'action': 'keep'}}
                 call(alice, 'POST', gateways + query, gateways, gateway_payload, status=403)
+                # Product routes must never use the legacy mock providers when a selection is absent.
+                for route, target, payload in [
+                    ('/api/v1/gateway-tasks', '/api/v1/gateway-tasks', dict(prompt='Synthetic no fallback', kind='general')),
+                    ('/api/v1/gateway-tasks/{id}/retry', '/api/v1/gateway-tasks/missing/retry', dict(prompt='Synthetic no fallback', kind='general')),
+                    ('/api/v1/projects/{id}/gateway-generations', '/api/v1/projects/missing/gateway-generations', dict(expected_version=1)),
+                    ('/api/v1/projects/{id}/gateway-storyboard-generations', '/api/v1/projects/missing/gateway-storyboard-generations', dict(expected_version=1)),
+                    ('/api/v1/projects/{id}/gateway-analysis', '/api/v1/projects/missing/gateway-analysis', dict(expected_version=1)),
+                    ('/api/v1/projects/{id}/gateway-creative-jobs', '/api/v1/projects/missing/gateway-creative-jobs', dict(expected_version=1, kind='image', prompt='Synthetic no fallback')),
+                ]:
+                    denied = call(alice, 'POST', target + query, route, payload, aq, status=409)
+                    assert denied['error']['code'] == 'gateway_model_required'
+                strict = '/api/v1/gateway-tasks'
+                call(anonymous, 'POST', strict + query, strict, dict(prompt='Synthetic no fallback', kind='general'), status=401)
+                call(alice, 'POST', strict + query, strict, dict(prompt='Synthetic no fallback', kind='general'), status=403)
                 configured = call(alice, 'POST', gateways + query, gateways, gateway_payload, aq)
                 gateway = configured['gateways'][0]
                 assert gateway['secret_status'] == 'not_configured'

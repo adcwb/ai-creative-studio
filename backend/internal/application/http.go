@@ -15,6 +15,7 @@ var keyPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{8,128}$`)
 
 func Handler(repo Repository, origin string) http.Handler {
 	mux := http.NewServeMux()
+	registerGatewayCreation(mux)
 	mux.HandleFunc("GET /api/v1/auth/session", func(w http.ResponseWriter, r *http.Request) {
 		respond(w, 200, map[string]any{"mode": "demo", "authenticated": false, "registration_enabled": false, "sso_available": false})
 	})

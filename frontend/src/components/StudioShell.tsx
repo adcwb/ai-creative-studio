@@ -1,3 +1,4 @@
+import {gatewayCreationRequired} from '../creationGateway'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import type { Capabilities, Space } from '../api'
@@ -14,6 +15,7 @@ export function StudioShell({spaces, space, capability, capabilityError, onSpace
 }) {
   const {t} = useI18n()
   const location = useLocation()
+  const gatewayPage = gatewayCreationRequired && (location.pathname.startsWith('/studio') || location.pathname.startsWith('/projects'))
   const {navigation, setNavigation} = usePreferences()
   const collapsed = navigation.collapsed
   const toggleGroup = (key: string) => setNavigation({...navigation, groups: {...navigation.groups, [key]: navigation.groups[key] === false}})
@@ -62,6 +64,6 @@ export function StudioShell({spaces, space, capability, capabilityError, onSpace
         <div className="sidebar-account"><div className="account-profile"><span className="avatar">{session.user?.email?.slice(0, 1).toUpperCase() ?? t('映')}</span><div><strong title={session.user?.email}>{session.mode === 'demo' ? t('演示工作空间') : session.user?.email}</strong><small>{session.mode === 'demo' ? t('模拟模式') : t(roles[activeSpace?.role ?? ''] ?? '未选择')}</small></div></div>{session.mode === 'secure' ? <button type="button" className="account-signout" title={t('退出登录')} onClick={onLogout}>{t('退出登录')}</button> : <p className="demo-description">{t('无生产认证 · 空间不构成权限隔离')}</p>}</div>
       </div>
     </aside>
-    <main id="workspace"><header className="topbar workspace-page-header" aria-label={t('页面信息')}><div className="topbar-location"><button ref={menuRef} type="button" className="menu-toggle" aria-label={t('打开导航')} aria-controls="app-navigation" aria-expanded={open} onClick={() => setOpen(true)}><Icon name="menu" /></button><div className="workspace-page-context"><strong>{t(title)}</strong><span>{activeSpace?.name ?? t('没有可用组织')} · {session.mode === 'demo' ? t('模拟模式') : t(roles[activeSpace?.role ?? ''] ?? '未选择')}</span></div></div><span className={`provider-badge ${!capability?.ready ? 'provider-unavailable' : ''}`}><span />{capabilityLabel(capability, capabilityError)}</span></header><div id="page-content" tabIndex={-1} className="page-content">{children}</div></main>
+    <main id="workspace"><header className="topbar workspace-page-header" aria-label={t('页面信息')}><div className="topbar-location"><button ref={menuRef} type="button" className="menu-toggle" aria-label={t('打开导航')} aria-controls="app-navigation" aria-expanded={open} onClick={() => setOpen(true)}><Icon name="menu" /></button><div className="workspace-page-context"><strong>{t(title)}</strong><span>{activeSpace?.name ?? t('没有可用组织')} · {session.mode === 'demo' ? t('模拟模式') : t(roles[activeSpace?.role ?? ''] ?? '未选择')}</span></div></div><span className={`provider-badge ${!gatewayPage && !capability?.ready ? 'provider-unavailable' : ''}`}>{!gatewayPage && <span />}{gatewayPage ? t('网关模型创作') : capabilityLabel(capability, capabilityError)}</span></header><div id="page-content" tabIndex={-1} className="page-content">{children}</div></main>
   </div>
 }

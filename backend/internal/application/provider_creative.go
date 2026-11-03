@@ -69,6 +69,24 @@ func creativeFailure(err error) (string, string) {
 	}
 	return code, "创作服务执行未完成（" + code + "）；旧稿保留，远端结果或费用可能不确定，未自动重试。"
 }
+
+// Managed generations can fail before dispatch or during output review. Keep
+// their errors separate from the mock providers, including normalization errors
+// at persistence time, and never expose an upstream response or credential.
+func managedGenerationFailure(err error) (string, string) {
+	if errors.Is(err, ErrExecutionGovernance) {
+		return "execution_governance_denied", "生成因安全审核或执行治理未通过而停止；请检查审核配置、预算和执行记录。旧稿保留，未自动重试。"
+	}
+	if errors.Is(err, errRuntimeDenied) {
+		return "model_runtime_denied", "模型执行权限或配置已失效；请检查网关模型与功能绑定。旧稿保留，未自动重试。"
+	}
+	var scriptError *ScriptError
+	var storyboardError *StoryboardError
+	if errors.As(err, &scriptError) && scriptError.Code == "invalid_script_output" || errors.As(err, &storyboardError) && storyboardError.Code == "invalid_storyboard_output" {
+		return "invalid_provider_output", "网关模型返回的结构无效，未替换已保存的内容；请检查模型的结构化输出能力。"
+	}
+	return creativeFailure(err)
+}
 func (p *OpenAICreativeProvider) request(ctx context.Context, method, path string, body any, max int) ([]byte, error) {
 	var data []byte
 	var err error

@@ -1,3 +1,4 @@
+import {creationPath} from '../creationGateway'
 import { translate } from '../i18n'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, errorMessage, request, type Asset, type Capabilities, type Catalog, type Task, type TaskInput } from '../api'
@@ -69,7 +70,7 @@ export function useWorkspace(space: string) {
 
   function submission(input: TaskInput, retryOf?: string) {
     const body = JSON.stringify({...input, prompt: input.prompt.trim()})
-    const path = retryOf ? `/tasks/${encodeURIComponent(retryOf)}/retry${query}` : `/tasks${query}`
+    const path = creationPath(retryOf ? `/tasks/${encodeURIComponent(retryOf)}/retry${query}` : `/tasks${query}`)
     const fingerprint = `${path}:${body}`
     return {body, path, fingerprint}
   }

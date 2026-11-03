@@ -1,4 +1,15 @@
 const models: Record<string, string> = {
+ "还没有媒体。上传素材，或在镜头制作中使用网关模型生成。": "No media yet. Upload assets or use gateway models in Shot production.",
+ "网关模型创作": "Gateway model creation",
+ "真实网关创作需要登录组织账户，请切换到安全登录模式。": "Gateway creation requires an organization account. Switch to secure sign-in mode.",
+ "此功能尚未绑定网关模型，请联系组织管理员配置。": "No gateway model is bound to this feature. Ask an organization administrator to configure it.",
+ "请配置并选择此功能的网关模型，获取报价并确认费用后再生成": "Configure and select a gateway model for this feature, then obtain a quote and confirm the cost before generating.",
+ "此创作入口需要已绑定的网关模型，不支持本地或演示生成": "This creation workflow requires a bound gateway model. Local or demo generation is not supported.",
+ "剧本已保存。选择网关模型生成分镜后，可以逐镜编辑并保存。": "The script is saved. Select a gateway model to generate a storyboard, then edit and save each shot.",
+ "保存项目简报后，选择网关模型生成剧本。你也可以手工编辑场景与对白。": "Save the project brief, then select a gateway model to generate the script. You can also write scenes and dialogue manually.",
+ "新的分镜生成成功后，会替换当前已保存的分镜计划；旧计划可在版本历史中恢复。生成失败时，当前计划保持不变。": "A successful storyboard generation replaces the saved plan. Earlier versions remain available in history. A failed generation keeps the current plan.",
+ "新的剧本生成成功后，会替换当前已保存的剧本；旧稿可在版本历史中恢复。生成失败时，当前稿保持不变；成功后已有分镜会标记为过期。": "A successful script generation replaces the saved script. Earlier versions remain available in history. Failure keeps the current script; success marks an existing storyboard as stale.",
+
  '后端全局配置由部署管理员维护，变更后重启相关进程生效。主密钥与管理员权限仍由部署环境管理。': 'Deployment administrators manage global backend configuration. Restart the affected processes after saving. Master keys and administrator access remain managed by the deployment environment.',
  '后端全局配置需要部署管理员权限，请在部署环境的 STUDIO_ADMIN_EMAILS 中配置登录邮箱后重启。': 'Global backend settings require deployment administrator access. Add your login email to STUDIO_ADMIN_EMAILS in the deployment environment and restart.',
  "同步模型": "Sync models",

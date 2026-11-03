@@ -59,7 +59,7 @@ try {
   async function terminal(id, status) { let task; await expect.poll(async () => { task = await call(`/tasks/${id}?space_id=personal-demo`); return task.status }, {timeout:10000}).toBe(status); return task }
   await boot('mock')
   const old = await call('/tasks?space_id=personal-demo', {...input,prompt:'历史模拟 SVG，非 AI 生成'}, 'old-mock',202); await terminal(old.id,'succeeded'); await call('/assets?space_id=personal-demo',{task_id:old.id},null,200)
-  const frontend = start('npm',['run','dev','--','--port',String(webPort),'--strictPort'],join(repo,'frontend'),{PATH: process.env.PATH,VITE_API_BASE_URL:api}); await ready(origin,frontend)
+  const frontend = start('npm',['run','dev','--','--mode','legacy-fixtures','--port',String(webPort),'--strictPort'],join(repo,'frontend'),{PATH: process.env.PATH,VITE_API_BASE_URL:api}); await ready(origin,frontend)
   browser = await chromium.launch({channel: process.env.PLAYWRIGHT_BROWSER_CHANNEL,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH})
   const page = await browser.newPage({locale:'zh-CN',viewport:{width:1440,height:1100}}); const errors = []; page.on('pageerror', e => errors.push(e.message))
   await page.goto(origin); await expect(page.locator('.template-card')).toHaveCount(3); await expect(page.locator('.provider-mock')).toContainText('模拟')

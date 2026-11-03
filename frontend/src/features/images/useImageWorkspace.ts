@@ -1,17 +1,16 @@
+import {creationCapability, gatewayCreationRequired} from '../../creationGateway'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
-import type { Capabilities, Task, TaskInput, Template } from '../../api'
+import type { Task, TaskInput, Template } from '../../api'
 import { useAppWorkspace } from '../../app/workspace'
 import { useWorkspace } from '../../hooks/useWorkspace'
-import { useI18n } from '../../i18n'
-import { runtimeFields, runtimeReady, type RuntimeChoice } from '../../runtimeSelection'
+import { runtimeFields, type RuntimeChoice } from '../../runtimeSelection'
 
 const blankDraft: TaskInput = {prompt: '', kind: 'poster', ratio: '4:5', style: 'natural'}
 
 export function useImageController() {
   const {space: selectedSpace, capability, capabilityError, refreshCapability, setImageDirty} = useAppWorkspace()
   const space = selectedSpace?.id ?? ''
-  const {t} = useI18n()
   const navigate = useNavigate()
   const studio = useWorkspace(space)
   const [runtimeChoice, setRuntimeChoice] = useState<RuntimeChoice | null>(null)
@@ -20,7 +19,7 @@ export function useImageController() {
   const [detailId, setDetailId] = useState<string | null>(null)
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const preview = {operation: 'image' as const, input: {...draft, prompt: draft.prompt.trim()}}
-  const effectiveCapability = runtimeChoice ? {provider: runtimeChoice.model.provider as Capabilities['provider'], model: runtimeChoice.model.model, mode: 'real' as const, ready: runtimeReady(runtimeChoice, preview), message: t('模型调用可能计费。取消、超时或结果未知不代表免费；费用按原币种预留，不自动兑换或重试。')} : capability
+  const effectiveCapability = creationCapability(runtimeChoice, preview, capability)
   const savedIds = new Set(studio.assets.map(asset => asset.task_id))
   const running = studio.tasks.filter(task => task.status === 'queued' || task.status === 'running').length
   const busy = studio.busy || Boolean(studio.saving)
@@ -48,6 +47,7 @@ export function useImageController() {
     if (!effectiveCapability?.ready || effectiveCapability.mode === 'unavailable') return
     const outcome = await studio.create({...draft, ...runtimeFields(runtimeChoice)}, effectiveCapability, editing?.task.id)
     if (outcome === 'provider_changed') refreshCapability()
+    if (outcome === 'created' && gatewayCreationRequired) setRuntimeChoice(current => current ? {...current, confirmed: false, quoteReady: false} : null)
     if (outcome === 'created' && editing) {setEditing(null); setDraft(blankDraft)}
   }
   return {space, capability, capabilityError, refreshCapability, studio, runtimeChoice, setRuntimeChoice, draft, setDraft, editing, detailId, setDetailId, promptRef, preview, effectiveCapability, savedIds, running, chooseTemplate, editTask, cancelEdit, startNew, openDetail, submitDraft}

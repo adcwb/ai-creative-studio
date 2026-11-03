@@ -1,10 +1,11 @@
+import {creationReady, gatewayCreationRequired} from '../../creationGateway'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { translate, useI18n } from '../../i18n'
 import { request } from '../../api'
 import { projectDraftError } from '../../drama'
 import { useDramaProject } from '../../hooks/useDramaProject'
-import { runtimeReady, type RuntimeChoice } from '../../runtimeSelection'
+import { type RuntimeChoice } from '../../runtimeSelection'
 
 function ignoreProjectUpdate() {}
 
@@ -24,8 +25,8 @@ export function useProjectEditor({space, id, onDirtyChange, requestLeave}: {
   const editor = useDramaProject(space, id, ignoreProjectUpdate, creative?.provider, creative?.model, runtimeChoice, storyboardChoice)
   const scriptPreview = {operation: 'script' as const, project_id: id ?? '', input: {expected_version: editor.baseline?.version}}
   const storyboardPreview = {operation: 'storyboard' as const, project_id: id ?? '', input: {expected_version: editor.baseline?.version}}
-  const effectiveCreative = runtimeChoice ? {provider: runtimeChoice.model.provider, model: runtimeChoice.model.model, mode: 'real', ready: runtimeReady(runtimeChoice, scriptPreview)} : creative
-  const effectiveStoryboard = storyboardChoice ? {mode: 'real', ready: runtimeReady(storyboardChoice, storyboardPreview)} : creative
+  const effectiveCreative = runtimeChoice ? {provider: runtimeChoice.model.provider, model: runtimeChoice.model.model, mode: 'real', ready: creationReady(runtimeChoice, scriptPreview)} : gatewayCreationRequired ? {provider: 'unavailable', mode: 'real', ready: false} : creative
+  const effectiveStoryboard = storyboardChoice ? {mode: 'real', ready: creationReady(storyboardChoice, storyboardPreview)} : gatewayCreationRequired ? {provider: 'unavailable', mode: 'real', ready: false} : creative
   const allDirty = editor.dirty || mediaDirty || toolsDirty
   const [confirmGenerate, setConfirmGenerate] = useState(false)
   const [confirmStoryboard, setConfirmStoryboard] = useState(false)

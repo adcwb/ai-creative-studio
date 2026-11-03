@@ -15933,6 +15933,1058 @@
           }
         }
       }
+    },
+    "/api/v1/gateway-tasks": {
+      "post": {
+        "operationId": "gateway_createTask",
+        "summary": "创建已选择网关模型的图像任务（不允许模拟回退）",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "按空间持久化的业务提交键，普通创建与重试共享命名空间。网络重发同一提交沿用原键；该键不表示上游图像生成具备 exactly-once 或不会重复计费。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "同空间、同键、同归一化输入和同直接父任务的幂等重放；返回原任务及原 provider/model 的当前状态，不创建新任务或重新调用上游，即使当前配置已改变或不可用。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "新任务及当前 provider/model 绑定已持久化并入队；后续由 Eino 执行，不代表图像生成成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "space_id、Idempotency-Key、输入枚举/长度、JSON 无效，或 ratio/style 显式为 null/非字符串。 expected_provider/expected_model 必须同时省略或构成有效字符串对。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Gateway selection required, model/version conflict, or an invalid exact request quote. No fallback work is created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 不支持",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；客户端保留同一幂等键重发，以避免请求结果不确定时重复创建。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "新的有效提交无法被接受，因为当前 provider 本地配置不可用；不创建任务、不调用上游、不静默回退。已接受请求的精确幂等重放不受此检查阻挡。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatewayCreateTask"
+              }
+            }
+          },
+          "description": "One application/json object. Use saved gateway model configuration IDs, not an upstream model name, endpoint or credential."
+        },
+        "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, an enabled feature binding, and the current model configuration version. Never falls back to a local, legacy or mock provider. Generation requires an exact request quote from gateway-runtime-quote and explicit original-currency cost consent. Existing idempotency, permission, moderation and worker safeguards apply; errors never trigger a retry through a legacy route."
+      }
+    },
+    "/api/v1/gateway-tasks/{id}/retry": {
+      "post": {
+        "operationId": "gateway_retryTask",
+        "summary": "使用已选择网关模型显式重试失败的图像任务",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "按空间持久化的业务提交键，普通创建与重试共享命名空间。网络重发同一提交沿用原键；该键不表示上游图像生成具备 exactly-once 或不会重复计费。"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间内状态为 failed 的直接父任务 ID。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "同空间、同键、同归一化输入和同直接父任务的幂等重放；返回原任务及原 provider/model 的当前状态，不创建新任务或重新调用上游，即使当前配置已改变或不可用。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "新任务及当前 provider/model 绑定已持久化并入队；后续由 Eino 执行，不代表图像生成成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "space_id、Idempotency-Key、输入枚举/长度、JSON 无效，或 ratio/style 显式为 null/非字符串。 expected_provider/expected_model 必须同时省略或构成有效字符串对。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Gateway selection required, model/version conflict, or an invalid exact request quote. No fallback work is created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 不支持",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；客户端保留同一幂等键重发，以避免请求结果不确定时重复创建。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "父任务不存在或不属于当前空间。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "新的有效提交无法被接受，因为当前 provider 本地配置不可用；不创建任务、不调用上游、不静默回退。已接受请求的精确幂等重放不受此检查阻挡。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatewayCreateTask"
+              }
+            }
+          },
+          "description": "One application/json object. Use saved gateway model configuration IDs, not an upstream model name, endpoint or credential."
+        },
+        "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, an enabled feature binding, and the current model configuration version. Never falls back to a local, legacy or mock provider. Generation requires an exact request quote from gateway-runtime-quote and explicit original-currency cost consent. Existing idempotency, permission, moderation and worker safeguards apply; errors never trigger a retry through a legacy route."
+      }
+    },
+    "/api/v1/gateway-runtime-quote": {
+      "post": {
+        "operationId": "gateway_quoteRuntimeRequest",
+        "summary": "获取当前网关请求的费用上限（不调用生成模型）",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeQuoteInput"
+              }
+            }
+          },
+          "description": "One application/json object. Use saved gateway model configuration IDs, not an upstream model name, endpoint or credential."
+        },
+        "responses": {
+          "200": {
+            "description": "Current request quote; submission must carry its digest and explicit original-currency limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeRequestQuote"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request input."
+          },
+          "403": {
+            "description": "Execution role required."
+          },
+          "409": {
+            "description": "Gateway selection required, model/version conflict, or an invalid exact request quote. No fallback work is created."
+          },
+          "503": {
+            "description": "Governance unavailable."
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Requires the authenticated organization scope, a saved gateway model of the matching capability and an enabled feature binding. Returns an exact request-bound quote without calling a generation provider. Business input excludes model selection, credentials and cost consent. A later generation request must separately confirm this quote; no local/mock fallback is supported."
+      }
+    },
+    "/api/v1/projects/{id}/gateway-generations": {
+      "post": {
+        "operationId": "gateway_generateScript",
+        "summary": "使用 text 网关模型生成结构化剧本",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "所有项目写操作在同一空间共享项目域命名空间，与图像任务键独立。指纹含操作、目标项目和规范化完整请求（含 expected_version）。同一提交网络重试必须保留键和 body；同键不同操作/目标/body 返回 idempotency_conflict。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "One application/json object. Use saved gateway model configuration IDs, not an upstream model name, endpoint or credential.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatewayGenerateScript"
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Gateway selection required, model/version conflict, or an invalid exact request quote. No fallback work is created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "精确幂等重放返回原尝试当前状态，不创建新尝试。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScriptGeneration"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "需求快照、queued 尝试、项目最新尝试关联及回执已原子持久化；尚未完成剧本生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScriptGeneration"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, an enabled feature binding, and the current model configuration version. Never falls back to a local, legacy or mock provider. Generation requires an exact request quote from gateway-runtime-quote and explicit original-currency cost consent. Existing idempotency, permission, moderation and worker safeguards apply; errors never trigger a retry through a legacy route."
+      }
+    },
+    "/api/v1/projects/{id}/gateway-storyboard-generations": {
+      "post": {
+        "operationId": "gateway_createStoryboardGeneration",
+        "summary": "使用 text 网关模型生成结构化分镜",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "所有项目写操作在同一空间共享项目域命名空间，与图像任务键独立。指纹含操作、目标项目和规范化完整请求（含 expected_version）。同一提交网络重试必须保留键和 body；同键不同操作/目标/body 返回 idempotency_conflict。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "One application/json object. Use saved gateway model configuration IDs, not an upstream model name, endpoint or credential.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatewayGenerateScript"
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Gateway selection required, model/version conflict, or an invalid exact request quote. No fallback work is created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "精确幂等重放返回原尝试当前状态，不创建新尝试。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryboardGeneration"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "已保存剧本快照、来源版本、queued 尝试、项目最新尝试关联及回执已原子持久化；尚未完成分镜生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryboardGeneration"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, an enabled feature binding, and the current model configuration version. Never falls back to a local, legacy or mock provider. Generation requires an exact request quote from gateway-runtime-quote and explicit original-currency cost consent. Existing idempotency, permission, moderation and worker safeguards apply; errors never trigger a retry through a legacy route."
+      }
+    },
+    "/api/v1/projects/{id}/gateway-analysis": {
+      "post": {
+        "operationId": "gateway_analyzeCreativeBrief",
+        "summary": "使用 text 网关模型分析项目简报",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Gateway selection required, model/version conflict, or an invalid exact request quote. No fallback work is created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeJob"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeJob"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatewayGenerateScript"
+              }
+            }
+          },
+          "description": "One application/json object. Use saved gateway model configuration IDs, not an upstream model name, endpoint or credential."
+        },
+        "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, an enabled feature binding, and the current model configuration version. Never falls back to a local, legacy or mock provider. Generation requires an exact request quote from gateway-runtime-quote and explicit original-currency cost consent. Existing idempotency, permission, moderation and worker safeguards apply; errors never trigger a retry through a legacy route."
+      }
+    },
+    "/api/v1/projects/{id}/gateway-creative-jobs": {
+      "post": {
+        "operationId": "gateway_createCreativeJob",
+        "summary": "按实际能力创建网关素材或分析任务",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Gateway selection required, model/version conflict, or an invalid exact request quote. No fallback work is created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeJob"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeJob"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatewayCreativeJobInput"
+              }
+            }
+          },
+          "description": "One application/json object. Use saved gateway model configuration IDs, not an upstream model name, endpoint or credential."
+        },
+        "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, an enabled feature binding, and the current model configuration version. Never falls back to a local, legacy or mock provider. Generation requires an exact request quote from gateway-runtime-quote and explicit original-currency cost consent. Existing idempotency, permission, moderation and worker safeguards apply; errors never trigger a retry through a legacy route."
+      }
     }
   },
   "components": {
@@ -16077,7 +17129,7 @@
           "model_config_id": {
             "type": "string",
             "minLength": 1,
-            "description": "Explicit tenant model configuration ID. Must be paired with its current version; omission retains the configured local/mock route."
+            "description": "Explicit tenant model configuration ID paired with its current version. Only legacy endpoints permit omission; gateway creation endpoints require a bound gateway model."
           },
           "model_config_version": {
             "type": "integer",
@@ -16291,7 +17343,7 @@
           "model_config_id": {
             "type": "string",
             "minLength": 1,
-            "description": "Explicit tenant model configuration ID. Must be paired with its current version; omission retains the configured local/mock route."
+            "description": "Explicit tenant model configuration ID paired with its current version. Only legacy endpoints permit omission; gateway creation endpoints require a bound gateway model."
           },
           "model_config_version": {
             "type": "integer",
@@ -17108,7 +18160,7 @@
           "model_config_id": {
             "type": "string",
             "minLength": 1,
-            "description": "Explicit tenant model configuration ID. Must be paired with its current version; omission retains the configured local/mock route."
+            "description": "Explicit tenant model configuration ID paired with its current version. Only legacy endpoints permit omission; gateway creation endpoints require a bound gateway model."
           },
           "model_config_version": {
             "type": "integer",
@@ -18001,7 +19053,7 @@
           "model_config_id": {
             "type": "string",
             "minLength": 1,
-            "description": "Explicit tenant model configuration ID. Must be paired with its current version; omission retains the configured local/mock route."
+            "description": "Explicit tenant model configuration ID paired with its current version. Only legacy endpoints permit omission; gateway creation endpoints require a bound gateway model."
           },
           "model_config_version": {
             "type": "integer",
@@ -18339,7 +19391,7 @@
           "model_config_id": {
             "type": "string",
             "minLength": 1,
-            "description": "Explicit tenant model configuration ID. Must be paired with its current version; omission retains the configured local/mock route."
+            "description": "Explicit tenant model configuration ID paired with its current version. Only legacy endpoints permit omission; gateway creation endpoints require a bound gateway model."
           },
           "model_config_version": {
             "type": "integer",
@@ -22455,6 +23507,57 @@
             "type": "boolean"
           }
         }
+      },
+      "GatewayCreateTask": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CreateTask"
+          },
+          {
+            "type": "object",
+            "required": [
+              "model_config_id",
+              "model_config_version",
+              "budget_currency",
+              "budget_maximum_minor",
+              "quote_request_sha256"
+            ]
+          }
+        ]
+      },
+      "GatewayGenerateScript": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/GenerateScript"
+          },
+          {
+            "type": "object",
+            "required": [
+              "model_config_id",
+              "model_config_version",
+              "budget_currency",
+              "budget_maximum_minor",
+              "quote_request_sha256"
+            ]
+          }
+        ]
+      },
+      "GatewayCreativeJobInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CreativeJobInput"
+          },
+          {
+            "type": "object",
+            "required": [
+              "model_config_id",
+              "model_config_version",
+              "budget_currency",
+              "budget_maximum_minor",
+              "quote_request_sha256"
+            ]
+          }
+        ]
       }
     },
     "securitySchemes": {

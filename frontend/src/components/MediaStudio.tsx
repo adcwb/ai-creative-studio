@@ -23,7 +23,7 @@ interface Attempt { path: string; method: string; body: BodyInit; type: string; 
 const emptyTimeline: Timeline = {clips: [], music_asset_id: '', music_volume: 0.2}
 function mediaURL(url: string) { return url.startsWith('/') ? `${baseURL}${url}` : '' }
 
-type StudioProps = {project: DramaProject; space: string; onDirtyChange: (dirty: boolean) => void}
+type StudioProps = {allowSyntheticDemo?: boolean; project: DramaProject; space: string; onDirtyChange: (dirty: boolean) => void}
 function episodeTimeline(state: MediaState, episode: number): Timeline {return episode === 1 ? state.timeline : state.episode_timelines?.[String(episode)] ?? {...emptyTimeline, episode_number: episode}}
 export function MediaStudio(props: StudioProps) {
   const {t} = useI18n()
@@ -36,7 +36,7 @@ export function MediaStudio(props: StudioProps) {
   function openEpisode(value: number) {if (Number.isInteger(value) && value>=1 && value<=999) requestLeave(() => {setSaved(old => [...new Set([...old, value])]); setEpisode(value)})}
   return <><div className="episode-toolbar"><label>{t('当前剪辑集数')}<select aria-label={t('当前剪辑集数')} value={episode} onChange={e => openEpisode(Number(e.target.value))}>{episodes.map(n => <option key={n} value={n}>{t('第 {p0} 集', {p0:n})}</option>)}</select></label><label>{t('打开其他集')}<input type="number" min="1" max="999" value={number} onChange={e => setNumber(Number(e.target.value))} /></label><button disabled={!Number.isInteger(number) || number<1 || number>999} onClick={() => openEpisode(number)}>{t('进入该集')}</button><p>{t('素材在项目内共享，每集时间轴和导出独立保存。')}</p></div><EpisodeMediaStudio key={episode} {...props} episode={episode} /></>
 }
-function EpisodeMediaStudio({project, space, onDirtyChange, episode}: StudioProps & {episode: number}) {
+function EpisodeMediaStudio({project, space, onDirtyChange, episode, allowSyntheticDemo = true}: StudioProps & {episode: number}) {
   const {formatNumber} = useI18n()
 
   const [alignmentError, setAlignmentError] = useState('')
@@ -108,7 +108,7 @@ function EpisodeMediaStudio({project, space, onDirtyChange, episode}: StudioProp
     } finally {inFlight.current = false; if (alive.current) setBusy(false)}
   }
   function mutate(suffix: string, data: unknown, method = 'POST') {
-    if (busy || uncertain) return
+    if (busy || uncertain || suffix === '/demo' && !allowSyntheticDemo) return
     const attempt = {path: `${path}${suffix}?${query}`, method, body: JSON.stringify(data), type: 'application/json', key: crypto.randomUUID()}
     pending.current = attempt; void execute(attempt)
   }
@@ -171,8 +171,8 @@ function EpisodeMediaStudio({project, space, onDirtyChange, episode}: StudioProp
       {maskSource && <MaskEditor key={maskSource.id} url={mediaURL(maskSource.file_url)} name={maskSource.name} disabled={locked} onSave={(blob, name) => upload(blob, name, 'reference')} onClose={() => setMaskSource(null)} />}
       {!!state.selections?.length && <section className="adopted-assets"><h3>{t("已采用的镜头")}</h3><p>{t("选择加入剪辑；采用记录不会自动覆盖时间轴。")}</p>{Array.from(new Map(state.selections.map(s => [s.shot_id, s])).values()).map(selection => {const asset = state.assets.find(a => a.id === selection.asset_id); if (!asset || asset.kind === 'audio') return null; return <button key={selection.id} disabled={locked || timeline.clips.length >= 30} onClick={() => setTimeline({...timeline, clips: [...timeline.clips, {id: crypto.randomUUID(), asset_id: asset.id, shot_id: selection.shot_id, duration: Math.min(asset.duration || 3, 30), trim_start: 0, subtitle: '', audio_asset_id: '', audio_volume: 1}]})}>{t("加入时间轴")} · {asset.name}</button>})}</section>}
       <div className="media-assets">{state.assets.map(asset => <article key={asset.id}>{asset.kind === 'image' ? <img src={mediaURL(asset.file_url)} alt={asset.name} loading="lazy" /> : asset.kind === 'video' ? <video src={mediaURL(asset.file_url)} controls preload="metadata" /> : <audio src={mediaURL(asset.file_url)} controls preload="metadata" />}<strong>{asset.name}</strong><p>{asset.role} {asset.character} · {asset.source}</p>{asset.shot_id && <p>{t("已关联镜头")}{(project.storyboard?.shots.findIndex(shot => shot.id === asset.shot_id) ?? -1) + 1}</p>}{asset.kind === 'image' && <button disabled={locked} onClick={() => setMaskSource(asset)}>{t("绘制局部编辑遮罩")}</button>}{asset.kind !== 'audio' && <button disabled={locked || timeline.clips.length >= 30} onClick={() => setTimeline({...timeline, clips: [...timeline.clips, {id: crypto.randomUUID(), asset_id: asset.id, shot_id: asset.shot_id, duration: Math.min(asset.duration || 3, 30), trim_start: 0, subtitle: '', audio_asset_id: '', audio_volume: 1}]})}>{t("加入时间轴")}</button>}</article>)}</div>
-      {state.assets.length === 0 && <p className="drama-help">{t("还没有媒体。上传素材，或使用明确标注的合成演示验证本地成片。")}</p>}
-      <button disabled={locked || dirty || episode !== 1} onClick={() => {if (timeline.clips.length) setConfirmDemo(true); else mutate('/demo', {expected_version: state.version})}}>{t("创建合成演示素材与时间轴")}</button>
+      {state.assets.length === 0 && <p className="drama-help">{t(allowSyntheticDemo ? "还没有媒体。上传素材，或使用明确标注的合成演示验证本地成片。" : "还没有媒体。上传素材，或在镜头制作中使用网关模型生成。")}</p>}
+      {allowSyntheticDemo && <button disabled={locked || dirty || episode !== 1} onClick={() => {if (timeline.clips.length) setConfirmDemo(true); else mutate('/demo', {expected_version: state.version})}}>{t("创建合成演示素材与时间轴")}</button>}
       {alignmentError && <p className="error" role="alert">{t("字幕对齐记录读取失败：")}{alignmentError}{t("。媒体编辑仍可使用，正在自动重试读取。")}</p>}
       <PosterEditor projectId={project.id} space={space} onDirtyChange={setPosterDirty} />
       <TimelinePreview clips={timeline.clips} overlays={timeline.video_overlays ?? []} assets={state.assets} aspect={timeline.aspect_ratio ?? '16:9'} subtitleMode={timeline.subtitle_mode ?? 'soft'} time={playhead} onTime={setPlayhead} audioTracks={timeline.audio_tracks} musicAsset={timeline.music_asset_id} musicVolume={timeline.music_volume} />
@@ -201,6 +201,6 @@ function EpisodeMediaStudio({project, space, onDirtyChange, episode}: StudioProp
       {dirty && <p className="drama-help">{t("时间轴有未保存修改。切换前请先保存或取消。")}</p>}
       <div className="media-exports">{state.exports.filter(item => (item.episode_number ?? 1) === episode).map(item => <article key={item.id}><h3>{t("成片 ·")}{{queued: t("等待合成"), running: t("正在合成"), succeeded: t("导出完成"), failed: t("导出失败"), cancelled: t("已取消")}[item.status]}</h3>{item.error && <p className="error">{item.error}</p>}{item.status === 'succeeded' && item.file_url && <><video controls crossOrigin="use-credentials" src={mediaURL(item.file_url)} preload="metadata" aria-label={t("成片预览")}>{item.subtitle_vtt_url && (!item.timeline?.subtitle_mode || item.timeline.subtitle_mode === 'soft') && <track kind="subtitles" src={mediaURL(item.subtitle_vtt_url)} srcLang="zh" label={t("中文字幕")} default />}</video><a href={mediaURL(item.file_url)} download>{t("下载 MP4 成片")}</a>{item.subtitle_url && <a href={mediaURL(item.subtitle_url)} download>{t("下载 SRT 字幕")}</a>}<p>{formatNumber(item.duration ?? 0)} {t("秒 · 本地合成；素材来源见素材列表")}</p></>}{(item.status === 'queued' || item.status === 'running') && <button disabled={locked} onClick={() => mutate(`/exports/${item.id}/cancel`, {})}>{t("取消成片合成")}</button>}</article>)}</div>
     </>}
-    {confirmDemo && state && <ConfirmDialog title={t("替换当前时间轴为合成演示？")} message={t("此操作创建合成图片和音轨，并用演示镜头替换已保存时间轴。原媒体素材仍保留。")} confirmLabel={t("确认创建合成演示")} onCancel={() => setConfirmDemo(false)} onConfirm={() => {setConfirmDemo(false); mutate('/demo', {expected_version: state.version})}} />}
+    {allowSyntheticDemo && confirmDemo && state && <ConfirmDialog title={t("替换当前时间轴为合成演示？")} message={t("此操作创建合成图片和音轨，并用演示镜头替换已保存时间轴。原媒体素材仍保留。")} confirmLabel={t("确认创建合成演示")} onCancel={() => setConfirmDemo(false)} onConfirm={() => {setConfirmDemo(false); mutate('/demo', {expected_version: state.version})}} />}
   </section>
 }

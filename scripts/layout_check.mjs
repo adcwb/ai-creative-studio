@@ -69,7 +69,7 @@ try {
     AUTH_MODE: 'demo', TEXT_PROVIDER: 'mock-text', SPEECH_PROVIDER: '', VIDEO_PROVIDER: '', ASR_PROVIDER: '', DATA_DIR: join(temporary, 'data'), IMAGE_PROVIDER: 'mock-svg', OPENAI_API_KEY: '',
   })
   await ready(`${api}/healthz`, backend)
-  const frontend = start('npm', ['run', 'dev', '--', '--port', String(webPort), '--strictPort'], join(repo, 'frontend'), {
+  const frontend = start('npm', ['run', 'dev', '--', '--mode', 'legacy-fixtures', '--port', String(webPort), '--strictPort'], join(repo, 'frontend'), {
     PATH: process.env.PATH, VITE_API_BASE_URL: api,
   })
   await ready(origin, frontend)

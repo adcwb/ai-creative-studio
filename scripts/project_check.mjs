@@ -65,7 +65,7 @@ try {
   // Image configuration intentionally unavailable: local mock-script is independent.
   const backend = start(binary, [], repo, { PATH: process.env.PATH, HTTP_ADDR: `127.0.0.1:${apiPort}`, FRONTEND_ORIGIN: origin, AUTH_MODE: 'demo', TEXT_PROVIDER: 'mock-text', SPEECH_PROVIDER: '', VIDEO_PROVIDER: '', ASR_PROVIDER: '', DATA_DIR: join(temporary, 'data'), IMAGE_PROVIDER: 'openai-images', OPENAI_API_KEY: '' })
   await ready(`${api}/healthz`, backend)
-  const frontend = start('npm', ['run', 'dev', '--', '--port', String(webPort), '--strictPort'], join(repo, 'frontend'), { PATH: process.env.PATH, VITE_API_BASE_URL: api })
+  const frontend = start('npm', ['run', 'dev', '--', '--mode', 'legacy-fixtures', '--port', String(webPort), '--strictPort'], join(repo, 'frontend'), { PATH: process.env.PATH, VITE_API_BASE_URL: api })
   await ready(origin, frontend)
   async function call(path, body, key, method) {
     const response = await fetch(`${api}/api/v1${path}`, body ? {method:method || 'POST', headers:{'Content-Type':'application/json','Idempotency-Key':key},body:JSON.stringify(body)} : {})

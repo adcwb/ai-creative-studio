@@ -1,4 +1,5 @@
-import { runtimeFields, runtimeReady, type RuntimeChoice } from '../runtimeSelection'
+import {creationReady, creationPath} from '../creationGateway'
+import { runtimeFields, type RuntimeChoice } from '../runtimeSelection'
 import { translate } from '../i18n'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, errorMessage, request } from '../api'
@@ -120,10 +121,11 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
     if (operation === 'generateStoryboard' && !project?.script) return
     const selected = operation === 'generateStoryboard' ? storyboardChoice : runtimeChoice
     const preview = {operation: operation === 'generateStoryboard' ? 'storyboard' as const : 'script' as const, project_id: id ?? '', input: {expected_version: baseline?.version}}
-    if ((operation === 'generate' || operation === 'generateStoryboard') && !runtimeReady(selected, preview)) return
+    if ((operation === 'generate' || operation === 'generateStoryboard') && !creationReady(selected, preview)) return
     const query = new URLSearchParams({space_id: space})
     const projectPath = `/projects/${encodeURIComponent(id ?? '')}`
-    const path = `${operation === 'create' ? '/projects' : operation === 'generate' ? `${projectPath}/generations` : operation === 'script' ? `${projectPath}/script` : operation === 'storyboard' ? `${projectPath}/storyboard` : operation === 'generateStoryboard' ? `${projectPath}/storyboard-generations` : projectPath}?${query}`
+    const basePath = `${operation === 'create' ? '/projects' : operation === 'generate' ? `${projectPath}/generations` : operation === 'script' ? `${projectPath}/script` : operation === 'storyboard' ? `${projectPath}/storyboard` : operation === 'generateStoryboard' ? `${projectPath}/storyboard-generations` : projectPath}?${query}`
+    const path = operation === 'generate' || operation === 'generateStoryboard' ? creationPath(basePath) : basePath
     const body = JSON.stringify(operation === 'create' ? {title: draft.title.trim(), brief: draft.brief.trim()} : operation === 'brief' ? {title: draft.title.trim(), brief: draft.brief.trim(), expected_version: baseline?.version} : operation === 'script' ? {script, expected_version: baseline?.version} : operation === 'storyboard' ? {shots, expected_version: baseline?.version} : {expected_version: baseline?.version, ...(selected ? {...runtimeFields(selected), expected_provider: selected.model.provider, expected_model: selected.model.model} : expectedProvider ? {expected_provider: expectedProvider, expected_model: expectedModel ?? ''} : {})})
     if (attempt.current?.path !== path || attempt.current.body !== body) attempt.current = {operation, path, body, key: crypto.randomUUID()}
     void execute(attempt.current)
