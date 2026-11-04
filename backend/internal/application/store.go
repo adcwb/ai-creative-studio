@@ -443,7 +443,7 @@ func (s *FileStore) createLocked(space, key string, in Input, retryOf string, ex
 	if len(expectation) > 0 && (expectation[0].Provider != caps.Provider || expectation[0].Model != caps.Model) {
 		return Task{}, false, ErrProviderChanged
 	}
-	// Bound both queue pressure and costly real attempts, including failures.
+	// Keep bounded queue pressure. Explicit model execution has no hourly cost quota.
 	if caps.Mode == "real" {
 		active, recent := 0, 0
 		since := time.Now().Add(-time.Hour)
@@ -455,7 +455,7 @@ func (s *FileStore) createLocked(space, key string, in Input, retryOf string, ex
 				recent++
 			}
 		}
-		if active >= 4 || recent >= 20 {
+		if active >= 4 || selection == nil && recent >= 20 {
 			return Task{}, false, ErrProviderNotReady
 		}
 	}

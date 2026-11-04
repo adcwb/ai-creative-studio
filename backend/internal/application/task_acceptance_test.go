@@ -61,7 +61,7 @@ func TestRuntimeAcceptanceBindsAuthenticatedActorAndVersion(t *testing.T) {
 	normalized, _ := Normalize(Input{Prompt: "synthetic image request", Kind: "general"})
 	digest := ExecutionRequestDigest(imageExecutionRequest(Task{Input: normalized, Provider: "openai-images", Model: model.Model}))
 	body = strings.TrimSuffix(body, "}") + `,"quote_request_sha256":"` + digest + `"}`
-	post("runtime-no-cost-consent", strings.Replace(body, `,"budget_currency":"USD","budget_maximum_minor":30`, "", 1), 400)
+	post("runtime-no-cost-consent", strings.Replace(body, `,"budget_currency":"USD","budget_maximum_minor":30`, "", 1), 202)
 	post("runtime-spoof-actor", strings.TrimSuffix(body, "}")+`,"actor_id":"other-user"}`, 400)
 	post("runtime-spoof-scope", strings.TrimSuffix(body, "}")+`,"runtime_selection":{"tenant_id":"other"}}`, 400)
 	post("runtime-stale-version", strings.Replace(body, `"model_config_version":1`, `"model_config_version":2`, 1), 409)
@@ -96,6 +96,31 @@ func TestRuntimeAcceptanceBindsAuthenticatedActorAndVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	post("runtime-other-tenant", strings.Replace(body, id, other.Entries[0].ID, 1), 409)
+	viewer, viewerToken, viewerSession, err := auth.login("cost-free-viewer@example.test", "synthetic-viewer-password", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	auth.mu.Lock()
+	d := auth.clone()
+	organization := d.Organizations[tenant]
+	organization.Members[viewer.ID] = "viewer"
+	d.Organizations[tenant] = organization
+	err = auth.commit(d)
+	auth.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	viewerRequest := httptest.NewRequest("POST", "/api/v1/tasks?space_id="+tenant, strings.NewReader(fmt.Sprintf(`{"prompt":"synthetic no-cost viewer request","kind":"general","model_config_id":%q,"model_config_version":1}`, id)))
+	viewerRequest.Header.Set("Origin", "http://localhost:5173")
+	viewerRequest.Header.Set("Content-Type", "application/json")
+	viewerRequest.Header.Set("Idempotency-Key", "cost-free-viewer-request")
+	viewerRequest.Header.Set("X-CSRF-Token", viewerSession.CSRF)
+	viewerRequest.AddCookie(&http.Cookie{Name: "studio_session", Value: viewerToken})
+	denied := httptest.NewRecorder()
+	h.ServeHTTP(denied, viewerRequest)
+	if denied.Code != http.StatusForbidden {
+		t.Fatal("removing costs granted a viewer execution permission", denied.Code, denied.Body.String())
+	}
 	// Revoking a config invalidates both old and new submissions before queueing.
 	model.ID = id
 	_, err = auth.models.update(tenant, 1, model, ModelCredentialInput{Action: "revoke"})
@@ -103,7 +128,7 @@ func TestRuntimeAcceptanceBindsAuthenticatedActorAndVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	post("runtime-after-revoke", body, 409)
-	if len(s.List(tenant)) != 1 {
+	if len(s.List(tenant)) != 2 {
 		t.Fatal("rejected submission created a task")
 	}
 }

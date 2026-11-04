@@ -492,7 +492,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 			recent++
 		}
 	}
-	if len(c.data.Jobs) >= 500 || len(c.data.Receipts) >= 1000 || recent >= 20 || active >= 4 {
+	if len(c.data.Jobs) >= 500 || len(c.data.Receipts) >= 1000 || in.selection == nil && recent >= 20 || active >= 4 {
 		return CreativeJob{}, false, ErrProviderNotReady
 	}
 	jid, err := newProjectID()
@@ -510,12 +510,6 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	if c.pg != nil {
 		payload, _ := json.Marshal(map[string]string{"task_id": jid, "project_id": id})
 		c.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error {
-			if job.RuntimeSelection != nil {
-				sel := job.RuntimeSelection
-				if err := ReservePostgresTx(ctx, tx, "creative:"+job.ID, space, job.Provider, job.Model, sel.Currency, sel.MaximumMinor); err != nil {
-					return err
-				}
-			}
 			return jobqueue.EnqueueTx(ctx, tx, jobqueue.Job{TenantID: space, ID: jid, TraceParent: job.TraceParent, Kind: "creative", IdempotencyKey: key, Payload: payload})
 		}
 		defer func() { c.pg.beforeCommit = nil }()

@@ -131,9 +131,6 @@ func registerProjectRoutes(mux *http.ServeMux, repo ProjectRepository) {
 		if !resolveModelRequest(w, r, repo, &in.ModelRequest, "text", "script_generation") {
 			return
 		}
-		if !validateModelPreview(w, r, repo, in.ModelRequest, "script", r.PathValue("id"), in) {
-			return
-		}
 		generation, created, err := repo.CreateScriptGeneration(space, r.PathValue("id"), key, in)
 		if err != nil {
 			storeError(w, err)

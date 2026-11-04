@@ -112,7 +112,7 @@ export function ProductionBoard({project, space, onDirtyChange, disabled = false
         if (attempt.purpose === 'mask') setMask(result.uploaded_asset_id ?? '')
         if (attempt.purpose === 'upload') {const asset = result.assets.find(a => a.id === result.uploaded_asset_id); if (asset) {setFocus(asset.id); if (asset.kind === 'image') setReference(asset.id)}}
       }
-      if (attempt.purpose === 'generate') {setPrompt(''); if (gatewayCreationRequired) setChoice(current => current ? {...current, confirmed: false, quoteReady: false} : null)}
+      if (attempt.purpose === 'generate') setPrompt('')
       if (attempt.purpose === 'review' || attempt.purpose === 'select') setNote('')
       setNotice(t(attempt.purpose === 'select' ? '已采用此版本，剪辑保持不变。' : '操作已保存。'))
       await load()
@@ -166,7 +166,7 @@ export function ProductionBoard({project, space, onDirtyChange, disabled = false
       </details>}
       {referenceAsset && <div className="reference-thumbnail">{renderAsset(referenceAsset)}{kind === 'image' && <button type="button" onClick={() => setMaskOpen(true)}>{t('圈选修改区域')}</button>}{mask && <button type="button" onClick={() => setMask('')}>{t('清除修改区域')}</button>}</div>}
       <label>{t('创作或修改要求')}<textarea value={prompt} maxLength={2000} onChange={e => setPrompt(e.target.value)} placeholder={t('描述需要保留的内容，以及本次要改变的部分。')} /></label>
-    </fieldset><details className="production-model" open={requiresGateway || undefined}><summary>{t('生成模型与费用')}</summary><RuntimeModelPicker gatewayOnly={requiresGateway} space={space} capability={kind === 'consistency' ? 'vision' : kind} preview={preview} value={choice} onChange={setChoice} disabled={locked} /></details>
+    </fieldset><details className="production-model" open={requiresGateway || undefined}><summary>{t('生成模型')}</summary><RuntimeModelPicker gatewayOnly={requiresGateway} space={space} capability={kind === 'consistency' ? 'vision' : kind} preview={preview} value={choice} onChange={setChoice} disabled={locked} /></details>
     <button className="primary" disabled={locked || !canGenerate} onClick={() => mutate('/creative-jobs', {...creativeInput, ...runtimeFields(choice), expected_provider: cap?.provider, expected_model: cap?.model ?? ''}, 'generate')}>{t(kind === 'vision' ? '图片创作分析' : kind === 'consistency' ? '跨镜头外观检查' : kind === 'lip_sync' ? '口型同步' : reference ? '生成修改版本' : '生成候选')}</button>
     {cap?.ready && <p className="drama-help">{t(cap.mode === 'mock' ? '当前为本地合成演示，不是AI生成。' : '已接入生成服务，提交可能产生模型费用。')}</p>}
     {!cap?.ready && <p className="drama-help">{t('生成能力尚未就绪，可以先上传、比较和整理素材。')}</p>}

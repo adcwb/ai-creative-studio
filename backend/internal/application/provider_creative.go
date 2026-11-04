@@ -75,7 +75,7 @@ func creativeFailure(err error) (string, string) {
 // at persistence time, and never expose an upstream response or credential.
 func managedGenerationFailure(err error) (string, string) {
 	if errors.Is(err, ErrExecutionGovernance) {
-		return "execution_governance_denied", "生成因安全审核或执行治理未通过而停止；请检查审核配置、预算和执行记录。旧稿保留，未自动重试。"
+		return "execution_governance_denied", "生成因安全审核或执行校验未通过而停止；请检查审核配置和执行记录。旧稿保留，未自动重试。"
 	}
 	if errors.Is(err, errRuntimeDenied) {
 		return "model_runtime_denied", "模型执行权限或配置已失效；请检查网关模型与功能绑定。旧稿保留，未自动重试。"

@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     spec = json.loads((ROOT / 'api/openapi.json').read_text())
     resolver = RefResolver.from_schema(spec)
-    consent = dict(model_config_id='synthetic-config-id', model_config_version=1, budget_currency='USD', budget_maximum_minor=10, quote_request_sha256='a'*64)
+    consent = dict(model_config_id='synthetic-config-id', model_config_version=1)
     for name, business in [('GatewayCreateTask', dict(prompt='Synthetic gateway request', kind='general')), ('GatewayGenerateScript', dict(expected_version=1)), ('GatewayCreativeJobInput', dict(expected_version=1, kind='image', prompt='Synthetic gateway request'))]:
         validator = OAS30Validator(spec['components']['schemas'][name], resolver=resolver)
         validator.validate({**business, **consent})
@@ -36,7 +36,7 @@ def main():
             except ValidationError:
                 pass
             else:
-                raise AssertionError((name, field, 'gateway request must require model and cost consent'))
+                raise AssertionError((name, field, 'gateway request must require model identity and version'))
     count = 0
     with tempfile.TemporaryDirectory(prefix='studio-secure-contract-') as folder:
         root = Path(folder)

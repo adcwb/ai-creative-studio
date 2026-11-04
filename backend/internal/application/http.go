@@ -196,9 +196,6 @@ func createTask(w http.ResponseWriter, r *http.Request, repo Repository, parentI
 	if !resolveModelRequest(w, r, repo, &in.ModelRequest, "image", "image_generation") {
 		return
 	}
-	if !validateModelPreview(w, r, repo, in.ModelRequest, "image", "", in) {
-		return
-	}
 	var t Task
 	var created bool
 	if parentID == "" {

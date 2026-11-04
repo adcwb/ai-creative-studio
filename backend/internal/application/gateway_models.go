@@ -190,13 +190,10 @@ func validateGatewaySnapshot(d modelSnapshot) error {
 	return nil
 }
 func validateGatewayModel(m GatewayModel) error {
-	if m.Currency == "" {
-		return errModelInput
-	}
 	if !validGatewayModelID(m.Model) || utf8.RuneCountInString(m.Name) < 1 || utf8.RuneCountInString(m.Name) > 80 || len(m.Capabilities) == 0 && !m.Pending || m.Pending && m.Enabled || len(m.Capabilities) > 8 || m.MaxOutputTokens < 1 || m.MaxOutputTokens > 6000 || m.MaximumMinor < 0 || m.MaximumMinor > 9007199254740991 || len(m.PriceSource) > 240 {
 		return errModelInput
 	}
-	if _, e := CurrencyMinorUnits(m.Currency); e != nil {
+	if _, e := CurrencyMinorUnits(m.Currency); m.Currency != "" && e != nil {
 		return errModelInput
 	}
 	allowed := map[string]bool{"text": true, "vision": true, "image": true, "image_edit": true, "video": true, "speech": true, "asr": true, "asr_timestamps": true}

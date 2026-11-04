@@ -56,8 +56,8 @@ func TestExecutionGovernanceDispatchIsDurableAndExactlyClaimed(t *testing.T) {
 					t.Error(e)
 				}
 				entries, _ := g.Ledger.Entries("tenant", "USD")
-				if len(entries) != 1 || entries[0].State != "unknown" {
-					t.Error("dispatch preceded durable unknown")
+				if len(entries) != 0 || !g.Ledger.hasExecution(r) {
+					t.Error("dispatch preceded durable receipt or created a cost entry")
 				}
 				return BillingEvidence{}, nil
 			})
@@ -94,7 +94,7 @@ func TestExecutionGovernanceEvidenceAndUnknown(t *testing.T) {
 				t.Fatal("lost error")
 			}
 			entries, _ := g.Ledger.Entries("tenant", "USD")
-			if entries[0].State != state || entries[0].Actual != actual {
+			if len(entries) != 0 || !g.Ledger.hasExecution(r) {
 				t.Fatal(entries)
 			}
 		})
@@ -124,8 +124,8 @@ func TestExecutionGovernancePermitCannotEscapeOrCrossTenant(t *testing.T) {
 		t.Fatal("escaped permit")
 	}
 }
-func TestExecutionGovernanceRefusesUnreviewedOrUnfunded(t *testing.T) {
-	for _, mode := range []string{"moderation", "quote", "currency", "budget", "tenant"} {
+func TestExecutionGovernanceRefusesUnreviewedOrInvalidIdentity(t *testing.T) {
+	for _, mode := range []string{"moderation", "tenant"} {
 		t.Run(mode, func(t *testing.T) {
 			g, r := executionFixture(t)
 			switch mode {
@@ -189,7 +189,7 @@ func TestExecutionGovernanceRuntimeAdapterSettlementAndOutputReview(t *testing.T
 		t.Fatal(e, sends)
 	}
 	entries, _ := ledger.Entries("tenant-a", "USD")
-	if len(entries) != 1 || entries[0].State != "settled" || entries[0].Actual != 9 {
+	if len(entries) != 0 || !g.Ledger.hasExecution(request) {
 		t.Fatal(entries)
 	}
 }
@@ -301,8 +301,8 @@ func TestExecutionRecoveryDoesNotReleasePriorUnknown(t *testing.T) {
 		t.Fatal("prior ambiguity incorrectly released", entries)
 	}
 	g.Quoter = testExecutionQuote{"USD", 30}
-	if g.RecoveryReady(context.Background(), runtime, r) == nil {
-		t.Fatal("assumed free query")
+	if g.RecoveryReady(context.Background(), runtime, r) != nil {
+		t.Fatal("historical pricing still blocked authorized read-only recovery")
 	}
 }
 

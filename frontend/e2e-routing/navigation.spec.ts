@@ -99,7 +99,7 @@ test('new projects get a durable URL and organization changes leave the old proj
   await expect(page.locator('.project-card')).toHaveCount(0)
 })
 
-test('management forms protect unsaved model, budget and organization changes', async ({page}) => {
+test('management forms protect unsaved model and organization changes; cost history is read only', async ({page}) => {
   await page.goto('/settings/models')
   await page.getByRole('button', {name: '添加 AI 网关', exact: true}).click()
   await page.getByLabel('网关名称', {exact: true}).fill('未保存的网关')
@@ -109,15 +109,10 @@ test('management forms protect unsaved model, budget and organization changes', 
   await expect(page.getByLabel('网关名称', {exact: true})).toHaveValue('未保存的网关')
   await navigate(page, '/settings/billing')
   await page.getByRole('button', {name: '放弃本地草稿并继续', exact: true}).click()
-  await page.getByText('调用限制与费用账本', {exact: true}).click()
-  await page.getByLabel('新的预算上限（USD）', {exact: true}).fill('150.00')
-  await page.goBack()
-  await expect(page.getByRole('dialog')).toBeVisible()
-  await page.getByRole('button', {name: '继续编辑', exact: true}).click()
-  await expect(page.getByLabel('新的预算上限（USD）', {exact: true})).toHaveValue('150.00')
+  await page.getByText('历史费用记录', {exact: true}).first().click()
+  await expect(page.getByRole('button', {name: '保存预算', exact: true})).toHaveCount(0)
   await navigate(page, '/settings/organization')
-  await expect(page.getByRole('dialog')).toBeVisible()
-  await page.getByRole('button', {name: '放弃本地草稿并继续', exact: true}).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   await page.getByLabel('新组织名称').fill('未保存的组织名称')
   await navigate(page, '/assets')
   await expect(page.getByRole('dialog')).toBeVisible()

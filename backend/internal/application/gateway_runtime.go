@@ -42,7 +42,7 @@ func (r *ModelRuntime) executeGateway(ctx context.Context, q RuntimeSelection, d
 		taskID = permit.id
 		permit.mu.Unlock()
 	}
-	observer := &gatewayObservation{store: s.usage, call: ModelCall{ID: authRandom(16), TaskID: taskID, Tenant: q.TenantID, GatewayID: g.Gateway.ID, GatewayName: g.Gateway.Name, ModelConfigID: m.ID, ModelName: m.Name, Model: m.Model, FeatureKey: q.FeatureKey, Capability: q.Capability, State: "unknown", StartedAt: time.Now().UTC(), Currency: m.Currency, MaximumMinor: m.MaximumMinor}}
+	observer := &gatewayObservation{store: s.usage, call: ModelCall{ID: authRandom(16), TaskID: taskID, Tenant: q.TenantID, GatewayID: g.Gateway.ID, GatewayName: g.Gateway.Name, ModelConfigID: m.ID, ModelName: m.Name, Model: m.Model, FeatureKey: q.FeatureKey, Capability: q.Capability, State: "unknown", StartedAt: time.Now().UTC()}}
 	defer func() {
 		if e := observer.finish(resultErr); e != nil {
 			resultErr = errRuntimeUnavailable

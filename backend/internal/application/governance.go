@@ -28,17 +28,18 @@ func ValidateRuntimeFromEnv(capabilities ...Capabilities) error {
 	}
 	for _, caps := range capabilities {
 		if caps.Mode == "real" && caps.Ready && !caps.localExecution {
-			return errors.New("live execution is disabled until per-request budget and moderation enforcement is integrated; use isolated protocol tests")
+			return errors.New("live execution requires the authenticated managed model runtime and content moderation; direct global provider execution is disabled")
 		}
 	}
 	return nil
 }
 
 type costSnapshot struct {
-	Changes []BudgetChange       `json:"changes,omitempty"`
-	Version int                  `json:"version"`
-	Limits  map[string]int64     `json:"limits"`
-	Entries map[string]CostEntry `json:"entries"`
+	Dispatches map[string]executionDispatch `json:"dispatches,omitempty"`
+	Changes    []BudgetChange               `json:"changes,omitempty"`
+	Version    int                          `json:"version"`
+	Limits     map[string]int64             `json:"limits"`
+	Entries    map[string]CostEntry         `json:"entries"`
 }
 type BudgetLedger struct {
 	pg   *postgresScope
@@ -86,6 +87,11 @@ func OpenBudgetLedger(dir string) (*BudgetLedger, error) {
 				return nil, errors.New("invalid budget audit entry")
 			}
 		}
+		for id, d := range ledger.data.Dispatches {
+			if id != d.ID || d.Tenant == "" || d.Provider == "" || d.Model == "" || d.At.IsZero() {
+				return nil, errors.New("invalid execution dispatch receipt")
+			}
+		}
 		for id, e := range ledger.data.Entries {
 			if e.ID != id || e.Tenant == "" || e.Reserved <= 0 || e.Actual < 0 || (e.State != "reserved" && e.State != "unknown" && e.State != "settled" && e.State != "released") {
 				return nil, errors.New("invalid budget entry")
@@ -107,6 +113,10 @@ func OpenBudgetLedger(dir string) (*BudgetLedger, error) {
 }
 func (l *BudgetLedger) clone() costSnapshot {
 	n := l.data
+	n.Dispatches = make(map[string]executionDispatch, len(l.data.Dispatches))
+	for key, value := range l.data.Dispatches {
+		n.Dispatches[key] = value
+	}
 	n.Changes = append([]BudgetChange(nil), l.data.Changes...)
 	n.Limits = map[string]int64{}
 	n.Entries = map[string]CostEntry{}

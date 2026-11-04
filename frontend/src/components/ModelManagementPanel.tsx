@@ -2,12 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { errorMessage, request, type Space } from '../api'
 import { useI18n } from '../i18n'
 import { capabilityNames, featureModelStatus, type AIGateway, type FeatureBinding, type FeatureDefinition, type GatewayModel, type ModelManagementReport } from '../gatewayModels'
-import { minorAmountInput, parseMinorAmount } from '../money'
 import './modelManagement.css'
 
 const blankGateway: AIGateway = {id: '', name: '', base_url: '', enabled: true, timeout_seconds: 120, version: 0, secret_status: 'not_configured'}
 const blankModel: GatewayModel = {id: '', gateway_id: '', name: '', model: '', capabilities: ['text'], enabled: true, version: 0, max_output_tokens: 3000, json_output: true, video_seconds: 4, video_size: '1280x720', currency: 'USD', maximum_minor: 0, price_source: ''}
-const currencyUnits = (currency: string) => ({JPY: 0, KRW: 0, KWD: 3, BHD: 3}[currency] ?? 2)
 
 export function ModelManagementPanel({space, onDirtyChange}: {space: Space; onDirtyChange?: (dirty: boolean) => void}) {
   const {t} = useI18n()
@@ -70,7 +68,7 @@ export function ModelManagementPanel({space, onDirtyChange}: {space: Space; onDi
       <div role="tabpanel" id="model-panel-models" aria-labelledby="model-tab-models" hidden={tab !== 'models'} className="panel model-management-panel">
         <div className="section-heading"><div><h2>{t('网关模型')}</h2><p>{t('填写网关实际接受的模型 ID，并声明已支持的能力。')}</p></div><button disabled={busy || !report.gateways.length} onClick={() => setModel({...blankModel, gateway_id: filter || report.gateways[0]?.id || ''})}>{t('添加模型')}</button><button disabled={busy || !report.secret_storage_available || !filter || !report.gateways.some(item => item.id === filter && item.enabled && item.secret_status === 'encrypted')} onClick={() => {const selected = report.gateways.find(item => item.id === filter); if (selected) void syncModels(selected)}}>{t('同步模型')}</button></div>
         <label className="model-gateway-filter">{t('按网关筛选')}<select value={filter} onChange={event => setFilter(event.target.value)}><option value="">{t('全部网关')}</option>{report.gateways.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-        <p className="drama-help">{t('选择网关后可同步目录。新模型需确认能力与费用后启用；已有配置不会覆盖。')}</p>
+        <p className="drama-help">{t('选择网关后可同步目录。新模型需确认能力后启用；已有配置不会覆盖。')}</p>
         {!report.models.filter(item => !filter || item.gateway_id === filter).length ? <p className="model-management-empty">{t('尚无网关模型。')}</p> : <div className="table-scroll"><table><thead><tr><th>{t('模型')}</th><th>{t('AI 网关')}</th><th>{t('模型能力')}</th><th>{t('功能引用')}</th><th>{t('状态')}</th><th>{t('操作')}</th></tr></thead><tbody>{report.models.filter(item => !filter || item.gateway_id === filter).map(item => <tr key={item.id}><td><strong>{item.name}</strong><small>{item.model}</small></td><td>{report.gateways.find(value => value.id === item.gateway_id)?.name}</td><td><div className="model-capability-tags">{item.capabilities.map(capability => <span key={capability}>{t(capabilityNames[capability] ?? capability)}</span>)}</div></td><td>{report.bindings.filter(value => value.model_config_id === item.id).map(value => t(report.features.find(feature => feature.key === value.feature_key)?.name ?? value.feature_key)).join(' / ') || '—'}</td><td>{t(item.pending ? '待配置' : item.enabled ? '已启用' : '已停用')}</td><td><button disabled={busy} onClick={() => setModel({...item})}>{t('编辑')}</button></td></tr>)}</tbody></table></div>}
         {model && <GatewayModelForm key={`${model.id}-${model.version}`} value={model} gateways={report.gateways} busy={busy} onDirty={markDirty} onCancel={() => setModel(null)} onSave={value => save(value.id ? `/gateway-models/${value.id}` : '/gateway-models', value.id ? 'PATCH' : 'POST', {expected_version: model.version, model: value})} />}
       </div>
@@ -117,12 +115,10 @@ function GatewayForm({value, secretStorage, busy, onDirty, onCancel, onSave}: {v
 function GatewayModelForm({value, gateways, busy, onDirty, onCancel, onSave}: {value: GatewayModel; gateways: AIGateway[]; busy: boolean; onDirty: (key: string, value: boolean) => void; onCancel: () => void; onSave: (value: GatewayModel) => Promise<boolean>}) {
   const {t} = useI18n()
   const [draft, setDraft] = useState(value)
-  const [maximum, setMaximum] = useState(minorAmountInput(value.maximum_minor, currencyUnits(value.currency)))
-  const [error, setError] = useState('')
-  const dirty = JSON.stringify(value) !== JSON.stringify(draft) || maximum !== minorAmountInput(value.maximum_minor, currencyUnits(value.currency))
+  const dirty = JSON.stringify(value) !== JSON.stringify(draft)
   useEffect(() => {onDirty('model-form', dirty); return () => onDirty('model-form', false)}, [dirty, onDirty])
-  function submit() {const amount = parseMinorAmount(maximum, currencyUnits(draft.currency)); if (amount === null) {setError(t('请输入有效金额')); return} setError(''); void onSave({...draft, pending: false, maximum_minor: amount})}
-  return <form className="model-editor-form" onSubmit={event => {event.preventDefault(); submit()}}><fieldset disabled={busy}><legend>{t(value.id ? '编辑网关模型' : '添加网关模型')}</legend>{error && <p className="error" role="alert">{error}</p>}<div className="model-editor-grid">
+  function submit() {void onSave({...draft, pending: false})}
+  return <form className="model-editor-form" onSubmit={event => {event.preventDefault(); submit()}}><fieldset disabled={busy}><legend>{t(value.id ? '编辑网关模型' : '添加网关模型')}</legend><div className="model-editor-grid">
     <label>{t('所属网关')}<select required disabled={!!value.id} value={draft.gateway_id} onChange={event => setDraft({...draft, gateway_id: event.target.value})}><option value="">{t('选择网关')}</option>{gateways.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
     <label>{t('模型显示名称')}<input required maxLength={80} value={draft.name} onChange={event => setDraft({...draft, name: event.target.value})} /></label>
     <label>{t('上游模型 ID')}<input required maxLength={200} placeholder="vendor/model-name" value={draft.model} onChange={event => setDraft({...draft, model: event.target.value})} /></label>
@@ -130,6 +126,5 @@ function GatewayModelForm({value, gateways, busy, onDirty, onCancel, onSave}: {v
   </div><fieldset className="model-capabilities"><legend>{t('模型能力')}</legend>{Object.entries(capabilityNames).map(([key, label]) => <label key={key}><input type="checkbox" checked={draft.capabilities.includes(key)} onChange={event => setDraft({...draft, capabilities: event.target.checked ? [...draft.capabilities, key] : draft.capabilities.filter(item => item !== key)})} />{t(label)}</label>)}</fieldset>
   <label className="model-check-label"><input type="checkbox" checked={draft.json_output} onChange={event => setDraft({...draft, json_output: event.target.checked})} />{t('文本请求使用 JSON 输出模式')}</label>
   {draft.capabilities.includes('video') && <div className="model-editor-grid"><label>{t('视频时长（秒）')}<select value={draft.video_seconds} onChange={event => setDraft({...draft, video_seconds: Number(event.target.value)})}>{[4, 8, 12].map(item => <option key={item}>{item}</option>)}</select></label><label>{t('视频分辨率')}<select value={draft.video_size} onChange={event => setDraft({...draft, video_size: event.target.value})}><option>1280x720</option><option>720x1280</option></select></label><p className="drama-help">{t('视频使用兼容 /videos 的创建、查询和内容接口。')}</p></div>}
-  <div className="model-editor-grid"><label>{t('费用币种')}<select value={draft.currency} onChange={event => {setDraft({...draft, currency: event.target.value}); setMaximum('0')}}>{['USD', 'CNY', 'EUR', 'SGD', 'JPY', 'HKD'].map(item => <option key={item}>{item}</option>)}</select></label><label>{t('单次费用上限')}<input required inputMode="decimal" value={maximum} onChange={event => setMaximum(event.target.value)} /></label><label>{t('费用上限依据')}<input maxLength={256} placeholder={t('填写价格来源或内部调用限额说明')} value={draft.price_source} onChange={event => setDraft({...draft, price_source: event.target.value})} /></label></div>
-  <p className="drama-help">{t('这是管理员设置的保守预留上限，实际费用以账单为准。留为零时无法提交真实调用。')}</p><label className="model-check-label"><input type="checkbox" checked={draft.enabled} onChange={event => setDraft({...draft, enabled: event.target.checked})} />{t('启用此模型')}</label><div className="media-actions"><button className="primary" type="submit" disabled={!draft.capabilities.length}>{t('保存模型')}</button><button type="button" onClick={onCancel}>{t('取消')}</button></div></fieldset></form>
+  <label className="model-check-label"><input type="checkbox" checked={draft.enabled} onChange={event => setDraft({...draft, enabled: event.target.checked})} />{t('启用此模型')}</label><div className="media-actions"><button className="primary" type="submit" disabled={!draft.capabilities.length}>{t('保存模型')}</button><button type="button" onClick={onCancel}>{t('取消')}</button></div></fieldset></form>
 }

@@ -117,8 +117,8 @@ func TestMusicGovernanceNativePayloadUnknownAndNoReplay(t *testing.T) {
 				t.Fatal("instrumental request unexpectedly includes lyrics")
 			}
 			entries, _ := g.Ledger.Entries(sel.TenantID, "USD")
-			if len(entries) != 1 || entries[0].State != "unknown" {
-				t.Fatal("send preceded durable reservation")
+			if len(entries) != 0 {
+				t.Fatal("send created a financial reservation")
 			}
 			return musicFixtureResponse([]byte("ID3synthetic fixture")), nil
 		})
@@ -132,7 +132,7 @@ func TestMusicGovernanceNativePayloadUnknownAndNoReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	entries, _ := g.Ledger.Entries(sel.TenantID, "USD")
-	if len(entries) != 1 || entries[0].State != "unknown" || entries[0].Reserved != 30 {
+	if len(entries) != 0 || !g.Ledger.hasExecution(req) {
 		t.Fatal("successful transport incorrectly settled", entries)
 	}
 	if err := g.ExecuteRuntime(context.Background(), r, req, run); err == nil || sends != 1 {
@@ -147,20 +147,14 @@ func TestMusicGovernanceNativePayloadUnknownAndNoReplay(t *testing.T) {
 	}
 }
 
-func TestMusicGovernanceRejectsChangedQuoteCurrencyAndModeration(t *testing.T) {
-	for _, mode := range []string{"prompt", "currency", "moderation", "budget", "eligibility"} {
+func TestMusicGovernanceRejectsModerationOrEligibility(t *testing.T) {
+	for _, mode := range []string{"moderation", "eligibility"} {
 		t.Run(mode, func(t *testing.T) {
 			r, sel, _, policy, g := musicRuntimeFixture(t)
 			req := musicRequest(policy, &sel, "music:denied")
 			switch mode {
-			case "prompt":
-				req.Text += " changed"
-			case "currency":
-				sel.Currency = "CNY"
 			case "moderation":
 				g.Moderator = testExecutionModerator{}
-			case "budget":
-				sel.MaximumMinor = 29
 			case "eligibility":
 				policy.MusicEntitlements = nil
 			}
@@ -187,7 +181,7 @@ func TestMusicRevocationBeforeSendReleasesOnlyLocalNoDispatch(t *testing.T) {
 		return e
 	})
 	entries, _ := g.Ledger.Entries(sel.TenantID, "USD")
-	if err == nil || len(entries) != 1 || entries[0].State != "released" {
+	if err == nil || len(entries) != 0 {
 		t.Fatal("proven local failure not released", err, entries)
 	}
 }
@@ -228,7 +222,7 @@ func TestMusicEligibilityWithdrawnDuringSendCancelsAndKeepsUnknown(t *testing.T)
 		t.Fatal("withdrawn eligibility did not cancel")
 	}
 	entries, _ := g.Ledger.Entries(sel.TenantID, "USD")
-	if len(entries) != 1 || entries[0].State != "unknown" {
+	if len(entries) != 0 {
 		t.Fatal("attempted music incorrectly refunded", entries)
 	}
 }
@@ -295,14 +289,14 @@ func TestMusicWorkerPublishesOnlyReviewedAudio(t *testing.T) {
 				}
 			}
 			entries, _ := g.Ledger.Entries(sel.TenantID, "USD")
-			if len(entries) != 1 || entries[0].State != "unknown" {
+			if len(entries) != 0 {
 				t.Fatal("output status replaced billing evidence")
 			}
 		})
 	}
 }
 
-func TestPostgresMusicAcceptanceReservesAndQueuesAtomically(t *testing.T) {
+func TestPostgresMusicAcceptanceWithoutCostsRetainsConcurrency(t *testing.T) {
 	db := postgresTestDB(t)
 	s := postgresTestStore(t, db)
 	auth, err := OpenPostgresAuthStore(t.TempDir(), db)
@@ -329,7 +323,7 @@ func TestPostgresMusicAcceptanceReservesAndQueuesAtomically(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = ledger.SetLimit(tenant, "USD", 30); err != nil {
+	if err = ledger.SetLimit(tenant, "USD", 0); err != nil {
 		t.Fatal(err)
 	}
 	governor := &ExecutionGovernor{Ledger: ledger, Quoter: policy, Moderator: testExecutionModerator{true}}
@@ -353,15 +347,15 @@ func TestPostgresMusicAcceptanceReservesAndQueuesAtomically(t *testing.T) {
 	if err != nil || created || replay.ID != job.ID {
 		t.Fatal("music idempotency failed", err)
 	}
-	if _, _, err = s.createCreativeJob(tenant, project.ID, "music-pg-overbudget", in); err == nil {
-		t.Fatal("music exceeded original-currency budget")
+	if _, _, err = s.createCreativeJob(tenant, project.ID, "music-pg-concurrent", in); !errors.Is(err, ErrGenerationActive) {
+		t.Fatal("concurrent project generation was not protected", err)
 	}
 	var count int
 	if err = db.QueryRow("SELECT count(*) FROM execution_jobs WHERE tenant_id=$1 AND kind='creative'", tenant).Scan(&count); err != nil || count != 1 {
-		t.Fatal("budget rejection left queue job", count, err)
+		t.Fatal("concurrency rejection left a queue job", count, err)
 	}
 	entries, err := ledger.Entries(tenant, "USD")
-	if err != nil || len(entries) != 1 || entries[0].Reserved != 20 || entries[0].State != "reserved" {
+	if err != nil || len(entries) != 0 {
 		t.Fatal(entries, err)
 	}
 	other, err := ledger.Entries(tenant, "CNY")
@@ -372,7 +366,11 @@ func TestPostgresMusicAcceptanceReservesAndQueuesAtomically(t *testing.T) {
 		t.Fatal(err)
 	}
 	entries, err = ledger.Entries(tenant, "USD")
-	if err != nil || entries[0].State != "released" {
-		t.Fatal("undispatched cancellation held budget", entries, err)
+	if err != nil || len(entries) != 0 {
+		t.Fatal("cancellation created a cost entry", entries, err)
 	}
+	if _, created, err = s.createCreativeJob(tenant, project.ID, "music-pg-after-cancel", in); err != nil || !created {
+		t.Fatal("zero historical budget blocked a new music job", err)
+	}
+
 }

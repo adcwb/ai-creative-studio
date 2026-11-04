@@ -1,4 +1,17 @@
 const models: Record<string, string> = {
+ '内容审核未就绪，不能执行远端模型': 'Content moderation is not ready. Remote model execution is unavailable.',
+ '请配置并选择此功能的网关模型': 'Configure and select a gateway model for this feature.',
+ '内容审核尚未就绪，请联系部署管理员。': 'Content moderation is not ready. Contact the deployment administrator.',
+ '内容审核未就绪': 'Content moderation is not ready',
+ '已选择组织模型。': 'Organization model selected.',
+ '生成模型': 'Generation model',
+ '选择网关后可同步目录。新模型需确认能力后启用；已有配置不会覆盖。': 'Select a gateway to sync its catalog. Confirm capabilities before enabling new models. Existing settings are preserved.',
+ '历史费用记录': 'Historical cost records',
+ '成本管理已移除。历史预算和费用记录仅供查阅，不限制新的模型调用；实际费用以供应商账单为准。': 'Cost management has been removed. Historical budgets and costs are read-only records and do not restrict new model calls. Refer to provider invoices for actual charges.',
+ '历史预算：{limit} · 历史记录金额：{exposure}': 'Historical budget: {limit} · Historical amount: {exposure}',
+ '仅统计调用次数、耗时与上游报告的 token 用量；未报告的用量显示未知，不推算费用。': 'Only call counts, duration and provider-reported token usage are tracked. Unreported usage is unknown; costs are not inferred.',
+ '优先级：本次明确选择 → 当前组织功能绑定。历史配置仅用于兼容读取，不会静默转换协议或替换供应商。权限、能力匹配与内容审核策略仍然生效。': 'Priority: explicit selection → organization feature binding. Historical settings remain readable for compatibility, without silently switching protocols or providers. Permissions, capability matching and moderation policies still apply.',
+
  "还没有媒体。上传素材，或在镜头制作中使用网关模型生成。": "No media yet. Upload assets or use gateway models in Shot production.",
  "网关模型创作": "Gateway model creation",
  "真实网关创作需要登录组织账户，请切换到安全登录模式。": "Gateway creation requires an organization account. Switch to secure sign-in mode.",

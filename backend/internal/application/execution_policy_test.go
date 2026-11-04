@@ -43,8 +43,13 @@ func TestExecutionPolicyCommandSettlement(t *testing.T) {
 		t.Fatal(e)
 	}
 	entries, _ := g.Ledger.Entries(r.Tenant, "USD")
-	if entries[0].State != "settled" || entries[0].Actual != 9 {
+	if len(entries) != 0 || !g.Ledger.hasExecution(r) {
 		t.Fatal(entries)
+	}
+	// The historical billing adapter remains readable, but model execution no
+	// longer invokes it or manufactures settlement entries.
+	if evidence, err := policy.ReadExecutionBilling(context.Background(), r); err != nil || evidence.ActualMinor != 9 {
+		t.Fatal(evidence, err)
 	}
 	if e := os.WriteFile(moderator, []byte("#!/bin/sh\nprintf '%s' '{\"status\":\"allow\",\"extra\":true}'"), 0700); e != nil {
 		t.Fatal(e)
@@ -115,8 +120,8 @@ func TestExecutionPolicyRequiresNonbillableReviewContractAtStartup(t *testing.T)
 	}
 	p.BillingCommand = command
 	save()
-	if ConfigureExecutionFromEnv(store) == nil {
-		t.Fatal("unknown billing command cost accepted")
+	if ConfigureExecutionFromEnv(store) != nil {
+		t.Fatal("unused billing metadata blocked model execution")
 	}
 	p.BillingContract = "local-or-free-v1"
 	p.BillingSource = "synthetic local billing"
@@ -127,8 +132,8 @@ func TestExecutionPolicyRequiresNonbillableReviewContractAtStartup(t *testing.T)
 	}
 	p.BillingExpiresAt = time.Now().Add(-time.Second)
 	save()
-	if ConfigureExecutionFromEnv(store) == nil {
-		t.Fatal("expired billing contract accepted")
+	if ConfigureExecutionFromEnv(store) != nil {
+		t.Fatal("expired billing metadata blocked model execution")
 	}
 	p.BillingCommand = ""
 	p.ModerationExpiresAt = time.Now().Add(-time.Second)
@@ -156,7 +161,7 @@ func TestExecutionPolicyUnknownBillingCostKeepsReservation(t *testing.T) {
 			t.Fatal(err)
 		}
 		entries, err := g.Ledger.Entries(r.Tenant, "USD")
-		if err != nil || len(entries) != 1 || entries[0].State != "unknown" {
+		if err != nil || len(entries) != 0 || !g.Ledger.hasExecution(r) {
 			t.Fatal("unknown-price billing query released exposure", entries, err)
 		}
 	}

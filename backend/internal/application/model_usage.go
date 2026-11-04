@@ -147,10 +147,11 @@ type ModelUsageSummary struct {
 	MaximumMinor  int64  `json:"maximum_minor"`
 }
 type ModelUsageReport struct {
-	Items      []ModelCall         `json:"items"`
-	Summary    []ModelUsageSummary `json:"summary"`
-	Total      int                 `json:"total"`
-	NextOffset *int                `json:"next_offset"`
+	CostManagementEnabled bool                `json:"cost_management_enabled"`
+	Items                 []ModelCall         `json:"items"`
+	Summary               []ModelUsageSummary `json:"summary"`
+	Total                 int                 `json:"total"`
+	NextOffset            *int                `json:"next_offset"`
 }
 
 func (s *ModelUsageStore) report(tenant string, r *http.Request) (ModelUsageReport, error) {
@@ -189,10 +190,10 @@ func (s *ModelUsageStore) report(tenant string, r *http.Request) (ModelUsageRepo
 			continue
 		}
 		out.Items = append(out.Items, c)
-		key := c.GatewayID + ":" + c.ModelConfigID + ":" + c.Capability + ":" + c.Currency
+		key := c.GatewayID + ":" + c.ModelConfigID + ":" + c.Capability
 		g := groups[key]
 		if g == nil {
-			g = &ModelUsageSummary{GatewayID: c.GatewayID, GatewayName: c.GatewayName, ModelConfigID: c.ModelConfigID, ModelName: c.ModelName, Model: c.Model, Capability: c.Capability, Currency: c.Currency}
+			g = &ModelUsageSummary{GatewayID: c.GatewayID, GatewayName: c.GatewayName, ModelConfigID: c.ModelConfigID, ModelName: c.ModelName, Model: c.Model, Capability: c.Capability}
 			groups[key] = g
 		}
 		g.Calls++
@@ -213,11 +214,6 @@ func (s *ModelUsageStore) report(tenant string, r *http.Request) (ModelUsageRepo
 		}
 		if c.InputTokens != nil || c.OutputTokens != nil {
 			g.MeteredCalls++
-		}
-		if c.MaximumMinor <= 9007199254740991-g.MaximumMinor {
-			g.MaximumMinor += c.MaximumMinor
-		} else {
-			return out, errors.New("model usage amount exceeds safe display range")
 		}
 		if c.FinishedAt != nil {
 			durations[key] = append(durations[key], c.DurationMS)

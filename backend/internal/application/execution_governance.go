@@ -52,92 +52,51 @@ func (g *ExecutionGovernor) AuthorizeRuntime(ctx context.Context, s RuntimeSelec
 	return nil
 }
 
-// Execute persists unknown BEFORE dispatch. A crash, timeout, successful output
-// without billing evidence, or ambiguous HTTP failure keeps the maximum bound.
-// Replaying the same task never invokes dispatch twice. The ledger is not a
-// substitute for atomic DB task acceptance; a stranded reservation is safe.
-func (g *ExecutionGovernor) Execute(ctx context.Context, r ExecutionRequest, dispatch func(context.Context) (BillingEvidence, error)) (finalErr error) {
+// Execute reviews input and persists a nonfinancial dispatch receipt before
+// network I/O. Budgets, quotes, billing evidence and client cost fields do not
+// authorize execution. Identity, review and duplicate-dispatch guards still do.
+func (g *ExecutionGovernor) Execute(ctx context.Context, r ExecutionRequest, dispatch func(context.Context) (BillingEvidence, error)) error {
 	ctx, span := tracing.Start(ctx, "governance.execute", tracing.Attributes{Kind: r.Capability, Provider: r.Provider})
 	outcome := "denied"
 	defer func() { span.End(outcome) }()
 	claimed := false
 	defer func() {
+		// Preserve the meaning of pre-upgrade queued reservations. New tasks do
+		// not create financial entries; a bookkeeping error cannot grant a call.
 		if !claimed && g != nil && g.Ledger != nil && r.Selection != nil {
-			if e := g.Ledger.ReleaseUndispatched(r.ID, r.Tenant, r.Selection.Currency); e != nil {
-				finalErr = e
-			}
+			_ = g.Ledger.ReleaseUndispatched(r.ID, r.Tenant, r.Selection.Currency)
 		}
 	}()
-
-	if g == nil || g.Ledger == nil || g.Quoter == nil || g.Moderator == nil || dispatch == nil || r.ID == "" || r.Tenant == "" || r.Provider == "" || r.Model == "" || r.Selection == nil || r.Selection.TenantID != r.Tenant || r.Selection.Capability != r.Capability || r.Selection.ActorID == "" || r.Selection.ModelID == "" || r.Selection.Version <= 0 {
-		return ErrExecutionGovernance
-	}
-	if r.Selection.RequestDigest != "" && r.Selection.RequestDigest != ExecutionRequestDigest(r) {
-		return ErrExecutionGovernance
-	}
-	quote, err := g.Quoter.QuoteExecution(ctx, r)
-	if err != nil || quote.Currency == "" || quote.MaximumMinor <= 0 || quote.Evidence == "" || len(quote.Evidence) > 256 || !quote.ExpiresAt.After(time.Now()) {
-		return ErrExecutionGovernance
-	}
-	if r.Selection.Currency != quote.Currency || r.Selection.MaximumMinor < quote.MaximumMinor {
-		return ErrExecutionGovernance
-	}
-	if _, err = CurrencyMinorUnits(quote.Currency); err != nil {
+	if !g.Ready() || dispatch == nil || r.ID == "" || r.Tenant == "" || r.Provider == "" || r.Model == "" || r.Selection == nil || r.Selection.TenantID != r.Tenant || r.Selection.Capability != r.Capability || r.Selection.ActorID == "" || r.Selection.ModelID == "" || r.Selection.Version <= 0 {
 		return ErrExecutionGovernance
 	}
 	decision, err := g.Moderator.ReviewExecution(ctx, r)
 	if err != nil || !freshModerationAllow(decision, time.Now()) {
 		return ErrExecutionGovernance
 	}
-	if ctx.Err() != nil {
-		return ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	if !quote.ExpiresAt.After(time.Now()) {
-		return ErrExecutionGovernance
-	}
-	_, err = g.Ledger.ClaimDispatch(r.ID, r.Tenant, r.Provider, r.Model, quote.Currency, quote.MaximumMinor)
-	if err != nil {
+	if err := g.Ledger.claimExecution(r); err != nil {
 		return err
 	}
 	claimed = true
-	outcome = "unknown"
-	permit := &executionPermit{governor: g, selection: *r.Selection, id: r.ID, tenant: r.Tenant, currency: quote.Currency, active: true, expires: quote.ExpiresAt}
-	runCtx := context.WithValue(ctx, executionPermitKey{}, permit)
+	permit := &executionPermit{governor: g, selection: *r.Selection, id: r.ID, tenant: r.Tenant, active: true, expires: time.Now().Add(15 * time.Minute)}
 	defer func() { permit.mu.Lock(); permit.active = false; permit.mu.Unlock() }()
-	if ctx.Err() != nil {
-		// No dispatch callback was invoked; this is local proof of no remote submit.
-		if e := g.Ledger.Resolve(r.ID, r.Tenant, quote.Currency, "released", 0, "cancelled_before_dispatch"); e != nil {
-			return e
-		}
-		return ctx.Err()
+	runCtx := context.WithValue(ctx, executionPermitKey{}, permit)
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	evidence, runErr := dispatch(runCtx)
-	if g.Billing != nil && !(evidence.State == "released" && evidence.Reference == "local:no_dispatch") {
-		if checked, e := g.Billing.ReadExecutionBilling(context.WithoutCancel(ctx), r); e == nil {
-			evidence = checked
-		}
-	}
-	if evidence.State == "settled" || evidence.State == "released" {
-		if evidence.State == "released" && evidence.ActualMinor != 0 {
-			return ErrExecutionGovernance
-		}
-		if err = g.Ledger.Resolve(r.ID, r.Tenant, quote.Currency, evidence.State, evidence.ActualMinor, evidence.Reference); err != nil {
-			return err
-		}
-	} else if evidence.State != "" && evidence.State != "unknown" {
-		return ErrExecutionGovernance
-	}
-	if evidence.State == "settled" || evidence.State == "released" {
+	outcome = "unknown"
+	_, err = dispatch(runCtx)
+	if err == nil {
 		outcome = "ok"
-		if runErr != nil {
-			outcome = "error"
-		}
 	}
-	return runErr
+	return err
 }
 
 func (g *ExecutionGovernor) Ready() bool {
-	if g == nil || g.Ledger == nil || g.Quoter == nil || g.Moderator == nil {
+	if g == nil || g.Ledger == nil || g.Moderator == nil {
 		return false
 	}
 	if readiness, ok := g.Moderator.(interface{ ReviewReady() bool }); ok {
@@ -228,73 +187,27 @@ type ExecutionRecoveryAuthorizer interface {
 	RecoveryExpiry(context.Context, ExecutionRequest) (time.Time, error)
 }
 
-// ExecuteRecovery grants only GET requests and never claims another reservation.
-// Queries must be explicitly documented free by the operator's fresh policy.
+// ExecuteRecovery only grants the adapter's exact GET recovery paths for an
+// existing dispatch. It cannot create a second upstream generation request.
 func (g *ExecutionGovernor) ExecuteRecovery(ctx context.Context, runtime *ModelRuntime, r ExecutionRequest, run func(context.Context, RuntimeProviders) error) error {
-	ctx, span := tracing.Start(ctx, "governance.execute", tracing.Attributes{Kind: r.Capability, Provider: r.Provider})
-	defer span.End("unknown")
-	if !g.Ready() || runtime == nil || r.Selection == nil || r.Capability != r.Selection.Capability || r.Tenant != r.Selection.TenantID || r.UpstreamID == "" {
-		return ErrExecutionGovernance
+	if err := g.RecoveryReady(ctx, runtime, r); err != nil {
+		return err
 	}
-	current, entry, e := runtime.Resolve(ctx, r.Tenant, r.Selection.ActorID, r.Selection.ModelID, r.Selection.Capability)
-	if e != nil || current.Version != r.Selection.Version || entry.Provider != r.Provider || entry.Model != r.Model {
-		return ErrExecutionGovernance
-	}
-	authorizer, ok := g.Quoter.(ExecutionRecoveryAuthorizer)
-	if !ok {
-		return ErrExecutionGovernance
-	}
-	expiry, e := authorizer.RecoveryExpiry(ctx, r)
-	if e != nil || !expiry.After(time.Now()) {
-		return ErrExecutionGovernance
-	}
-	entries, e := g.Ledger.Entries(r.Tenant, r.Selection.Currency)
-	if e != nil {
-		return e
-	}
-	found := false
-	for _, entry := range entries {
-		if entry.ID == r.ID && entry.Provider == r.Provider && entry.Model == r.Model && entry.State == "unknown" {
-			found = true
-		}
-	}
-	if !found {
-		return ErrExecutionGovernance
-	}
-	permit := &executionPermit{governor: g, selection: *r.Selection, id: r.ID, tenant: r.Tenant, currency: r.Selection.Currency, active: true, expires: expiry, upstream: r.UpstreamID}
+	permit := &executionPermit{governor: g, selection: *r.Selection, id: r.ID, tenant: r.Tenant, active: true, expires: time.Now().Add(15 * time.Minute), upstream: r.UpstreamID}
 	defer func() { permit.mu.Lock(); permit.active = false; permit.mu.Unlock() }()
 	runCtx := context.WithValue(context.WithValue(ctx, executionPermitKey{}, permit), executionReadOnlyKey{}, true)
-	e = runtime.Execute(runCtx, *r.Selection, run)
-	// No success-to-free inference: query results do not provide billing evidence.
-	return e
+	return runtime.Execute(runCtx, *r.Selection, run)
 }
 
-// RecoveryReady performs only local/database validation; no secret decryption,
-// moderation command, provider query or new reservation occurs at acceptance.
+// RecoveryReady validates authorization and existing dispatch identity without
+// reading credentials, charging, quoting or submitting a generation request.
 func (g *ExecutionGovernor) RecoveryReady(ctx context.Context, runtime *ModelRuntime, r ExecutionRequest) error {
 	if !g.Ready() || runtime == nil || r.Selection == nil || r.Tenant != r.Selection.TenantID || r.Capability != r.Selection.Capability || r.UpstreamID == "" {
 		return ErrExecutionGovernance
 	}
-	current, entry, e := runtime.Resolve(ctx, r.Tenant, r.Selection.ActorID, r.Selection.ModelID, r.Selection.Capability)
-	if e != nil || current.Version != r.Selection.Version || entry.Provider != r.Provider || entry.Model != r.Model {
+	current, entry, err := runtime.Resolve(ctx, r.Tenant, r.Selection.ActorID, r.Selection.ModelID, r.Selection.Capability)
+	if err != nil || current.Version != r.Selection.Version || entry.Provider != r.Provider || entry.Model != r.Model || !g.Ledger.hasExecution(r) {
 		return ErrExecutionGovernance
 	}
-	policy, ok := g.Quoter.(ExecutionRecoveryAuthorizer)
-	if !ok {
-		return ErrExecutionGovernance
-	}
-	expiry, e := policy.RecoveryExpiry(ctx, r)
-	if e != nil || !expiry.After(time.Now()) {
-		return ErrExecutionGovernance
-	}
-	entries, e := g.Ledger.Entries(r.Tenant, r.Selection.Currency)
-	if e != nil {
-		return e
-	}
-	for _, entry := range entries {
-		if entry.ID == r.ID && entry.Provider == r.Provider && entry.Model == r.Model && entry.State == "unknown" {
-			return nil
-		}
-	}
-	return ErrExecutionGovernance
+	return nil
 }

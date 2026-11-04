@@ -29,9 +29,6 @@ func registerStoryboardRoutes(mux *http.ServeMux, repo StoryboardRepository) {
 		if !resolveModelRequest(w, r, repo, &in.ModelRequest, "text", "storyboard_planning") {
 			return
 		}
-		if !validateModelPreview(w, r, repo, in.ModelRequest, "storyboard", r.PathValue("id"), in) {
-			return
-		}
 		g, created, err := repo.CreateStoryboardGeneration(space, r.PathValue("id"), key, in)
 		if err != nil {
 			storeError(w, err)

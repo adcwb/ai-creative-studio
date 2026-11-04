@@ -202,6 +202,12 @@ class ManagedEvalTests(unittest.TestCase):
         with self.assertRaises(ValueError):self.execute()
         self.assertFalse(self.posts());self.assertFalse(self.args.ledger.exists())
 
+    def test_removed_server_cost_management_does_not_block_approved_tool(self):
+        self.budget.update(cost_management_enabled=False, limit_minor=0, available_minor=0)
+        self.execute()
+        self.assertTrue(self.posts())
+        self.assertTrue(self.args.ledger.exists())
+
     def test_quote_currency_stale_hash_units_and_amount_rejected(self):
         for changes in ({'currency':'CNY'},{'maximum_minor':11},{'maximum_minor':True},{'minor_units':3},{'request_sha256':'wrong'},{'model_config_version':4},{'expires_at':'2000-01-01T00:00:00Z'},{'source':''}):
             with self.subTest(changes=changes):

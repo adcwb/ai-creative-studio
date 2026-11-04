@@ -1,7 +1,7 @@
 import { navigateTo, openProject } from '../e2e/support/navigation'
 import {test, expect} from '@playwright/test'
 
-test('exact image and creative quote consent accepts queued work without a model worker', async ({page}, info) => {
+test('image and creative tasks queue without costs or a model worker', async ({page}, info) => {
  await page.goto('/')
  await page.getByRole('button', {name: '创建新账户'}).click()
  await page.locator('#auth-email').fill(`quote-${info.project.name}-${Date.now()}@example.invalid`)
@@ -12,15 +12,10 @@ test('exact image and creative quote consent accepts queued work without a model
  const session = await (await page.request.get(api + '/auth/session')).json()
  const query = '?space_id=' + session.spaces[0].id
  const headers = {'Origin': 'http://localhost:5175', 'X-CSRF-Token': session.csrf_token}
- await navigateTo(page, '/settings/billing')
- await page.getByText('调用限制与费用账本', {exact: true}).click()
- await page.getByLabel('新的预算上限（USD）', {exact: true}).fill('1.00')
- await page.getByRole('button', {name: '保存预算', exact: true}).click()
- await expect(page.getByText('预算已保存。此操作不会启用真实模型调用。', {exact: true})).toBeVisible()
  const gatewayResponse = await page.request.post(api+'/ai-gateways'+query,{headers,data:{expected_version:0,gateway:{name:'Synthetic quote gateway',base_url:'https://gateway.example.invalid/v1',enabled:true,timeout_seconds:30},credential:{action:'set',secret:'synthetic-never-transmitted'}}})
  expect(gatewayResponse.status()).toBe(200)
  const gateway = (await gatewayResponse.json()).gateways[0]
- const cfg = await page.request.post(api+'/gateway-models'+query,{headers,data:{expected_version:0,model:{gateway_id:gateway.id,name:'Synthetic quote image',model:'synthetic-quote-image',capabilities:['image'],enabled:true,max_output_tokens:128,json_output:true,currency:'USD',maximum_minor:15,price_source:'Synthetic test ceiling'}}})
+ const cfg = await page.request.post(api+'/gateway-models'+query,{headers,data:{expected_version:0,model:{gateway_id:gateway.id,name:'Synthetic quote image',model:'synthetic-quote-image',capabilities:['image'],enabled:true,max_output_tokens:128,json_output:true}}})
  expect(cfg.status()).toBe(200)
  const model = (await cfg.json()).models[0]
  const binding = await page.request.put(api+'/model-features/image_generation'+query,{headers,data:{expected_version:0,binding:{feature_key:'image_generation',model_config_id:model.id,enabled:true,allow_override:true}}})
@@ -31,16 +26,9 @@ test('exact image and creative quote consent accepts queued work without a model
  await page.getByRole('combobox',{name:'创作类型',exact:true}).selectOption('general')
  await page.getByRole('combobox',{name:'画面比例',exact:true}).selectOption('1:1')
  await page.locator('#prompt').fill('Synthetic quoted image')
- await page.getByRole('button',{name:'获取当前请求报价（不调用模型）',exact:true}).click()
- await expect(page.getByText(/单次预留上限：.*0.15/)).toBeVisible()
- const consent = page.getByRole('checkbox',{name:'确认本次报价与可能产生的费用',exact:true})
- await consent.check()
- await page.locator('#prompt').fill('Changed input invalidates quote')
- await expect(consent).toBeDisabled()
- await expect(page.getByRole('button',{name:'创建图像',exact:true})).toBeDisabled()
- await page.locator('#prompt').fill('Synthetic quoted image')
- await page.getByRole('button',{name:'获取当前请求报价（不调用模型）',exact:true}).click()
- await consent.check()
+ await expect(page.getByRole('checkbox',{name:'确认本次报价与可能产生的费用',exact:true})).toHaveCount(0)
+ await page.locator('#prompt').fill('Changed input needs no cost confirmation')
+ await expect(page.getByRole('button',{name:'创建图像',exact:true})).toBeEnabled()
  const accepted = page.waitForResponse(r=>r.url().includes('/tasks?') && r.request().method()==='POST')
  await page.getByRole('button',{name:'创建图像',exact:true}).click()
  expect((await accepted).status()).toBe(202)
@@ -58,11 +46,7 @@ test('exact image and creative quote consent accepts queued work without a model
  await picker.getByRole('combobox',{name:'模型选择',exact:true}).selectOption(model.id)
  await tools.getByLabel('创作或修改要求',{exact:true}).fill('Synthetic quoted shot')
  const generate = tools.getByRole('button',{name:'生成候选',exact:true})
- await expect(generate).toBeDisabled()
- await picker.getByRole('button',{name:'获取当前请求报价（不调用模型）',exact:true}).click()
- await expect(picker.getByText(/单次预留上限：.*0.15/)).toBeVisible()
- await expect(generate).toBeDisabled()
- await picker.getByRole('checkbox',{name:'确认本次报价与可能产生的费用',exact:true}).check()
+ await expect(picker.getByRole('button',{name:'获取当前请求报价（不调用模型）',exact:true})).toHaveCount(0)
  const mediaAccepted = page.waitForResponse(r=>r.url().includes('/creative-jobs?')&&r.request().method()==='POST')
  await expect(generate).toBeEnabled()
  await generate.click()

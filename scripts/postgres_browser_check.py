@@ -5,7 +5,6 @@ model providers, external storage or paid services are used.
 """
 import argparse
 import base64
-import hashlib
 from datetime import datetime, timedelta, timezone
 import json
 import os
@@ -27,7 +26,7 @@ def main():
     p.add_argument('--pg-user', default='agent')
     p.add_argument('--pg-lib', type=Path)
     p.add_argument('--chromium', default='/usr/bin/chromium')
-    p.add_argument('--quote-fixture', action='store_true', help='Exercise exact quote acceptance without starting any model worker')
+    p.add_argument('--quote-fixture', '--acceptance-fixture', action='store_true', help='Exercise acceptance without cost configuration or any model worker')
     args = p.parse_args()
     if not args.pg_socket.is_absolute() or not args.pg_user.isalnum():
         p.error('use an absolute local test socket and an alphanumeric synthetic user')
@@ -52,19 +51,11 @@ def main():
                   'FRONTEND_ORIGIN': 'http://localhost:5175', 'IMAGE_PROVIDER': 'mock-svg', 'TEXT_PROVIDER': 'mock-text'}
         if args.quote_fixture:
             expiry = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
-            rules = []
-            for text, parameters in [
-                ('Synthetic quoted image', dict(Prompt='Synthetic quoted image', Kind='general', Ratio='1:1', Style='natural')),
-                ('Synthetic quoted shot\nSynthetic quote story\nSynthetic local preview only.', dict(Kind='image', Shot='', Character='')),
-            ]:
-                canonical = dict(Contract='studio-request-v1', Provider='openai-images', Model='synthetic-quote-image', Capability='image', Text=text, Voice='', HasMedia=False, Parameters=parameters, MediaHashes=[])
-                digest = hashlib.sha256(json.dumps(canonical, separators=(',', ':')).encode()).hexdigest()
-                rules.append(dict(provider='openai-images', model='synthetic-quote-image', capability='image', request_sha256=digest, currency='USD', maximum_minor=15, maximum_input_bytes=8192, source='synthetic exact browser fixture', expires_at=expiry))
             moderator = evidence / 'deny-moderation'
             moderator.write_text('#!/bin/sh\nexit 1\n')
             moderator.chmod(0o700)
             policy = evidence / 'synthetic-policy.json'
-            policy.write_text(json.dumps(dict(version=1, prices=rules, moderation_command=str(moderator), moderation_contract='local-or-free-v1', moderation_source='synthetic local deny fixture', moderation_expires_at=expiry)))
+            policy.write_text(json.dumps(dict(version=1, prices=[], moderation_command=str(moderator), moderation_contract='local-or-free-v1', moderation_source='synthetic local deny fixture', moderation_expires_at=expiry)))
             common.update(EXECUTION_POLICY_FILE=str(policy), MODEL_CONFIG_KEK_BASE64=base64.b64encode(bytes([71])*32).decode())
         def start(name, extra):
             log = (evidence / (name + '.log')).open('w')
@@ -90,7 +81,7 @@ def main():
         subprocess.run(['npm', 'exec', 'playwright', 'test', '--', '--config', 'playwright.quotes.config.ts' if args.quote_fixture else 'playwright.postgres.config.ts'], cwd=ROOT / 'frontend', env=browser_env, check=True)
         if worker is not None and worker.poll() is not None:
             raise RuntimeError('independent worker exited during browser test')
-        result = {'database': 'fresh synthetic PostgreSQL', 'worker': 'not started: acceptance-only quote fixture' if args.quote_fixture else 'independent process', 'object_store': 'shared-file', 'secure_desktop_mobile': 'passed', 'live_calls': 0}
+        result = {'database': 'fresh synthetic PostgreSQL', 'worker': 'not started: cost-free acceptance fixture' if args.quote_fixture else 'independent process', 'object_store': 'shared-file', 'secure_desktop_mobile': 'passed', 'live_calls': 0}
         (evidence / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
         print(json.dumps({'evidence': str(evidence), **result}))
     finally:

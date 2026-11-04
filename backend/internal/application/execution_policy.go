@@ -201,28 +201,11 @@ func ConfigureExecutionFromEnv(s *FileStore) error {
 	if d.Decode(&extra) != io.EOF {
 		return ErrExecutionGovernance
 	}
-	if !policy.moderationIsNonbillable() || policy.Version != 1 || len(policy.Prices) == 0 || len(policy.Prices) > 200 || validatePolicyCommand(policy.ModerationCommand) != nil {
-		return ErrExecutionGovernance
-	}
-	if policy.BillingCommand != "" && (!policy.billingIsNonbillable() || validatePolicyCommand(policy.BillingCommand) != nil) {
+	if !policy.moderationIsNonbillable() || policy.Version != 1 || validatePolicyCommand(policy.ModerationCommand) != nil {
 		return ErrExecutionGovernance
 	}
 	if err := validateMusicEntitlements(policy.MusicEntitlements); err != nil {
 		return err
-	}
-	seen := map[string]bool{}
-	for _, v := range policy.Prices {
-		key := v.RequestDigest + v.Provider + "\x00" + v.Model + "\x00" + v.Capability
-		_, ce := CurrencyMinorUnits(v.Currency)
-		if (v.RequestContract != "" && v.RequestContract != "text-64k-6000-v1") || ((v.RequestContract != "text-64k-6000-v1" || (v.Provider != "openai-text" && v.Provider != "anthropic-text") || v.Capability != "text") && len(v.RequestDigest) != 64) || seen[key] || v.Provider == "" || v.Model == "" || v.Capability == "" || v.Currency == "" || ce != nil || (v.RequestContract == "" && v.MaximumMinor <= 0) || v.MaximumInputBytes <= 0 || v.MaximumInputBytes > 1<<20 || v.Source == "" || len(v.Source) > 256 || !v.ExpiresAt.After(time.Now()) {
-			return ErrExecutionGovernance
-		}
-		if v.RequestContract != "" {
-			if _, err := boundedTextAmount(v); err != nil {
-				return err
-			}
-		}
-		seen[key] = true
 	}
 	if err := policy.configureReferenceBridge(); err != nil {
 		return err

@@ -4,12 +4,9 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"regexp"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/tracing"
 )
-
-var executionDigestPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
 // ModelRequest contains only an explicit, reviewable model choice. Identity and
 // effective provider settings are derived on the server, never from JSON.
@@ -53,7 +50,7 @@ func resolveModelRequest(w http.ResponseWriter, r *http.Request, repo any, in *M
 		feature = features[0]
 	}
 	if gatewayCreation(r) && in.ModelConfigID == "" {
-		problem(w, 409, "gateway_model_required", "请配置并选择此功能的网关模型，获取报价并确认费用后再生成")
+		problem(w, 409, "gateway_model_required", "请配置并选择此功能的网关模型")
 		return false
 	}
 	if in.ModelConfigID == "" && in.ModelConfigVersion == 0 && in.Voice == "" && in.BudgetCurrency == "" && in.BudgetMaximumMinor == 0 && in.QuoteRequestDigest == "" {
@@ -108,19 +105,9 @@ func resolveModelRequest(w http.ResponseWriter, r *http.Request, repo any, in *M
 		}
 	}
 	if s.execution == nil || !s.execution.Ready() {
-		problem(w, 503, "provider_not_ready", "费用与内容审核治理未就绪，不能执行远端模型")
+		problem(w, 503, "provider_not_ready", "内容审核未就绪，不能执行远端模型")
 		return false
 	}
-	if _, err := CurrencyMinorUnits(in.BudgetCurrency); err != nil || in.BudgetMaximumMinor <= 0 || in.BudgetMaximumMinor > 9007199254740991 {
-		problem(w, 400, "invalid_input", "必须确认本次执行的币种与整数最小单位费用上限")
-		return false
-	}
-	if !executionDigestPattern.MatchString(in.QuoteRequestDigest) {
-		problem(w, 400, "invalid_input", "请先获取并确认当前请求的费用报价")
-		return false
-	}
-	selection.RequestDigest = in.QuoteRequestDigest
-	selection.Currency, selection.MaximumMinor = in.BudgetCurrency, in.BudgetMaximumMinor
 	selection.Voice = in.Voice
 	in.selection = &selection
 	in.selectedCaps = Capabilities{Provider: entry.Provider, Model: entry.Model, Mode: "real", Ready: true}

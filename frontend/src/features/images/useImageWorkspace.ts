@@ -1,4 +1,4 @@
-import {creationCapability, gatewayCreationRequired} from '../../creationGateway'
+import {creationCapability} from '../../creationGateway'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 import type { Task, TaskInput, Template } from '../../api'
@@ -47,7 +47,6 @@ export function useImageController() {
     if (!effectiveCapability?.ready || effectiveCapability.mode === 'unavailable') return
     const outcome = await studio.create({...draft, ...runtimeFields(runtimeChoice)}, effectiveCapability, editing?.task.id)
     if (outcome === 'provider_changed') refreshCapability()
-    if (outcome === 'created' && gatewayCreationRequired) setRuntimeChoice(current => current ? {...current, confirmed: false, quoteReady: false} : null)
     if (outcome === 'created' && editing) {setEditing(null); setDraft(blankDraft)}
   }
   return {space, capability, capabilityError, refreshCapability, studio, runtimeChoice, setRuntimeChoice, draft, setDraft, editing, detailId, setDetailId, promptRef, preview, effectiveCapability, savedIds, running, chooseTemplate, editTask, cancelEdit, startNew, openDetail, submitDraft}

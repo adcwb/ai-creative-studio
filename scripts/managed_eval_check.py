@@ -93,7 +93,6 @@ def main():
         registration = call('/api/v1/auth/register', {'email':'managed-eval@example.invalid','password':'Synthetic-password-2026!'})
         csrf = registration['csrf_token']; tenant = registration['spaces'][0]['id']
         query = '?' + urllib.parse.urlencode({'space_id':tenant})
-        call('/api/v1/governance/budget'+query, {'currency':'USD','limit_minor':300,'expected_limit_minor':0}, 'PUT')
         configured = call('/api/v1/ai-gateways'+query, {'expected_version':0,'gateway':{'name':'Synthetic eval gateway','base_url':'https://gateway.example.invalid/v1','enabled':True,'timeout_seconds':30},'credential':{'action':'set','secret':'synthetic-managed-eval-secret'}}, 'POST')
         gateway = configured['gateways'][0]
         configured = call('/api/v1/gateway-models'+query, {'expected_version':0,'model':{'gateway_id':gateway['id'],'name':'Synthetic eval model','model':'synthetic-eval','capabilities':['text'],'enabled':True,'max_output_tokens':128,'json_output':True,'currency':'USD','maximum_minor':10,'price_source':'Synthetic fixture ceiling'}}, 'POST')
@@ -114,8 +113,8 @@ def main():
         assert outcome == 1  # queued, not falsely reported as generation success
         assert report['status'] == 'queued' and report['cost_state'] == 'unknown_reserved'
         budget = call('/api/v1/governance'+query+'&currency=USD')
-        assert budget['exposure_minor'] == 10 and budget['available_minor'] == 290
-        assert len(budget['entries']) == 1 and budget['entries'][0]['state'] == 'reserved'
+        assert budget['exposure_minor'] == 0 and budget['available_minor'] == 0
+        assert budget['entries'] == []
         result = subprocess.run([str(args.pg_bin/'psql'),*pg_args,'-d',database,'-At','-c',
             'SELECT state||\':\'||attempt FROM execution_jobs'], env=pg_env, capture_output=True, text=True, check=True).stdout.strip()
         assert result == 'queued:0', result
@@ -130,8 +129,8 @@ def main():
         assert len(json.loads(execution.ledger.read_text())['reservations']) == 1
         summary = {'status':'passed','mode':'synthetic_api_acceptance_fixture','postgres':'real','api_processes':1,
             'worker_started':False,'supplier_calls':0,'real_credentials':False,'charges':0,
-            'checks':['real session/catalog/budget/quote/creative API contract','atomic server reservation and queued job',
-                      'unknown local reservation retained','configuration revocation rejected before re-reservation'],
+            'checks':['real session/catalog/creative API contract; legacy tool quote compatibility','atomic queued job without a server cost reservation',
+                      'separate live-evaluation tool consent record retained','configuration revocation rejected before re-reservation'],
             'evidence':str(evidence)}
         (evidence/'result.json').write_text(json.dumps(summary,indent=2)+'\n')
         print(json.dumps(summary))

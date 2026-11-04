@@ -292,7 +292,7 @@ func TestPostgresOfflineMigrationRoundTrip(t *testing.T) {
 	}
 }
 
-func TestPostgresAcceptanceReservationRollbackAndCancel(t *testing.T) {
+func TestPostgresAcceptanceWithoutCostReservationAndCancel(t *testing.T) {
 	db := postgresTestDB(t)
 	s := postgresTestStore(t, db)
 	if err := s.budget.SetLimit("tenant-a", "USD", 100); err != nil {
@@ -303,18 +303,18 @@ func TestPostgresAcceptanceReservationRollbackAndCancel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err = s.Create("tenant-a", "accept-two", in); err == nil {
-		t.Fatal("over budget acceptance succeeded")
+	if _, _, err = s.Create("tenant-a", "accept-two", in); err != nil {
+		t.Fatal("historical budget blocked a new task", err)
 	}
-	if len(s.List("tenant-a")) != 1 {
-		t.Fatal("failed admission left domain task")
+	if len(s.List("tenant-a")) != 2 {
+		t.Fatal("accepted domain tasks missing")
 	}
 	var n int
-	if err = db.QueryRow(`SELECT count(*) FROM execution_jobs`).Scan(&n); err != nil || n != 1 {
-		t.Fatal("failed admission left queue job", err)
+	if err = db.QueryRow(`SELECT count(*) FROM execution_jobs`).Scan(&n); err != nil || n != 2 {
+		t.Fatal("accepted queue jobs missing", err)
 	}
 	entries, err := s.budget.Entries("tenant-a", "USD")
-	if err != nil || len(entries) != 1 || entries[0].State != "reserved" || entries[0].Reserved != 60 {
+	if err != nil || len(entries) != 0 {
 		t.Fatal(entries, err)
 	}
 	tx, err := db.BeginTx(context.Background(), nil)
@@ -329,7 +329,7 @@ func TestPostgresAcceptanceReservationRollbackAndCancel(t *testing.T) {
 		t.Fatal(err)
 	}
 	entries, err = s.budget.Entries("tenant-a", "USD")
-	if err != nil || entries[0].State != "released" {
+	if err != nil || len(entries) != 0 {
 		t.Fatal(entries, err)
 	}
 }

@@ -4,7 +4,7 @@ export interface FeatureDefinition {key: string; name: string; capability: strin
 export interface FeatureBinding {feature_key: string; model_config_id: string; enabled: boolean; allow_override: boolean; voice?: string; version: number; updated_by?: string; updated_at?: string}
 export interface ModelManagementReport {version: number; gateways: AIGateway[]; models: GatewayModel[]; features: FeatureDefinition[]; bindings: FeatureBinding[]; secret_storage_available: boolean; governance_ready: boolean; legacy_models: number}
 export const capabilityNames: Record<string, string> = {text: '文本推理', vision: '视觉理解', image: '图像生成', image_edit: '图片编辑', video: '视频生成', speech: '语音合成', asr: '语音转写', asr_timestamps: '带时间戳转写'}
-export const readinessNames: Record<string, string> = {gateway_capability_retired: '此官方能力已退役', gateway_disabled: '网关已停用', gateway_credential_missing: '未配置可用凭据', gateway_price_missing: '未配置单次费用上限', gateway_governance_missing: '费用与审核未就绪', role_denied: '没有执行权限'}
+export const readinessNames: Record<string, string> = {gateway_capability_retired: '此官方能力已退役', gateway_disabled: '网关已停用', gateway_credential_missing: '未配置可用凭据', gateway_governance_missing: '内容审核未就绪', role_denied: '没有执行权限'}
 export function featureModelStatus(report: ModelManagementReport, modelID: string, capability: string) {
   const model = report.models.find(item => item.id === modelID)
   if (!model) return '请选择模型'
@@ -13,8 +13,7 @@ export function featureModelStatus(report: ModelManagementReport, modelID: strin
   if (!model.enabled) return '模型已停用'
   if (!model.capabilities.includes(capability)) return '模型能力不匹配'
   if (gateway.secret_status !== 'encrypted' || !report.secret_storage_available) return '未配置可用凭据'
-  if (!model.maximum_minor || !model.price_source.trim()) return '未配置单次费用上限'
-  if (!report.governance_ready) return '费用与审核未就绪'
+  if (!report.governance_ready) return '内容审核未就绪'
   return '可执行'
 }
 export function previewFeature(preview?: {operation: string; input: Record<string, unknown>}) {

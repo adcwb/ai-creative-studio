@@ -31,9 +31,10 @@ type RuntimeModelOption struct {
 	Available    bool                 `json:"available"`
 }
 type RuntimeModelCatalog struct {
-	Bindings        []RuntimeFeatureBinding `json:"bindings,omitempty"`
-	GovernanceReady bool                    `json:"governance_ready"`
-	Models          []RuntimeModelOption    `json:"models"`
+	CostManagementEnabled bool                    `json:"cost_management_enabled"`
+	Bindings              []RuntimeFeatureBinding `json:"bindings,omitempty"`
+	GovernanceReady       bool                    `json:"governance_ready"`
+	Models                []RuntimeModelOption    `json:"models"`
 }
 type RuntimeFeatureBinding struct {
 	FeatureKey    string `json:"feature_key"`
@@ -96,8 +97,6 @@ func registerRuntimeCatalog(mux *http.ServeMux, s *FileStore) {
 					reason = "gateway_disabled"
 				case g.SecretStatus != "encrypted" || models.aead == nil:
 					reason = "gateway_credential_missing"
-				case m.MaximumMinor <= 0 || m.PriceSource == "":
-					reason = "gateway_price_missing"
 				case !ready:
 					reason = "gateway_governance_missing"
 				case !runtimeRoleAllowed(scope.Role):
@@ -117,7 +116,7 @@ func registerRuntimeCatalog(mux *http.ServeMux, s *FileStore) {
 			if !e.Enabled || e.Lifecycle != "active" {
 				continue
 			}
-			result.Models = append(result.Models, RuntimeModelOption{ID: e.ID, Version: tenant.Version, Provider: e.Provider, Model: e.Model, Capability: e.Capability, IsDefault: e.IsDefault, Available: ready && runtimeRoleAllowed(scope.Role) && s.runtime.entryAllowed(e, scope.SpaceID, e.Capability, tenant.Version), Quote: runtimeQuotePreview(r.Context(), s.execution, e)})
+			result.Models = append(result.Models, RuntimeModelOption{ID: e.ID, Version: tenant.Version, Provider: e.Provider, Model: e.Model, Capability: e.Capability, IsDefault: e.IsDefault, Available: ready && runtimeRoleAllowed(scope.Role) && s.runtime.entryAllowed(e, scope.SpaceID, e.Capability, tenant.Version)})
 		}
 		sort.Slice(result.Models, func(i, j int) bool { return result.Models[i].ID < result.Models[j].ID })
 		respond(w, 200, result)

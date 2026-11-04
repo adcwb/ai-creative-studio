@@ -144,6 +144,10 @@ def validate_budget(value, args):
     reserve_minor = args.reserve_micros // 10000
     if value.get('currency') != args.currency or value.get('minor_units') != 2:
         raise ValueError('authoritative budget currency/unit mismatch')
+    # New servers retain this endpoint for history only. The evaluation tool's
+    # explicit approval and local spending record remain independently enforced.
+    if value.get('cost_management_enabled') is False:
+        return
     if not all(valid_int(value.get(key)) for key in ('limit_minor', 'exposure_minor', 'available_minor')):
         raise ValueError('malformed authoritative budget')
     if not 0 < value['limit_minor'] <= limit or value['available_minor'] < reserve_minor or value['exposure_minor'] + value['available_minor'] != value['limit_minor']:

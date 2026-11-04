@@ -5732,7 +5732,7 @@
             }
           }
         },
-        "description": "kind=vision要求reference_asset_id引用同项目已验证图像，分析结果复用analysis；真实模型质量、权限和费用未验证，不自动重试。 kind=digital_human requires avatar_id, audio_asset_id, voice_confirmed=true and voice_consent_reference. Reference is derived from the grant. Select provider/model from digital_human_photo or digital_human_video capability; managed generic video configurations are rejected. Audio must be owned WAV/MP3, <=10 MiB and <=30 seconds, no longer than a video reference. Local engine and operator license acknowledgment are required. Eino validates, drives and encodes; output replaces the model soundtrack with the selected audio and burns in AI Generated. Successful output is a project media asset, not an automatic timeline edit. Text-to-speech uses a separate speech job and its own explicit model/budget confirmation."
+        "description": "kind=vision要求reference_asset_id引用同项目已验证图像，分析结果复用analysis；真实模型质量、权限和费用未验证，不自动重试。 kind=digital_human requires avatar_id, audio_asset_id, voice_confirmed=true and voice_consent_reference. Reference is derived from the grant. Select provider/model from digital_human_photo or digital_human_video capability; managed generic video configurations are rejected. Audio must be owned WAV/MP3, <=10 MiB and <=30 seconds, no longer than a video reference. Local engine and operator license acknowledgment are required. Eino validates, drives and encodes; output replaces the model soundtrack with the selected audio and burns in AI Generated. Successful output is a project media asset, not an automatic timeline edit. Text-to-speech uses a separate speech job and its own explicit model selection."
       }
     },
     "/api/v1/projects/{id}/analysis": {
@@ -8118,7 +8118,8 @@
             }
           }
         },
-        "description": "Organization owner only. Atomic expected-limit check; cannot lower below existing exposure. Configuration and actor audit persist together. Does not enable live execution or provide settlement authority."
+        "description": "Legacy budget metadata API retained for compatibility and historical records. These limits do not authorize, reserve or block new model calls. The product UI no longer edits budgets.",
+        "deprecated": true
       }
     },
     "/api/v1/governance/exchange": {
@@ -8723,7 +8724,9 @@
           "503": {
             "description": "Governance unavailable."
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Legacy optional quotation endpoint. No generation path requires or checks this quote. It may report unavailable when no historical price metadata exists; this does not prevent model execution."
       }
     },
     "/api/v1/projects/{id}/media/poster": {
@@ -16019,7 +16022,7 @@
             }
           },
           "409": {
-            "description": "Gateway selection required, model/version conflict, or an invalid exact request quote. No fallback work is created.",
+            "description": "Gateway selection required or model/version conflict. No fallback work is created. Cost quotes are not required for generation.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16080,7 +16083,7 @@
           },
           "description": "One application/json object. Use saved gateway model configuration IDs, not an upstream model name, endpoint or credential."
         },
-        "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, an enabled feature binding, and the current model configuration version. Never falls back to a local, legacy or mock provider. Generation requires an exact request quote from gateway-runtime-quote and explicit original-currency cost consent. Existing idempotency, permission, moderation and worker safeguards apply; errors never trigger a retry through a legacy route."
+        "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, the current model configuration version and applicable feature authorization. No prices, quotes, cost confirmation, reservations or budgets are required. Content moderation, credentials, authorization and duplicate-dispatch safeguards remain mandatory. Never falls back to local or mock results."
       }
     },
     "/api/v1/gateway-tasks/{id}/retry": {
@@ -16177,7 +16180,7 @@
             }
           },
           "409": {
-            "description": "Gateway selection required, model/version conflict, or an invalid exact request quote. No fallback work is created.",
+            "description": "Gateway selection required or model/version conflict. No fallback work is created. Cost quotes are not required for generation.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16248,7 +16251,7 @@
           },
           "description": "One application/json object. Use saved gateway model configuration IDs, not an upstream model name, endpoint or credential."
         },
-        "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, an enabled feature binding, and the current model configuration version. Never falls back to a local, legacy or mock provider. Generation requires an exact request quote from gateway-runtime-quote and explicit original-currency cost consent. Existing idempotency, permission, moderation and worker safeguards apply; errors never trigger a retry through a legacy route."
+        "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, the current model configuration version and applicable feature authorization. No prices, quotes, cost confirmation, reservations or budgets are required. Content moderation, credentials, authorization and duplicate-dispatch safeguards remain mandatory. Never falls back to local or mock results."
       }
     },
     "/api/v1/gateway-runtime-quote": {
@@ -16295,7 +16298,7 @@
             "description": "Execution role required."
           },
           "409": {
-            "description": "Gateway selection required, model/version conflict, or an invalid exact request quote. No fallback work is created."
+            "description": "Gateway selection required or model/version conflict. No fallback work is created. Cost quotes are not required for generation."
           },
           "503": {
             "description": "Governance unavailable."
@@ -16311,7 +16314,8 @@
             }
           }
         },
-        "description": "Requires the authenticated organization scope, a saved gateway model of the matching capability and an enabled feature binding. Returns an exact request-bound quote without calling a generation provider. Business input excludes model selection, credentials and cost consent. A later generation request must separately confirm this quote; no local/mock fallback is supported."
+        "description": "Legacy optional quotation endpoint. No generation path requires or checks this quote. It may report unavailable when no historical price metadata exists; this does not prevent model execution.",
+        "deprecated": true
       }
     },
     "/api/v1/projects/{id}/gateway-generations": {
@@ -16409,7 +16413,7 @@
             }
           },
           "409": {
-            "description": "Gateway selection required, model/version conflict, or an invalid exact request quote. No fallback work is created.",
+            "description": "Gateway selection required or model/version conflict. No fallback work is created. Cost quotes are not required for generation.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16469,7 +16473,7 @@
             }
           }
         },
-        "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, an enabled feature binding, and the current model configuration version. Never falls back to a local, legacy or mock provider. Generation requires an exact request quote from gateway-runtime-quote and explicit original-currency cost consent. Existing idempotency, permission, moderation and worker safeguards apply; errors never trigger a retry through a legacy route."
+        "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, the current model configuration version and applicable feature authorization. No prices, quotes, cost confirmation, reservations or budgets are required. Content moderation, credentials, authorization and duplicate-dispatch safeguards remain mandatory. Never falls back to local or mock results."
       }
     },
     "/api/v1/projects/{id}/gateway-storyboard-generations": {
@@ -16567,7 +16571,7 @@
             }
           },
           "409": {
-            "description": "Gateway selection required, model/version conflict, or an invalid exact request quote. No fallback work is created.",
+            "description": "Gateway selection required or model/version conflict. No fallback work is created. Cost quotes are not required for generation.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16627,7 +16631,7 @@
             }
           }
         },
-        "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, an enabled feature binding, and the current model configuration version. Never falls back to a local, legacy or mock provider. Generation requires an exact request quote from gateway-runtime-quote and explicit original-currency cost consent. Existing idempotency, permission, moderation and worker safeguards apply; errors never trigger a retry through a legacy route."
+        "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, the current model configuration version and applicable feature authorization. No prices, quotes, cost confirmation, reservations or budgets are required. Content moderation, credentials, authorization and duplicate-dispatch safeguards remain mandatory. Never falls back to local or mock results."
       }
     },
     "/api/v1/projects/{id}/gateway-analysis": {
@@ -16714,7 +16718,7 @@
             }
           },
           "409": {
-            "description": "Gateway selection required, model/version conflict, or an invalid exact request quote. No fallback work is created.",
+            "description": "Gateway selection required or model/version conflict. No fallback work is created. Cost quotes are not required for generation.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16805,7 +16809,7 @@
           },
           "description": "One application/json object. Use saved gateway model configuration IDs, not an upstream model name, endpoint or credential."
         },
-        "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, an enabled feature binding, and the current model configuration version. Never falls back to a local, legacy or mock provider. Generation requires an exact request quote from gateway-runtime-quote and explicit original-currency cost consent. Existing idempotency, permission, moderation and worker safeguards apply; errors never trigger a retry through a legacy route."
+        "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, the current model configuration version and applicable feature authorization. No prices, quotes, cost confirmation, reservations or budgets are required. Content moderation, credentials, authorization and duplicate-dispatch safeguards remain mandatory. Never falls back to local or mock results."
       }
     },
     "/api/v1/projects/{id}/gateway-creative-jobs": {
@@ -16892,7 +16896,7 @@
             }
           },
           "409": {
-            "description": "Gateway selection required, model/version conflict, or an invalid exact request quote. No fallback work is created.",
+            "description": "Gateway selection required or model/version conflict. No fallback work is created. Cost quotes are not required for generation.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16983,7 +16987,7 @@
           },
           "description": "One application/json object. Use saved gateway model configuration IDs, not an upstream model name, endpoint or credential."
         },
-        "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, an enabled feature binding, and the current model configuration version. Never falls back to a local, legacy or mock provider. Generation requires an exact request quote from gateway-runtime-quote and explicit original-currency cost consent. Existing idempotency, permission, moderation and worker safeguards apply; errors never trigger a retry through a legacy route."
+        "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, the current model configuration version and applicable feature authorization. No prices, quotes, cost confirmation, reservations or budgets are required. Content moderation, credentials, authorization and duplicate-dispatch safeguards remain mandatory. Never falls back to local or mock results."
       }
     }
   },
@@ -17143,19 +17147,19 @@
           },
           "budget_currency": {
             "type": "string",
-            "description": "Explicit original currency for this execution ceiling. No conversion."
+            "description": "Legacy cost field accepted for compatibility and ignored for model execution. No quote, cost confirmation or budget is required.",
+            "deprecated": true
           },
           "budget_maximum_minor": {
             "type": "integer",
             "format": "int64",
-            "minimum": 1,
-            "maximum": 9007199254740991,
-            "description": "User-confirmed maximum in integer currency minor units. Required with a model configuration choice."
+            "description": "Legacy cost field accepted for compatibility and ignored for model execution. No quote, cost confirmation or budget is required.",
+            "deprecated": true
           },
           "quote_request_sha256": {
             "type": "string",
-            "pattern": "^[a-f0-9]{64}$",
-            "description": "Request-bound digest from runtime-quote; required for explicit managed execution."
+            "description": "Legacy cost field accepted for compatibility and ignored for model execution. No quote, cost confirmation or budget is required.",
+            "deprecated": true
           },
           "trace_parent": {
             "type": "string",
@@ -17357,19 +17361,19 @@
           },
           "budget_currency": {
             "type": "string",
-            "description": "Explicit original currency for this execution ceiling. No conversion."
+            "description": "Legacy cost field accepted for compatibility and ignored for model execution. No quote, cost confirmation or budget is required.",
+            "deprecated": true
           },
           "budget_maximum_minor": {
             "type": "integer",
             "format": "int64",
-            "minimum": 1,
-            "maximum": 9007199254740991,
-            "description": "User-confirmed maximum in integer currency minor units. Required with a model configuration choice."
+            "description": "Legacy cost field accepted for compatibility and ignored for model execution. No quote, cost confirmation or budget is required.",
+            "deprecated": true
           },
           "quote_request_sha256": {
             "type": "string",
-            "pattern": "^[a-f0-9]{64}$",
-            "description": "Request-bound digest from runtime-quote; required for explicit managed execution."
+            "description": "Legacy cost field accepted for compatibility and ignored for model execution. No quote, cost confirmation or budget is required.",
+            "deprecated": true
           }
         },
         "description": "创建和失败重试共用输入。prompt/kind/ratio/style 为业务输入；expected_provider/expected_model 是成对可选的 HTTP 提交前置条件，不进入持久化 Input 或幂等比较。浏览器必须提供；旧 API 客户端两项都省略时兼容原行为。后端绑定实际当前配置，不接受 endpoint、凭据或直接选择 provider/model。",
@@ -18174,19 +18178,19 @@
           },
           "budget_currency": {
             "type": "string",
-            "description": "Explicit original currency for this execution ceiling. No conversion."
+            "description": "Legacy cost field accepted for compatibility and ignored for model execution. No quote, cost confirmation or budget is required.",
+            "deprecated": true
           },
           "budget_maximum_minor": {
             "type": "integer",
             "format": "int64",
-            "minimum": 1,
-            "maximum": 9007199254740991,
-            "description": "User-confirmed maximum in integer currency minor units. Required with a model configuration choice."
+            "description": "Legacy cost field accepted for compatibility and ignored for model execution. No quote, cost confirmation or budget is required.",
+            "deprecated": true
           },
           "quote_request_sha256": {
             "type": "string",
-            "pattern": "^[a-f0-9]{64}$",
-            "description": "Request-bound digest from runtime-quote; required for explicit managed execution."
+            "description": "Legacy cost field accepted for compatibility and ignored for model execution. No quote, cost confirmation or budget is required.",
+            "deprecated": true
           }
         }
       },
@@ -19067,19 +19071,19 @@
           },
           "budget_currency": {
             "type": "string",
-            "description": "Explicit original currency for this execution ceiling. No conversion."
+            "description": "Legacy cost field accepted for compatibility and ignored for model execution. No quote, cost confirmation or budget is required.",
+            "deprecated": true
           },
           "budget_maximum_minor": {
             "type": "integer",
             "format": "int64",
-            "minimum": 1,
-            "maximum": 9007199254740991,
-            "description": "User-confirmed maximum in integer currency minor units. Required with a model configuration choice."
+            "description": "Legacy cost field accepted for compatibility and ignored for model execution. No quote, cost confirmation or budget is required.",
+            "deprecated": true
           },
           "quote_request_sha256": {
             "type": "string",
-            "pattern": "^[a-f0-9]{64}$",
-            "description": "Request-bound digest from runtime-quote; required for explicit managed execution."
+            "description": "Legacy cost field accepted for compatibility and ignored for model execution. No quote, cost confirmation or budget is required.",
+            "deprecated": true
           },
           "avatar_id": {
             "type": "string",
@@ -19405,19 +19409,19 @@
           },
           "budget_currency": {
             "type": "string",
-            "description": "Explicit original currency for this execution ceiling. No conversion."
+            "description": "Legacy cost field accepted for compatibility and ignored for model execution. No quote, cost confirmation or budget is required.",
+            "deprecated": true
           },
           "budget_maximum_minor": {
             "type": "integer",
             "format": "int64",
-            "minimum": 1,
-            "maximum": 9007199254740991,
-            "description": "User-confirmed maximum in integer currency minor units. Required with a model configuration choice."
+            "description": "Legacy cost field accepted for compatibility and ignored for model execution. No quote, cost confirmation or budget is required.",
+            "deprecated": true
           },
           "quote_request_sha256": {
             "type": "string",
-            "pattern": "^[a-f0-9]{64}$",
-            "description": "Request-bound digest from runtime-quote; required for explicit managed execution."
+            "description": "Legacy cost field accepted for compatibility and ignored for model execution. No quote, cost confirmation or budget is required.",
+            "deprecated": true
           },
           "episode_number": {
             "type": "integer",
@@ -19910,6 +19914,13 @@
           },
           "fx_available": {
             "type": "boolean"
+          },
+          "cost_management_enabled": {
+            "type": "boolean",
+            "enum": [
+              false
+            ],
+            "description": "Cost management is disabled. Historical budgets and costs do not restrict new model calls."
           }
         },
         "required": [
@@ -20578,7 +20589,8 @@
         ],
         "properties": {
           "governance_ready": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Execution moderation readiness, independent of prices, quotes, budgets and cost consent."
           },
           "models": {
             "type": "array",
@@ -20591,6 +20603,13 @@
             "items": {
               "$ref": "#/components/schemas/RuntimeFeatureBinding"
             }
+          },
+          "cost_management_enabled": {
+            "type": "boolean",
+            "enum": [
+              false
+            ],
+            "description": "Cost management is disabled. Historical budgets and costs do not restrict new model calls."
           }
         }
       },
@@ -22657,9 +22676,6 @@
           "json_output",
           "video_seconds",
           "video_size",
-          "currency",
-          "maximum_minor",
-          "price_source",
           "updated_at"
         ],
         "properties": {
@@ -22721,17 +22737,23 @@
             "type": "string"
           },
           "currency": {
-            "type": "string"
+            "type": "string",
+            "deprecated": true,
+            "description": "Historical pricing metadata. Optional, preserved for compatibility, and never used to restrict execution."
           },
           "maximum_minor": {
             "type": "integer",
             "format": "int64",
             "minimum": 0,
-            "maximum": 9007199254740991
+            "maximum": 9007199254740991,
+            "deprecated": true,
+            "description": "Historical pricing metadata. Optional, preserved for compatibility, and never used to restrict execution."
           },
           "price_source": {
             "type": "string",
-            "maxLength": 240
+            "maxLength": 240,
+            "deprecated": true,
+            "description": "Historical pricing metadata. Optional, preserved for compatibility, and never used to restrict execution."
           },
           "updated_at": {
             "type": "string",
@@ -23082,7 +23104,9 @@
             "type": "string"
           },
           "currency": {
-            "type": "string"
+            "type": "string",
+            "deprecated": true,
+            "description": "Compatibility field; new summaries do not aggregate financial amounts. Zero or empty does not assert free usage."
           },
           "calls": {
             "type": "integer",
@@ -23142,7 +23166,9 @@
           "maximum_minor": {
             "type": "integer",
             "format": "int64",
-            "minimum": 0
+            "minimum": 0,
+            "deprecated": true,
+            "description": "Compatibility field; new summaries do not aggregate financial amounts. Zero or empty does not assert free usage."
           }
         }
       },
@@ -23178,6 +23204,13 @@
             "format": "int64",
             "minimum": 0,
             "nullable": true
+          },
+          "cost_management_enabled": {
+            "type": "boolean",
+            "enum": [
+              false
+            ],
+            "description": "Cost management is disabled; usage summaries contain only counts, timing and tokens. Historical per-call cost metadata remains readable but is not summed."
           }
         }
       },
@@ -23295,10 +23328,7 @@
           "capabilities",
           "enabled",
           "max_output_tokens",
-          "json_output",
-          "currency",
-          "maximum_minor",
-          "price_source"
+          "json_output"
         ],
         "properties": {
           "id": {
@@ -23359,17 +23389,23 @@
             "type": "string"
           },
           "currency": {
-            "type": "string"
+            "type": "string",
+            "deprecated": true,
+            "description": "Historical pricing metadata. Optional, preserved for compatibility, and never used to restrict execution."
           },
           "maximum_minor": {
             "type": "integer",
             "format": "int64",
             "minimum": 0,
-            "maximum": 9007199254740991
+            "maximum": 9007199254740991,
+            "deprecated": true,
+            "description": "Historical pricing metadata. Optional, preserved for compatibility, and never used to restrict execution."
           },
           "price_source": {
             "type": "string",
-            "maxLength": 240
+            "maxLength": 240,
+            "deprecated": true,
+            "description": "Historical pricing metadata. Optional, preserved for compatibility, and never used to restrict execution."
           },
           "updated_at": {
             "type": "string",
@@ -23517,10 +23553,7 @@
             "type": "object",
             "required": [
               "model_config_id",
-              "model_config_version",
-              "budget_currency",
-              "budget_maximum_minor",
-              "quote_request_sha256"
+              "model_config_version"
             ]
           }
         ]
@@ -23534,10 +23567,7 @@
             "type": "object",
             "required": [
               "model_config_id",
-              "model_config_version",
-              "budget_currency",
-              "budget_maximum_minor",
-              "quote_request_sha256"
+              "model_config_version"
             ]
           }
         ]
@@ -23551,10 +23581,7 @@
             "type": "object",
             "required": [
               "model_config_id",
-              "model_config_version",
-              "budget_currency",
-              "budget_maximum_minor",
-              "quote_request_sha256"
+              "model_config_version"
             ]
           }
         ]

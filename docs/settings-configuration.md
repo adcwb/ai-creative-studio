@@ -9,12 +9,12 @@
 | 上游地址、API Key、请求超时 | 组织 AI 网关 | 服务端租户加密、独立版本；超时默认 120 秒，5–600；新建默认录入 Key，编辑默认 keep。原环境供应商密钥不自动复制到数据库 |
 | 输出 token、视频规格、JSON 模式 | 组织网关模型 | token 默认 3000，范围 1–6000；视频按已支持兼容协议允许值；服务端校验，新任务生效 |
 | SPEECH_VOICE | 配音功能绑定的默认音色 | 组织绑定／明确请求覆盖；不从环境自动导入未知身份的音色 |
-| 费用币种、单次预留上限、依据 | 组织模型配置；预算在组织费用账本 | 默认 USD，整数最小货币单位；不同币种独立，无自动换算；上限不是供应商账单，默认零拒绝真实执行 |
+| 旧价格、预算与费用记录 | 历史兼容数据；费用页面只读 | 成本管理已移除，不再配置、预留或限制新调用；供应商可能正常计费 |
 | 组织名称、成员、角色 | 组织与成员页面 | 服务端权限与持久化，撤销实时检查；不属于个人设置 |
 | HTTP_ADDR、FRONTEND_ORIGIN、VITE_API_BASE_URL | 部署／构建环境 | 监听、SSO 回跳与前端 API 目标，不允许普通用户改成任意代理目标；重启／重建。既有 CORS 仍回显非空来源，FRONTEND_ORIGIN 不是 CORS 白名单 |
 | AUTH_MODE、AUTH_ALLOW_REGISTRATION、AUTH_COOKIE_SECURE、AUTH_TRUSTED_PROXY_CIDRS、OIDC_* | 身份信任与平台部署 | 保留启动环境；不是租户管理员权限。变更需运维评审与重启 |
 | MODEL_CONFIG_KEK_BASE64、SOCIAL_KEK_BASE64、BACKUP_ENCRYPTION_KEY_BASE64 | 部署密钥管理 | 不可经网页配置／查看；API 与 worker 使用一致模型 KEK。轮换用已有专用离线工具，不能任意换值导致旧数据不可读 |
-| MODEL_GATEWAY_ALLOWED_HOSTS、EXECUTION_POLICY_FILE、GATEWAY_MODERATION_* | 全局网络／费用审核安全边界 | 保留部署授权；页面模型上限不能覆盖审核与网络拒绝 |
+| MODEL_GATEWAY_ALLOWED_HOSTS、EXECUTION_POLICY_FILE、GATEWAY_MODERATION_* | 全局网络／内容审核安全边界 | 保留部署授权；审核与网络授权仍生效；策略不再需要价格配置 |
 | DATABASE_URL、DATA_DIR、STORAGE_*、QUEUE_BACKEND、BLOB_*、REFERENCE_*、WORKER_CONCURRENCY、BACKUP_PG_LIBRARY_PATH | 存储、队列、对象桥接、worker、备份 | 需一致部署及迁移／恢复流程，不热搬到租户设置；按对应工具说明重启 |
 | METRICS_ADDR、TRACE_* | 运维监控 | 可暴露网络和本地路径，不放个人／组织页面；重启进程 |
 | SOCIAL_TIKTOK_*、SOCIAL_DOUYIN_* | 平台应用审批、OAuth 与公共域名验证 | 保留部署；页面仅进行已有授权流程，不能由用户勾选假定平台已批准 |
@@ -28,4 +28,4 @@
 
 页面只报告加密存储是否可用，不回显 master key。部署管理员应在受控 secret 管理系统中提供一个 base64 编码的 32 字节随机 KEK，通过 `MODEL_CONFIG_KEK_BASE64` 注入所有 API 与 worker，再重启这些进程。不要把值写入 Git、前端变量、浏览器 localStorage、聊天或测试报告。已有密文须使用原 key 或按轮换工具迁移；不能直接生成新 key 替换。本文不替用户配置真实凭据。
 
-用户随后在组织网关中录入供应商 API Key；服务端仅返回 encrypted/not_configured/revoked 状态，编辑时保持现有凭据，明确选 set 才替换。保存连接与检查目录均不授权生成；正式模型调用仍需独立确认、预算预留与审核。
+用户随后在组织网关中录入供应商 API Key；服务端仅返回 encrypted/not_configured/revoked 状态，编辑时保持现有凭据，明确选 set 才替换。保存连接与检查目录均不授权生成；正式模型调用无需报价、费用确认或预算；组织授权、功能绑定、能力匹配和内容审核仍生效。

@@ -120,9 +120,9 @@ func TestExactRequestQuoteAcrossImageAndCreativeModalities(t *testing.T) {
 				payload["voice"] = preview.Voice
 			}
 			payload["prompt"] = "Changed after preview"
-			post(target, payload, 409)
-			payload["prompt"] = "Synthetic quoted request"
 			post(target, payload, 202)
+			payload["prompt"] = "Synthetic quoted request"
+			post(target, payload, 409)
 			// A changed request cannot get a quote from an exact-input policy.
 			changed := map[string]any{}
 			_ = json.Unmarshal(preview.Input, &changed)

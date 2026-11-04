@@ -49,7 +49,7 @@ function EpisodeMediaStudio({project, space, onDirtyChange, episode, allowSynthe
   function alignmentPreview(clip: Clip) {return {operation: 'alignment' as const, project_id: project.id, input: {...(episode>1 ? {episode_number: episode} : {}), clip_id: clip.id, audio_asset_id: clip.audio_asset_id, mode: asrChoices[clip.id]?.model.model === 'gpt-transcribe' ? 'transcription' : 'asr', expected_version: baselineVersion}}}
   function alignmentCapabilities(clip: Clip) {
     const choice = asrChoices[clip.id]
-    return choice ? {...baseAlignmentCaps, asr: undefined, [choice.model.model === 'gpt-transcribe' ? 'transcription' : 'asr']: {provider: choice.model.provider, model: choice.model.model, mode: 'real', ready: runtimeReady(choice, alignmentPreview(clip)), message: t('已选择组织模型，提交前须确认费用上限。')}} : baseAlignmentCaps
+    return choice ? {...baseAlignmentCaps, asr: undefined, [choice.model.model === 'gpt-transcribe' ? 'transcription' : 'asr']: {provider: choice.model.provider, model: choice.model.model, mode: 'real', ready: runtimeReady(choice, alignmentPreview(clip)), message: t('已选择组织模型。')}} : baseAlignmentCaps
   }
 
   const [posterDirty, setPosterDirty] = useState(false)

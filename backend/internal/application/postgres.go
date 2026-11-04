@@ -68,7 +68,7 @@ type pgCollection struct{ field, table, kind string }
 var pgCollections = map[string][]pgCollection{
 	"core":      {{"tasks", "studio_image_tasks", "map"}, {"assets", "studio_image_assets", "map"}, {"projects", "studio_projects", "map"}, {"script_generations", "studio_script_generations", "map"}, {"storyboard_generations", "studio_storyboard_generations", "map"}, {"project_receipts", "studio_project_receipts", "map"}, {"history", "studio_project_history", "map"}, {"image_resume_receipts", "studio_image_resume_receipts", "map"}},
 	"auth":      {{"users", "studio_users", "map"}, {"organizations", "studio_organizations", "map"}, {"sessions", "studio_sessions", "map"}},
-	"budget":    {{"limits", "studio_budget_limits", "map"}, {"entries", "studio_cost_entries", "map"}, {"changes", "studio_budget_changes", "array"}},
+	"budget":    {{"limits", "studio_budget_limits", "map"}, {"entries", "studio_cost_entries", "map"}, {"changes", "studio_budget_changes", "array"}, {"dispatches", "studio_model_dispatches", "map"}},
 	"models":    {{"tenants", "studio_model_tenants", "map"}},
 	"usage":     {{"calls", "studio_model_calls", "map"}},
 	"creative":  {{"jobs", "studio_creative_jobs", "map"}, {"receipts", "studio_creative_receipts", "map"}, {"digital_humans", "studio_digital_humans", "map"}},

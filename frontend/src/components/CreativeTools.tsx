@@ -30,7 +30,7 @@ export function CreativeTools({project, space, disabled, historyOnly = false, on
   const mediaPreview = {operation: 'creative' as const, project_id: project.id, input: creativeInput}
   const analysisPreview = {operation: 'analysis' as const, project_id: project.id, input: {expected_version: project.version}}
   const requiresGateway = gatewayCreationRequired && ['image', 'video', 'speech', 'vision', 'consistency'].includes(kind)
-  const capabilities = mediaChoice ? {...baseCapabilities, [kind]: {provider: mediaChoice.model.provider, model: mediaChoice.model.model, mode: 'real', ready: requiresGateway ? creationReady(mediaChoice, mediaPreview) : runtimeReady(mediaChoice, mediaPreview), message: t('已选择组织模型，提交前须确认费用上限。')}} : requiresGateway ? {...baseCapabilities, [kind]: {provider: 'unavailable', mode: 'unavailable', ready: false, message: t('此能力尚无启用的组织模型。')}} : baseCapabilities
+  const capabilities = mediaChoice ? {...baseCapabilities, [kind]: {provider: mediaChoice.model.provider, model: mediaChoice.model.model, mode: 'real', ready: requiresGateway ? creationReady(mediaChoice, mediaPreview) : runtimeReady(mediaChoice, mediaPreview), message: t('已选择组织模型。')}} : requiresGateway ? {...baseCapabilities, [kind]: {provider: 'unavailable', mode: 'unavailable', ready: false, message: t('此能力尚无启用的组织模型。')}} : baseCapabilities
   const analysisJob = jobs.find(job => (job.kind === 'analysis' || job.kind === 'vision' || job.kind === 'consistency') && job.status === 'succeeded')
   const analysis = analysisJob?.analysis
   const [history, setHistory] = useState<Revision[]>([])

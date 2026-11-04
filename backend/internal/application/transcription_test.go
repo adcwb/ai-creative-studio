@@ -140,7 +140,7 @@ func TestTextTranscriptionGovernedRuntime(t *testing.T) {
 		t.Fatal(err, calls, moderator.seen)
 	}
 	entries, err := ledger.Entries("tenant-a", "USD")
-	if err != nil || len(entries) != 1 || entries[0].State != "unknown" {
+	if err != nil || len(entries) != 0 || !ledger.hasExecution(request) {
 		t.Fatal(entries, err)
 	}
 	other := selection

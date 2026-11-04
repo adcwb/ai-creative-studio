@@ -17,11 +17,6 @@ func (s *FileStore) enqueueNewPostgres(d snapshot) error {
 		return errors.New("task mutation requires transaction")
 	}
 	enqueue := func(tenant, id, kind, key, project, provider, model string, selection *RuntimeSelection, traceParent string) error {
-		if selection != nil {
-			if err := ReservePostgresTx(s.pg.ctx, s.pg.tx, kind+":"+id, tenant, provider, model, selection.Currency, selection.MaximumMinor); err != nil {
-				return err
-			}
-		}
 		b, _ := json.Marshal(map[string]string{"task_id": id, "project_id": project})
 		return jobqueue.EnqueueTx(s.pg.ctx, s.pg.tx, jobqueue.Job{TenantID: tenant, ID: id, Kind: kind, IdempotencyKey: key, Payload: b, TraceParent: traceParent})
 	}

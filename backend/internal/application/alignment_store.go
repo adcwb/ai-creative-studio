@@ -302,12 +302,6 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 	if a.pg != nil {
 		payload, _ := json.Marshal(map[string]string{"task_id": task.ID, "project_id": project})
 		a.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error {
-			if task.RuntimeSelection != nil {
-				sel := task.RuntimeSelection
-				if err := ReservePostgresTx(ctx, tx, "alignment:"+task.ID, space, task.Provider, task.Model, sel.Currency, sel.MaximumMinor); err != nil {
-					return err
-				}
-			}
 			return jobqueue.EnqueueTx(ctx, tx, jobqueue.Job{TenantID: space, ID: task.ID, TraceParent: task.TraceParent, Kind: "alignment", IdempotencyKey: project + ":" + key, Payload: payload})
 		}
 		defer func() { a.pg.beforeCommit = nil }()

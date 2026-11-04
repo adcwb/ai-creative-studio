@@ -10,17 +10,18 @@ import (
 
 // BudgetReport keeps currencies separate. No exchange quote changes ledger exposure.
 type BudgetReport struct {
-	Currency             string         `json:"currency"`
-	MinorUnits           int            `json:"minor_units"`
-	Limit                int64          `json:"limit_minor"`
-	Exposure             int64          `json:"exposure_minor"`
-	Available            int64          `json:"available_minor"`
-	Entries              []CostEntry    `json:"entries"`
-	TotalEntries         int            `json:"total_entries"`
-	NextOffset           *int           `json:"next_offset"`
-	Changes              []BudgetChange `json:"budget_changes"`
-	LiveExecutionEnabled bool           `json:"live_execution_enabled"`
-	FXAvailable          bool           `json:"fx_available"`
+	CostManagementEnabled bool           `json:"cost_management_enabled"`
+	Currency              string         `json:"currency"`
+	MinorUnits            int            `json:"minor_units"`
+	Limit                 int64          `json:"limit_minor"`
+	Exposure              int64          `json:"exposure_minor"`
+	Available             int64          `json:"available_minor"`
+	Entries               []CostEntry    `json:"entries"`
+	TotalEntries          int            `json:"total_entries"`
+	NextOffset            *int           `json:"next_offset"`
+	Changes               []BudgetChange `json:"budget_changes"`
+	LiveExecutionEnabled  bool           `json:"live_execution_enabled"`
+	FXAvailable           bool           `json:"fx_available"`
 }
 
 var errBudgetConflict = errors.New("budget limit changed")

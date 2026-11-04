@@ -15,14 +15,12 @@ async function login(page: Page) {
 async function configure(page: Page, reject=false) {
  const fixture=await login(page)
  const {query,headers}=fixture
- const budget=await page.request.put(api+'/governance/budget'+query,{headers,data:{currency:'USD',limit_minor:1000,expected_limit_minor:0}})
- expect(budget.status()).toBe(200)
  const created=await page.request.post(api+'/ai-gateways'+query,{headers,data:{expected_version:0,gateway:{name:'Synthetic creation gateway',base_url:upstream+'/v1',enabled:true,timeout_seconds:30},credential:{action:'set',secret:'synthetic-key-A'}}})
  expect(created.status()).toBe(200)
  const gateway=(await created.json()).gateways[0]
  const models: Record<string,{id:string;version:number}>= {}
  for(const capability of ['image','text']) {
-  const response=await page.request.post(api+'/gateway-models'+query,{headers,data:{expected_version:0,model:{gateway_id:gateway.id,name:`Synthetic ${capability}`,model:reject&&capability==='image'?'synthetic-reject':`synthetic-${capability}`,capabilities:[capability],enabled:true,max_output_tokens:512,json_output:true,currency:'USD',maximum_minor:10,price_source:'Local synthetic protocol fixture'}}})
+  const response=await page.request.post(api+'/gateway-models'+query,{headers,data:{expected_version:0,model:{gateway_id:gateway.id,name:`Synthetic ${capability}`,model:reject&&capability==='image'?'synthetic-reject':`synthetic-${capability}`,capabilities:[capability],enabled:true,max_output_tokens:512,json_output:true}}})
   expect(response.status()).toBe(200)
   models[capability]=(await response.json()).models.find((m: {model:string})=>m.model===(reject&&capability==='image'?'synthetic-reject':`synthetic-${capability}`))
  }
@@ -32,13 +30,6 @@ async function configure(page: Page, reject=false) {
  }
  return {...fixture,models}
 }
-async function consent(page: Page) {
- const picker=page.locator('.runtime-model-picker').first()
- await picker.getByRole('button',{name:'获取当前请求报价（不调用模型）',exact:true}).click()
- await expect(picker.getByText(/单次预留上限/)).toBeVisible()
- await picker.getByRole('checkbox',{name:'确认本次报价与可能产生的费用',exact:true}).check()
-}
-
 test('production creation has no demo fallback when a gateway is not configured',async({page})=>{
  const {query,headers}=await login(page)
  await page.getByLabel('描述你的画面').fill('Synthetic no gateway creation')
@@ -52,7 +43,7 @@ test('production creation has no demo fallback when a gateway is not configured'
  expect(await (await page.request.get(api+'/tasks'+query)).json()).toEqual([])
 })
 
-test('image, script and storyboard use capability-bound gateway requests with cost consent',async({page,request})=>{
+test('image, script and storyboard use capability-bound gateway requests without cost configuration',async({page,request})=>{
  test.setTimeout(90000)
  const {query,headers,models}=await configure(page)
  await navigateTo(page,'/studio')
@@ -61,13 +52,15 @@ test('image, script and storyboard use capability-bound gateway requests with co
  await expect(page.getByRole('combobox',{name:'模型选择',exact:true}).locator(`option[value="${models.text.id}"]`)).toHaveCount(0)
  await page.getByLabel('描述你的画面').fill('Synthetic gateway image workflow')
  const button=page.getByRole('button',{name:'创建图像',exact:true})
- await expect(button).toBeDisabled()
- await consent(page)
+ await expect(page.getByRole('button',{name:'获取当前请求报价（不调用模型）',exact:true})).toHaveCount(0)
+ await expect(page.getByRole('checkbox',{name:'确认本次报价与可能产生的费用',exact:true})).toHaveCount(0)
  await expect(button).toBeEnabled()
  const accepted=page.waitForResponse(r=>r.url().includes('/gateway-tasks?')&&r.request().method()==='POST')
  await button.click()
  const response=await accepted
  expect(response.status()).toBe(202)
+ expect(response.request().postDataJSON()).not.toHaveProperty('budget_currency')
+ expect(response.request().postDataJSON()).not.toHaveProperty('quote_request_sha256')
  expect(response.request().postDataJSON()).toMatchObject({model_config_id:models.image.id,expected_provider:'gateway-images',expected_model:'synthetic-image'})
  const task=await response.json()
  await expect.poll(async()=> (await (await page.request.get(api+'/tasks/'+task.id+query)).json()).status).toBe('succeeded')
@@ -79,14 +72,12 @@ test('image, script and storyboard use capability-bound gateway requests with co
  await page.goto(`/projects/${project.id}/script`)
  await expect(page.getByRole('combobox',{name:'模型选择',exact:true}).first()).toHaveValue(models.text.id)
  await expect(page.getByRole('button',{name:'生成模拟剧本',exact:true})).toHaveCount(0)
- await consent(page)
  const generated=page.waitForResponse(r=>r.url().includes('/gateway-generations?')&&r.request().method()==='POST')
  await page.getByRole('button',{name:'生成 AI 剧本（可能计费）',exact:true}).click()
  expect((await generated).status()).toBe(202)
  await expect(page.locator('.drama-script')).toBeVisible()
  await page.locator('.project-steps a[href$="/storyboard"]').click()
  await expect(page.getByRole('combobox',{name:'模型选择',exact:true}).first()).toHaveValue(models.text.id)
- await consent(page)
  const storyboard=page.waitForResponse(r=>r.url().includes('/gateway-storyboard-generations?')&&r.request().method()==='POST')
  await page.getByRole('button',{name:'生成 AI 分镜（可能计费）',exact:true}).click()
  expect((await storyboard).status()).toBe(202)
@@ -99,7 +90,6 @@ test('image, script and storyboard use capability-bound gateway requests with co
  await board.getByRole('combobox',{name:'当前镜头',exact:true}).selectOption('synthetic-shot')
  await expect(board.getByRole('combobox',{name:'模型选择',exact:true})).toHaveValue(models.image.id)
  await board.getByLabel('创作或修改要求',{exact:true}).fill('Synthetic gateway shot image')
- await consent(page)
  const shotAccepted=page.waitForResponse(r=>r.url().includes('/gateway-creative-jobs?')&&r.request().method()==='POST')
  await board.getByRole('button',{name:'生成候选',exact:true}).click()
  const shotResponse=await shotAccepted
@@ -124,7 +114,6 @@ test('upstream rejection stays failed and never creates a synthetic replacement'
  await page.getByRole('button',{name:'刷新模型目录',exact:true}).click()
  const prompt='Synthetic upstream refusal without fallback '+crypto.randomUUID()
  await page.getByLabel('描述你的画面').fill(prompt)
- await consent(page)
  const accepted=page.waitForResponse(r=>r.url().includes('/gateway-tasks?')&&r.request().method()==='POST')
  await page.getByRole('button',{name:'创建图像',exact:true}).click()
  const task=await (await accepted).json()
@@ -136,4 +125,20 @@ test('upstream rejection stays failed and never creates a synthetic replacement'
  const state=await (await request.get(upstream+'/__state')).json()
  const attempts=state.requests.filter((r:{body:{model:string;prompt:string}})=>r.body.model==='synthetic-reject'&&r.body.prompt?.includes(prompt))
  expect(attempts).toHaveLength(1)
+})
+
+
+test('removing costs does not enable a disabled feature binding', async ({page}) => {
+ const {query,headers,models}=await configure(page)
+ const disabled=await page.request.put(api+'/model-features/image_generation'+query,{headers,data:{expected_version:1,binding:{feature_key:'image_generation',model_config_id:models.image.id,enabled:false,allow_override:true}}})
+ expect(disabled.status()).toBe(200)
+ await navigateTo(page,'/studio')
+ await page.getByRole('button',{name:'刷新模型目录',exact:true}).click()
+ await page.getByRole('combobox',{name:'模型选择',exact:true}).selectOption(models.image.id)
+ await page.getByLabel('描述你的画面').fill('Synthetic disabled feature request')
+ await expect(page.getByRole('button',{name:'创建图像',exact:true})).toBeDisabled()
+ const denied=await page.request.post(api+'/gateway-tasks'+query,{headers:{...headers,'Idempotency-Key':'disabled-feature-cost-free'},data:{prompt:'Synthetic disabled feature request',kind:'general',model_config_id:models.image.id,model_config_version:models.image.version}})
+ expect(denied.status()).toBe(403)
+ expect((await denied.json()).error.code).toBe('feature_model_denied')
+ expect(await (await page.request.get(api+'/tasks'+query)).json()).toEqual([])
 })

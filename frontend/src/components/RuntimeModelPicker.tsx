@@ -1,29 +1,26 @@
-import {gatewayCreationRequired, creationPath} from '../creationGateway'
+import {gatewayCreationRequired} from '../creationGateway'
 import {Link} from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
-import { request, errorMessage } from '../api'
+import { request } from '../api'
 import { useAppWorkspace } from '../app/workspace'
 import { useI18n } from '../i18n'
-import { formatMinorCurrency } from '../money'
 import { previewFeature, readinessNames } from '../gatewayModels'
 
-import { initialRuntimeChoice, runtimeFingerprint, type RuntimeChoice, type RuntimeModelOption, type RuntimePreview } from '../runtimeSelection'
+import { initialRuntimeChoice, type RuntimeChoice, type RuntimeModelOption, type RuntimePreview } from '../runtimeSelection'
 
 export function RuntimeModelPicker({space, capability, value, onChange, preview, disabled = false, gatewayOnly = false}: {
   space: string; capability: string; value: RuntimeChoice | null; onChange: (value: RuntimeChoice | null) => void; disabled?: boolean; preview?: RuntimePreview; gatewayOnly?: boolean
 }) {
-  const {t, locale, formatDate} = useI18n()
+  const {t} = useI18n()
   const requireGateway = gatewayOnly && gatewayCreationRequired
   const demo = useAppWorkspace()?.session.mode === 'demo'
   const [catalog, setCatalog] = useState<{governance_ready: boolean; models: RuntimeModelOption[]; bindings?: {feature_key: string; model_config_id: string; allow_override: boolean; enabled: boolean; voice?: string}[]} | null>(null)
   const [revision, setRevision] = useState(0)
   const [error, setError] = useState(false)
-  const [quoteError, setQuoteError] = useState('')
-  const [quoting, setQuoting] = useState(false)
   const feature = previewFeature(preview)
   const previousFeature = useRef(feature)
   useEffect(() => {
-    if (requireGateway && previousFeature.current !== feature) {previousFeature.current = feature; setCatalog(null); onChange(null); setQuoteError('')}
+    if (requireGateway && previousFeature.current !== feature) {previousFeature.current = feature; onChange(null)}
   }, [feature, onChange, requireGateway])
   const binding = catalog?.bindings?.find(item => item.feature_key === feature && item.enabled)
   useEffect(() => {
@@ -39,31 +36,13 @@ export function RuntimeModelPicker({space, capability, value, onChange, preview,
     const model = catalog.models.find(item => item.id === binding.model_config_id && item.capability === capability)
     if (model) onChange({...initialRuntimeChoice(model), voice: binding.voice ?? ''})
   }, [catalog, value, binding, capability, onChange])
-  useEffect(() => {
-    if (!value?.quoteReady || !value.model.quote) return
-    const delay = Math.max(0, Math.min(2147483647, Date.parse(value.model.quote.expires_at) - Date.now()))
-    const timer = setTimeout(() => onChange({...value, confirmed: false, quoteReady: false}), delay)
-    return () => clearTimeout(timer)
-  }, [value, onChange])
-  async function previewCost() {
-    if (!value || !preview || quoting || requireGateway && !binding) return
-    const selected = value
-    const fingerprint = runtimeFingerprint(preview, selected.voice)
-    setQuoting(true); setQuoteError('')
-    onChange({...selected, confirmed: false, quoteReady: false})
-    try {
-      const quote = await request<NonNullable<RuntimeModelOption['quote']>>(`${requireGateway ? creationPath('/runtime-quote') : '/runtime-quote'}?${new URLSearchParams({space_id: space})}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...preview, model_config_id: selected.model.id, model_config_version: selected.model.version, ...(selected.voice ? {voice: selected.voice} : {})})})
-      onChange({...selected, model: {...selected.model, quote}, confirmed: false, quoteReady: true, fingerprint})
-    } catch (reason) {setQuoteError(errorMessage(reason, t('当前请求没有可用报价，请调整请求或联系管理员。')))} finally {setQuoting(false)}
-  }
   // Legacy demo mode has no runtime catalog. Its layout and local behavior remain unchanged.
   if (demo) return requireGateway ? <p role="alert">{t('真实网关创作需要登录组织账户，请切换到安全登录模式。')}</p> : null
   if (!catalog) return <div className="runtime-model-picker" role={error ? 'alert' : 'status'}>{t(error ? '模型目录读取失败，请刷新后重试。' : '正在读取模型配置…')}{error && <button type="button" onClick={() => setRevision(previous => previous + 1)}>{t('刷新模型目录')}</button>}</div>
   const requiredCapability = feature === 'image_edit' ? 'image_edit' : feature === 'subtitle_alignment' ? 'asr_timestamps' : capability
-  const options = catalog.models.filter(model => (!requireGateway || !!model.gateway_id) && model.capability === capability && (!model.gateway_id || (model.capabilities?.includes(requiredCapability) && (!binding || binding.allow_override || model.id === binding.model_config_id))) && (!binding || !!model.gateway_id))
-  const inputChanged = !!value && !!preview && value.fingerprint !== runtimeFingerprint(preview, value.voice)
+  const options = catalog.models.filter(model => (!requireGateway || !!model.gateway_id) && model.capability === capability && (!model.gateway_id || (model.capabilities?.includes(requiredCapability) && (!binding || binding.allow_override || model.id === binding.model_config_id))) && (!binding || !!model.gateway_id)).map(model => requireGateway && !binding ? {...model, available: false} : model)
   const stale = !!value && !options.some(model => model.id === value.model.id && model.version === value.model.version && model.available === value.model.available)
-  return <fieldset className="runtime-model-picker" disabled={disabled || quoting}>
+  return <fieldset className="runtime-model-picker" disabled={disabled}>
     <legend>{t('本次执行模型')}</legend>
     {requireGateway && !binding && <p role="alert">{t('此功能尚未绑定网关模型，请联系组织管理员配置。')} <Link to="/settings/models">{t('模型管理')}</Link></p>}
     {binding && <p>{t('已使用此功能的默认绑定，切换仅影响本次生成。')}</p>}
@@ -76,11 +55,9 @@ export function RuntimeModelPicker({space, capability, value, onChange, preview,
     {options.length === 0 && <p>{t('此能力尚无启用的组织模型。')}</p>}
     {value?.model.reason_code && <p role="status">{t(readinessNames[value.model.reason_code] ?? value.model.reason_code)}</p>}
     {(error || stale) && <p role="alert">{t('模型目录已失效，请刷新并重新确认。')}</p>}
-    {value && <><button type="button" disabled={!value.model.available || !preview || quoting || requireGateway && !binding} onClick={() => {void previewCost()}}>{quoting ? t('正在读取费用报价…') : t('获取当前请求报价（不调用模型）')}</button>{quoteError && <p role="alert">{quoteError}</p>}{inputChanged && value.fingerprint && <p role="status">{t('请求内容已改变，请重新获取并确认报价。')}</p>}<p>{t('配置版本：{version}', {version: value.model.version})}</p>
-      {capability === 'speech' && <label>{t('声音标识')}<input value={value.voice} maxLength={128} autoComplete="off" onChange={event => onChange({...value, voice: event.target.value, confirmed: false, quoteReady: false})} /></label>}
-      <p role="status">{!catalog.governance_ready ? t('费用与审核治理尚未就绪，远端执行不可用。') : value.model.quote ? t('单次预留上限：{amount}；报价来源：{source}；有效至：{expiry}', {amount: formatMinorCurrency(value.model.quote.maximum_minor, value.model.quote.currency, value.model.quote.minor_units, locale), source: value.model.quote.source, expiry: formatDate(value.model.quote.expires_at)}) : t('尚未获取本次请求的可信费用上限，远端提交保持禁用。')}</p>
-      <p>{t('模型调用可能计费。取消、超时或结果未知不代表免费；费用按原币种预留，不自动兑换或重试。')}</p>
-      <label><input type="checkbox" checked={value.confirmed} disabled={!value.quoteReady || stale || inputChanged} onChange={event => onChange({...value, confirmed: event.target.checked})} />{t('确认本次报价与可能产生的费用')}</label>
+    {value && <><p>{t('配置版本：{version}', {version: value.model.version})}</p>
+      {capability === 'speech' && <label>{t('声音标识')}<input value={value.voice} maxLength={128} autoComplete="off" onChange={event => onChange({...value, voice: event.target.value})} /></label>}
+      {!catalog.governance_ready && <p role="status">{t('内容审核尚未就绪，请联系部署管理员。')}</p>}
     </>}
   </fieldset>
 }
