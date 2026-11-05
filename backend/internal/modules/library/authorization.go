@@ -102,7 +102,7 @@ func NormalizeAuthorization(in AuthorizationInput) (AuthorizationInput, error) {
 }
 func AuthorizationPurpose(p string) bool {
 	switch p {
-	case "prompt_context", "image_reference", "video_reference", "voice_reference", "speech_preset":
+	case "prompt_context", "image_reference", "video_reference", "voice_reference", "speech_preset", "audio_analysis":
 		return true
 	}
 	return false

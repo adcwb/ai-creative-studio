@@ -16,7 +16,7 @@
 ## 需求设计与实施规范
 
 - [Spec Coding 文档约定与历史设计索引](superpowers/README.md)
-- [自定义图像提示词与长篇 AI 漫剧规格包](superpowers/specs/2026-11-04-creative-series/README.md)（2026-11-05修订23：每集1–2分钟、1K–4K、项目去配额；实施中，第一批结果与剩余工作见包内实施记录）
+- [自定义图像提示词与长篇 AI 漫剧规格包](superpowers/specs/2026-11-04-creative-series/README.md)（2026-11-05修订24：每集1–2分钟、1K–4K、项目去配额；实施中，第一批结果与剩余工作见包内实施记录）
 
 其他 `iteration-*`、`design/*` 和日期设计文档保留对应轮次的背景与验证记录；阅读时应核对基线、状态和后续专题文档。
 
@@ -39,3 +39,5 @@
 [T33C2B当前使用声明与既有媒体派发](superpowers/specs/2026-11-04-creative-series/asset-use-implementation.md)：撤销/CAS/原回执、前端恢复、可信媒体来源与派发前检查；完整风格/声音原生适配、旧衍生物全面追溯和导演编排仍未完成，不提前推送。
 
 [T33C2C3旧素材来源追溯](superpowers/specs/2026-11-04-creative-series/asset-lineage-implementation.md)：按任务回执、库参考和迁移证明追溯，不明来源保留历史并明确用途边界；按需只读核对，不代表原生人物/风格/声音或完整制作编排已完成。
+
+[T33C2D1配音消费来源固定](superpowers/specs/2026-11-04-creative-series/alignment-source-implementation.md)：独立识别/转写/强制对齐固定音频和使用修订、派发前复核，保持旧字幕与原回执；原生人物/风格/声音和完整制作编排仍在实施。

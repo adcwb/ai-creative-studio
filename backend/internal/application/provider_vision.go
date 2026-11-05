@@ -99,8 +99,12 @@ func describeVision(ctx context.Context, kind, key, model, endpoint string, clie
 	}
 	copyClient := *client
 	copyClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	res, e := copyClient.Do(req)
+	res, e := libraryGuardedRequest(&copyClient, req)
 	if e != nil {
+		var failure *ProviderError
+		if errors.As(e, &failure) && failure.Code == "library_use_denied" {
+			return BriefAnalysis{}, e
+		}
 		if errors.Is(e, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return BriefAnalysis{}, providerFailure("provider_timeout")
 		}

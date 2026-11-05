@@ -115,8 +115,12 @@ func (p *OpenAIAlignmentProvider) Transcribe(ctx context.Context, audio []byte, 
 	req.GetBody = nil
 	req.Header.Set("Authorization", "Bearer "+p.key)
 	req.Header.Set("Content-Type", form.FormDataContentType())
-	response, err := p.client.Do(req)
+	response, err := libraryGuardedRequest(p.client, req)
 	if err != nil {
+		var failure *ProviderError
+		if errors.As(err, &failure) && (failure.Code == "library_use_denied" || failure.Code == "alignment_source_unpinned" || failure.Code == "alignment_source_changed") {
+			return AlignmentResult{}, err
+		}
 		if errors.Is(err, context.DeadlineExceeded) {
 			return AlignmentResult{}, providerFailure("provider_timeout")
 		}

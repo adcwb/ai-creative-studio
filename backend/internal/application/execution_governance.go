@@ -70,7 +70,13 @@ func (g *ExecutionGovernor) Execute(ctx context.Context, r ExecutionRequest, dis
 	if !g.Ready() || dispatch == nil || r.ID == "" || r.Tenant == "" || r.Provider == "" || r.Model == "" || r.Selection == nil || r.Selection.TenantID != r.Tenant || r.Selection.Capability != r.Capability || r.Selection.ActorID == "" || r.Selection.ModelID == "" || r.Selection.Version <= 0 {
 		return ErrExecutionGovernance
 	}
+	if err := checkLibraryDispatch(ctx); err != nil {
+		return err
+	}
 	decision, err := g.Moderator.ReviewExecution(ctx, r)
+	if sourceErr := checkLibraryDispatch(ctx); sourceErr != nil {
+		return sourceErr
+	}
 	if err != nil || !freshModerationAllow(decision, time.Now()) {
 		return ErrExecutionGovernance
 	}

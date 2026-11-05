@@ -67,6 +67,10 @@ func providerFailure(code string) error { return &ProviderError{Code: code} }
 
 func providerMessage(code string) string {
 	switch code {
+	case "alignment_source_unpinned":
+		return "旧对齐任务未固定音频来源，未发送新的识别请求；请保留历史结果，并从已保存的配音重新创建任务。"
+	case "alignment_source_changed":
+		return "配音文件与任务固定的来源不一致，未发送识别请求；请恢复匹配文件或重新选择配音后创建任务。"
 	case "library_use_denied":
 		return "参考资产的使用授权未确认、已变更或已失效；请核对授权后重新确认本次创作。已保存的历史作品保留。"
 	case "mock_failed":

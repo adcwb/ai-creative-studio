@@ -33,7 +33,7 @@ export function LibraryAuthorization({space,asset,version,number,versions,kind,a
    if(mounted.current){setCurrent(fresh);setPending(null);setAttested(false);setDirty(false)}
   }catch(e){if(mounted.current){if(e instanceof ApiError&&e.status<500&&e.status!==401&&e.status!==403){sessionStorage.removeItem(pendingKey(space,asset));setPending(null)}setError(errorMessage(e,t('授权保存结果未确认，请使用原请求核对。')))}}finally{if(mounted.current)setBusy(false)}
  }
- const available=kind==='voice'?[['prompt_context','文字创作意图'],['speech_preset','原生音色配置'],['voice_reference','声音参考']]:[['prompt_context','文字创作意图'],['image_reference','图像参考生成'],['video_reference','视频参考生成']]
+ const available=kind==='voice'?[['audio_analysis','配音识别与对齐'],['prompt_context','文字创作意图'],['speech_preset','原生音色配置'],['voice_reference','声音参考']]:[['audio_analysis','衍生配音识别与对齐'],['prompt_context','文字创作意图'],['image_reference','图像参考生成'],['video_reference','视频参考生成']]
  const locked=readOnly||busy||!!pending||!current
  const authorized=current?.authorization
  return <section className="library-authorization" aria-label={t('资产使用授权')}><h3>{t('资产使用授权')}</h3><p>{t('授权仅是创作者的来源声明，不能替代真实权利或模型能力。撤销会阻止新的生成派发，已保存作品与历史版本仍保留。')}</p><p role="status">{t(!current?'正在读取授权…':!authorized?'尚未声明使用授权':authorized.status==='revoked'?'使用授权已撤销':authorized.expires_at&&new Date(authorized.expires_at)<=new Date()?'使用授权已过期':'已有使用授权')}{authorized&&` · ${formatDate(authorized.updated_at)}`}</p>{authorized?.expires_at&&<p>{t('声明有效至 {p0}',{p0:formatDate(authorized.expires_at)})}</p>}{authorized?.status==='granted'&&<p>{t('授权范围')}：{t('版本')} {authorized.version_ids.includes(version)?number:t('其他历史版本')} · {authorized.purposes.map(p=>t(available.find(([key])=>key===p)?.[1]??p)).join('、')}</p>}

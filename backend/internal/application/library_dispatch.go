@@ -73,6 +73,9 @@ func creativeMediaIDs(in CreativeJobInput) []string {
 	return out
 }
 func libraryMediaPurpose(kind, mime string) string {
+	if kind == "asr" || kind == "forced" || kind == "transcription" {
+		return "audio_analysis"
+	}
 	if strings.HasPrefix(mime, "audio/") {
 		return "voice_reference"
 	}

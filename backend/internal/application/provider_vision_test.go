@@ -41,6 +41,22 @@ func visionTestResponse(kind, content string) any {
 
 const visionValidJSON = `{"summary":"Synthetic image analysis","questions":["What tone is intended?"],"suggestions":["Use a wide establishing shot."]}`
 
+func TestVisionNativeAdaptersRecheckRevokedSourcesBeforePOST(t *testing.T) {
+	for _, kind := range []string{"openai-text", "ark-text", "anthropic-text", "gemini-text", "minimax-text"} {
+		t.Run(kind, func(t *testing.T) {
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls.Add(1); w.WriteHeader(500) }))
+			defer server.Close()
+			ctx := context.WithValue(context.Background(), libraryDispatchKey{}, func(context.Context) error { return providerFailure("library_use_denied") })
+			_, err := visionTestProvider(kind, server.URL, server.Client()).DescribeImage(ctx, "检查本地合成图片", nativeTestImage(t, "png"), "image/png")
+			var failure *ProviderError
+			if !errors.As(err, &failure) || failure.Code != "library_use_denied" || calls.Load() != 0 {
+				t.Fatal("native vision sent revoked source", err, calls.Load())
+			}
+		})
+	}
+}
+
 func TestVisionFiveNativeProtocols(t *testing.T) {
 	fixture := nativeTestImage(t, "png")
 	base64Image := base64.StdEncoding.EncodeToString(fixture)

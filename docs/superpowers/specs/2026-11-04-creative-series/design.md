@@ -392,3 +392,7 @@ profile和attempt快照覆盖实际参数与处理方法，不能把客户端提
 ### T33C2B/C3实施校准
 
 当前可撤销声明/CAS/原回执按[资产使用记录](asset-use-implementation.md)实现。旧素材按[来源追溯记录](asset-lineage-implementation.md)区分可信日志恢复与unverifiable历史；读取不改内容，复制不产生新许可，当前派发仍检查最新声明。新参考/媒体的服务端完整来源标记兼容缺省旧字段；旧无日志变换不靠当前海报或同名猜测。C2C2原生/参考/文字控制与C2D、编剧导演/编排及容量仍待实施。
+
+### T33C2D1已实现校准：独立配音消费
+
+按[音频消费来源记录](alignment-source-implementation.md)，AlignmentTask固定实际音频SHA和各祖先的audio_analysis修订。接纳分成锁内校验/原回执、锁外来源准备、锁内最终CAS三步；新派发在读取、模型HTTP/本地命令及输入审核边界复核。不同授权修订不自动替换，旧任务不回填今日许可。识别/对齐不代表声音生成、克隆或身份许可；已完成字幕与输出安全复核保留。此增量不宣称C2C2的native/reference/prompt_only/unsupported统一前台已交付。

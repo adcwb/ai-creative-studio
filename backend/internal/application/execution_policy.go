@@ -137,6 +137,11 @@ func (p *ExecutionPolicy) ReviewExecution(ctx context.Context, r ExecutionReques
 	if r.HasMedia && len(r.Media) == 0 {
 		return result, ErrExecutionGovernance
 	}
+	if r.Stage != "output" {
+		if err := checkLibraryDispatch(ctx); err != nil {
+			return result, err
+		}
+	}
 	err := policyCommand(ctx, p.ModerationCommand, r, &result)
 	return result, err
 }

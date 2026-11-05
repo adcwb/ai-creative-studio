@@ -567,6 +567,7 @@ func OpenPostgresStore(dir string, db *sql.DB, options ...Capabilities) (*FileSt
 		s.Close()
 		return nil, err
 	}
+	s.configureAlignmentLineage()
 	s.uploads.StartMaintenance()
 	return s, nil
 }

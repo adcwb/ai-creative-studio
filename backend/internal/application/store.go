@@ -334,6 +334,7 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 		s.Close()
 		return nil, err
 	}
+	s.configureAlignmentLineage()
 	s.uploads.StartMaintenance()
 	return s, nil
 }

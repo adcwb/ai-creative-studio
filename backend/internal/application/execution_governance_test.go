@@ -24,6 +24,50 @@ func (q testExecutionQuote) QuoteExecution(context.Context, ExecutionRequest) (E
 
 type testExecutionModerator struct{ allow bool }
 
+type sourceBoundaryModerator struct {
+	calls  int
+	revoke func()
+}
+
+func (m *sourceBoundaryModerator) ReviewExecution(context.Context, ExecutionRequest) (ModerationDecision, error) {
+	m.calls++
+	if m.revoke != nil {
+		m.revoke()
+	}
+	return ModerationDecision{Provider: "fixture", Model: "synthetic", Status: "allow", CheckedAt: time.Now()}, nil
+}
+
+func TestExecutionSourceAuthorityBeforeInputReviewAndDispatchReceipt(t *testing.T) {
+	g, request := executionFixture(t)
+	allowed := false
+	ctx := context.WithValue(context.Background(), libraryDispatchKey{}, func(context.Context) error {
+		if !allowed {
+			return providerFailure("library_use_denied")
+		}
+		return nil
+	})
+	m := &sourceBoundaryModerator{}
+	g.Moderator = m
+	dispatch := func(context.Context) (BillingEvidence, error) {
+		t.Fatal("revoked source was dispatched")
+		return BillingEvidence{}, nil
+	}
+	if err := g.Execute(ctx, request, dispatch); err == nil || m.calls != 0 || g.Ledger.hasExecution(request) {
+		t.Fatal("revoked source leaked into input review or claimed work", err, m.calls)
+	}
+	allowed = true
+	m.revoke = func() { allowed = false }
+	if err := g.Execute(ctx, request, dispatch); err == nil || m.calls != 1 || g.Ledger.hasExecution(request) {
+		t.Fatal("withdrawal during review was ignored", err, m.calls)
+	}
+	// Result review is reconciliation of an already accepted output. Revocation
+	// must not prevent safety review or force a second generation request.
+	m.revoke = nil
+	if err := g.ReviewResult(ctx, request); err != nil || m.calls != 2 {
+		t.Fatal("withdrawal blocked existing output review", err, m.calls)
+	}
+}
+
 func (m testExecutionModerator) ReviewExecution(context.Context, ExecutionRequest) (ModerationDecision, error) {
 	status := "review"
 	if m.allow {

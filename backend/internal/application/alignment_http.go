@@ -6,6 +6,15 @@ import (
 )
 
 func alignmentError(w http.ResponseWriter, err error) {
+	var failure *ProviderError
+	if errors.As(err, &failure) && failure.Code == "library_use_denied" {
+		storeError(w, err)
+		return
+	}
+	if errors.Is(err, ErrBlobIntegrity) {
+		problem(w, 409, "alignment_source_changed", providerMessage("alignment_source_changed"))
+		return
+	}
 	if errors.Is(err, ErrProviderNotReady) || errors.Is(err, ErrProviderChanged) || errors.Is(err, ErrGenerationActive) || errors.Is(err, ErrConflict) {
 		storeError(w, err)
 		return
@@ -67,7 +76,7 @@ func registerAlignmentRoutes(mux *http.ServeMux, s *FileStore) {
 		if !resolveModelRequest(w, r, s, &in.ModelRequest, capability, feature) {
 			return
 		}
-		task, created, err := s.media.CreateAlignment(r.PathValue("id"), space, key, in)
+		task, created, err := s.media.createAlignmentContext(r.Context(), r.PathValue("id"), space, key, in)
 		if err != nil {
 			alignmentError(w, err)
 			return

@@ -1,4 +1,8 @@
 export default {
+ "配音识别与对齐":"Dialogue transcription and alignment",
+ "衍生配音识别与对齐":"Transcription and alignment of derived dialogue",
+ "旧对齐任务未固定音频来源，未发送新的识别请求；请保留历史结果，并从已保存的配音重新创建任务。":"This old alignment task has no pinned audio source. No new transcription was sent. Keep its historical result and create a task from saved dialogue.",
+ "配音文件与任务固定的来源不一致，未发送识别请求；请恢复匹配文件或重新选择配音后创建任务。":"The dialogue file differs from the task's pinned source. No transcription was sent. Restore the matching file or select dialogue and create a new task.",
  "来源记录或文件字节暂时无法核对；原文件未修改，请重新读取或恢复匹配记录":"Source records or file bytes could not be checked. The file is unchanged. Read again or restore matching records.",
  "已根据原始记录追溯来源":"Sources traced from original records",
  "来源核对只读，不改写原文件或回执；不证明真实权利或模型效果。":"Source inspection is read-only. Files and receipts stay unchanged. It does not prove legal rights or model quality.",

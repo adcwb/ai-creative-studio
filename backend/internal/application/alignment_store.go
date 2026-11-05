@@ -2,7 +2,9 @@ package application
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"os"
@@ -28,6 +30,8 @@ type AlignmentInput struct {
 	ExpectedModel    string `json:"expected_model,omitempty"`
 }
 type AlignmentTask struct {
+	AudioSHA256      string            `json:"audio_sha256,omitempty"`
+	LibraryMediaPins []libraryMediaPin `json:"library_media_pins,omitempty"`
 	EpisodeNumber    int               `json:"episode_number,omitempty"`
 	TraceParent      string            `json:"trace_parent,omitempty"`
 	RuntimeSelection *RuntimeSelection `json:"runtime_selection,omitempty"`
@@ -65,20 +69,22 @@ type alignmentDisk struct {
 	Receipts map[string]alignmentReceipt `json:"receipts"`
 }
 type AlignmentStore struct {
-	pg         *postgresScope
-	execution  *ExecutionGovernor
-	runtime    *ModelRuntime
-	forced     AlignmentProvider
-	forcedCaps Capabilities
-	mu         stateMutex
-	path       string
-	data       alignmentDisk
-	provider   AlignmentProvider
-	caps       Capabilities
-	cancels    map[string]context.CancelFunc
-	failure    error
-	closed     bool
-	jobs       *localJobs
+	pinSource   func(context.Context, string, string, string) (alignmentSource, error)
+	guardSource func(context.Context, AlignmentTask) context.Context
+	pg          *postgresScope
+	execution   *ExecutionGovernor
+	runtime     *ModelRuntime
+	forced      AlignmentProvider
+	forcedCaps  Capabilities
+	mu          stateMutex
+	path        string
+	data        alignmentDisk
+	provider    AlignmentProvider
+	caps        Capabilities
+	cancels     map[string]context.CancelFunc
+	failure     error
+	closed      bool
+	jobs        *localJobs
 }
 
 func estimateAlignmentCapabilities() Capabilities {
@@ -191,7 +197,26 @@ func (a *AlignmentStore) close() {
 	a.mu.Unlock()
 	a.jobs.close()
 }
+
+var errAlignmentSourceRequired = errors.New("alignment source preparation required")
+
 func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInput) (AlignmentTask, bool, error) {
+	return m.createAlignmentContext(context.Background(), project, space, key, in)
+}
+
+func (m *MediaStore) createAlignmentContext(ctx context.Context, project, space, key string, in AlignmentInput) (AlignmentTask, bool, error) {
+	task, created, err := m.createAlignment(project, space, key, in, nil, nil)
+	if !errors.Is(err, errAlignmentSourceRequired) {
+		return task, created, err
+	}
+	// Resolve outside media/alignment locks: old origins can also read core,
+	// creative and migration state. Final acceptance revalidates the media version
+	// and checks the original receipt first, including after preparation fails.
+	source, err := m.alignment.pinSource(ctx, project, space, in.AudioAssetID)
+	return m.createAlignment(project, space, key, in, &source, err)
+}
+
+func (m *MediaStore) createAlignment(project, space, key string, in AlignmentInput, source *alignmentSource, sourceErr error) (AlignmentTask, bool, error) {
 	if in.EpisodeNumber < 0 || in.EpisodeNumber > 9007199254740991 || in.ExpectedVersion < 1 || !shotIDPattern.MatchString(in.ClipID) || (in.Mode != "estimate" && in.Mode != "asr" && in.Mode != "forced" && in.Mode != "transcription") {
 		return AlignmentTask{}, false, mediaInvalid("字幕对齐输入无效")
 	}
@@ -278,8 +303,23 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 			return AlignmentTask{}, false, err
 		}
 	}
+	if in.Mode != "estimate" && a.pinSource != nil {
+		if source == nil {
+			return AlignmentTask{}, false, errAlignmentSourceRequired
+		}
+		if sourceErr != nil {
+			return AlignmentTask{}, false, sourceErr
+		}
+		if source.MIME != audio.MIMEType {
+			return AlignmentTask{}, false, errMediaVersion
+		}
+	}
 	now := time.Now().UTC()
 	task := AlignmentTask{EpisodeNumber: in.EpisodeNumber, TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), ID: mediaID(), ProjectID: project, SpaceID: space, ClipID: clip.ID, AudioAssetID: clip.AudioAssetID, AudioMIME: audio.MIMEType, AudioDuration: audio.Duration, Mode: in.Mode, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Duration: clip.Duration, TrimStart: clip.TrimStart, Text: in.Text, Cues: []SubtitleCue{}, Warnings: []string{}, CreatedAt: now, UpdatedAt: now}
+	if source != nil && in.Mode != "estimate" {
+		task.AudioSHA256 = source.SHA256
+		task.LibraryMediaPins = cloneLibraryPins(source.Pins)
+	}
 	d := a.cloneLocked()
 	d.Tasks[task.ID] = task
 	d.Receipts[rk] = alignmentReceipt{Digest: digest, TaskID: task.ID}
@@ -310,6 +350,8 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 	return task, true, nil
 }
 func cloneAlignmentTask(t AlignmentTask) AlignmentTask {
+	t.LibraryMediaPins = cloneLibraryPins(t.LibraryMediaPins)
+	t.RuntimeSelection = cloneRuntimeSelection(t.RuntimeSelection)
 	t.Cues = append([]SubtitleCue{}, t.Cues...)
 	t.Warnings = append([]string{}, t.Warnings...)
 	return t
@@ -408,7 +450,13 @@ func (a *AlignmentStore) runTask(ctx context.Context, m *MediaStore, id string, 
 		err = providerFailure("provider_unavailable")
 	} else {
 		var path, mime string
-		path, mime, err = m.file(task.ProjectID, task.SpaceID, task.AudioAssetID, false, false)
+		if a.guardSource != nil {
+			ctx = a.guardSource(ctx, task)
+			err = checkLibraryDispatch(ctx)
+		}
+		if err == nil {
+			path, mime, err = m.file(task.ProjectID, task.SpaceID, task.AudioAssetID, false, false)
+		}
 		if err == nil {
 			var data []byte
 			var stat os.FileInfo
@@ -418,6 +466,12 @@ func (a *AlignmentStore) runTask(ctx context.Context, m *MediaStore, id string, 
 			}
 			if err == nil {
 				data, err = os.ReadFile(path)
+			}
+			if err == nil && task.AudioSHA256 != "" {
+				sum := sha256.Sum256(data)
+				if hex.EncodeToString(sum[:]) != task.AudioSHA256 || mime != task.AudioMIME {
+					err = providerFailure("alignment_source_changed")
+				}
 			}
 			if err == nil {
 				var result AlignmentResult

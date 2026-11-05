@@ -6755,7 +6755,7 @@
             }
           }
         },
-        "description": "持久化后异步执行；任务绑定clip时长、视频trim_start和配音asset。配音从音频0播放，ASR按原音频实际duration验证后裁到clip.duration并记录warning。重启未完成任务失败，不自动重新POST；结果只是建议，需显式保存时间轴。"
+        "description": "持久化后异步执行；任务绑定clip时长、视频trim_start和配音asset。配音从音频0播放，ASR按原音频实际duration验证后裁到clip.duration并记录warning。重启未完成任务失败，不自动重新POST；结果只是建议，需显式保存时间轴。 New non-estimate requests pin exact audio bytes and ancestor authorization revisions for audio_analysis. Accepted-key replays return original history before current-source readiness checks; revoked, changed or unpinned queued sources cannot issue new transcription or forced-alignment work. Estimate only allocates text timing and does not read audio."
       }
     },
     "/api/v1/projects/{id}/media/alignments/{taskId}/cancel": {
@@ -28260,6 +28260,20 @@
             "minimum": 1,
             "maximum": 9007199254740991,
             "description": "Omitted means episode 1. Existing receipts retain their original payload."
+          },
+          "audio_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "readOnly": true,
+            "description": "Server-fixed exact audio bytes for new non-estimate tasks. Omitted on old history; never supplied by clients."
+          },
+          "library_media_pins": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryMediaPin"
+            },
+            "readOnly": true,
+            "description": "Immutable ancestor versions and current authorization revisions captured at acceptance. audio_analysis only, not voice cloning or generation permission."
           }
         },
         "required": [
@@ -36770,7 +36784,8 @@
                 "image_reference",
                 "video_reference",
                 "voice_reference",
-                "speech_preset"
+                "speech_preset",
+                "audio_analysis"
               ]
             },
             "uniqueItems": true
@@ -36880,7 +36895,8 @@
                     "image_reference",
                     "video_reference",
                     "voice_reference",
-                    "speech_preset"
+                    "speech_preset",
+                    "audio_analysis"
                   ]
                 },
                 "uniqueItems": true
@@ -36988,7 +37004,8 @@
                     "image_reference",
                     "video_reference",
                     "voice_reference",
-                    "speech_preset"
+                    "speech_preset",
+                    "audio_analysis"
                   ]
                 },
                 "uniqueItems": true,
@@ -37105,7 +37122,8 @@
               "image_reference",
               "video_reference",
               "voice_reference",
-              "speech_preset"
+              "speech_preset",
+              "audio_analysis"
             ]
           }
         },
