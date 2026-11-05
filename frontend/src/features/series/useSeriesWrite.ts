@@ -16,6 +16,10 @@ function readPending(key:string,path:string,method:string):Pending|null{
  }catch{/* Session storage may be unavailable; mounted-page recovery still works. */}
  const p=memoryPending.get(key);return p&&p.path===path&&p.method===method?p:null
 }
+export function readSeriesRecovery(actor:string,space:string,identity:string,path:string,method:string):Record<string,unknown>|null {
+ const p=readPending(`studio.series.pending:${actor}:${space}:${identity}`,path,method)
+ return p?JSON.parse(p.body) as Record<string,unknown>:null
+}
 export function useSeriesWrite<T extends {id:string}=SeriesEntry>(identity:string,path:string,method:string,onSaved:(n:T)=>void){
  const {space,session}=useAppWorkspace()
  const storageKey=`studio.series.pending:${session.user?.id??'demo-user'}:${space!.id}:${identity}`

@@ -1,3 +1,5 @@
+// Run both devices via npm run test:gateway: each gets a fresh backend so
+// synthetic registrations do not share the production anti-abuse window.
 import {isolatedServerEnv} from './playwright-server-env'
 import {defineConfig,devices} from '@playwright/test'
 import {mkdtempSync, writeFileSync} from 'node:fs'

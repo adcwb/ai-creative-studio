@@ -10,7 +10,8 @@
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run src",
     "test:e2e": "playwright test",
-    "test:routing": "playwright test --config playwright.routing.config.ts"
+    "test:routing": "playwright test --config playwright.routing.config.ts",
+    "test:gateway": "node ../scripts/gateway_browser_check.mjs"
   },
   "dependencies": {
     "react": "19.2.0",

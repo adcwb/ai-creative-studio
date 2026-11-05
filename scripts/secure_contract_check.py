@@ -151,9 +151,37 @@ def main():
                 copied = call(bob, 'GET', '/api/v1/projects/' + migration['target_project_id'] + query, project_route)
                 assert copied['migration_source']['episode_number'] == 7
                 assert call(alice, 'GET', source_path + query, project_route) == migration_source
+                # Canonical authored material is separate from AI suggestions.
+                story_path = '/api/v1/series/' + root_series['id'] + '/story-records'
+                story_route = '/api/v1/series/{id}/story-records'
+                canonical = {'expected_version': 0, 'title': 'Synthetic canonical story bible', 'kind': 'bible', 'status': 'active', 'required': True, 'body': {'evidence': [], 'bible': {'theme': 'Searching for truth', 'world_rules': 'Characters only know what has been revealed to them.', 'story_arc': '', 'visual_intent': '', 'immutable_rules': '', 'characters': [{'id': '2' * 32, 'name': 'Xiaoman', 'desire': 'Find the truth', 'flaw': '', 'arc': '', 'relationships': '', 'visual_intent': '', 'voice_intent': 'Descriptive prose only; no voice authorization.'}]}}}
+                call(anonymous, 'GET', story_path + query, story_route, status=401)
+                call(alice, 'POST', story_path + query, story_route, canonical, status=403, key='secure-story-no-csrf')
+                call(bob, 'POST', story_path + query, story_route, canonical, bq, status=403, key='secure-story-viewer')
+                first_story = call(alice, 'POST', story_path + query, story_route, canonical, aq, status=201, key='secure-story-create')
+                page = call(bob, 'GET', story_path + query, story_route)
+                assert len(page['items']) == 1 and 'body' not in page['items'][0]
+                current_story_path, current_story_route = story_path + '/' + first_story['id'], story_route + '/{record_id}'
+                update_story = json.loads(json.dumps(canonical))
+                update_story['expected_version'] = 1
+                update_story['body']['bible']['world_rules'] = 'A new canonical rule with the original version retained.'
+                latest_story = call(alice, 'PUT', current_story_path + query, current_story_route, update_story, aq, key='secure-story-update')
+                assert latest_story['number'] == 2
+                call(alice, 'PUT', current_story_path + query, current_story_route, update_story, aq, status=409, key='secure-story-stale')
+                assert call(alice, 'POST', story_path + query, story_route, canonical, aq, status=201, key='secure-story-create') == first_story
+                historical = call(bob, 'GET', current_story_path + '/versions/' + first_story['version_id'] + query, current_story_route + '/versions/{version_id}')
+                assert historical == first_story
+                call(bob, 'GET', current_story_path + '/versions' + query + '&limit=1', current_story_route + '/versions')
+                call(alice, 'GET', '/api/v1/series/' + root_series['id'] + '/story-episodes' + query, '/api/v1/series/{id}/story-episodes')
+                context_path, context_route = '/api/v1/episodes/' + migration['target_project_id'] + '/context-previews', '/api/v1/episodes/{id}/context-previews'
+                call(bob, 'POST', context_path + query, context_route, {}, bq, status=403, key='secure-story-context-viewer')
+                context_preview = call(alice, 'POST', context_path + query, context_route, {}, aq, key='secure-story-context')
+                assert context_preview['problems'] == [] and context_preview['included'][0]['number'] == 2
+                call(alice, 'POST', context_path + query, context_route, {'actor_id': 'owner'}, aq, status=400, key='secure-story-forged-actor')
                 call(bob, 'PUT', budget + query, budget, {'currency': 'USD', 'limit_minor': 301, 'expected_limit_minor': 300}, bq, status=403)
                 call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'remove'}, aq)
                 call(bob, 'GET', task_path + query, task_route, status=403)
+                call(bob, 'GET', story_path + query, story_route, status=403)
                 call(bob, 'GET', governance + query, governance, status=403)
                 assert call(bob, 'GET', governance + '?space_id=' + other, governance)['limit_minor'] == 0
                 exchange = governance + '/exchange'
@@ -289,7 +317,7 @@ def main():
                 call(alice, 'POST', variable_target + '/copies' + query, route + '/copies', dict(version_id=variable_saved['version']['id'], name='Copied recipe', visibility='private'), aq, status=201)
                 call(alice, 'POST', '/api/v1/auth/logout', '/api/v1/auth/logout', {}, aq)
                 assert call(alice, 'GET', session_route, session_route)['authenticated'] is False
-                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'explicit stable structure upgrade, CSRF and viewer refusal', 'episode copy preview, hidden target, viewer/CSRF refusal and revoked progress access'], 'live_provider_calls': 0}))
+                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'explicit stable structure upgrade, CSRF and viewer refusal', 'episode copy preview, hidden target, viewer/CSRF refusal and revoked progress access', 'canonical story versions, old receipts, read-only pinned context and revoked story access'], 'live_provider_calls': 0}))
             finally:
                 process.terminate()
                 process.wait(timeout=15)

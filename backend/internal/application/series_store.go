@@ -9,6 +9,7 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/series"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/migrationrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/seriesrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/storyrepo"
 )
 
 func (s *FileStore) openSeries(dir string) error {
@@ -18,6 +19,10 @@ func (s *FileStore) openSeries(dir string) error {
 		db = s.pg.db
 	}
 	s.series, err = seriesrepo.Open(filepath.Join(dir, "series"), db)
+	if err != nil {
+		return err
+	}
+	s.story, err = storyrepo.Open(filepath.Join(dir, "story"), db)
 	if err != nil {
 		return err
 	}

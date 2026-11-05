@@ -20,6 +20,7 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/migrationrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/promptrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/seriesrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/storyrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	"golang.org/x/sys/unix"
@@ -149,6 +150,9 @@ func ImportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 	if err = copySeriesValidation(ctx, filepath.Join(dir, "series"), filepath.Join(validation, "series")); err != nil {
 		return report, err
 	}
+	if err = storyrepo.CopyValidation(ctx, filepath.Join(dir, "story"), filepath.Join(validation, "story")); err != nil {
+		return report, err
+	}
 	if err = migrationrepo.CopyValidation(ctx, filepath.Join(dir, "episode-migrations"), filepath.Join(validation, "episode-migrations")); err != nil {
 		return report, err
 	}
@@ -237,6 +241,10 @@ func ImportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 		return report, err
 	}
 	report.Records["series"], err = seriesrepo.ImportFiles(ctx, tx, filepath.Join(dir, "series"))
+	if err != nil {
+		return report, err
+	}
+	report.Records["story_versions"], err = storyrepo.ImportFiles(ctx, tx, filepath.Join(dir, "story"))
 	if err != nil {
 		return report, err
 	}
@@ -351,6 +359,10 @@ func ExportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 		return report, err
 	}
 	report.Records["series"], err = seriesrepo.ExportFiles(ctx, tx, filepath.Join(stage, "series"))
+	if err != nil {
+		return report, err
+	}
+	report.Records["story_versions"], err = storyrepo.ExportFiles(ctx, tx, filepath.Join(stage, "story"))
 	if err != nil {
 		return report, err
 	}

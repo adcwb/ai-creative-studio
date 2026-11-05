@@ -5,6 +5,7 @@ import {request,errorMessage} from '../api'
 import {useI18n} from '../i18n'
 import {SeriesForm,SeriesMoveForm} from '../features/series/SeriesForm'
 import {useDirectory} from '../features/series/useDirectory'
+import {StoryWorkspace} from '../features/series/StoryWorkspace'
 import {directoryURL,episodeStatus,type SeriesEntry} from '../features/series/types'
 import '../features/series/series.css'
 export function SeriesPage(){const {seriesId}=useParams();const {space}=useAppWorkspace();return seriesId==='new'?<NewSeriesPage key={space?.id}/>:<SeriesWorkspace key={`${space?.id}:${seriesId}`} id={seriesId??''}/>}
@@ -36,6 +37,7 @@ function SeriesWorkspace({id}:{id:string}){
  {root&&<><header className="page-heading"><div><span className="eyebrow">{t('系列创作')}</span><h1>{root.title}</h1><p>{root.summary}</p></div>{writable&&<button onClick={()=>requestLeave(()=>setMode('root'))}>{t('系列设置')}</button>}</header>
  <div className="series-overview"><span>{root.status==='archived'?t('已归档'):t('创作中')}</span><span>{t('目标 {p0} 秒 / 集',{p0:root.profile.duration_seconds})}</span><span>{root.profile.output_resolution} · {root.profile.aspect_ratio}</span>{root.audience&&<span>{t('目标观众')} · {root.audience}</span>}</div>
  {root.status==='archived'&&<p className="editing-note">{t('系列已归档，现有作品仍可查看和编辑。恢复后可继续添加季和集。')}</p>}
+ <StoryWorkspace key={root.id} root={root.id}/>
  {mode==='root'&&<SeriesForm kind="series" item={root} onCancel={close} onSaved={onSaved} onRefresh={refresh}/>}
  <section className="panel series-seasons"><div className="series-heading"><h2>{t('季与剧集')}</h2>{writable&&root.status==='active'&&<button onClick={()=>requestLeave(()=>setMode('new-season'))}>{t('添加一季')}</button>}</div>
  {seasons.loading&&<p role="status">{t('正在读取…')}</p>}{seasons.error&&<div className="error" role="alert">{seasons.error}<button onClick={refresh}>{t('重新读取目录')}</button></div>}

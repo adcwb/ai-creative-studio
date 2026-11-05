@@ -22,6 +22,7 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/migrationrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/promptrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/seriesrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/storyrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -158,6 +159,9 @@ func InitPostgres(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, seriesrepo.Schema); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, storyrepo.Schema); err != nil {
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, `CREATE UNIQUE INDEX IF NOT EXISTS studio_projects_tenant_entity_unique ON studio_projects(tenant_id,entity_id)`); err != nil {
@@ -478,6 +482,9 @@ func OpenPostgresStore(dir string, db *sql.DB, options ...Capabilities) (*FileSt
 	}
 	if entries, err := os.ReadDir(filepath.Join(dir, "series")); err == nil && len(entries) > 0 || err != nil && !os.IsNotExist(err) {
 		return nil, errors.New("postgres cache contains local series data; use explicit offline migration and a fresh cache directory")
+	}
+	if entries, err := os.ReadDir(filepath.Join(dir, "story")); err == nil && len(entries) > 0 || err != nil && !os.IsNotExist(err) {
+		return nil, errors.New("postgres cache contains local story material; use explicit offline migration and a fresh cache directory")
 	}
 	if entries, err := os.ReadDir(filepath.Join(dir, "episode-migrations")); err == nil && len(entries) > 0 || err != nil && !os.IsNotExist(err) {
 		return nil, errors.New("postgres cache contains local episode migrations; use explicit offline migration and a fresh cache directory")
