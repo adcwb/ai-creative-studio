@@ -65,8 +65,13 @@ func sanitizePostgresExport(scope string, raw []byte, uncertain map[string]bool)
 			for i := range p.Exports {
 				e := &p.Exports[i]
 				if uncertain[tenant+"\x00"+e.ID] && (e.Status == "queued" || e.Status == "running") {
-					e.Status = "failed"
-					e.Error = "Local export interrupted before rollback; create a new export."
+					if e.RenderVersion == 1 {
+						e.Status = "queued"
+						e.Error = ""
+					} else {
+						e.Status = "failed"
+						e.Error = "Local export interrupted before rollback; create a new export."
+					}
 				}
 			}
 			projects[key] = p

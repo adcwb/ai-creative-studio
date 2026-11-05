@@ -1,6 +1,6 @@
 # 自定义图像提示词与长篇 AI 漫剧
 
-规格 ID：CS-20261104。创建：2026-11-04；修订8：2026-11-05。状态：**Implementing，P0A部分完成、P1/P2提示词配方、文件资产库分片、可恢复上传及S3原生分段恢复已实现，整体方案未完成**。
+规格 ID：CS-20261104。创建：2026-11-04；修订9：2026-11-05。状态：**Implementing，P0A部分完成、P1/P2提示词配方、文件资产库分片、可恢复上传、S3原生分段恢复及持久渲染已实现，整体方案未完成**。
 
 代码基线：`9e687c584632fdc98628c42592ff3df2ff0304cb`，远端 `master` 已推送的成本限制移除版本。用户已批准按阶段实施并要求保持C端视觉一致；当前代码已开始修改，全部规格完成并验证后按最新授权推送GitHub并核验CI；此前仅本地提交，不部署、不执行生产迁移或真实收费调用。实际完成范围与结果见[实施记录](implementation.md)，不能把本包全部目标当成当前能力。
 
@@ -34,5 +34,5 @@
 
 ## 当前实施与核验
 
-修订3记录第一批实现、测试和剩余限制：[实施与验证记录](implementation.md)。核心交付为移除一批自设数量/小时门槛、有界队列和流式高清媒体；自定义提示词闭环已实现，见[提示词实施记录](prompts-implementation.md)与[变量及参考图配方记录](references-implementation.md)；文件库64MiB瓶颈已按[存储记录](storage-implementation.md)改为实体事务文件，可恢复上传见[上传记录](uploads-implementation.md)；S3原生分段与清理见[S3实施记录](s3-implementation.md)；渲染持久检查点、系列实体、连续性账本、制作DAG与200集容量仍未交付。
+修订3记录第一批实现、测试和剩余限制：[实施与验证记录](implementation.md)。核心交付为移除一批自设数量/小时门槛、有界队列和流式高清媒体；自定义提示词闭环已实现，见[提示词实施记录](prompts-implementation.md)与[变量及参考图配方记录](references-implementation.md)；文件库64MiB瓶颈已按[存储记录](storage-implementation.md)改为实体事务文件，可恢复上传见[上传记录](uploads-implementation.md)；S3原生分段与清理见[S3实施记录](s3-implementation.md)；持久渲染的实施与验证见[渲染记录](render-implementation.md)；系列实体、连续性账本、制作DAG与200集容量仍未交付。
 基线发布已独立确认：[成本管理移除版 CI](https://github.com/adcwb/ai-creative-studio/actions/runs/41858736674) 总状态 completed/success，五个作业成功，前后端镜像已发布。这个结果只验证上述基线，不能作为本规格实现完成的证据。本包随阶段代码本地提交，完整规格完成并验证前不推送。

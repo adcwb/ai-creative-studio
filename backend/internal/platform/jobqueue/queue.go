@@ -81,7 +81,8 @@ func (q Queue) lease() time.Duration {
 }
 
 // Claim recovers only work that has not crossed the durable dispatch boundary.
-// Expired dispatched work is unknown and never submitted a second time.
+// Expired dispatched provider work is unknown and never resubmitted. Only
+// explicitly versioned, deterministic local exports may resume checkpoints.
 func (q Queue) Claim(ctx context.Context, kind string) (Job, bool, error) {
 	if q.BeforeClaim != nil {
 		if err := q.BeforeClaim(ctx); err != nil {
@@ -106,7 +107,7 @@ func (q Queue) Claim(ctx context.Context, kind string) (Job, bool, error) {
 	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(728219118)`); err != nil {
 		return Job{}, false, err
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE execution_jobs SET state='unknown',lease_token='',updated_at=clock_timestamp() WHERE kind=$1 AND state='dispatch_started' AND lease_until<=clock_timestamp()`, kind)
+	_, err = tx.ExecContext(ctx, `UPDATE execution_jobs SET state=CASE WHEN kind='export' AND payload->>'render_version'='1' THEN 'queued' ELSE 'unknown' END,lease_token='',updated_at=clock_timestamp() WHERE kind=$1 AND state='dispatch_started' AND lease_until<=clock_timestamp()`, kind)
 	if err != nil {
 		return Job{}, false, err
 	}

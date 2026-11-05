@@ -16,6 +16,9 @@ func (m *MediaStore) exportInputs(space, project string, p MediaState, e MediaEx
 	ids := map[string]bool{}
 	for _, c := range e.Timeline.Clips {
 		ids[c.AssetID] = true
+		if c.SourceAudioAssetID != "" {
+			ids[c.SourceAudioAssetID] = true
+		}
 		if c.AudioAssetID != "" {
 			ids[c.AudioAssetID] = true
 		}
@@ -66,7 +69,27 @@ func RunQueuedExportWorker(ctx context.Context, q jobqueue.Queue, s *FileStore) 
 		if err = q.Dispatch(ctx, j); err != nil {
 			return err
 		}
-		renderCtx := ctx
+		m.mu.Lock()
+		if m.pg.err != nil {
+			m.mu.Unlock()
+			return m.pg.err
+		}
+		current := m.clone()
+		mediaCurrent := current.Projects[k]
+		for i := range mediaCurrent.Exports {
+			if mediaCurrent.Exports[i].ID == export.ID && mediaCurrent.Exports[i].Status != "cancelled" {
+				mediaCurrent.Exports[i].Status = "running"
+			}
+		}
+		current.Projects[k] = mediaCurrent
+		m.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error { return jobqueue.CheckLeaseTx(ctx, tx, j) }
+		err = m.commit(current)
+		m.pg.beforeCommit = nil
+		m.mu.Unlock()
+		if err != nil {
+			return err
+		}
+		renderCtx := context.WithValue(ctx, renderScopeKey{}, renderScope{Space: j.TenantID, Project: payload.ProjectID, Lease: &j})
 		renderErr := m.exportInputs(j.TenantID, payload.ProjectID, p, export)
 		if renderErr == nil {
 			renderErr = m.render(renderCtx, p, export)

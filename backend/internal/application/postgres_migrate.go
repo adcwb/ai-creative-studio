@@ -232,6 +232,10 @@ func ImportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 	if err != nil {
 		return report, err
 	}
+	report.Records["render"], err = transferRenderFiles(ctx, tx, filepath.Join(dir, "media", "render-checkpoints"), true)
+	if err != nil {
+		return report, err
+	}
 	report.Records["multipart"], err = importS3Multipart(ctx, tx, filepath.Join(dir, "s3-multipart"))
 	if err != nil {
 		return report, err
@@ -334,6 +338,10 @@ func ExportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 	if err != nil {
 		return report, err
 	}
+	report.Records["render"], err = transferRenderFiles(ctx, tx, filepath.Join(stage, "media", "render-checkpoints"), false)
+	if err != nil {
+		return report, err
+	}
 	report.Records["multipart"], err = exportS3Multipart(ctx, tx, filepath.Join(stage, "s3-multipart"))
 	if err != nil {
 		return report, err
@@ -355,6 +363,9 @@ func ExportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 	}
 	if err = tx.Commit(); err != nil {
 		return report, errors.New("export transaction failed")
+	}
+	if err = os.MkdirAll(filepath.Join(stage, "results"), 0700); err != nil {
+		return report, err
 	}
 	// Rename without replacement; callers cannot accidentally replace a live dir.
 	if err = syncMigrationDirectory(stage); err != nil {
@@ -399,6 +410,25 @@ func importQueuedTasks(ctx context.Context, tx *sql.Tx, values map[string]json.R
 			}
 		}
 	}
+	var md mediaDisk
+	if err := json.Unmarshal(values["media"], &md); err != nil {
+		return err
+	}
+	for key, p := range md.Projects {
+		parts := strings.SplitN(key, ":", 2)
+		if len(parts) != 2 {
+			return ErrBlobIntegrity
+		}
+		for _, e := range p.Exports {
+			if e.RenderVersion == 1 && (e.Status == "queued" || e.Status == "running") {
+				b, _ := json.Marshal(map[string]string{"task_id": e.ID, "project_id": parts[1], "render_version": "1"})
+				if err := jobqueue.EnqueueTx(ctx, tx, jobqueue.Job{TenantID: parts[0], ID: e.ID, Kind: "export", IdempotencyKey: e.ID, Payload: b, TraceParent: e.TraceParent}); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
 	return nil
 }
 

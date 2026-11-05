@@ -11,25 +11,29 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"log/slog"
-	"math"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/media"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/tracing"
 )
 
 type mediaProbe struct {
 	Streams []struct {
-		CodecType string `json:"codec_type"`
-		CodecName string `json:"codec_name"`
-		Width     int    `json:"width"`
-		Height    int    `json:"height"`
+		NBFrames     string `json:"nb_frames"`
+		AvgFrameRate string `json:"avg_frame_rate"`
+		DurationTS   int64  `json:"duration_ts"`
+		TimeBase     string `json:"time_base"`
+		SampleRate   string `json:"sample_rate"`
+		Channels     int    `json:"channels"`
+		CodecType    string `json:"codec_type"`
+		CodecName    string `json:"codec_name"`
+		Width        int    `json:"width"`
+		Height       int    `json:"height"`
 	} `json:"streams"`
 	Format struct {
 		Duration string `json:"duration"`
@@ -191,13 +195,17 @@ func (m *MediaStore) StartEpisodeExport(project, space, key string, version, epi
 	if len(traceParents) == 1 && tracing.ValidParent(traceParents[0]) {
 		parent = traceParents[0]
 	}
-	e := MediaExport{EpisodeNumber: episode, TraceParent: parent, ID: mediaID(), Status: "queued", Timeline: selected}
-	e.Duration = timelineDuration(e.Timeline)
+	e := MediaExport{RenderVersion: 1, EpisodeNumber: episode, TraceParent: parent, ID: mediaID(), Status: "queued", Timeline: selected}
+	plan, err := media.CompileRenderPlan(e.Timeline)
+	if err != nil {
+		return MediaExport{}, err
+	}
+	e.Duration = float64(plan.Frames) / 24
 	p.Exports = append(p.Exports, e)
 	d.Projects[k] = p
 	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest, ExportID: e.ID}
 	if m.pg != nil {
-		payload, _ := json.Marshal(map[string]string{"task_id": e.ID, "project_id": project})
+		payload, _ := json.Marshal(map[string]string{"task_id": e.ID, "project_id": project, "render_version": "1"})
 		m.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error {
 			return jobqueue.EnqueueTx(ctx, tx, jobqueue.Job{TenantID: space, ID: e.ID, TraceParent: e.TraceParent, Kind: "export", IdempotencyKey: project + ":" + key, Payload: payload})
 		}
@@ -209,8 +217,22 @@ func (m *MediaStore) StartEpisodeExport(project, space, key string, version, epi
 	if m.pg != nil {
 		return e, nil
 	}
+	m.scheduleExportLocked(space, project, p, e)
+	return e, nil
+}
+
+func (m *MediaStore) scheduleExportLocked(space, project string, p MediaState, e MediaExport) {
+	if m.closed || m.cancels[e.ID] != nil {
+		return
+	}
+	k := mediaKey(space, project)
 	ctx, cancel := context.WithCancel(tracing.WithParent(context.Background(), e.TraceParent))
 	m.cancels[e.ID] = cancel
+	if m.attempts == nil {
+		m.attempts = map[string]string{}
+	}
+	attempt := mediaID()
+	m.attempts[e.ID] = attempt
 	if m.jobs == nil {
 		m.jobs = newLocalJobs(2)
 	}
@@ -242,21 +264,28 @@ func (m *MediaStore) StartEpisodeExport(project, space, key string, version, epi
 		if err != nil {
 			return
 		}
-		err = m.render(ctx, p, e)
+		renderCtx := context.WithValue(ctx, renderScopeKey{}, renderScope{Space: space, Project: project})
+		err = m.exportInputs(space, project, p, e)
+		if err == nil {
+			err = m.render(renderCtx, p, e)
+		}
 		if err == nil && m.blobs != nil {
 			for _, ext := range []string{".mp4", ".srt", ".vtt"} {
-				if err = m.storeBlob(space, project, e.ID+ext); err != nil {
+				if err = m.storeBlobContext(ctx, space, project, e.ID+ext); err != nil {
 					break
 				}
 			}
 		}
-		m.finishExport(k, e.ID, space, project, err)
+		m.finishExport(k, e.ID, space, project, err, attempt)
 	})
-	return e, nil
 }
-func (m *MediaStore) finishExport(k, id, space, project string, renderErr error) {
+func (m *MediaStore) finishExport(k, id, space, project string, renderErr error, attempt string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.closed || m.attempts[id] != attempt {
+		return
+	}
+	delete(m.attempts, id)
 	if err := m.finishExportLocked(k, id, space, project, renderErr); err != nil {
 		slog.Error("media export state persistence failed; restart required", "export_id", id)
 	}
@@ -272,9 +301,17 @@ func (m *MediaStore) finishExportLocked(k, id, space, project string, renderErr 
 		}
 		if renderErr != nil {
 			e.Status = "failed"
+			e.ResumeAvailable = e.RenderVersion == 1 && !errors.Is(renderErr, errRenderInputsChanged)
 			e.Error = "本地合成失败或超时；请检查素材与 FFmpeg"
+			if e.ResumeAvailable {
+				e.Error = "合成未完成，进度已保留。请检查素材、存储服务和 FFmpeg 后继续"
+			}
+			if errors.Is(renderErr, errRenderInputsChanged) {
+				e.Error = "素材或合成环境已变更，请重新导出"
+			}
 		} else {
 			e.Status = "succeeded"
+			e.ResumeAvailable = false
 			e.FileURL = mediaURL(space, project, "exports/"+id+"/file")
 			e.SubtitleURL = mediaURL(space, project, "exports/"+id+"/subtitles")
 			e.SubtitleVTTURL = mediaURL(space, project, "exports/"+id+"/subtitles.vtt")
@@ -310,6 +347,7 @@ func (m *MediaStore) CancelExport(project, space, key, id string) (MediaExport, 
 				defer func() { m.pg.beforeCommit = nil }()
 			}
 			e.Status = "cancelled"
+			e.ResumeAvailable = e.RenderVersion == 1
 			e.Error = "已取消本地合成"
 		}
 		d.Projects[k] = p
@@ -323,184 +361,4 @@ func (m *MediaStore) CancelExport(project, space, key, id string) (MediaExport, 
 		return *e, nil
 	}
 	return MediaExport{}, ErrNotFound
-}
-func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) error {
-	if err := validateTimeline(p, e.Timeline); err != nil {
-		return err
-	}
-	dir, err := os.MkdirTemp(m.dir, "render-")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(dir)
-	var concat, subs, vtt strings.Builder
-	vtt.WriteString("WEBVTT\n\n")
-	width, height, err := outputSpec(e.Timeline)
-	if err != nil {
-		return err
-	}
-	maxRate := "4M"
-	if e.Timeline.OutputResolution == "720p" {
-		maxRate = "6M"
-	}
-	if e.Timeline.OutputResolution == "1080p" {
-		maxRate = "8M"
-	}
-	if e.Timeline.OutputResolution == "1440p" {
-		maxRate = "12M"
-	}
-	if e.Timeline.OutputResolution == "1800p" {
-		maxRate = "18M"
-	}
-	if e.Timeline.OutputResolution == "2160p" {
-		maxRate = "24M"
-	}
-	elapsed := 0.0
-	subtitleCount := 0
-	var globalCues []SubtitleCue
-	for i, c := range e.Timeline.Clips {
-		a, _ := mediaAsset(p, c.AssetID)
-		input := filepath.Join(m.dir, a.ID)
-		args := []string{}
-		if a.Kind == "image" {
-			args = append(args, "-loop", "1", "-framerate", "24")
-		} else {
-			args = append(args, "-ss", seconds(c.TrimStart))
-		}
-		args = append(args, "-protocol_whitelist", "file,pipe", "-i", input)
-		if c.AudioAssetID != "" {
-			args = append(args, "-protocol_whitelist", "file,pipe", "-i", filepath.Join(m.dir, c.AudioAssetID))
-		} else {
-			args = append(args, "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo")
-		}
-		vf := ""
-		if c.CropWidth > 0 && c.CropHeight > 0 {
-			vf = fmt.Sprintf("crop=iw*%f:ih*%f:iw*%f:ih*%f,", c.CropWidth, c.CropHeight, c.CropX, c.CropY)
-		}
-		vf += fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=24,format=yuv420p", width, height, width, height)
-		if c.Transition == "fade" {
-			vf += fmt.Sprintf(",fade=t=in:st=0:d=%s,fade=t=out:st=%s:d=%s", seconds(c.TransitionDuration), seconds(c.Duration-c.TransitionDuration), seconds(c.TransitionDuration))
-		}
-		audioFilter := "[1:a]apad,volume=" + seconds(c.AudioVolume) + "[clipaudio]"
-		if c.PreserveSourceAudio && (a.Kind == "video" || c.SourceAudioAssetID != "") {
-			sourcePath, sourceIndex := input, "0"
-			if c.SourceAudioAssetID != "" {
-				sourcePath, sourceIndex = filepath.Join(m.dir, c.SourceAudioAssetID), "2"
-				args = append(args, "-ss", seconds(c.SourceAudioTrimStart), "-protocol_whitelist", "file,pipe", "-i", sourcePath)
-			}
-			probe, probeErr := probeMedia(sourcePath)
-			if probeErr != nil {
-				return probeErr
-			}
-			for _, stream := range probe.Streams {
-				if stream.CodecType == "audio" {
-					audioFilter = "[1:a]apad,volume=" + seconds(c.AudioVolume) + "[dub];[" + sourceIndex + ":a]apad,volume=" + seconds(c.SourceAudioVolume) + "[source];[dub][source]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.95:latency=1[clipaudio]"
-					break
-				}
-			}
-		}
-		clipPath := filepath.Join(dir, fmt.Sprintf("clip-%03d.mp4", i))
-		args = append(args, "-map", "0:v:0", "-map", "[clipaudio]", "-vf", vf, "-filter_complex", audioFilter, "-t", seconds(c.Duration), "-c:v", "libx264", "-preset", "ultrafast", "-maxrate", maxRate, "-bufsize", "16M", "-threads", "1", "-c:a", "aac", "-ar", "48000", "-ac", "2", "-movflags", "+faststart", clipPath)
-		if err = ffmpeg(ctx, args...); err != nil {
-			return err
-		}
-		fmt.Fprintf(&concat, "file '%s'\n", clipPath)
-		for _, cue := range clipSubtitleCues(c) {
-			cue.Start += elapsed
-			cue.End += elapsed
-			globalCues = append(globalCues, cue)
-		}
-		elapsed += c.Duration
-		if overlappingTransition(c.Transition) {
-			elapsed -= c.TransitionDuration
-		}
-	}
-	sort.SliceStable(globalCues, func(i, j int) bool { return globalCues[i].Start < globalCues[j].Start })
-	for _, cue := range globalCues {
-		subtitleCount++
-		text := strings.ReplaceAll(strings.ReplaceAll(cue.Text, "\r", " "), "\n", " ")
-		text = strings.ReplaceAll(text, "-->", "→")
-		fmt.Fprintf(&subs, "%d\n%s --> %s\n%s\n\n", subtitleCount, srtTime(cue.Start), srtTime(cue.End), text)
-		escaped := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(text)
-		fmt.Fprintf(&vtt, "%s --> %s\n%s\n\n", strings.ReplaceAll(srtTime(cue.Start), ",", "."), strings.ReplaceAll(srtTime(cue.End), ",", "."), escaped)
-	}
-	list := filepath.Join(dir, "concat.txt")
-	if err = os.WriteFile(list, []byte(concat.String()), 0600); err != nil {
-		return err
-	}
-	srt := filepath.Join(m.dir, e.ID+".srt")
-	if err = os.WriteFile(srt, []byte(subs.String()), 0600); err != nil {
-		return err
-	}
-	if err = os.WriteFile(filepath.Join(m.dir, e.ID+".vtt"), []byte(vtt.String()), 0600); err != nil {
-		return err
-	}
-	args := []string{"-f", "concat", "-safe", "0", "-protocol_whitelist", "file,pipe", "-i", list}
-	if hasCrossfade(e.Timeline) {
-		path, composeErr := composeCrossfades(ctx, dir, e.Timeline, maxRate)
-		if composeErr != nil {
-			return composeErr
-		}
-		args = []string{"-protocol_whitelist", "file,pipe", "-i", path}
-	}
-	if len(e.Timeline.VideoOverlays) > 0 {
-		path, composeErr := m.composeOverlays(ctx, dir, p, e.Timeline, args, width, height, maxRate)
-		if composeErr != nil {
-			return composeErr
-		}
-		args = []string{"-protocol_whitelist", "file,pipe", "-i", path}
-	}
-	audioMap := "0:a:0"
-	nextInput := 1
-	if e.Timeline.MusicAssetID != "" || len(e.Timeline.AudioTracks) > 0 {
-		stem, err := m.mixTimelineAudio(ctx, dir, e.Timeline, args, elapsed)
-		if err != nil {
-			return err
-		}
-		args = append(args, "-protocol_whitelist", "file,pipe", "-i", stem)
-		nextInput = 2
-		audioMap = "1:a:0"
-	}
-	softSubs := subtitleCount > 0 && (e.Timeline.SubtitleMode == "" || e.Timeline.SubtitleMode == "soft")
-	if softSubs {
-		args = append(args, "-f", "srt", "-i", srt)
-	}
-	args = append(args, "-map", "0:v:0", "-map", audioMap)
-	if audioMap == "1:a:0" {
-		args = append(args, "-af", "alimiter=limit=0.95:latency=1")
-	}
-	if softSubs {
-		args = append(args, "-map", fmt.Sprintf("%d:s:0", nextInput), "-c:s", "mov_text", "-metadata:s:s:0", "language=zho", "-disposition:s:0", "default")
-	}
-	if subtitleCount > 0 && e.Timeline.SubtitleMode == "burn" {
-		// Paths are generated by the server, but still escape filter syntax for arbitrary DATA_DIR.
-		escapedPath := strings.NewReplacer("\\", "\\\\", "'", "'\\''", ":", "\\:", ",", "\\,", "[", "\\[", "]", "\\]").Replace(srt)
-		args = append(args, "-vf", "subtitles=filename='"+escapedPath+"'", "-c:v", "libx264", "-preset", "ultrafast", "-maxrate", maxRate, "-bufsize", "16M", "-threads", "1")
-	} else {
-		args = append(args, "-c:v", "copy")
-	}
-	out := filepath.Join(dir, "output.mp4")
-	args = append(args, "-c:a", "aac", "-t", seconds(elapsed), "-movflags", "+faststart", out)
-	if err = ffmpeg(ctx, args...); err != nil {
-		return err
-	}
-	info, err := os.Stat(out)
-	if err != nil || info.Size() <= 0 {
-		return errors.New("导出文件不完整")
-	}
-	probe, err := probeMedia(out)
-	if err != nil || len(probe.Streams) < 2 {
-		return errors.New("导出校验失败")
-	}
-	actualDuration, parseErr := strconv.ParseFloat(probe.Format.Duration, 64)
-	validDimensions := false
-	for _, stream := range probe.Streams {
-		if stream.CodecType == "video" && stream.Width == width && stream.Height == height {
-			validDimensions = true
-		}
-	}
-	if parseErr != nil || math.Abs(actualDuration-elapsed) > .12 || !validDimensions {
-		return errors.New("导出尺寸或时长与设定不一致")
-	}
-	return os.Rename(out, filepath.Join(m.dir, e.ID+".mp4"))
 }

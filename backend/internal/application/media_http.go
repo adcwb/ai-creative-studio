@@ -255,6 +255,22 @@ func registerMediaRoutes(mux *http.ServeMux, s *FileStore) {
 		}
 		respond(w, 200, e)
 	})
+	mux.HandleFunc("POST "+base+"/exports/{export_id}/resume", func(w http.ResponseWriter, r *http.Request) {
+		space, key, ok := scope(w, r, true)
+		if !ok {
+			return
+		}
+		var in struct{}
+		if !decodeProject(w, r, &in) {
+			return
+		}
+		e, err := m.ResumeExport(r.PathValue("id"), space, key, r.PathValue("export_id"))
+		if err != nil {
+			mediaError(w, err)
+			return
+		}
+		respond(w, 202, e)
+	})
 	serve := func(export, subtitles bool) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			space, _, ok := scope(w, r, false)

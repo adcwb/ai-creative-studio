@@ -219,6 +219,9 @@ func validMediaBlobName(name string) bool {
 // ConfigureBlobStorageFromEnv is startup-only. No network probes or automatic
 // migration occur; all old references must have a durable migration manifest.
 func ConfigureBlobStorageFromEnv(s *FileStore) error {
+	if _, e := renderSegmentFrames(); e != nil {
+		return e
+	}
 	mode := os.Getenv("BLOB_STORE")
 	if mode == "" || mode == "file" {
 		if s.pg != nil {
@@ -306,6 +309,22 @@ func configureBlobStorage(s *FileStore, store BlobStore) error {
 					return errors.New("library references require offline blob migration")
 				}
 			}
+		}
+	}
+	if s.pg == nil {
+		refs, e := fileRenderReferences(filepath.Join(s.media.dir, "render-checkpoints"))
+		if e != nil {
+			return e
+		}
+		for _, ref := range refs {
+			if !m.has(ref.Key) {
+				return errors.New("render checkpoints require offline blob migration")
+			}
+		}
+	} else {
+		var missing bool
+		if e := s.pg.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM studio_render_checkpoints c LEFT JOIN studio_blobs b ON b.key=c.payload->'info'->>'key' WHERE c.step<>'manifest' AND c.payload->>'state'='ready' AND b.key IS NULL)`).Scan(&missing); e != nil || missing {
+			return errors.New("render checkpoints require a complete blob manifest")
 		}
 	}
 	s.blobs = m

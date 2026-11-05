@@ -1,4 +1,13 @@
 const production: Record<string, string> = {
+  '已完成 {completed}/{total} 段画面与声音': 'Completed {completed}/{total} picture and sound segments',
+  '正在整理成片，请稍候': 'Preparing your finished video. Please wait.',
+  '无需停留在此页，合成会在后台继续。': 'You can leave this page. Rendering continues in the background.',
+  '合成未完成，进度已保留。请检查素材、存储服务和 FFmpeg 后继续': 'Rendering is incomplete and progress is saved. Check the media, storage service and FFmpeg before continuing.',
+  '继续合成': 'Continue rendering',
+  '继续会沿用这次导出的原时间轴，不重新生成模型内容。': 'Continue with this export’s original timeline. No model content is regenerated.',
+  '素材或合成环境已变更，请重新导出': 'Media or the rendering environment has changed. Create a new export.',
+  '本地合成失败或超时；请检查素材与 FFmpeg': 'Local rendering failed or timed out. Check the media and FFmpeg.',
+  '已取消本地合成': 'Local rendering canceled',
   '加载更多': 'Load more',
   '上传进度读取失败': 'Could not load upload progress',
   '正在校验文件': 'Checking file',

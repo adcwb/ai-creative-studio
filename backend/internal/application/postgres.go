@@ -146,7 +146,7 @@ func InitPostgres(ctx context.Context, db *sql.DB) error {
 	if _, err = tx.ExecContext(ctx, `CREATE UNIQUE INDEX IF NOT EXISTS studio_user_email ON studio_users((payload->>'email')); CREATE UNIQUE INDEX IF NOT EXISTS studio_user_sso ON studio_users((payload->>'issuer'),(payload->>'subject')) WHERE payload->>'issuer'<>''; CREATE TABLE IF NOT EXISTS studio_auth_attempts (address_hash text PRIMARY KEY, attempts integer NOT NULL CHECK(attempts>0), expires timestamptz NOT NULL); CREATE TABLE IF NOT EXISTS studio_oidc_pending (state_hash text PRIMARY KEY, binding_hash text NOT NULL, payload jsonb NOT NULL, expires timestamptz NOT NULL);`); err != nil {
 		return err
 	}
-	if _, err = tx.ExecContext(ctx, BlobSchema+S3MultipartSchema); err != nil {
+	if _, err = tx.ExecContext(ctx, BlobSchema+S3MultipartSchema+RenderSchema); err != nil {
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, PostgresAuditSchema); err != nil {
@@ -460,6 +460,9 @@ func OpenPostgresStore(dir string, db *sql.DB, options ...Capabilities) (*FileSt
 	}
 	if entries, err := os.ReadDir(filepath.Join(dir, "s3-multipart")); err == nil && len(entries) > 0 || err != nil && !os.IsNotExist(err) {
 		return nil, errors.New("postgres cache contains local S3 checkpoints; use explicit offline migration and a fresh cache directory")
+	}
+	if present, e := hasFileRenderState(filepath.Join(dir, "media", "render-checkpoints")); e != nil || present {
+		return nil, errors.New("postgres cache contains local render checkpoints; use explicit offline migration and a fresh cache directory")
 	}
 	if err := os.MkdirAll(filepath.Join(dir, "results"), 0700); err != nil {
 		return nil, err

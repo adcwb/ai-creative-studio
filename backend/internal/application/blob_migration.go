@@ -88,7 +88,7 @@ func MigrateBlobStorage(ctx context.Context, dir string, store BlobStore, toFile
 			objects = append(objects, migrationBlob{blobKey(parts[0], parts[1], a.ID), filepath.Join(dir, "media", a.ID)})
 		}
 		for _, x := range p.Exports {
-			if x.Status == "running" || x.Status == "queued" {
+			if (x.Status == "running" || x.Status == "queued") && x.RenderVersion != 1 {
 				return report, errors.New("resolve interrupted exports before migration")
 			}
 			if x.Status == "succeeded" {
@@ -100,6 +100,13 @@ func MigrateBlobStorage(ctx context.Context, dir string, store BlobStore, toFile
 				}
 			}
 		}
+	}
+	renderRefs, e := fileRenderReferences(filepath.Join(dir, "media", "render-checkpoints"))
+	if e != nil {
+		return report, e
+	}
+	for _, ref := range renderRefs {
+		objects = append(objects, migrationBlob{ref.Key, filepath.Join(dir, "media", filepath.Base(ref.Key))})
 	}
 	libraryRefs, e := libraryrepo.FileReferences(filepath.Join(dir, "library"))
 	if e != nil {

@@ -35,7 +35,7 @@ docs/
 
 | 规格 | 状态与用途 |
 | --- | --- |
-| [自定义提示词与长篇漫剧](specs/2026-11-04-creative-series/README.md) | Implementing，2026-11-05修订3；第一批基础功能与验证已落地，提示词/长剧等后续阶段未完成 |
+| [自定义提示词与长篇漫剧](specs/2026-11-04-creative-series/README.md) | Implementing，2026-11-05修订9；提示词、上传/S3恢复及持久渲染核心已落地，完整回归见包内分阶段记录；系列长剧及容量仍未完成 |
 | [多网关模型管理](specs/2026-10-30-multi-gateway-model-management-design.md) | 历史目标设计；当前合同见专题使用说明 |
 | [分集制作与审片协作](specs/2026-10-29-production-phase-two.md) | 已交付轮次记录，包含历史费用机制 |
 | [制作工作台](specs/2026-10-29-production-workspaces.md) | 历史设计与交付记录 |

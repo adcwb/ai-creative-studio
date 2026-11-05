@@ -39,6 +39,10 @@ S3兼容服务须支持SHA256分段校验、条件Complete，以及应用角色�
 
 协议证据：[签名规则及公开向量](https://docs.aws.amazon.com/AmazonS3/latest/developerguide/sig-v4-header-based-auth.html)、[完成接口的响应及条件](https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html)、[Abort与残留分段核查](https://docs.aws.amazon.com/AmazonS3/latest/API/API_AbortMultipartUpload.html)、[ListParts分页](https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListParts.html)。
 
+## 后续状态更新
+
+后续持久渲染核心已按[渲染记录](render-implementation.md)实施；下文保留S3阶段当时的未交付范围，完整规格仍未完成。
+
 ## 尚未完成
 
 当前仍需要完整私有scratch文件进行格式探测、哈希和转存；不是直接S3客户端multipart，也没有异步完成任务。完整提交HTTP仍使用既有5分钟处理上下文，S3单次网络请求保持60秒超时；极慢链路会明确失败并保留进度，不能承诺任意规模均能在一次同步完成请求内结束。失败后的安全本地孤儿文件需后续统一素材生命周期收集，不按条数强删。

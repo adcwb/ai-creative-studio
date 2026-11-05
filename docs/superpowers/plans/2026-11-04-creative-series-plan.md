@@ -29,10 +29,10 @@ flowchart LR
 - [ ] **T03** 按research的L01–L16形成生产调用/所有配额清单并实体化热点写路径：media/creative/alignment/usage/library/review/resume/social/digital_human，补分页、紧凑回执及文件分片存储；同步评估网关目录和相邻账户条数门槛。依赖：T01–T02；目标：现有store/repo、`postgres.go`、`api/openapi.json`和迁移器。验收AC-Q01、AC-Q03、AC-Q05、AC-O07；退出：不存在用满500/1000/10000或全量快照溢出而拒绝后续调用的隐蔽路径，历史/unknown可查询。
 - [ ] **T04** 删除累计/小时/容量业务判断，拆开active与queued，持久接受后排队；重点删除`guardCreativeLocked`全局20次、alignment的20/10次、库/媒体/回执/审片/发布历史上限及2GiB累计，保留鉴权/审核/幂等。旧预算方法标历史用途，非财务receipt独立存储且兼容旧ID。依赖：T03；验收AC-Q01–AC-Q05、AC-O01–AC-O05；退出：旧边界回归通过、无预算/自设额度调用图，未持久化绝不202。
 - [ ] **T05** 版本化OutputProfile/GenerationSpec/native能力与精确像素；新增1440p/1800p、旧清晰度别名兼容。改Blob流式Put/OpenRange、分块上传、BIGINT size约束与health/backup/migration，修旋转与竖屏4K校验。目标：`modules/media/timeline.go`、`gateway_models.go`/适配器、`blob_store.go`、`blob_manifest.go`、`media_http.go`、`api/openapi.json`。依赖：T03；验收AC-R01–AC-R02、AC-R04；退出：native与output分开、旧产物不重编码、合法大于128MiB对象全链路可保存/读取。
-- [ ] **T06** 实现RenderManifest/Segment/Artifact、全局帧/采样时码、有handle的跨段转场、字幕/叠层/混音和检查点；移除完整时间轴的30镜/8轨/4层及分辨率时长耦合，删除-fs截断，采用每段资源调度/心跳。目标：`media_render.go`、`media_composite.go`、`queued_export_worker.go`、worker、`MediaStudio.tsx`/`mediaTimeline.ts`与i18n。依赖：T04–T05；验收AC-R01、AC-R03–AC-R05、AC-Q02–AC-Q03；退出：4K120秒可完整计划和执行，取消/资源不足不发布残片，用户不遇到15秒/128MiB或2个queued就拒绝。
+- [x] **T06** 实现RenderManifest/Segment/Artifact、全局帧/采样时码、有handle的跨段转场、字幕/叠层/混音和检查点；移除完整时间轴的30镜/8轨/4层及分辨率时长耦合，删除-fs截断，采用每段资源调度/心跳。目标：`media_render.go`、`render_segments.go`、`render_checkpoint.go`、`queued_export_worker.go`、worker、`MediaStudio.tsx`/`mediaTimeline.ts`与i18n。依赖：T04–T05；验收AC-R01、AC-R03–AC-R05、AC-Q02–AC-Q03；退出：4K120秒可完整计划和执行，取消/资源不足不发布残片，用户不遇到15秒/128MiB或2个queued就拒绝。
 - [ ] **T07** 完整P0A回归：旧额度边界、真实FFmpeg60/90/120秒及1K–4K、竖屏2160×3840、有效大文件/Range、本地/S3/PG/文件存储、备份恢复与故障注入；桌面手机说明native/升采样/等待状态。依赖：T04–T06；验收全部AC-Q/AC-R及当前图像/短剧权限与无mock回退。退出：精确列出通过/失败/未执行，不用短样本替代完整4K验收；不调用付费模型。
 
-当前执行状态：T03–T07均为部分推进；已移除数量/小时门槛并落地流式高清后期，文件资产库已按实体追加事务去除64MiB累计快照瓶颈，但其他领域整体scope、原生能力协商及渲染检查点等尚未完成；S3原生分段恢复与清理已按S3记录交付；可恢复UploadSession已按上传记录交付。T11–T14的纯文本闭环已推进，见提示词实施记录；T21变量编译及预览、T22/T23参考配方与项目真实网关集成已完成，长剧尚未完成。用户明确要求优先交付自定义提示词，独立实体仓库不依赖旧scope重构，因此P1与剩余P0A并行推进，不把T07未完成误报为依赖已通过。
+当前执行状态：T03–T05/T07为部分推进，T06本地渲染退出条件已验证；已移除数量/小时门槛并落地流式高清后期，文件资产库已按实体追加事务去除64MiB累计快照瓶颈，但其他领域整体scope、原生能力协商等尚未完成，渲染核心及最终回归见渲染记录；S3原生分段恢复与清理已按S3记录交付；可恢复UploadSession已按上传记录交付。T11–T14的纯文本闭环已推进，见提示词实施记录；T21变量编译及预览、T22/T23参考配方与项目真实网关集成已完成，长剧尚未完成。用户明确要求优先交付自定义提示词，独立实体仓库不依赖旧scope重构，因此P1与剩余P0A并行推进，不把T07未完成误报为依赖已通过。
 
 ## P1：自定义纯文本提示词
 
@@ -93,3 +93,7 @@ T05可恢复上传已交付：独立会话/分块实体与文件/PG适配、跨�
 ## 第六阶段记录
 
 T05的S3原生multipart子项已实现：持久upload ID、分段摘要核对、丢失响应恢复、条件完成和临时分段清理，文件/PG与备份迁移已注册。详见[S3实施记录](../specs/2026-11-04-creative-series/s3-implementation.md)。T05整体尚未完成，T06持久渲染检查点及P3–P5保持未勾选；不提前推送。
+
+## 第七阶段记录
+
+T06核心已实现：有理数全局时码、core/转场分段、PCM单次AAC、独立检查点、文件重启与PG接管、稳定产物身份、显式继续和原时间轴约束，保留C端原有风格。详见[渲染实施记录](../specs/2026-11-04-creative-series/render-implementation.md)。全量race、桌面/手机16项及1080p60秒/横竖4K120秒完整编码解码通过，T06按本地渲染范围勾选；T03–T05/T07及所有P3–P5未整体完成，不推送。T06使用已有流式链路和输出档提前推进，不表示其余依赖已全部完成。

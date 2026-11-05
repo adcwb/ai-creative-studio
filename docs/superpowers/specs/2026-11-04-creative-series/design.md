@@ -1,6 +1,6 @@
 # 创作交互与实现设计
 
-状态：Implementing，2026-11-05修订4；本文保留完整目标合同，当前子集见[实施记录](implementation.md)。UploadSession子集已按[上传实施记录](uploads-implementation.md)交付；RenderManifest、系列实体等仍未实现。60–120秒/集、用户可选1K–4K和项目不管理额度是已明确约束；不代表代码已满足。当前能力见[代码证据](research.md)，需求编号见[需求规格](requirements.md)。
+状态：Implementing，2026-11-05修订4；本文保留完整目标合同，当前子集见[实施记录](implementation.md)。UploadSession、S3及持久渲染核心已分阶段交付，见[渲染实施记录](render-implementation.md)；系列实体等仍未实现。60–120秒/集、用户可选1K–4K和项目不管理额度是已明确约束；不代表代码已满足。当前能力见[代码证据](research.md)，需求编号见[需求规格](requirements.md)。
 
 ## 1. 从创作判断出发
 
@@ -355,7 +355,7 @@ P0A为当前路径优先增量，先于新模板/系列大改，详见计划T03�
 
 1. **仓储/额度**：`store.go`、`provider_creative_store.go`、`alignment_store.go`、`model_usage.go`、`media_store.go`、`production_store.go`、`library_binding.go`、`libraryrepo/*`、`image_resume.go`与social/digital_human路径，按L01–L08/L15去除累计/时间配额；新实体事务、分页和回执去重先齐备。`guardCreativeLocked`仅保留真实配置/版本/能力检查，删除20次小时判断。
 2. **输出合同**：`modules/media/timeline.go`拆`OutputSpec`为尺寸/编码profile与资源计划，不再返回分辨率对应总时长上限；场/镜/轨/叠层长度改分批处理。`frontend/src/drama.ts`、`MediaStudio.tsx`、`mediaTimeline.ts`、中英文本和`api/openapi.json`同步删除999集/场镜条数、最长15秒/30镜/8轨等旧校验、按钮禁用和错误文案。`ProjectMedia`和发布页显示外部集号与真实像素。
-3. **媒体执行/存储**：`media_render.go`、`media_composite.go`、`queued_export_worker.go`、`blob_store.go`、`blob_manifest.go`及backup/migration，落地9.3–9.4；修竖屏宽高/旋转/探测边界，按段fencing提交。不是全局搜索数字后一律删除。
+3. **媒体执行/存储**：`media_render.go`、`render_segments.go`、`render_checkpoint.go`、`queued_export_worker.go`、`blob_store.go`、`blob_manifest.go`及backup/migration，落地9.3–9.4；修竖屏宽高/旋转/探测边界，按段fencing提交。不是全局搜索数字后一律删除。
 4. **能力网关**：`gateway_models.go`、`gateway_runtime.go`、`gateway_provider.go`、`provider_*`与`creative_controls.go`，分别声明native组合/真实下载能力，去掉模型数/6000硬编码但保留实际上游/解析能力；旧未声明字段按已核验适配器默认读取，不伪造4K支持。
 5. **迁移顺序**：备份→停旧写入/worker→加新表与Blob size约束迁移→流式复制/实体化及count/hash对账→升级API和worker→只读旧视图兼容→受控续跑；如需滚动升级先实现dual-read和单一writer，不让旧进程截断或覆盖新对象。大于128MiB产物存在后旧版不可安全恢复写入，回退用只读隔离或前向修复。
 

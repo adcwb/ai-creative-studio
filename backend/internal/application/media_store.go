@@ -35,6 +35,7 @@ type MediaStore struct {
 	dir       string
 	data      mediaDisk
 	cancels   map[string]context.CancelFunc
+	attempts  map[string]string
 	jobs      *localJobs
 	closed    bool
 }
@@ -87,8 +88,13 @@ func openMediaStore(dir string, database ...*sql.DB) (*MediaStore, error) {
 				return nil, errors.New("invalid media export identity")
 			}
 			if p.Exports[i].Status == "running" || p.Exports[i].Status == "queued" {
-				p.Exports[i].Status = "failed"
-				p.Exports[i].Error = "本地合成执行中断；可新建导出，不涉及模型调用"
+				if p.Exports[i].RenderVersion == 1 {
+					p.Exports[i].Status = "queued"
+					p.Exports[i].Error = ""
+				} else {
+					p.Exports[i].Status = "failed"
+					p.Exports[i].Error = "本地合成执行中断；可新建导出，不涉及模型调用"
+				}
 			}
 		}
 		m.data.Projects[k] = p
@@ -150,6 +156,11 @@ func (m *MediaStore) commit(d mediaDisk) (resultErr error) {
 		err = os.Rename(f.Name(), filepath.Join(m.dir, "state.json"))
 	}
 	if err == nil {
+		// Admission/receipts must survive a directory-entry flush as well as the
+		// file flush before an accepted export can be handed to a worker.
+		err = syncMultipartDir(m.dir)
+	}
+	if err == nil {
 		var committed mediaDisk
 		_ = json.Unmarshal(b, &committed)
 		m.data = committed
@@ -166,7 +177,13 @@ func mediaState(d mediaDisk, k string) MediaState {
 func (m *MediaStore) Get(project, space string) MediaState {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return mediaState(m.clone(), mediaKey(space, project))
+	p := mediaState(m.clone(), mediaKey(space, project))
+	for i := range p.Exports {
+		if p.Exports[i].RenderVersion == 1 && p.Exports[i].Status == "running" {
+			p.Exports[i].RenderProgress = m.renderProgress(space, project, p.Exports[i].ID)
+		}
+	}
+	return p
 }
 func mediaDigest(v any) string {
 	b, _ := json.Marshal(v)

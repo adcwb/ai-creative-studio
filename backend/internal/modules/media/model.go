@@ -75,17 +75,25 @@ type MediaVideoOverlay struct {
 	SourceAudioVolume   float64         `json:"source_audio_volume"`
 }
 
+type RenderProgress struct {
+	Completed int64  `json:"completed"`
+	Total     int64  `json:"total"`
+	Phase     string `json:"phase"`
+}
 type MediaExport struct {
-	EpisodeNumber  int           `json:"episode_number,omitempty"`
-	TraceParent    string        `json:"trace_parent,omitempty"`
-	SubtitleVTTURL string        `json:"subtitle_vtt_url"`
-	ID             string        `json:"id"`
-	Status         string        `json:"status"`
-	FileURL        string        `json:"file_url"`
-	SubtitleURL    string        `json:"subtitle_url"`
-	Error          string        `json:"error"`
-	Duration       float64       `json:"duration"`
-	Timeline       MediaTimeline `json:"timeline"`
+	RenderProgress  *RenderProgress `json:"render_progress,omitempty"`
+	ResumeAvailable bool            `json:"resume_available,omitempty"`
+	RenderVersion   int             `json:"render_version,omitempty"`
+	EpisodeNumber   int             `json:"episode_number,omitempty"`
+	TraceParent     string          `json:"trace_parent,omitempty"`
+	SubtitleVTTURL  string          `json:"subtitle_vtt_url"`
+	ID              string          `json:"id"`
+	Status          string          `json:"status"`
+	FileURL         string          `json:"file_url"`
+	SubtitleURL     string          `json:"subtitle_url"`
+	Error           string          `json:"error"`
+	Duration        float64         `json:"duration"`
+	Timeline        MediaTimeline   `json:"timeline"`
 }
 
 type MediaState struct {
