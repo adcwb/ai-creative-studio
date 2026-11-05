@@ -105,7 +105,7 @@ func TestGatewayCreationRoutesRejectOmittedChoiceBeforeAnyMockTask(t *testing.T)
 			t.Fatalf("%s: %d %s", in.path, w.Code, w.Body.String())
 		}
 	}
-	if len(s.List("personal-demo")) != 0 || len(s.ListProjects("personal-demo")) != 0 {
+	if len(s.List("personal-demo")) != 0 || len(mustProjectList(t, s, "personal-demo")) != 0 {
 		t.Fatal("rejected request created mock data")
 	}
 }

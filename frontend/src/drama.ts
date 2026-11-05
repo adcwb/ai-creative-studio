@@ -9,6 +9,7 @@ export interface ScriptGeneration {
   created_at: string; updated_at: string; error?: string; error_code?: string
 }
 export interface DramaProject {
+  series_episode_id?: string
   kind?: 'drama' | 'image' | 'digital-human'
   id: string; space_id: string; title: string; brief: string; version: number; created_at: string; updated_at: string
   script_provider?: string; script?: DramaScript; script_brief?: string; latest_generation?: ScriptGeneration

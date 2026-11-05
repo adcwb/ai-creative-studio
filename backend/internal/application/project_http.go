@@ -57,7 +57,12 @@ func registerProjectRoutes(mux *http.ServeMux, repo ProjectRepository) {
 		if !ok {
 			return
 		}
-		respond(w, 200, repo.ListProjects(space))
+		projects, err := repo.ListProjects(space)
+		if err != nil {
+			storeError(w, err)
+			return
+		}
+		respond(w, 200, projects)
 	})
 	mux.HandleFunc("POST /api/v1/projects", func(w http.ResponseWriter, r *http.Request) {
 		space, key, ok := projectWriteScope(w, r)

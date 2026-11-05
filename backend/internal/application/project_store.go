@@ -15,7 +15,7 @@ type ProjectRepository interface {
 	CreateProject(string, string, ProjectInput) (Project, bool, error)
 	UpdateProject(string, string, string, ProjectUpdate) (Project, error)
 	GetProject(string, string) (Project, error)
-	ListProjects(string) []Project
+	ListProjects(string) ([]Project, error)
 	CreateScriptGeneration(string, string, string, ScriptGenerationInput) (ScriptGeneration, bool, error)
 	ListScriptGenerations(string, string) ([]ScriptGeneration, error)
 	SaveProjectScript(string, string, string, ScriptSaveInput) (Project, error)
@@ -64,6 +64,9 @@ func (s *FileStore) projectLocked(space, id string) (Project, error) {
 	project, ok := s.data.Projects[id]
 	if !ok || project.SpaceID != space {
 		return Project{}, ErrNotFound
+	}
+	if err := s.readySeriesProject(space, project); err != nil {
+		return Project{}, err
 	}
 	return project, nil
 }
@@ -141,14 +144,25 @@ func (s *FileStore) GetProject(space, id string) (Project, error) {
 	return s.projectViewLocked(project), nil
 }
 
-func (s *FileStore) ListProjects(space string) []Project {
+func (s *FileStore) ListProjects(space string) ([]Project, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.pg != nil && s.pg.err != nil {
+		return nil, s.pg.err
+	}
 	projects := []Project{}
 	for _, project := range s.data.Projects {
-		if project.SpaceID == space {
-			projects = append(projects, s.projectViewLocked(project))
+		if project.SpaceID != space {
+			continue
 		}
+		err := s.readySeriesProject(space, project)
+		if errors.Is(err, ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		projects = append(projects, s.projectViewLocked(project))
 	}
 	sort.Slice(projects, func(i, j int) bool {
 		if projects[i].UpdatedAt.Equal(projects[j].UpdatedAt) {
@@ -156,7 +170,7 @@ func (s *FileStore) ListProjects(space string) []Project {
 		}
 		return projects[i].UpdatedAt.After(projects[j].UpdatedAt)
 	})
-	return projects
+	return projects, nil
 }
 
 func (s *FileStore) UpdateProject(space, id, key string, in ProjectUpdate) (Project, error) {

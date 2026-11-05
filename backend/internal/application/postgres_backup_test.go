@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/prompts"
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/series"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
 	"os"
 	"os/exec"
@@ -26,6 +27,11 @@ func TestPostgresNativeBackupRestore(t *testing.T) {
 	}
 	db := postgresTestDB(t)
 	store := postgresTestStore(t, db)
+	seriesSeason := seriesFixture(t, store)
+	seriesEpisode, seriesProject, err := store.CreateSeriesEpisode(context.Background(), seriesActor, "native-backup-episode", seriesSeason.ID, series.Input{Title: "恢复后的新起点"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	actor := prompts.Actor{Space: "synthetic-backup", User: "owner", Writable: true}
 	recipe, err := store.prompts.Mutate(context.Background(), actor, "44444444444444444444444444444444", "backup-prompt-key", promptCommand())
 	if err != nil {
@@ -95,6 +101,10 @@ func TestPostgresNativeBackupRestore(t *testing.T) {
 	restoredDB := stdlib.OpenDB(*cfg)
 	defer restoredDB.Close()
 	restored := postgresTestStore(t, restoredDB)
+	restoredEpisode, restoredProject, err := restored.CreateSeriesEpisode(context.Background(), seriesActor, "native-backup-episode", seriesSeason.ID, series.Input{Title: "恢复后的新起点"})
+	if err != nil || restoredEpisode.ID != seriesEpisode.ID || restoredProject.ID != seriesProject.ID {
+		t.Fatal("native restore lost independent series Project or receipt", err)
+	}
 	remoteRestored := remoteFixture.store(t, t.TempDir())
 	if e := remoteRestored.configureMultipart("", restoredDB); e != nil {
 		t.Fatal(e)

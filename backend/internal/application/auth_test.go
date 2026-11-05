@@ -252,7 +252,7 @@ func TestAuthAuditRejectsMutationAndDoesNotLogCredentials(t *testing.T) {
 	ops.failed = true
 	ops.mu.Unlock()
 	authRequest(t, h, "POST", "/api/v1/projects?space_id="+org, `{"title":"Blocked","brief":"Synthetic blocked mutation"}`, token, session.CSRF, 503)
-	if len(store.ListProjects(org)) != 0 {
+	if len(mustProjectList(t, store, org)) != 0 {
 		t.Fatal("mutation executed without audit")
 	}
 }

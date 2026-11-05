@@ -126,7 +126,7 @@ func TestProjectHTTPRejectsInvalidWriteShapesWithoutMutation(t *testing.T) {
 	manual, _, _ := s.CreateProject("personal-demo", "manual-script-project", projectInput())
 	projectHTTP(t, s, "PUT", "/projects/"+manual.ID+"/script?space_id=personal-demo", "manual-script-save", projectJSON(t, map[string]any{"expected_version": 1, "script": projectScriptFixture()}), 200)
 	got, _ := s.GetProject("personal-demo", p.ID)
-	if got.Version != 1 || got.Script != nil || len(s.ListProjects("personal-demo")) != 2 {
+	if got.Version != 1 || got.Script != nil || len(mustProjectList(t, s, "personal-demo")) != 2 {
 		t.Fatal("invalid write mutated persistent project")
 	}
 }

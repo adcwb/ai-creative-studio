@@ -20,6 +20,7 @@ import (
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/promptrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/seriesrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -155,6 +156,22 @@ func InitPostgres(ctx context.Context, db *sql.DB) error {
 	if _, err = tx.ExecContext(ctx, jobqueue.Schema); err != nil {
 		return err
 	}
+	if _, err = tx.ExecContext(ctx, seriesrepo.Schema); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `CREATE UNIQUE INDEX IF NOT EXISTS studio_projects_tenant_entity_unique ON studio_projects(tenant_id,entity_id)`); err != nil {
+		return err
+	}
+	var episodeFK bool
+	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_series_episode_project')`).Scan(&episodeFK); err != nil {
+		return err
+	}
+	if !episodeFK {
+		if _, err = tx.ExecContext(ctx, `ALTER TABLE studio_series_nodes ADD CONSTRAINT studio_series_episode_project FOREIGN KEY(space_id,project_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`); err != nil {
+			return err
+		}
+	}
+
 	if _, err = tx.ExecContext(ctx, promptrepo.Schema); err != nil {
 		return err
 	}
@@ -455,6 +472,9 @@ func OpenPostgresStore(dir string, db *sql.DB, options ...Capabilities) (*FileSt
 			return nil, err
 		}
 	}
+	if entries, err := os.ReadDir(filepath.Join(dir, "series")); err == nil && len(entries) > 0 || err != nil && !os.IsNotExist(err) {
+		return nil, errors.New("postgres cache contains local series data; use explicit offline migration and a fresh cache directory")
+	}
 	if entries, err := os.ReadDir(filepath.Join(dir, "uploads")); err == nil && len(entries) > 0 || err != nil && !os.IsNotExist(err) {
 		return nil, errors.New("postgres cache contains local upload sessions; use explicit offline migration and a fresh cache directory")
 	}
@@ -526,6 +546,10 @@ func OpenPostgresStore(dir string, db *sql.DB, options ...Capabilities) (*FileSt
 	}
 	s.library, err = libraryrepo.Open(filepath.Join(dir, "library"), db)
 	if err != nil {
+		s.Close()
+		return nil, err
+	}
+	if err = s.openSeries(dir); err != nil {
 		s.Close()
 		return nil, err
 	}

@@ -153,6 +153,8 @@ flowchart LR
 
 ### 4.2 一集一项目与旧多集兼容
 
+实现校准（修订10）：系列存储基础阶段使用 `studio_series_nodes` 的每实体独立行与类型列承载上述 Series/Season/Episode，`studio_series_receipts` 保存原操作回执；不是整体scope或只扩大旧项目集数。复合外键约束空间/父类型/父ID/系列归属，同父级编号为延迟唯一约束。Project的只读 `series_episode_id` 关联独立剧集，目录与Project使用相同不透明ID便于直接定位。PG同事务创建；文件使用 preparing→Project落盘→ready 的持久交接，重启恢复元数据且不调用模型。该基础阶段尚无系列HTTP/前台，输出意图与外部集号尚待接入，见[实施记录](series-storage-implementation.md)。
+
 新 Episode 通过 application 同一事务创建 Project 并关联，现有 Project 编辑器复用。Project 内本地剧本/时间轴集号仍为1，**外部季/集序号由 Episode 提供**；UI 不把本地1显示成所有集都是第1集。系列导出入口保存 `episode_id + ordinal_snapshot + project_local_episode=1`，旧项目导出接口继续其旧语义。
 
 旧项目继续显示原 episode_number 与 episode_timelines；不能把旧项目第7集直接链接成新第7集却调用本地1。显式迁移预览列出来源项目、来源集号、场景/镜头/素材及导出；按选定集建立独立目标项目，并记录 `(source_project_id,source_episode_number,target_episode_id,target_project_id,migration_id)`。旧记录与成片保持原来源。

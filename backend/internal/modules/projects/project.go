@@ -24,6 +24,7 @@ type ProjectUpdate struct {
 }
 
 type Project struct {
+	SeriesEpisodeID              string                `json:"series_episode_id,omitempty"`
 	Kind                         string                `json:"kind,omitempty"`
 	ScriptProvider               string                `json:"script_provider,omitempty"`
 	ScriptVersion                int                   `json:"script_version"`

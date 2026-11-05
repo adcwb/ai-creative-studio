@@ -1421,6 +1421,16 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "核心或关联系列目录存储不可用；不将读取失败伪装成空项目列表。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "description": "短剧 mock-script 功能独立于图像 capabilities；图像配置缺失或不可用不会阻止项目读取或生成。"
@@ -21016,6 +21026,12 @@
               "digital-human"
             ],
             "description": "Creation workspace type; omitted legacy values mean drama. Immutable after creation."
+          },
+          "series_episode_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$",
+            "readOnly": true,
+            "description": "Server-owned independent series episode association; absent for legacy standalone/multi-episode projects."
           }
         },
         "description": "单项目只有一份当前剧本。无稿时省略 script/script_brief，无尝试时省略 latest_generation，不返回 null。生成活动期间拒绝内容修改和新生成，精确幂等重放仍返回当前投影。项目没有独立的伪状态字段。 第五轮每项目另有一份当前分镜；两种生成均锁定项目写操作。source_script_version 不随分镜编辑改变。",

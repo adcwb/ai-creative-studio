@@ -16,6 +16,7 @@ import (
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/promptrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/seriesrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
 )
 
@@ -46,6 +47,7 @@ type Repository interface {
 	Finish(Task, GenerationResult, error) error
 }
 type FileStore struct {
+	series       *seriesrepo.Store
 	uploads      *uploadrepo.Store
 	library      *libraryrepo.Store
 	prompts      *promptrepo.Store
@@ -307,6 +309,10 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 	}
 	s.library, err = libraryrepo.Open(filepath.Join(dir, "library"), nil)
 	if err != nil {
+		s.Close()
+		return nil, err
+	}
+	if err = s.openSeries(dir); err != nil {
 		s.Close()
 		return nil, err
 	}

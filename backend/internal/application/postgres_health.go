@@ -32,6 +32,8 @@ var postgresReadinessSQL = func() string {
 		"SELECT space_id,template_id,key_hash,digest,payload FROM studio_prompt_receipts WHERE false",
 		"SELECT space_id,actor_id,template_id,enabled FROM studio_prompt_favorites WHERE false",
 		"SELECT space_id,id,kind,status,head_version_id,payload FROM studio_library_assets WHERE false",
+		"SELECT space_id,kind,id,parent_id,series_id,ordinal,row_version,status,state,project_id,payload FROM studio_series_nodes WHERE false",
+		"SELECT space_id,key_hash,digest,kind,id FROM studio_series_receipts WHERE false",
 		"SELECT space_id,asset_id,id,number,payload FROM studio_library_asset_versions WHERE false",
 		"SELECT space_id,receipt_key,digest,asset_id,payload FROM studio_library_receipts WHERE false",
 		"SELECT name,revision,envelope FROM studio_scopes WHERE false",
@@ -50,7 +52,7 @@ var postgresReadinessSQL = func() string {
 	for _, q := range queries {
 		checks = append(checks, "NOT EXISTS ("+q+")")
 	}
-	return "SELECT (SELECT count(*)=1 AND min(version)=1 AND max(version)=1 FROM studio_schema) AND EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_blobs_size_nonnegative') AND " + strings.Join(checks, " AND ")
+	return "SELECT (SELECT count(*)=1 AND min(version)=1 AND max(version)=1 FROM studio_schema) AND EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_blobs_size_nonnegative') AND EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_series_episode_project') AND " + strings.Join(checks, " AND ")
 }()
 
 func (s *FileStore) PersistenceFailureEpoch() uint64 {

@@ -18,6 +18,7 @@ import (
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/promptrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/seriesrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	"golang.org/x/sys/unix"
@@ -144,6 +145,9 @@ func ImportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 			return report, e
 		}
 	}
+	if err = copySeriesValidation(ctx, filepath.Join(dir, "series"), filepath.Join(validation, "series")); err != nil {
+		return report, err
+	}
 	check, err := OpenStore(validation)
 	if err != nil {
 		return report, err
@@ -226,6 +230,10 @@ func ImportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 		report.SHA256[postgresSnapshotFiles[name]] = migrationDigest(raw)
 	}
 	if err = importQueuedTasks(ctx, tx, values); err != nil {
+		return report, err
+	}
+	report.Records["series"], err = seriesrepo.ImportFiles(ctx, tx, filepath.Join(dir, "series"))
+	if err != nil {
 		return report, err
 	}
 	report.Records["prompts"], err = promptrepo.ImportFiles(ctx, tx, filepath.Join(dir, "prompts"))
@@ -332,6 +340,10 @@ func ExportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 		}
 	}
 	if err = ExportBlobManifest(ctx, stage, db); err != nil {
+		return report, err
+	}
+	report.Records["series"], err = seriesrepo.ExportFiles(ctx, tx, filepath.Join(stage, "series"))
+	if err != nil {
 		return report, err
 	}
 	report.Records["prompts"], err = promptrepo.ExportFiles(ctx, tx, filepath.Join(stage, "prompts"))
@@ -460,4 +472,38 @@ func syncMigrationDirectory(dir string) error {
 		}
 	}
 	return nil
+}
+
+// Constructors may normalize only this metadata copy, never the stopped source.
+// The per-record parser bound does not impose a cumulative repository limit.
+func copySeriesValidation(ctx context.Context, src, dst string) error {
+	if _, err := os.Lstat(src); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if err = ctx.Err(); err != nil {
+			return err
+		}
+		if d.Type()&os.ModeSymlink != 0 {
+			return errors.New("series metadata symlink rejected")
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0700)
+		}
+		b, err := safeReadLocal(path, 8<<20)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, b, 0600)
+	})
 }

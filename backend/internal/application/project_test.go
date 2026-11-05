@@ -245,7 +245,7 @@ func TestProjectDeepCopiesAndCommitFailurePreserveSavedScript(t *testing.T) {
 	p := makeScript(t, s, createProject(t, s))
 	p.Script.Characters[0].Name = "内存篡改"
 	p.Script.Scenes[0].Dialogue[0].Text = "内存篡改"
-	listed := s.ListProjects("personal-demo")
+	listed := mustProjectList(t, s, "personal-demo")
 	listed[0].Script.Scenes[1].Action = "列表篡改"
 	fresh, _ := s.GetProject("personal-demo", p.ID)
 	if fresh.Script.Characters[0].Name == "内存篡改" || fresh.Script.Scenes[0].Dialogue[0].Text == "内存篡改" || fresh.Script.Scenes[1].Action == "列表篡改" {
@@ -315,4 +315,13 @@ func TestScriptWorkerFailureRetainsPreviousScriptAndVersion(t *testing.T) {
 	if got.Version != p.Version || !reflect.DeepEqual(got.Script, original) || got.ScriptBrief != source || got.LatestGeneration.ID != g.ID || got.LatestGeneration.ErrorCode != "mock_script_failed" {
 		t.Fatal("failure changed previous script/version or lacked error", got)
 	}
+}
+
+func mustProjectList(t *testing.T, s *FileStore, space string) []Project {
+	t.Helper()
+	items, err := s.ListProjects(space)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return items
 }
