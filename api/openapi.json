@@ -24766,6 +24766,245 @@
           }
         }
       }
+    },
+    "/api/v1/series/{id}/story-evidence/episodes/{episode}/scripts": {
+      "get": {
+        "operationId": "listStoryEvidenceScripts",
+        "summary": "Browse source script versions without loading their bodies",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "episode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Browse source script versions without loading their bodies",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryEvidenceScripts"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/series/{id}/story-evidence/episodes/{episode}/scripts/{version}": {
+      "get": {
+        "operationId": "getStoryEvidenceScript",
+        "summary": "Read the exact historical script for explicit scene evidence",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "episode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read the exact historical script for explicit scene evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryEvidenceScript"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -35701,6 +35940,81 @@
           "body"
         ],
         "description": "Append an authored formal version. Never executes a model. Bible character voice_intent is descriptive prose and grants no voice or cloning authorization. Subjective facts require believer_id; other perspectives must omit it. Evidence must match the pinned stable scene and actual historical script digest. Creation expected_version=0; updates use the current number."
+      },
+      "StoryEvidenceScriptSummary": {
+        "type": "object",
+        "properties": {
+          "script_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "title": {
+            "type": "string"
+          },
+          "stable_scene_ids": {
+            "type": "boolean"
+          },
+          "is_current": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "script_version",
+          "title",
+          "stable_scene_ids",
+          "is_current"
+        ],
+        "additionalProperties": false,
+        "description": "Metadata only. Legacy scripts without stable scene identities are visible but cannot be used as scene evidence. No restore or upgrade is performed."
+      },
+      "StoryEvidenceScripts": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoryEvidenceScriptSummary"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "StoryEvidenceScript": {
+        "type": "object",
+        "properties": {
+          "episode_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "script_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "script_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "script": {
+            "$ref": "#/components/schemas/Script"
+          }
+        },
+        "required": [
+          "episode_id",
+          "script_version",
+          "script_sha256",
+          "script"
+        ],
+        "additionalProperties": false,
+        "description": "One explicitly selected immutable stable script. The server computes the digest. Reading does not restore, generate, or change the current script. Formal saves verify each quote against this exact version and scene again."
       }
     },
     "securitySchemes": {

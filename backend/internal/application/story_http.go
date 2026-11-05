@@ -54,6 +54,7 @@ func registerStoryRoutes(mux *http.ServeMux, s *FileStore) {
 	registerStorySnapshotRoutes(mux, s)
 	registerStoryCheckRoutes(mux, s)
 	registerStoryCastRoutes(mux, s)
+	registerStoryEvidenceRoutes(mux, s)
 	scope := func(w http.ResponseWriter, r *http.Request, write bool) (story.Actor, string, bool) {
 		var space, key string
 		var ok bool

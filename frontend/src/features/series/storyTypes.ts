@@ -5,6 +5,8 @@ export interface StoryFact {subject:string;predicate:string;value:string;perspec
 export interface StoryEvent {story_time:string;episode_id:string;description:string;state_change:string}
 export interface StoryForeshadow {setup_episode_id:string;payoff_episode_id?:string;intent:string;state:'planned'|'planted'|'paid_off'|'abandoned'}
 export interface StoryBody {cast?:StoryCast;bible?:StoryBible;fact?:StoryFact;event?:StoryEvent;foreshadow?:StoryForeshadow;from_episode_id?:string;to_episode_id?:string;evidence:{episode_id:string;scene_id:string;script_version:number;script_sha256:string;quote:string}[]}
+export interface StoryEvidenceScripts {items:{script_version:number;title:string;stable_scene_ids:boolean;is_current:boolean}[];next_cursor:string}
+export interface StoryEvidenceScript {episode_id:string;script_version:number;script_sha256:string;script:{title:string;scenes:{id:string;heading:string;action:string;dialogue:{character:string;text:string}[]}[]}}
 export interface StorySummary {id:string;series_id:string;version_id:string;number:number;title:string;kind:StoryKind;status:'active'|'archived';required:boolean;content_sha256:string}
 export interface StoryVersion extends StorySummary {space_id:string;body:StoryBody;created_by:string;created_at:string}
 export interface StoryInput {expected_version:number;title:string;kind:StoryKind;status:'active'|'archived';required:boolean;body:StoryBody}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/projects"
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/series"
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/story"
 )
@@ -53,6 +54,26 @@ func TestStorySecureHTTPCurrentRolesCSRFVersionsAndRevocation(t *testing.T) {
 	authRequest(t, h, "GET", base+"/"+v.ID+q, "", viewerToken, "", 200)
 	authRequest(t, h, "GET", base+"/"+v.ID+"/versions/"+v.VersionID+q, "", viewerToken, "", 200)
 	authRequest(t, h, "GET", base+"/"+v.ID+"/versions"+q, "", viewerToken, "", 200)
+	script := scriptFixture(t)
+	for i := range script.Scenes {
+		script.Scenes[i].EpisodeNumber = 1
+	}
+	stable, _, e := projects.CompileStructure(script, space+":"+ep.ID, 1)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = s.SaveProjectScript(space, ep.ID, "secure-evidence-script", ScriptSaveInput{ExpectedVersion: 1, Script: stable}); e != nil {
+		t.Fatal(e)
+	}
+	evidenceBase := "/api/v1/series/" + root.ID + "/story-evidence/episodes/" + ep.ID + "/scripts"
+	for _, path := range []string{evidenceBase + q, evidenceBase + "/1" + q} {
+		authRequest(t, h, "GET", path, "", "", "", 401)
+		authRequest(t, h, "GET", path, "", viewerToken, "", 200)
+	}
+	authRequest(t, h, "GET", evidenceBase+q+"&limit=101", "", token, "", 400)
+	authRequest(t, h, "GET", evidenceBase+q+"&cursor=-1", "", token, "", 400)
+	authRequest(t, h, "GET", evidenceBase+"/999"+q, "", token, "", 404)
+	authRequest(t, h, "GET", evidenceBase+"/no-version"+q, "", token, "", 400)
 	w = authRequest(t, h, "GET", base+q, "", viewerToken, "", 200)
 	var page map[string]any
 	if e = json.Unmarshal(w.Body.Bytes(), &page); e != nil {
@@ -82,5 +103,7 @@ func TestStorySecureHTTPCurrentRolesCSRFVersionsAndRevocation(t *testing.T) {
 	authRequest(t, h, "GET", snapshots+q, "", viewerToken, "", 403)
 	authRequest(t, h, "GET", snapshots+"/"+snapshot.ID+q, "", viewerToken, "", 403)
 	authRequest(t, h, "GET", base+q, "", viewerToken, "", 403)
+	authRequest(t, h, "GET", evidenceBase+q, "", viewerToken, "", 403)
+	authRequest(t, h, "GET", evidenceBase+"/1"+q, "", viewerToken, "", 403)
 	authRequest(t, h, "POST", base+q, projectJSON(t, storyBible()), viewerToken, viewerSession.CSRF, 403)
 }

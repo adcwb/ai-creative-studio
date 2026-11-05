@@ -3,6 +3,7 @@ import {errorMessage,request} from '../../api'
 import {useAppWorkspace} from '../../app/workspace'
 import {useI18n} from '../../i18n'
 import {StorySourceComparison} from './StorySourceComparison'
+import {StoryEvidenceEditor} from './StoryEvidenceEditor'
 import {StoryFields} from './StoryFields'
 import {StoryBodyView} from './StoryBodyView'
 import {directoryURL} from './types'
@@ -36,7 +37,7 @@ export function StoryDecisionEditor({space,episode,initial,onChanged,onPendingCh
  {action==='adopt'&&<><p className="editing-note">{t(initial.finding.target_record_id?'这会追加该资料的正式新版本，旧版本保留。':'这会创建一条新的正式资料，不会自动修改其他资料。')}</p>
  {!initial.finding.target_record_id&&<label>{t('资料类型')}<select value={kind} onChange={e=>change(()=>{setKind(e.target.value as StoryKind);setBody(emptyBody(e.target.value as StoryKind))})}>{(['fact','event','foreshadow'] as StoryKind[]).map(k=><option value={k} key={k}>{t(storyLabels[k])}</option>)}</select></label>}
  {view.current_target&&<details open><summary>{t('比较当前正式版本 {p0}',{p0:view.current_target.number})}</summary><h4>{view.current_target.title}</h4><StoryBodyView body={view.current_target.body}/></details>}
- <label>{t('资料标题')}<input required value={title} onChange={e=>change(()=>setTitle(e.target.value))}/></label><StoryFields body={body} onChange={v=>change(()=>setBody(v))} characters={characters} episodes={episodes.items}/>{episodes.next_cursor&&<button type="button" disabled={episodes.more} onClick={()=>void episodes.loadMore()}>{t('加载更多剧集选项')}</button>}{episodes.error&&<p className="error" role="alert">{episodes.error}</p>}
+ <label>{t('资料标题')}<input required value={title} onChange={e=>change(()=>setTitle(e.target.value))}/></label><StoryFields body={body} onChange={v=>change(()=>setBody(v))} characters={characters} episodes={episodes.items}/><StoryEvidenceEditor root={initial.snapshot.series_id} space={space} episodes={episodes.items} value={body.evidence} disabled={locked} onChange={evidence=>change(()=>setBody({...body,evidence}))}/>{episodes.next_cursor&&<button type="button" disabled={episodes.more} onClick={()=>void episodes.loadMore()}>{t('加载更多剧集选项')}</button>}{episodes.error&&<p className="error" role="alert">{episodes.error}</p>}
  {kind!=='bible'&&<label className="story-check"><input type="checkbox" checked={required} onChange={e=>change(()=>setRequired(e.target.checked))}/>{t('本集输入不可静默省略')}</label>}<label>{t('资料状态')}<select value={status} onChange={e=>change(()=>setStatus(e.target.value as typeof status))}><option value="active">{t('正式使用')}</option><option value="archived">{t('已归档')}</option></select></label>
  <p>{expected>0?t('本次保存基于资料版本 {p0}',{p0:expected}):t('这是一条新资料，将保存为首个正式版本。')}</p><button type="button" disabled={reading} onClick={()=>void refresh()}>{t('核对当前版本并保留草稿')}</button><p className="drama-help">{t('核对只更新比较依据与版本，保留你正在编辑的内容。')}</p>
  

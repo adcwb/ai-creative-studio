@@ -223,11 +223,36 @@ def main():
                     time.sleep(.025);oversized=call(owner,'GET',checks+'/'+oversized['id']+query,detail_route)
                 assert oversized['state']=='failed' and oversized['error_code']=='provider_input_capacity' and len(native_counts)==2 and len(native_generations)==1
                 assert call(owner,'POST',checks+query,check_route,oversized_request,aq,status=202,key='story-http-native-overflow')==oversized
+                # Explicit scene evidence is selected from immutable script history,
+                # not the current script or a client-supplied digest/token estimate.
+                evidence_path='/api/v1/series/'+root_series['id']+'/story-evidence/episodes/'+episode['id']+'/scripts'
+                evidence_route='/api/v1/series/{id}/story-evidence/episodes/{episode}/scripts'
+                versions=call(viewer,'GET',evidence_path+query+'&limit=1',evidence_route)
+                assert len(versions['items'])==1 and versions['items'][0]['is_current'] and 'script' not in versions['items'][0]
+                assert versions['next_cursor']
+                earlier=call(owner,'GET',evidence_path+query+'&limit=1&cursor='+versions['next_cursor'],evidence_route)
+                assert earlier['items'][0]['script_version']<versions['items'][0]['script_version']
+                pinned=call(viewer,'GET',evidence_path+'/1'+query,evidence_route+'/{version}')
+                assert pinned['script']['scenes'][0]['action']=='A traveller hesitates before opening the door.'
+                authored=dict(expected_version=0,title='Explicit historical evidence',kind='event',status='active',required=False,body=dict(evidence=[dict(episode_id=episode['id'],scene_id=pinned['script']['scenes'][0]['id'],script_version=1,script_sha256=pinned['script_sha256'],quote='hesitates before opening the door')],event=dict(episode_id=episode['id'],story_time='',description='A pinned original, not an automatic fact.',state_change='')))
+                call(viewer,'POST',story_path+query,story_route,authored,bq,status=403)
+                saved_evidence=call(owner,'POST',story_path+query,story_route,authored,aq,status=201,key='story-http-selected-evidence')
+                assert call(owner,'POST',story_path+query,story_route,authored,aq,status=201,key='story-http-selected-evidence')==saved_evidence
+                forged=json.loads(json.dumps(authored));forged['body']['evidence'][0]['quote']='invented text not present in the scene'
+                call(owner,'POST',story_path+query,story_route,forged,aq,status=400)
+                forged['body']['evidence'][0]['quote']=authored['body']['evidence'][0]['quote'];forged['body']['evidence'][0]['script_sha256']='f'*64
+                call(owner,'POST',story_path+query,story_route,forged,aq,status=409)
+                call(owner,'GET',evidence_path+'/999'+query,evidence_route+'/{version}',status=404)
+                call(owner,'GET',evidence_path+query+'&limit=101',evidence_route,status=400)
+                other_series=call(owner,'POST','/api/v1/series'+query,'/api/v1/series',dict(title='Other series',summary='Source evidence must belong to this series.'),aq,status=201)
+                call(owner,'GET',evidence_path.replace(root_series['id'],other_series['id'])+'/1'+query,evidence_route+'/{version}',status=404)
                 call(owner,'PUT',members,'/api/v1/organizations/{id}/members',dict(email=b['user']['email'],role='remove'),aq)
                 call(viewer,'GET',detail+query,detail_route,status=403)
                 call(viewer,'GET',first+'/review'+query,first_route+'/review',status=403)
+                call(viewer,'GET',evidence_path+query,evidence_route,status=403)
+                call(viewer,'GET',evidence_path+'/1'+query,evidence_route+'/{version}',status=403)
                 assert len(calls)==1, 'local decisions resent a paid check'
-                print(json.dumps(dict(result='passed',contract_responses=count,synthetic_gateway_calls=len(calls)+len(native_counts)+len(native_generations),native_count_calls=len(native_counts),native_generation_calls=len(native_generations),live_provider_calls=0,checks=['real guarded text protocol','no pricing configuration','strict schemas','CSRF and roles','pinned evidence','current script comparison','explicit source acknowledgement','adoption CAS','original decision replay preserves later edits','intentional misdirection and rejection','explicit cast identities, asset pinning, CAS and original replay','native Responses input count and output reservation','no generation after native capacity failure','native original receipt replay','revoked access'])))
+                print(json.dumps(dict(result='passed',contract_responses=count,synthetic_gateway_calls=len(calls)+len(native_counts)+len(native_generations),native_count_calls=len(native_counts),native_generation_calls=len(native_generations),live_provider_calls=0,checks=['real guarded text protocol','no pricing configuration','strict schemas','CSRF and roles','pinned evidence','explicit historical scene selection and forged quote/digest refusal','current script comparison','explicit source acknowledgement','adoption CAS','original decision replay preserves later edits','intentional misdirection and rejection','explicit cast identities, asset pinning, CAS and original replay','native Responses input count and output reservation','no generation after native capacity failure','native original receipt replay','revoked access'])))
             finally:
                 process.terminate()
                 try:
