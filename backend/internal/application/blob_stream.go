@@ -131,6 +131,12 @@ func (s *S3BlobStore) PutStream(ctx context.Context, info BlobInfo, r io.Reader)
 	if !validBlobInfo(info) {
 		return BlobInfo{}, ErrBlobIntegrity
 	}
+	if info.Size > s3MaxPartBytes*10000 {
+		return BlobInfo{}, errors.New("object exceeds the S3 multipart capability")
+	}
+	if info.Size >= s3MultipartThreshold && s.multipart == nil {
+		return BlobInfo{}, errMultipartState
+	}
 	// Spool and verify with bounded memory before signing. A private immutable
 	// source also permits request-body hashing without buffering a whole video.
 	f, err := os.CreateTemp("", "studio-blob-upload-")
@@ -144,6 +150,12 @@ func (s *S3BlobStore) PutStream(ctx context.Context, info BlobInfo, r io.Reader)
 	}
 	if _, err = f.Seek(0, io.SeekStart); err != nil {
 		return BlobInfo{}, err
+	}
+	if info.Size >= s3MultipartThreshold {
+		if err = s.putMultipart(ctx, info, f); err != nil {
+			return BlobInfo{}, err
+		}
+		return info, nil
 	}
 	u := *s.endpoint
 	u.Path = "/" + s.config.Bucket + "/" + info.Key

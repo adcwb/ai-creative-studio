@@ -38,6 +38,18 @@ func TestPostgresNativeBackupRestore(t *testing.T) {
 	if e := store.uploads.With(context.Background(), uploadIdentity, func(l *uploadrepo.Locked) error { return l.Put(0, stagingBytes, pendingUpload.SHA256) }); e != nil {
 		t.Fatal(e)
 	}
+	// Native backup must retain the remote upload identity, not just finished
+	// objects. Restoring then continues the acknowledged remote parts.
+	remoteFixture := newMultipartFixture(t)
+	remote := remoteFixture.store(t, t.TempDir())
+	if e := remote.configureMultipart("", db); e != nil {
+		t.Fatal(e)
+	}
+	multipartPath, multipartInfo := multipartSource(t, s3MultipartThreshold+10)
+	remoteFixture.failPart = 2
+	if e := multipartPut(t, remote, multipartPath, multipartInfo); e == nil {
+		t.Fatal("missed multipart interruption")
+	}
 	task, _, err := store.Create("synthetic-backup", "backup-key", Input{Prompt: "synthetic backup image", Kind: "poster"})
 	if err != nil {
 		t.Fatal(err)
@@ -83,6 +95,25 @@ func TestPostgresNativeBackupRestore(t *testing.T) {
 	restoredDB := stdlib.OpenDB(*cfg)
 	defer restoredDB.Close()
 	restored := postgresTestStore(t, restoredDB)
+	remoteRestored := remoteFixture.store(t, t.TempDir())
+	if e := remoteRestored.configureMultipart("", restoredDB); e != nil {
+		t.Fatal(e)
+	}
+	if e := multipartPut(t, remoteRestored, multipartPath, multipartInfo); e != nil {
+		t.Fatal("native restore lost multipart progress", e)
+	}
+	remoteFixture.mu.Lock()
+	starts := remoteFixture.starts
+	firstParts := 0
+	for _, n := range remoteFixture.puts {
+		if n == 1 {
+			firstParts++
+		}
+	}
+	remoteFixture.mu.Unlock()
+	if starts != 1 || firstParts != 1 {
+		t.Fatal("native restore repeated accepted transfer", starts, firstParts)
+	}
 	if e := restored.uploads.With(context.Background(), uploadIdentity, func(l *uploadrepo.Locked) error {
 		_, data, e := l.Part(0)
 		if e == nil && !bytes.Equal(data, stagingBytes) {

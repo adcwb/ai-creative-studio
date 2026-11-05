@@ -19,7 +19,7 @@ func TestBlobS3Service(t *testing.T) {
 	if endpoint == "" {
 		t.Skip("explicit synthetic loopback S3 service required")
 	}
-	store, e := NewS3BlobStore(S3BlobConfig{Endpoint: endpoint, Bucket: "studio", Region: "us-east-1", AccessKey: "synthetic-access", SecretKey: "synthetic-secret", AllowLoopbackHTTP: true})
+	store, e := NewS3BlobStore(S3BlobConfig{Endpoint: endpoint, Bucket: "studio", Region: "us-east-1", AccessKey: "synthetic-access", SecretKey: "synthetic-secret", AllowLoopbackHTTP: true, MultipartStateDir: t.TempDir()})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -52,8 +52,13 @@ func TestBlobS3Service(t *testing.T) {
 			}
 		}
 
-		wrong := *store
-		wrong.config.SecretKey = "deliberately-wrong-synthetic-secret"
+		config := store.config
+		config.SecretKey = "deliberately-wrong-synthetic-secret"
+		wrong, err := NewS3BlobStore(config)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer wrong.Close()
 		denied, err := wrong.request(ctx, "HEAD", key, nil, nil)
 		if err != nil {
 			t.Fatal(err)
@@ -124,6 +129,19 @@ func TestBlobS3Service(t *testing.T) {
 	if !contractOK || !immutableOK {
 		return
 	}
+	t.Run("native_multipart", func(t *testing.T) {
+		path, info := multipartSource(t, 2*s3MultipartThreshold+31)
+		defer store.Delete(ctx, info.Key)
+		if e := multipartPut(t, store, path, info); e != nil {
+			t.Fatal(e)
+		}
+		if e := verifyBlobStream(ctx, store, info); e != nil {
+			t.Fatal(e)
+		}
+		if e := multipartPut(t, store, path, info); e != nil {
+			t.Fatal("immutable replay", e)
+		}
+	})
 	t.Run("media", func(t *testing.T) {
 		s, e := OpenStore(t.TempDir())
 		if e != nil {

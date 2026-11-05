@@ -232,6 +232,10 @@ func ImportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 	if err != nil {
 		return report, err
 	}
+	report.Records["multipart"], err = importS3Multipart(ctx, tx, filepath.Join(dir, "s3-multipart"))
+	if err != nil {
+		return report, err
+	}
 	report.Records["uploads"], err = uploadrepo.ImportFiles(ctx, tx, filepath.Join(dir, "uploads"))
 	if err != nil {
 		return report, err
@@ -327,6 +331,10 @@ func ExportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 		return report, err
 	}
 	report.Records["prompts"], err = promptrepo.ExportFiles(ctx, tx, filepath.Join(stage, "prompts"))
+	if err != nil {
+		return report, err
+	}
+	report.Records["multipart"], err = exportS3Multipart(ctx, tx, filepath.Join(stage, "s3-multipart"))
 	if err != nil {
 		return report, err
 	}

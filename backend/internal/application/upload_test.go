@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -593,4 +594,95 @@ func TestResumableUploadLargeValidAudio(t *testing.T) {
 		t.Fatal(e, string(out))
 	}
 	t.Logf("verified %d bytes, 120-second PCM, all chunks and full decode", size)
+}
+
+func TestResumableUploadCompletesSameS3TransferAfterAPIRestart(t *testing.T) {
+	for _, mode := range []string{"file", "postgres"} {
+		t.Run(mode, func(t *testing.T) {
+			dir := t.TempDir()
+			var s, next *FileStore
+			var e error
+			if mode == "file" {
+				s, e = OpenStore(dir)
+				if e != nil {
+					t.Fatal(e)
+				}
+			} else {
+				db := postgresTestDB(t)
+				s = postgresTestStore(t, db)
+				next = postgresTestStore(t, db)
+			}
+			defer func() {
+				s.Close()
+				if next != nil {
+					next.Close()
+				}
+			}()
+			fixture := newMultipartFixture(t)
+			if e := configureBlobStorage(s, fixture.store(t, t.TempDir())); e != nil {
+				t.Fatal(e)
+			}
+			project, _, e := s.CreateProject("personal-demo", "multipart-project", projectInput())
+			if e != nil {
+				t.Fatal(e)
+			}
+			data := make([]byte, s3MultipartThreshold+44+256)
+			copy(data, wavHeader(int64(len(data))-44, 192000))
+			u := newUploadForTest(t, s, project.ID, "personal-demo", "demo", data)
+			i := uploadrepo.Identity{Space: u.Space, Project: u.Project, Actor: u.Actor, ID: u.ID}
+			if e := s.uploads.With(context.Background(), i, func(l *uploadrepo.Locked) error {
+				for offset := int64(0); offset < int64(len(data)); {
+					end := min(offset+uploads.ChunkBytes, int64(len(data)))
+					part := data[offset:end]
+					if e := l.Put(offset, part, uploads.BytesSHA(part)); e != nil {
+						return e
+					}
+					offset = end
+				}
+				return nil
+			}); e != nil {
+				t.Fatal(e)
+			}
+			fixture.failPart = 2
+			url := "/api/v1/projects/" + project.ID + "/media/upload-sessions/" + u.ID + "/complete?space_id=personal-demo"
+			if w := uploadCall(Handler(s, ""), "POST", url, "complete-first", []byte("{}"), ""); w.Code != 500 || !strings.Contains(w.Body.String(), "media_storage_error") {
+				t.Fatal("S3 failure not surfaced", w.Code, w.Body.String())
+			}
+			if len(s.media.Get(project.ID, u.Space).Assets) != 0 {
+				t.Fatal("partial S3 object visible as asset")
+			}
+			if e := s.Close(); e != nil {
+				t.Fatal(e)
+			}
+			if mode == "file" {
+				next, e = OpenStore(dir)
+				if e != nil {
+					t.Fatal(e)
+				}
+			}
+			if e := configureBlobStorage(next, fixture.store(t, t.TempDir())); e != nil {
+				t.Fatal(e)
+			}
+			u = uploadSessionFrom(t, uploadCall(Handler(next, ""), "POST", url, "complete-retry", []byte("{}"), ""), 200)
+			again := uploadSessionFrom(t, uploadCall(Handler(next, ""), "POST", url, "complete-replay", []byte("{}"), ""), 200)
+			if u.AssetID == "" || again.AssetID != u.AssetID || len(next.media.Get(project.ID, u.Space).Assets) != 1 {
+				t.Fatal("completion duplicated asset", u, again)
+			}
+			key := blobKey(u.Space, project.ID, u.AssetID)
+			if e := verifyBlobStream(context.Background(), next.blobs.store, blobInfo(key, data)); e != nil {
+				t.Fatal("accepted media mismatch", e)
+			}
+			fixture.mu.Lock()
+			defer fixture.mu.Unlock()
+			ones := 0
+			for _, n := range fixture.puts {
+				if n == 1 {
+					ones++
+				}
+			}
+			if fixture.starts != 1 || fixture.completes != 1 || ones != 1 {
+				t.Fatal("API restart did not resume same transfer", fixture.starts, fixture.completes, fixture.puts)
+			}
+		})
+	}
 }

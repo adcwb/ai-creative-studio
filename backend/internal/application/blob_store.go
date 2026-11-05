@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -208,11 +209,16 @@ func (s *FileBlobStore) Delete(ctx context.Context, key string) error {
 type S3BlobConfig struct {
 	Endpoint, Bucket, Region, AccessKey, SecretKey, SessionToken string
 	AllowLoopbackHTTP                                            bool
+	MultipartStateDir                                            string
 }
 type S3BlobStore struct {
-	config   S3BlobConfig
-	endpoint *url.URL
-	client   *http.Client
+	config        S3BlobConfig
+	endpoint      *url.URL
+	client        *http.Client
+	multipart     *s3MultipartJournal
+	cleanupCancel context.CancelFunc
+	cleanupDone   chan struct{}
+	lifecycleMu   sync.Mutex
 }
 
 // Endpoint is deployment-only, not tenant-editable. HTTP is restricted to a
@@ -232,7 +238,13 @@ func NewS3BlobStore(c S3BlobConfig) (*S3BlobStore, error) {
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	tr.Proxy = nil
 	tr.DisableCompression = true
-	return &S3BlobStore{c, u, &http.Client{Transport: tr, Timeout: 60 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
+	out := &S3BlobStore{config: c, endpoint: u, client: &http.Client{Transport: tr, Timeout: 60 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+	if c.MultipartStateDir != "" {
+		if e := out.configureMultipart(c.MultipartStateDir, nil); e != nil {
+			return nil, e
+		}
+	}
+	return out, nil
 }
 func (s *S3BlobStore) request(ctx context.Context, method, key string, b []byte, headers map[string]string) (*http.Response, error) {
 	if e := checkBlobKey(key); e != nil {
@@ -396,7 +408,7 @@ func (s *S3BlobStore) signPayload(req *http.Request, payload string, now time.Ti
 	}
 	signed := strings.Join(keys, ";")
 	scope := date + "/" + s.config.Region + "/s3/aws4_request"
-	canonical := req.Method + "\n" + req.URL.EscapedPath() + "\n\n" + canonicalHeaders.String() + "\n" + signed + "\n" + payload
+	canonical := req.Method + "\n" + req.URL.EscapedPath() + "\n" + s3CanonicalQuery(req.URL.Query()) + "\n" + canonicalHeaders.String() + "\n" + signed + "\n" + payload
 	signing := s3HMAC(s3HMAC(s3HMAC(s3HMAC([]byte("AWS4"+s.config.SecretKey), date), s.config.Region), "s3"), "aws4_request")
 	signature := hex.EncodeToString(s3HMAC(signing, "AWS4-HMAC-SHA256\n"+stamp+"\n"+scope+"\n"+s3Hash(canonical)))
 	req.Header.Set("Authorization", "AWS4-HMAC-SHA256 Credential="+s.config.AccessKey+"/"+scope+", SignedHeaders="+signed+", Signature="+signature)

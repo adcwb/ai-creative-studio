@@ -5,14 +5,10 @@ import (
 	"context"
 	"errors"
 	"io"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
-	"time"
 )
 
 func TestStreamingBlobsExceedLegacyInlineLimitWithoutTruncation(t *testing.T) {
@@ -149,66 +145,7 @@ func TestPostgresStreamingBlobMigrationRequiresOfflineSchemaUpgrade(t *testing.T
 // An isolated HTTP contract fixture: bodies are streamed to disk, payload hashes
 // checked, and conditional writes plus HTTP ranges actually exercised. It is
 // not evidence of a real S3 service or its authorization implementation.
-func streamingS3Fixture(t *testing.T, key string) *S3BlobStore {
+func streamingS3Fixture(t *testing.T, _ string) *S3BlobStore {
 	t.Helper()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "object")
-	var mu sync.Mutex
-	digest := ""
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		defer mu.Unlock()
-		if r.URL.Path != "/studio/"+key || r.URL.RawQuery != "" || !strings.HasPrefix(r.Header.Get("Authorization"), "AWS4-HMAC-SHA256 Credential=synthetic-access/") {
-			http.Error(w, "invalid contract", 403)
-			return
-		}
-		switch r.Method {
-		case "PUT":
-			if _, e := os.Stat(path); e == nil {
-				w.WriteHeader(412)
-				return
-			}
-			f, e := os.CreateTemp(dir, "upload-")
-			if e != nil {
-				t.Error(e)
-				w.WriteHeader(500)
-				return
-			}
-			defer os.Remove(f.Name())
-			info, e := hashBlobStream(r.Context(), key, io.TeeReader(r.Body, f))
-			f.Close()
-			if e != nil || info.Size != r.ContentLength || info.SHA256 != r.Header.Get("X-Amz-Content-Sha256") || info.SHA256 != r.Header.Get("x-amz-meta-sha256") {
-				w.WriteHeader(400)
-				return
-			}
-			if e = os.Rename(f.Name(), path); e != nil {
-				t.Error(e)
-				w.WriteHeader(500)
-				return
-			}
-			digest = info.SHA256
-			w.WriteHeader(200)
-		case "HEAD", "GET":
-			f, e := os.Open(path)
-			if os.IsNotExist(e) {
-				w.WriteHeader(404)
-				return
-			}
-			if e != nil {
-				w.WriteHeader(500)
-				return
-			}
-			defer f.Close()
-			w.Header().Set("x-amz-meta-sha256", digest)
-			http.ServeContent(w, r, "object", time.Unix(1, 0), f)
-		default:
-			w.WriteHeader(501)
-		}
-	}))
-	t.Cleanup(srv.Close)
-	s, e := NewS3BlobStore(S3BlobConfig{Endpoint: srv.URL, Bucket: "studio", Region: "us-east-1", AccessKey: "synthetic-access", SecretKey: "synthetic-secret", AllowLoopbackHTTP: true})
-	if e != nil {
-		t.Fatal(e)
-	}
-	return s
+	return newMultipartFixture(t).store(t, t.TempDir())
 }

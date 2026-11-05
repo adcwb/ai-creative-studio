@@ -1,13 +1,17 @@
 package application
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"math"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -40,6 +44,75 @@ func TestMediaStreamPreservesEarlierUploadDigestsAndPermissionRevocation(t *test
 	p, err := m.addAssetFile(context.Background(), "p", "space", "old-upload", "file", "reference", "", "", "uploaded", path, "image/png", nil)
 	if err != nil || len(p.Assets) != 1 {
 		t.Fatal("streamed replay", len(p.Assets), err)
+	}
+}
+
+func TestConcurrentMediaFileRetriesNeverRemoveAcceptedBytes(t *testing.T) {
+	for _, different := range []bool{false, true} {
+		t.Run(fmt.Sprint(different), func(t *testing.T) {
+			m, e := openMediaStore(t.TempDir())
+			if e != nil {
+				t.Fatal(e)
+			}
+			defer m.close()
+			var wg sync.WaitGroup
+			errs := make(chan error, 8)
+			for n := range 8 {
+				wg.Add(1)
+				go func(n int) {
+					defer wg.Done()
+					index := 0
+					if different {
+						index = n % 2
+					}
+					data := syntheticPNG(index)
+					file, e := os.CreateTemp(m.dir, "input-")
+					if e != nil {
+						errs <- e
+						return
+					}
+					defer os.Remove(file.Name())
+					_, e = file.Write(data)
+					e = errors.Join(e, file.Close())
+					if e != nil {
+						errs <- e
+						return
+					}
+					_, e = m.addAssetFile(context.Background(), "p", "space", "same-key", "file", "reference", "", "", "uploaded", file.Name(), "image/png", nil)
+					errs <- e
+				}(n)
+			}
+			wg.Wait()
+			close(errs)
+			wins, conflicts := 0, 0
+			for e := range errs {
+				if e == nil {
+					wins++
+				} else if errors.Is(e, errMediaKey) {
+					conflicts++
+				} else {
+					t.Fatal(e)
+				}
+			}
+			if wins == 0 || different && conflicts == 0 || !different && wins != 8 {
+				t.Fatal("wrong idempotency result", wins, conflicts)
+			}
+			p := m.Get("p", "space")
+			if len(p.Assets) != 1 {
+				t.Fatal("duplicate accepted assets", len(p.Assets))
+			}
+			path := filepath.Join(m.dir, p.Assets[0].ID)
+			data, e := os.ReadFile(path)
+			if e != nil {
+				t.Fatal("retry removed accepted bytes", e)
+			}
+			if !bytes.Equal(data, syntheticPNG(0)) && !bytes.Equal(data, syntheticPNG(1)) {
+				t.Fatal("accepted bytes changed")
+			}
+			if _, _, e := validateMedia(path, "image/png"); e != nil {
+				t.Fatal(e)
+			}
+		})
 	}
 }
 

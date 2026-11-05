@@ -64,17 +64,34 @@ func (m *MediaStore) addAssetFile(ctx context.Context, project, space, key, name
 	if authorize != nil && !authorize() {
 		return p, errRuntimeDenied
 	}
-	id := mediaID()
+	// Keep the storage identity across failed/unknown writes so multipart
+	// transfer can resume. Different bodies sharing a key never share a path.
+	id := mediaDigest([]string{"media-upload-id", space, project, key, digest})[:32]
 	destination := filepath.Join(m.dir, id)
-	if err = os.Rename(path, destination); err != nil {
+	if err = os.Link(path, destination); err != nil {
+		if !errors.Is(err, os.ErrExist) {
+			return p, err
+		}
+		old, e := mediaFileDigest(ctx, destination)
+		if e != nil || old != content {
+			return p, ErrBlobIntegrity
+		}
+	}
+	if filepath.Clean(path) != destination {
+		if err = os.Remove(path); err != nil {
+			return p, err
+		}
+	}
+	directory, e := os.Open(m.dir)
+	if e != nil {
+		return p, e
+	}
+	err = errors.Join(directory.Sync(), directory.Close())
+	if err != nil {
 		return p, err
 	}
-	committed := false
-	defer func() {
-		if !committed {
-			os.Remove(destination)
-		}
-	}()
+	// A failed commit may already be visible remotely or to another retry. Keep
+	// the immutable local object; lifecycle cleanup may collect safe orphans.
 	if err = m.storeBlobContext(ctx, space, project, id); err != nil {
 		return p, err
 	}
@@ -111,6 +128,5 @@ func (m *MediaStore) addAssetFile(ctx context.Context, project, space, key, name
 	d.Projects[k] = p
 	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest, AssetID: id}
 	err = m.commit(d)
-	committed = err == nil
 	return p, err
 }

@@ -45,6 +45,11 @@ func MigrateBlobStorage(ctx context.Context, dir string, store BlobStore, toFile
 		return report, errors.New("stop API and workers before blob migration")
 	}
 	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	if remote, ok := store.(*S3BlobStore); ok {
+		if e = remote.configureMultipart(filepath.Join(dir, "s3-multipart"), nil); e != nil {
+			return report, e
+		}
+	}
 	b, e := safeReadLocal(filepath.Join(dir, "state.json"), 64<<20)
 	if e != nil {
 		return report, e

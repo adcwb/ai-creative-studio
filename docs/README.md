@@ -16,7 +16,7 @@
 ## 需求设计与实施规范
 
 - [Spec Coding 文档约定与历史设计索引](superpowers/README.md)
-- [自定义图像提示词与长篇 AI 漫剧规格包](superpowers/specs/2026-11-04-creative-series/README.md)（2026-11-05修订7：每集1–2分钟、1K–4K、项目去配额；实施中，第一批结果与剩余工作见包内实施记录）
+- [自定义图像提示词与长篇 AI 漫剧规格包](superpowers/specs/2026-11-04-creative-series/README.md)（2026-11-05修订8：每集1–2分钟、1K–4K、项目去配额；实施中，第一批结果与剩余工作见包内实施记录）
 
 其他 `iteration-*`、`design/*` 和日期设计文档保留对应轮次的背景与验证记录；阅读时应核对基线、状态和后续专题文档。
 
@@ -24,4 +24,4 @@
 
 文件资产库的64MiB累计快照瓶颈已移除，迁移和验证边界见[存储实施记录](superpowers/specs/2026-11-04-creative-series/storage-implementation.md)。整体规格尚未完成，暂不推送。
 
-[可恢复上传实施记录](superpowers/specs/2026-11-04-creative-series/uploads-implementation.md)：会话/分块、跨刷新恢复、权限与迁移验收已交付；S3 multipart、渲染检查点及长剧仍未完成。
+[可恢复上传实施记录](superpowers/specs/2026-11-04-creative-series/uploads-implementation.md)：会话/分块、跨刷新恢复、权限与迁移验收已交付；S3原生分段恢复后续已按[S3实施记录](superpowers/specs/2026-11-04-creative-series/s3-implementation.md)交付；渲染检查点及长剧仍未完成。

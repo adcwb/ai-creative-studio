@@ -251,6 +251,15 @@ func ConfigureBlobStorageFromEnv(s *FileStore) error {
 	return configureBlobStorage(s, store)
 }
 func configureBlobStorage(s *FileStore, store BlobStore) error {
+	if remote, ok := store.(*S3BlobStore); ok {
+		var db *sql.DB
+		if s.pg != nil {
+			db = s.pg.db
+		}
+		if e := remote.configureMultipart(filepath.Join(filepath.Dir(s.path), "s3-multipart"), db); e != nil {
+			return e
+		}
+	}
 	var m *managedBlobs
 	var e error
 	if s.pg != nil {
@@ -301,6 +310,9 @@ func configureBlobStorage(s *FileStore, store BlobStore) error {
 	}
 	s.blobs = m
 	s.media.blobs = m
+	if remote, ok := store.(*S3BlobStore); ok {
+		remote.startMultipartCleanup()
+	}
 	return nil
 }
 
