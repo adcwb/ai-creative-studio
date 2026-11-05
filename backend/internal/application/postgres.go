@@ -20,6 +20,7 @@ import (
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/promptrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -158,6 +159,9 @@ func InitPostgres(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, libraryrepo.Schema); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, uploadrepo.Schema); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -451,6 +455,9 @@ func OpenPostgresStore(dir string, db *sql.DB, options ...Capabilities) (*FileSt
 			return nil, err
 		}
 	}
+	if entries, err := os.ReadDir(filepath.Join(dir, "uploads")); err == nil && len(entries) > 0 || err != nil && !os.IsNotExist(err) {
+		return nil, errors.New("postgres cache contains local upload sessions; use explicit offline migration and a fresh cache directory")
+	}
 	if err := os.MkdirAll(filepath.Join(dir, "results"), 0700); err != nil {
 		return nil, err
 	}
@@ -506,11 +513,17 @@ func OpenPostgresStore(dir string, db *sql.DB, options ...Capabilities) (*FileSt
 		s.Close()
 		return nil, err
 	}
+	s.uploads, err = uploadrepo.Open(filepath.Join(dir, "uploads"), db)
+	if err != nil {
+		s.Close()
+		return nil, err
+	}
 	s.library, err = libraryrepo.Open(filepath.Join(dir, "library"), db)
 	if err != nil {
 		s.Close()
 		return nil, err
 	}
+	s.uploads.StartMaintenance()
 	return s, nil
 }
 func OpenPostgresAuthStore(dir string, db *sql.DB) (*AuthStore, error) {

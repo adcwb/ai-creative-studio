@@ -6,6 +6,7 @@ import type { DramaProject } from '../../drama'
 import { useI18n } from '../../i18n'
 import { MaskEditor } from '../../components/MaskEditor'
 import { RuntimeModelPicker } from '../../components/RuntimeModelPicker'
+import {ResumableMediaUpload} from '../uploads/ResumableMediaUpload'
 import {ProjectPromptPicker} from '../prompts/ProjectPromptPicker'
 import { runtimeFields, runtimeReady, type RuntimeChoice } from '../../runtimeSelection'
 
@@ -51,6 +52,7 @@ export function ProductionBoard({project, space, onDirtyChange, disabled = false
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const [uploadBusy,setUploadBusy]=useState(false)
   const [uncertain, setUncertain] = useState(false)
   const pending = useRef<Attempt | null>(null)
   const flight = useRef(false)
@@ -58,7 +60,7 @@ export function ProductionBoard({project, space, onDirtyChange, disabled = false
   const path = `/projects/${encodeURIComponent(project.id)}`
   const query = new URLSearchParams({space_id: space}).toString()
   const storageKey = `production.pending:${space}:${project.id}`
-  const locked = disabled || busy || uncertain
+  const locked = disabled || busy || uncertain || uploadBusy
   const assets = media?.assets ?? []
   const selectedShot = project.storyboard?.shots.find(s => s.id === shot)
   const focused = assets.find(a => a.id === focus)
@@ -96,7 +98,7 @@ export function ProductionBoard({project, space, onDirtyChange, disabled = false
     const timer = setInterval(() => {if (!flight.current) void load().catch(() => {})}, 2500)
     return () => {alive.current = false; controller.abort(); clearInterval(timer)}
   }, [load, storageKey, t])
-  useEffect(() => {onDirtyChange(busy || uncertain || !!prompt.trim() || !!note.trim() || maskOpen || advanced); return () => onDirtyChange(false)}, [busy, uncertain, prompt, note, maskOpen, advanced, onDirtyChange])
+  useEffect(() => {onDirtyChange(uploadBusy || busy || uncertain || !!prompt.trim() || !!note.trim() || maskOpen || advanced); return () => onDirtyChange(false)}, [uploadBusy, busy, uncertain, prompt, note, maskOpen, advanced, onDirtyChange])
   async function execute(attempt: Attempt) {
     if (flight.current) return
     // Old persisted synthetic attempts must not create new mock work after an upgrade.
@@ -151,12 +153,12 @@ export function ProductionBoard({project, space, onDirtyChange, disabled = false
     {error && <div role="alert" className="error">{error}<button disabled={busy} onClick={() => void (uncertain && pending.current ? execute(pending.current) : load().catch(e => setError(errorMessage(e, t('素材读取失败')))))}>{t(uncertain ? '重试同一请求' : '刷新素材')}</button></div>}
     {uncertain && !error && <div role="alert" className="editing-note">{t('上次请求结果尚未确认。')}<button disabled={busy} onClick={() => pending.current && void execute(pending.current)}>{t('重试同一请求')}</button></div>}
     {notice && <p className="notice" role="status">{notice}</p>}
-    <div className="production-layout"><aside className="production-controls"><ProjectPromptPicker space={space} projectId={project.id} mediaVersion={media?.version ?? 1} disabled={locked || !media} currentPrompt={prompt} onApplied={value => {setKind('image'); setPrompt(value.prompt); setImageParameters({kind:value.kind,ratio:value.ratio,style:value.style}); setPromptSource(value.prompt_source); setChoice(null); setReference(value.reference_asset_ids.length === 1 ? value.reference_asset_ids[0] : ''); setReferences(value.reference_asset_ids.length > 1 ? value.reference_asset_ids : []); setMask(''); setFirstFrame(''); setLastFrame(''); setMotion(''); void load()}} />{promptSource && <p className="prompt-source-note">{t('已固定配方版本与参考图。修改参考组合前请解除来源关联。')} <button className="text-button" onClick={() => setPromptSource(undefined)}>{t('解除来源关联')}</button></p>}<fieldset disabled={locked}>
+    <div className="production-layout"><aside className="production-controls"><ProjectPromptPicker space={space} projectId={project.id} mediaVersion={media?.version ?? 1} disabled={locked || !media} currentPrompt={prompt} onApplied={value => {setKind('image'); setPrompt(value.prompt); setImageParameters({kind:value.kind,ratio:value.ratio,style:value.style}); setPromptSource(value.prompt_source); setChoice(null); setReference(value.reference_asset_ids.length === 1 ? value.reference_asset_ids[0] : ''); setReferences(value.reference_asset_ids.length > 1 ? value.reference_asset_ids : []); setMask(''); setFirstFrame(''); setLastFrame(''); setMotion(''); void load()}} />{promptSource && <p className="prompt-source-note">{t('已固定配方版本与参考图。修改参考组合前请解除来源关联。')} <button className="text-button" onClick={() => setPromptSource(undefined)}>{t('解除来源关联')}</button></p>}<fieldset disabled={disabled||busy||uncertain}>
       {kind === 'image' && <div className="storyboard-fields"><label>{t('创作类型')}<select aria-label={t('项目图像类型')} value={imageParameters.kind} onChange={event => setImageParameters(value => ({...value,kind:event.target.value as TaskInput['kind']}))}>{(['poster','portrait','general'] as const).map(kind => <option key={kind} value={kind}>{t(kindLabels[kind])}</option>)}</select></label><label>{t('画面比例')}<select aria-label={t('项目图像比例')} value={imageParameters.ratio} onChange={event => setImageParameters(value => ({...value,ratio:event.target.value as TaskInput['ratio']}))}>{['1:1','4:5','16:9'].map(r => <option key={r}>{r}</option>)}</select></label><label>{t('视觉风格')}<select aria-label={t('项目图像风格')} value={imageParameters.style} onChange={event => setImageParameters(value => ({...value,style:event.target.value as TaskInput['style']}))}><option value="natural">{t('自然')}</option><option value="studio">{t('影棚')}</option><option value="illustration">{t('插画')}</option></select></label></div>}
 
       {!imageOnly && <label>{t('当前镜头')}<select aria-label={t('当前镜头')} value={shot} onChange={e => {setShot(e.target.value); setFocus(''); setCompare(''); setReference(''); setMask(''); setReferences([]); setFirstFrame(''); setLastFrame(''); setMotion('')}}><option value="">{t('全部素材 / 自由创作')}</option>{project.storyboard?.shots.map((s, i) => <option key={s.id} value={s.id}>{i + 1}. {s.description.slice(0, 35)}</option>)}</select></label>}
       {selectedShot && <div className="shot-context"><p>{selectedShot.description}</p>{selectedShot.purpose && <p>{t('叙事目的')}：{selectedShot.purpose}</p>}{selectedShot.performance && <p>{t('表演要求')}：{selectedShot.performance}</p>}<button type="button" onClick={() => setPrompt([selectedShot.description, selectedShot.purpose, selectedShot.performance, selectedShot.continuity].filter(Boolean).join('\n'))}>{t('使用镜头说明')}</button></div>}
-      <label>{t('上传素材')}<input type="file" accept={imageOnly ? 'image/png,image/jpeg' : 'image/png,image/jpeg,video/mp4,audio/wav,audio/mpeg'} onChange={e => {const file = e.target.files?.[0]; if (file) upload(file, file.name); e.target.value = ''}} /></label>
+      <ResumableMediaUpload key={`${space}:${project.id}`} space={space} project={project.id} inputID="production-media-file" label={t('上传素材')} role="shot" shotID={shot} accept={imageOnly ? 'image/png,image/jpeg' : 'image/png,image/jpeg,video/mp4,audio/wav,audio/mpeg'} disabled={disabled||busy||uncertain} onBusy={setUploadBusy} onComplete={async result=>{await load();setFocus(result.uploaded_asset_id??'');if(result.mime_type.startsWith('image/'))setReference(result.uploaded_asset_id??'');setNotice(t('素材已上传并保存'))}} />
       {!imageOnly && <label>{t('制作内容')}<select aria-label={t('制作内容')} value={kind} onChange={e => {setKind(e.target.value); setPromptSource(undefined); setReferences([]); setFirstFrame(''); setLastFrame(''); setMotion(''); setChoice(null); setMask(''); setReference(''); setComparison(''); setAudio('')}}><option value="image">{t('分镜图片')}</option><option value="video">{t('镜头视频')}</option><option value="speech">{t('配音')}</option><option value="music">{t('器乐音乐')}</option><option value="sound_effect">{t('生成音效')}</option><option value="lip_sync">{t('口型同步')}</option><option value="vision">{t('图片创作分析')}</option><option value="consistency">{t('跨镜头外观检查')}</option></select></label>}
       {(['image', 'video', 'vision', 'consistency', 'lip_sync'].includes(kind)) && <label>{t('参考画面')}<select disabled={advanced} aria-label={t('参考画面')} value={reference} onChange={e => {setReference(e.target.value); setMask('')}}><option value="">{t('不使用参考图片')}</option>{assets.filter(a => a.role !== 'mask' && (kind === 'lip_sync' ? a.kind === 'video' : a.kind === 'image' || (kind === 'video' && cap?.provider === 'gemini-video' && a.kind === 'video'))).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>}
       {!imageOnly && !!project.script?.characters.length && <label>{t('生成角色关联')}<select aria-label={t('生成角色关联')} value={character} onChange={e => setCharacter(e.target.value)}><option value="">{t('不关联角色')}</option>{project.script.characters.map(c => <option key={c.name}>{c.name}</option>)}</select></label>}

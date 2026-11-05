@@ -32,3 +32,5 @@
 ## 剩余依赖
 
 本次没有完成其他领域的整体scope实体化、blob manifest分片、可恢复UploadSession、S3 multipart、完整native/output能力合同及RenderManifest/Segment检查点。现有单次流式上传中断仍不能续传，现有导出中断仍不能复用持久分段。本阶段也没有实现系列/季/集、旧多集拆分迁移、连续性账本、导演预演、制作DAG或200集容量证明。T03–T07及P3–P5继续保持未完成；下一阶段应继续上传会话与渲染持久化依赖，完整规格完成并验证后才推送GitHub。
+
+后续可恢复UploadSession已按[上传实施记录](uploads-implementation.md)交付；S3 multipart及渲染检查点仍在后续阶段。本记录中的“未完成”是当时边界，完整规格继续实施。

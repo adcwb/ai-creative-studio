@@ -106,3 +106,5 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e
 ### 自定义图像提示词（本地开发阶段）
 
 图像页可将当前描述或成功任务保存为私人提示词，管理分类、标签、收藏和历史版本，并明确共享至当前组织。选用只预填；点击创建后仍走当前组织绑定的真实网关。保存、预览和选用不调用模型。修改保留新版本，冲突保留草稿，未确认保存可跨刷新恢复原请求。支持纯文本与明确声明的文字/枚举变量；纯文本中的花括号仍按字面保存。变量配方须先通过服务端完整预览后填入创作区，任务固定变量和版本。支持固定版本、有序参考图配方，在项目制作中明确应用后再生成；模型必须支持实际参考组合，不能静默丢图。长剧仍在后续阶段。详见[提示词记录](docs/superpowers/specs/2026-11-04-creative-series/prompts-implementation.md)与[参考配方记录](docs/superpowers/specs/2026-11-04-creative-series/references-implementation.md)。
+
+镜头制作与剪辑页现支持可暂停、刷新后重选原文件恢复的分块上传；先校验完整文件，再登记素材，无项目累计容量配额。当前为本地开发阶段，S3原生multipart及渲染检查点仍待实现，详见[上传实施记录](docs/superpowers/specs/2026-11-04-creative-series/uploads-implementation.md)。

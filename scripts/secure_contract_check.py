@@ -4,6 +4,9 @@ Uses only isolated synthetic accounts, local mock providers and a temporary DATA
 Run with the openapi-spec-validator environment Python and a Go toolchain on PATH.
 """
 import http.cookiejar
+import hashlib
+import struct
+import zlib
 import json
 import os
 from pathlib import Path
@@ -50,10 +53,13 @@ def main():
         def client():
             return urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         alice, bob, anonymous = client(), client(), client()
-        def call(opener, method, path, route, body=None, csrf='', status=200, key='secure-contract-operation'):
+        def call(opener, method, path, route, body=None, csrf='', status=200, key='secure-contract-operation', binary=None):
             nonlocal count
             headers = {'Content-Type': 'application/json', 'Origin': origin, 'X-CSRF-Token': csrf, 'Idempotency-Key': key}
-            request = urllib.request.Request(origin + path, method=method, headers=headers, data=None if body is None else json.dumps(body).encode())
+            if binary is not None:
+                headers['Content-Type'] = 'application/octet-stream'
+                headers['X-Chunk-SHA256'] = hashlib.sha256(binary).hexdigest()
+            request = urllib.request.Request(origin + path, method=method, headers=headers, data=binary if binary is not None else None if body is None else json.dumps(body).encode())
             try:
                 response = opener.open(request, timeout=15)
             except urllib.error.HTTPError as error:
@@ -225,6 +231,26 @@ def main():
                 call(alice, 'GET', applications + '/' + application['id'] + query, application_route + '/{applicationId}')
                 call(bob, 'GET', applications + '/' + application['id'] + query, application_route + '/{applicationId}', status=403)
                 call(alice, 'GET', '/api/v1/projects/' + project['id'] + '/media' + query, '/api/v1/projects/{id}/media')
+                uploads = '/api/v1/projects/' + project['id'] + '/media/upload-sessions'
+                upload_route = '/api/v1/projects/{id}/media/upload-sessions'
+                def png_chunk(kind, payload):
+                    return struct.pack('>I', len(payload)) + kind + payload + struct.pack('>I', zlib.crc32(kind + payload) & 0xffffffff)
+                png = b'\x89PNG\r\n\x1a\n' + png_chunk(b'IHDR', struct.pack('>IIBBBBB', 1, 1, 8, 6, 0, 0, 0)) + png_chunk(b'IDAT', zlib.compress(b'\x00\x20\x50\x30\xff')) + png_chunk(b'IEND', b'')
+                transfer_input = dict(name='synthetic.png', mime_type='image/png', size_bytes=len(png), sha256=hashlib.sha256(png).hexdigest(), role='reference', character='', shot_id='')
+                transfer = call(alice, 'POST', uploads + query, upload_route, transfer_input, aq, status=201, key='secure-upload-create')
+                assert call(alice, 'POST', uploads + query, upload_route, transfer_input, aq, status=201, key='secure-upload-create')['id'] == transfer['id']
+                upload_target = uploads + '/' + transfer['id']
+                call(alice, 'GET', upload_target + query, upload_route + '/{upload_id}')
+                call(bob, 'GET', upload_target + query, upload_route + '/{upload_id}', status=403)
+                call(alice, 'GET', uploads + query, upload_route)
+                call(alice, 'POST', upload_target + '/complete' + query, upload_route + '/{upload_id}/complete', {}, aq, status=409)
+                call(alice, 'PUT', upload_target + '/parts/0' + query, upload_route + '/{upload_id}/parts/{offset}', csrf=aq, binary=png)
+                call(alice, 'PUT', upload_target + '/parts/0' + query, upload_route + '/{upload_id}/parts/{offset}', csrf=aq, binary=png)
+                completed = call(alice, 'POST', upload_target + '/complete' + query, upload_route + '/{upload_id}/complete', {}, aq)
+                assert completed['state'] == 'completed' and completed['uploaded_asset_id']
+                assert call(alice, 'POST', upload_target + '/complete' + query, upload_route + '/{upload_id}/complete', {}, aq)['uploaded_asset_id'] == completed['uploaded_asset_id']
+                cancelled = call(alice, 'POST', uploads + query, upload_route, transfer_input, aq, status=201, key='secure-upload-cancel-create')
+                call(alice, 'POST', uploads + '/' + cancelled['id'] + '/cancel' + query, upload_route + '/{upload_id}/cancel', {}, aq)
                 call(alice, 'POST', variable_target + '/copies' + query, route + '/copies', dict(version_id=variable_saved['version']['id'], name='Copied recipe', visibility='private'), aq, status=201)
                 call(alice, 'POST', '/api/v1/auth/logout', '/api/v1/auth/logout', {}, aq)
                 assert call(alice, 'GET', session_route, session_route)['authenticated'] is False

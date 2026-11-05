@@ -18,6 +18,7 @@ import (
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/promptrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	"golang.org/x/sys/unix"
 )
@@ -231,6 +232,10 @@ func ImportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 	if err != nil {
 		return report, err
 	}
+	report.Records["uploads"], err = uploadrepo.ImportFiles(ctx, tx, filepath.Join(dir, "uploads"))
+	if err != nil {
+		return report, err
+	}
 	report.Records["library"], err = libraryrepo.ImportFiles(ctx, tx, filepath.Join(dir, "library"))
 	if err != nil {
 		return report, err
@@ -322,6 +327,10 @@ func ExportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 		return report, err
 	}
 	report.Records["prompts"], err = promptrepo.ExportFiles(ctx, tx, filepath.Join(stage, "prompts"))
+	if err != nil {
+		return report, err
+	}
+	report.Records["uploads"], err = uploadrepo.ExportFiles(ctx, tx, filepath.Join(stage, "uploads"))
 	if err != nil {
 		return report, err
 	}

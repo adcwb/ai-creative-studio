@@ -38,6 +38,7 @@ func registerMediaRoutes(mux *http.ServeMux, s *FileStore) {
 	registerSocialDouyinRoutes(mux, s)
 	m := s.media
 	uploadSlots := make(chan struct{}, 2)
+	registerUploadRoutes(mux, s, uploadSlots)
 	scope := func(w http.ResponseWriter, r *http.Request, write bool) (string, string, bool) {
 		if err := m.Available(); err != nil {
 			mediaError(w, err)

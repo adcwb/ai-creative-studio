@@ -16,6 +16,7 @@ import (
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/promptrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
 )
 
 type snapshot struct {
@@ -45,6 +46,7 @@ type Repository interface {
 	Finish(Task, GenerationResult, error) error
 }
 type FileStore struct {
+	uploads      *uploadrepo.Store
 	library      *libraryrepo.Store
 	prompts      *promptrepo.Store
 	pg           *postgresScope
@@ -298,14 +300,23 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 		s.Close()
 		return nil, err
 	}
+	s.uploads, err = uploadrepo.Open(filepath.Join(dir, "uploads"), nil)
+	if err != nil {
+		s.Close()
+		return nil, err
+	}
 	s.library, err = libraryrepo.Open(filepath.Join(dir, "library"), nil)
 	if err != nil {
 		s.Close()
 		return nil, err
 	}
+	s.uploads.StartMaintenance()
 	return s, nil
 }
 func (s *FileStore) Close() error {
+	if s.uploads != nil {
+		s.uploads.Close()
+	}
 	if s.media != nil {
 		s.media.close()
 	}

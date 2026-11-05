@@ -1,3 +1,4 @@
+import {ResumableMediaUpload} from '../features/uploads/ResumableMediaUpload'
 import { translate as t, useI18n } from "../i18n"
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, baseURL, errorMessage, request } from '../api'
@@ -37,6 +38,8 @@ export function MediaStudio(props: StudioProps) {
   return <><div className="episode-toolbar"><label>{t('当前剪辑集数')}<select aria-label={t('当前剪辑集数')} value={episode} onChange={e => openEpisode(Number(e.target.value))}>{episodes.map(n => <option key={n} value={n}>{t('第 {p0} 集', {p0:n})}</option>)}</select></label><label>{t('打开其他集')}<input type="number" min="1" value={number} onChange={e => setNumber(Number(e.target.value))} /></label><button disabled={!Number.isSafeInteger(number) || number<1} onClick={() => openEpisode(number)}>{t('进入该集')}</button><p>{t('素材在项目内共享，每集时间轴和导出独立保存。')}</p></div><EpisodeMediaStudio key={episode} {...props} episode={episode} /></>
 }
 function EpisodeMediaStudio({project, space, onDirtyChange, episode, allowSyntheticDemo = true}: StudioProps & {episode: number}) {
+ const {space:currentSpace}=useAppWorkspace()
+ const canWrite=currentSpace?.role!=='viewer'
   const {formatNumber} = useI18n()
 
   const [alignmentError, setAlignmentError] = useState('')
@@ -58,6 +61,7 @@ function EpisodeMediaStudio({project, space, onDirtyChange, episode, allowSynthe
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const [uploadBusy,setUploadBusy]=useState(false)
   const [uncertain, setUncertain] = useState(false)
   const [confirmDemo, setConfirmDemo] = useState(false)
   const [role, setRole] = useState('shot')
@@ -75,7 +79,7 @@ function EpisodeMediaStudio({project, space, onDirtyChange, episode, allowSynthe
   const path = `/projects/${encodeURIComponent(project.id)}/media`
   const query = new URLSearchParams({space_id: space}).toString()
   useEffect(() => {dirtyRef.current = dirty}, [dirty])
-  useEffect(() => {onDirtyChange(dirty || posterDirty || busy || uncertain || maskSource !== null); return () => onDirtyChange(false)}, [dirty, posterDirty, busy, uncertain, maskSource, onDirtyChange])
+  useEffect(() => {onDirtyChange(uploadBusy || dirty || posterDirty || busy || uncertain || maskSource !== null); return () => onDirtyChange(false)}, [uploadBusy, dirty, posterDirty, busy, uncertain, maskSource, onDirtyChange])
   const load = useCallback(async (replace = false) => {
     const result = await request<MediaState>(`${path}?${query}`)
     if (!alive.current) return
@@ -146,7 +150,7 @@ function EpisodeMediaStudio({project, space, onDirtyChange, episode, allowSynthe
     const parts = splitClip(clip, playhead - clipStarts(timeline.clips)[index], visual.find(asset => asset.id === clip.asset_id)?.kind === 'video', crypto.randomUUID())
     if (parts) setTimeline({...timeline, clips: [...timeline.clips.slice(0, index), ...parts, ...timeline.clips.slice(index + 1)]})
   }
-  const locked = busy || uncertain
+  const locked = uploadBusy || busy || uncertain
   const visual = state?.assets.filter(asset => asset.kind !== 'audio') ?? []
   const audio = state?.assets.filter(asset => asset.kind === 'audio') ?? []
   const duration = timelineDuration(timeline.clips)
@@ -160,11 +164,11 @@ function EpisodeMediaStudio({project, space, onDirtyChange, episode, allowSynthe
     {error && <div className="error" role="alert">{error}{uncertain ? <button disabled={busy} onClick={() => {if (pending.current) void execute(pending.current)}}>{t("原请求重试")}</button> : <button disabled={busy} onClick={() => {void load().then(() => setError('')).catch(failure => setError(errorMessage(failure, t("读取失败"))))}}>{t("重新读取媒体")}</button>}</div>}
     {notice && <p className="notice" role="status">{notice}</p>}
     {!state ? <p role="status">{t("正在读取媒体…")}</p> : <>
-      <details className="media-upload" open><summary>{t("上传与照片编辑")}</summary><fieldset disabled={locked}>
+      <details className="media-upload" open><summary>{t("上传与照片编辑")}</summary><fieldset disabled={busy||uncertain}>
         <div className="storyboard-fields"><div><label htmlFor="media-role">{t("素材用途")}</label><select id="media-role" value={role} onChange={event => setRole(event.target.value)}><option value="shot">{t("镜头素材")}</option><option value="reference">{t("角色参考")}</option><option value="voice">{t("配音")}</option><option value="music">{t("音乐")}</option><option value="sfx">{t("音效")}</option></select></div>
         <div><label htmlFor="media-character">{t("关联角色")}</label><select id="media-character" value={character} onChange={event => setCharacter(event.target.value)}><option value="">{t("不关联角色")}</option>{project.script?.characters.map(item => <option key={item.name}>{item.name}</option>)}</select></div>
         <div><label htmlFor="media-shot">{t("关联镜头")}</label><select id="media-shot" value={shotId} onChange={event => setShotId(event.target.value)}><option value="">{t("不关联镜头")}</option>{project.storyboard?.shots.map((shot, index) => <option key={shot.id} value={shot.id}>{t("第")}{index + 1} {t("镜 ·")}{shot.description.slice(0, 25)}</option>)}</select></div>
-        <div><label htmlFor="media-file">{t("上传素材（PNG/JPEG/WAV/MP3/MP4）")}</label><input id="media-file" type="file" accept="image/png,image/jpeg,audio/wav,audio/mpeg,video/mp4" onChange={event => {const file = event.target.files?.[0]; if (file) upload(file, file.name); event.target.value = ''}} /></div></div>
+        <div><ResumableMediaUpload key={`${space}:${project.id}`} space={space} project={project.id} inputID="media-file" label={t("上传素材（PNG/JPEG/WAV/MP3/MP4）")} role={role} character={character} shotID={shotId} disabled={busy||uncertain||!canWrite} onBusy={setUploadBusy} onComplete={async()=>{await load();setNotice(t('素材已上传并保存'))}} /></div></div>
         <label htmlFor="photo-edit">{t("选择待编辑照片")}</label><input id="photo-edit" type="file" accept="image/png,image/jpeg" onChange={event => {setPhoto(event.target.files?.[0] ?? null); setRotation(0)}} />
         {photo && <div className="media-actions"><span>{photo.name}</span><label>{t("旋转")}<select aria-label={t("照片旋转")} value={rotation} onChange={event => setRotation(Number(event.target.value))}>{[0, 90, 180, 270].map(value => <option key={value} value={value}>{value}°</option>)}</select></label><label><input type="checkbox" checked={square} onChange={event => setSquare(event.target.checked)} /> {t("居中裁剪为正方形")}</label><button onClick={() => void editPhoto()}>{t("保存编辑照片为新素材")}</button></div>}
       </fieldset></details>

@@ -40,7 +40,7 @@ func TestCORSAllowsAllOrigins(t *testing.T) {
 						want := http.StatusOK
 						if method == http.MethodOptions {
 							want = http.StatusNoContent
-							if w.Header().Get("Access-Control-Allow-Methods") != "GET, POST, PUT, PATCH, OPTIONS" || w.Header().Get("Access-Control-Allow-Headers") != "Content-Type, Idempotency-Key, X-CSRF-Token" {
+							if w.Header().Get("Access-Control-Allow-Methods") != "GET, POST, PUT, PATCH, OPTIONS" || w.Header().Get("Access-Control-Allow-Headers") != "Content-Type, Idempotency-Key, X-CSRF-Token, X-Chunk-SHA256" {
 								t.Fatal("preflight omitted supported methods or headers", w.Header())
 							}
 						}

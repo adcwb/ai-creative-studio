@@ -1,9 +1,11 @@
 package application
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/prompts"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,6 +32,12 @@ func TestPostgresNativeBackupRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 	promptProject, promptApplication := applyPromptForTest(t, store, actor, recipe, "backup-prompt-application")
+	stagingBytes := []byte("synthetic pending upload data in native backup")
+	pendingUpload := newUploadForTest(t, store, promptProject.ID, actor.Space, actor.User, stagingBytes)
+	uploadIdentity := uploadrepo.Identity{Space: actor.Space, Project: promptProject.ID, Actor: actor.User, ID: pendingUpload.ID}
+	if e := store.uploads.With(context.Background(), uploadIdentity, func(l *uploadrepo.Locked) error { return l.Put(0, stagingBytes, pendingUpload.SHA256) }); e != nil {
+		t.Fatal(e)
+	}
 	task, _, err := store.Create("synthetic-backup", "backup-key", Input{Prompt: "synthetic backup image", Kind: "poster"})
 	if err != nil {
 		t.Fatal(err)
@@ -75,6 +83,15 @@ func TestPostgresNativeBackupRestore(t *testing.T) {
 	restoredDB := stdlib.OpenDB(*cfg)
 	defer restoredDB.Close()
 	restored := postgresTestStore(t, restoredDB)
+	if e := restored.uploads.With(context.Background(), uploadIdentity, func(l *uploadrepo.Locked) error {
+		_, data, e := l.Part(0)
+		if e == nil && !bytes.Equal(data, stagingBytes) {
+			t.Error("native restore lost pending upload bytes")
+		}
+		return e
+	}); e != nil {
+		t.Fatal(e)
+	}
 	if state := restored.media.Get(promptProject.ID, actor.Space); len(state.PromptApplications) != 1 || state.PromptApplications[0].ID != promptApplication.ID {
 		t.Fatal("native restore prompt application mismatch")
 	}

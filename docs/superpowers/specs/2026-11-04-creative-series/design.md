@@ -1,6 +1,6 @@
 # 创作交互与实现设计
 
-状态：Implementing，2026-11-05修订3；本文保留完整目标合同，当前子集见[实施记录](implementation.md)。RenderManifest、UploadSession、系列实体等尚未因本文设计而自动实现。60–120秒/集、用户可选1K–4K和项目不管理额度是已明确约束；不代表代码已满足。当前能力见[代码证据](research.md)，需求编号见[需求规格](requirements.md)。
+状态：Implementing，2026-11-05修订4；本文保留完整目标合同，当前子集见[实施记录](implementation.md)。UploadSession子集已按[上传实施记录](uploads-implementation.md)交付；RenderManifest、系列实体等仍未实现。60–120秒/集、用户可选1K–4K和项目不管理额度是已明确约束；不代表代码已满足。当前能力见[代码证据](research.md)，需求编号见[需求规格](requirements.md)。
 
 ## 1. 从创作判断出发
 
