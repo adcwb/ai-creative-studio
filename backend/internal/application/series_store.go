@@ -24,6 +24,12 @@ func (s *FileStore) openSeries(dir string) error {
 	// before serving HTTP; this creates metadata only and never dispatches a model.
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// Check the loaded core before any preparing callback can commit a snapshot.
+	for _, p := range s.data.Projects {
+		if p.StructureVersion != 0 && p.StructureVersion != 2 {
+			return projectInputError("项目结构版本不受支持，请使用兼容版本的编辑器")
+		}
+	}
 	if err = s.series.RecoverPreparing(context.Background(), func(n series.Node) error { return s.ensureEpisodeProjectLocked(n) }); err != nil {
 		return err
 	}
@@ -52,7 +58,7 @@ func (s *FileStore) ensureEpisodeProjectLocked(n series.Node) error {
 		return nil
 	}
 	d := s.clone()
-	d.Projects[n.ProjectID] = Project{ID: n.ProjectID, SeriesEpisodeID: n.ID, Kind: "drama", SpaceID: n.Space, Title: n.Title, Brief: n.Summary, Version: 1, CreatedAt: n.CreatedAt, UpdatedAt: n.CreatedAt}
+	d.Projects[n.ProjectID] = Project{ID: n.ProjectID, StructureVersion: 2, SeriesEpisodeID: n.ID, Kind: "drama", SpaceID: n.Space, Title: n.Title, Brief: n.Summary, Version: 1, CreatedAt: n.CreatedAt, UpdatedAt: n.CreatedAt}
 	return s.commit(d)
 }
 
@@ -90,6 +96,9 @@ func (s *FileStore) CreateSeriesEpisode(ctx context.Context, a series.Actor, key
 }
 
 func (s *FileStore) readySeriesProject(space string, p Project) error {
+	if p.StructureVersion != 0 && p.StructureVersion != 2 {
+		return projectInputError("项目结构版本不受支持，请使用兼容版本的编辑器")
+	}
 	if p.SeriesEpisodeID == "" {
 		return nil
 	}

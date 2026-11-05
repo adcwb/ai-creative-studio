@@ -9,6 +9,7 @@ import (
 )
 
 type StoryboardShot struct {
+	SceneID         string `json:"scene_id,omitempty"`
 	Purpose         string `json:"purpose,omitempty"`
 	Performance     string `json:"performance,omitempty"`
 	Continuity      string `json:"continuity,omitempty"`
@@ -22,6 +23,8 @@ type StoryboardShot struct {
 }
 
 type Storyboard struct {
+	StructureVersion    int              `json:"structure_version,omitempty"`
+	SourceSceneIDs      []string         `json:"source_scene_ids,omitempty"`
 	Provider            string           `json:"provider,omitempty"`
 	SourceScriptVersion int              `json:"source_script_version"`
 	Shots               []StoryboardShot `json:"shots"`
@@ -74,6 +77,9 @@ func NormalizeStoryboardShots(shots []StoryboardShot) ([]StoryboardShot, error) 
 	ids := map[string]bool{}
 	for i := range shots {
 		shot := &shots[i]
+		if shot.SceneID != "" && (!structureIDPattern.MatchString(shot.SceneID) || shot.SceneIndex == 0) {
+			return nil, InputError("镜头场次标识无效；独立镜头不能绑定场次")
+		}
 		if !shotIDPattern.MatchString(shot.ID) || ids[shot.ID] {
 			return nil, InputError("镜头标识无效或重复")
 		}

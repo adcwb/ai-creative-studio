@@ -27,6 +27,7 @@ func cloneRevision(r ProjectRevision) ProjectRevision {
 	if r.Storyboard != nil {
 		v := *r.Storyboard
 		v.Shots = append([]StoryboardShot(nil), v.Shots...)
+		v.SourceSceneIDs = append([]string(nil), v.SourceSceneIDs...)
 		r.Storyboard = &v
 	}
 	return r
@@ -117,6 +118,10 @@ func (s *FileStore) RestoreHistory(space, id, rid, key string, in ScriptGenerati
 	}
 	if revision == nil {
 		return Project{}, ErrNotFound
+	}
+	p = cloneProject(p)
+	if err := s.restoreStructureLocked(&p, revision); err != nil {
+		return Project{}, err
 	}
 	if revision.Kind == "script" {
 		if p.SeriesEpisodeID != "" && revision.Script != nil {

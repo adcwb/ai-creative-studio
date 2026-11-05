@@ -1,14 +1,15 @@
 import { translate } from './i18n'
-export interface ScriptCharacter { name: string; description: string }
-export interface ScriptDialogue { character: string; text: string }
-export interface ScriptScene { episode_number?: number; heading: string; action: string; dialogue: ScriptDialogue[] }
-export interface DramaScript { title: string; logline: string; characters: ScriptCharacter[]; scenes: ScriptScene[] }
+export interface ScriptCharacter { id?: string; name: string; description: string }
+export interface ScriptDialogue { character_id?: string; character: string; text: string }
+export interface ScriptScene { id?: string; episode_number?: number; heading: string; action: string; dialogue: ScriptDialogue[] }
+export interface DramaScript { structure_version?: 2; title: string; logline: string; characters: ScriptCharacter[]; scenes: ScriptScene[] }
 export interface ScriptGeneration {
   id: string; space_id: string; project_id: string; source_title: string; source_brief: string; base_version: number
   provider: string; status: 'queued' | 'running' | 'succeeded' | 'failed'; progress: number
   created_at: string; updated_at: string; error?: string; error_code?: string
 }
 export interface DramaProject {
+  structure_version?: 2
   series_episode_id?: string
   kind?: 'drama' | 'image' | 'digital-human'
   id: string; space_id: string; title: string; brief: string; version: number; created_at: string; updated_at: string
@@ -32,15 +33,27 @@ export function projectDraftError(draft: ProjectDraft) {
 export function scriptDraftError(script: DramaScript) {
   if (script.scenes.length < 1) return translate('剧本需包含场景，角色与对白引用必须有效。')
   const names = new Set<string>()
+  const characterIds = new Set<string>()
+  const sceneIds = new Set<string>()
+  const stableId = /^[A-Za-z0-9_-]{1,64}$/
   for (const character of script.characters) {
     const name = character.name.trim()
     if (!name || names.has(name)) return translate('角色名不能为空或重复。')
     names.add(name)
+    if (script.structure_version === 2) {
+      if (!character.id || !stableId.test(character.id) || characterIds.has(character.id)) return translate('角色标识缺失、无效或重复。')
+      characterIds.add(character.id)
+    }
     const error = fieldLengthError(name, 1, 40, translate('角色名')) || fieldLengthError(character.description, 1, 200, translate('角色设定'))
     if (error) return error
   }
   let error = fieldLengthError(script.title, 1, 80, translate("剧本标题")) || fieldLengthError(script.logline, 3, 300, translate("故事梗概"))
   for (const [index, scene] of script.scenes.entries()) {
+    if (script.structure_version === 2) {
+      if (!scene.id || !stableId.test(scene.id) || sceneIds.has(scene.id)) return translate('场次标识缺失、无效或重复。')
+      sceneIds.add(scene.id)
+      if (scene.dialogue.some(line => !line.character_id || !characterIds.has(line.character_id))) return translate('对白必须引用有效的角色标识。')
+    }
     if (!Number.isSafeInteger(scene.episode_number ?? 1) || (scene.episode_number ?? 1) < 1) return translate('集数需为有效正整数。')
     if (scene.dialogue.length > 100 || scene.dialogue.some(line => !names.has(line.character.trim()))) return translate('对白必须引用已有角色，每场最多100条。')
     error ||= fieldLengthError(scene.heading, 1, 100, translate("第 {p0} 场标题", {p0: index + 1})) || fieldLengthError(scene.action, 1, 1000, translate("第 {p0} 场动作", {p0: index + 1}))
@@ -52,11 +65,11 @@ export function scriptDraftError(script: DramaScript) {
 export const shotSizeLabels = {wide: '全景', medium: '中景', close_up: '特写'} as const
 export const cameraMovementLabels = {static: '固定', pan: '摇镜', track: '跟拍'} as const
 export interface StoryboardShot {
-  purpose?: string; performance?: string; continuity?: string
+  scene_id?: string; purpose?: string; performance?: string; continuity?: string
   id: string; scene_index: number; description: string; shot_size: keyof typeof shotSizeLabels
   camera_movement: keyof typeof cameraMovementLabels; duration_seconds: number; dialogue: string
 }
-export interface StoryboardPlan { provider?: string; source_script_version: number; shots: StoryboardShot[] }
+export interface StoryboardPlan { structure_version?: 2; source_scene_ids?: string[]; provider?: string; source_script_version: number; shots: StoryboardShot[] }
 export interface StoryboardGeneration {
   id: string; space_id: string; project_id: string; base_version: number; source_script_version: number
   provider: string; status: ScriptGeneration['status']; progress: number

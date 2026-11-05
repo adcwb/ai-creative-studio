@@ -160,14 +160,24 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 		return nil, fmt.Errorf("incomplete storyboard state")
 	}
 	for _, p := range s.data.Projects {
+		if p.StructureVersion != 0 && p.StructureVersion != 2 {
+			s.Close()
+			return nil, fmt.Errorf("unsupported project structure; refusing to write")
+		}
 		if (p.Script == nil && p.ScriptVersion != 0) || (p.Script != nil && p.ScriptVersion < 1) {
 			s.Close()
 			return nil, fmt.Errorf("invalid script revision")
 		}
 		if p.Storyboard != nil {
-			if p.Storyboard.SourceScriptVersion < 1 || p.Storyboard.SourceScriptVersion > p.ScriptVersion {
+			if p.Storyboard.SourceScriptVersion < 0 || p.Storyboard.SourceScriptVersion > p.ScriptVersion {
 				s.Close()
 				return nil, fmt.Errorf("invalid storyboard source revision")
+			}
+			for _, shot := range p.Storyboard.Shots {
+				if p.Storyboard.SourceScriptVersion == 0 && shot.SceneIndex != 0 {
+					s.Close()
+					return nil, fmt.Errorf("storyboard without source cannot reference scenes")
+				}
 			}
 			if _, err := NormalizeStoryboardShots(p.Storyboard.Shots); err != nil {
 				s.Close()

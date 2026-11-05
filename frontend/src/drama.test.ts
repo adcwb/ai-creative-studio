@@ -23,4 +23,17 @@ describe('short drama editable content and generation state', () => {
     }
     expect(generationActive(null)).toBe(false)
   })
+  it('requires stable character and scene references once the structure protocol is enabled', () => {
+    const stable: DramaScript = {...structuredClone(script), structure_version: 2}
+    stable.characters.forEach((c, i) => {c.id = `character-${i}`})
+    stable.scenes.forEach((s, i) => {s.id = `scene-${i}`; s.dialogue.forEach(d => {d.character_id = 'character-0'})})
+    expect(scriptDraftError(stable)).toBe('')
+    stable.scenes.reverse()
+    expect(scriptDraftError(stable)).toBe('')
+    stable.scenes[0].dialogue[0].character_id = 'deleted-character'
+    expect(scriptDraftError(stable)).toContain('角色标识')
+    stable.scenes[0].dialogue[0].character_id = 'character-0'
+    stable.scenes[0].id = stable.scenes[1].id
+    expect(scriptDraftError(stable)).toContain('场次标识')
+  })
 })

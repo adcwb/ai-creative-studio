@@ -10,18 +10,21 @@ type ScriptSaveInput struct {
 }
 
 type Script struct {
-	Title      string            `json:"title"`
-	Logline    string            `json:"logline"`
-	Characters []ScriptCharacter `json:"characters"`
-	Scenes     []ScriptScene     `json:"scenes"`
+	StructureVersion int               `json:"structure_version,omitempty"`
+	Title            string            `json:"title"`
+	Logline          string            `json:"logline"`
+	Characters       []ScriptCharacter `json:"characters"`
+	Scenes           []ScriptScene     `json:"scenes"`
 }
 
 type ScriptCharacter struct {
+	ID          string `json:"id,omitempty"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 }
 
 type ScriptScene struct {
+	ID            string           `json:"id,omitempty"`
 	EpisodeNumber int              `json:"episode_number,omitempty"`
 	Heading       string           `json:"heading"`
 	Action        string           `json:"action"`
@@ -29,8 +32,9 @@ type ScriptScene struct {
 }
 
 type ScriptDialogue struct {
-	Character string `json:"character"`
-	Text      string `json:"text"`
+	CharacterID string `json:"character_id,omitempty"`
+	Character   string `json:"character"`
+	Text        string `json:"text"`
 }
 
 type ScriptGeneration struct {
@@ -65,6 +69,9 @@ func CloneScript(script Script) Script {
 
 func NormalizeScript(script Script) (Script, error) {
 	script = CloneScript(script)
+	if script.StructureVersion != 0 && script.StructureVersion != 2 {
+		return Script{}, InputError("剧本结构版本不受支持，请使用兼容版本的编辑器")
+	}
 	var err error
 	if script.Title, err = NormalizeText(script.Title, "剧本标题", 1, 80); err != nil {
 		return Script{}, err
@@ -76,8 +83,17 @@ func NormalizeScript(script Script) (Script, error) {
 		return Script{}, InputError("剧本需包含场景，角色与对白引用必须有效")
 	}
 	names := map[string]bool{}
+	characterIDs := map[string]string{}
+	sceneIDs := map[string]bool{}
 	for i := range script.Characters {
 		character := &script.Characters[i]
+		if script.StructureVersion == 2 {
+			if !structureIDPattern.MatchString(character.ID) || characterIDs[character.ID] != "" {
+				return Script{}, InputError("角色标识缺失、无效或重复")
+			}
+		} else if character.ID != "" {
+			return Script{}, InputError("稳定角色标识需要剧本结构版本2")
+		}
 		if character.Name, err = NormalizeText(character.Name, "角色名", 1, 40); err != nil {
 			return Script{}, err
 		}
@@ -85,12 +101,21 @@ func NormalizeScript(script Script) (Script, error) {
 			return Script{}, InputError("角色名不能重复")
 		}
 		names[character.Name] = true
+		characterIDs[character.ID] = character.Name
 		if character.Description, err = NormalizeText(character.Description, "角色描述", 1, 200); err != nil {
 			return Script{}, err
 		}
 	}
 	for i := range script.Scenes {
 		scene := &script.Scenes[i]
+		if script.StructureVersion == 2 {
+			if !structureIDPattern.MatchString(scene.ID) || sceneIDs[scene.ID] {
+				return Script{}, InputError("场次标识缺失、无效或重复")
+			}
+			sceneIDs[scene.ID] = true
+		} else if scene.ID != "" {
+			return Script{}, InputError("稳定场次标识需要剧本结构版本2")
+		}
 		if scene.EpisodeNumber < 0 || scene.EpisodeNumber > 9007199254740991 {
 			return Script{}, InputError("集数需为有效正整数")
 		}
@@ -105,6 +130,16 @@ func NormalizeScript(script Script) (Script, error) {
 		}
 		for j := range scene.Dialogue {
 			line := &scene.Dialogue[j]
+			if script.StructureVersion == 2 {
+				name, ok := characterIDs[line.CharacterID]
+				if !ok || line.CharacterID == "" {
+					return Script{}, InputError("对白必须引用有效的角色标识")
+				}
+				// Names are display snapshots; the identity owns the association.
+				line.Character = name
+			} else if line.CharacterID != "" {
+				return Script{}, InputError("稳定对白引用需要剧本结构版本2")
+			}
 			if line.Character, err = NormalizeText(line.Character, "对白角色", 1, 40); err != nil {
 				return Script{}, err
 			}

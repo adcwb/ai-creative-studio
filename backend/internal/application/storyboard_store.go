@@ -4,6 +4,8 @@ import (
 	"errors"
 	"sort"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/projects"
 )
 
 type StoryboardRepository interface {
@@ -121,23 +123,39 @@ func (s *FileStore) SaveProjectStoryboard(space, id, key string, in StoryboardSa
 	if p.Storyboard == nil {
 		p.Storyboard = &Storyboard{Provider: "manual", SourceScriptVersion: p.ScriptVersion}
 	}
-	for _, shot := range in.Shots {
-		if shot.SceneIndex == 0 {
-			continue
+	if p.StructureVersion == 2 {
+		board := *p.Storyboard
+		board.Shots = in.Shots
+		if board.StructureVersion == 0 && board.SourceScriptVersion == p.ScriptVersion && p.Script != nil && p.Script.StructureVersion == 2 {
+			board.StructureVersion, board.SourceSceneIDs = 2, projects.SceneIDs(*p.Script)
 		}
-		if p.Storyboard.SourceScriptVersion == p.ScriptVersion {
-			if p.Script == nil || shot.SceneIndex > len(p.Script.Scenes) {
-				return Project{}, projectInputError("镜头引用了不存在的场景")
+		board, err = s.bindProjectStoryboardLocked(&p, board)
+		if err != nil {
+			return Project{}, err
+		}
+		p.Storyboard, in.Shots = &board, board.Shots
+	} else {
+		for _, shot := range in.Shots {
+			if shot.SceneID != "" {
+				return Project{}, projectInputError("请先为旧项目启用稳定关联，再保存场次标识")
 			}
-		} else {
-			found := false
-			for _, old := range p.Storyboard.Shots {
-				if old.SceneIndex == shot.SceneIndex {
-					found = true
+			if shot.SceneIndex == 0 {
+				continue
+			}
+			if p.Storyboard.SourceScriptVersion == p.ScriptVersion {
+				if p.Script == nil || shot.SceneIndex > len(p.Script.Scenes) {
+					return Project{}, projectInputError("镜头引用了不存在的场景")
 				}
-			}
-			if !found {
-				return Project{}, projectInputError("过期分镜不能新增旧剧本场景引用，请使用独立镜头或重新生成")
+			} else {
+				found := false
+				for _, old := range p.Storyboard.Shots {
+					if old.SceneIndex == shot.SceneIndex {
+						found = true
+					}
+				}
+				if !found {
+					return Project{}, projectInputError("过期分镜不能新增旧剧本场景引用，请使用独立镜头或重新生成")
+				}
 			}
 		}
 	}
@@ -216,6 +234,16 @@ func (s *FileStore) finishStoryboardLocked(g StoryboardGeneration, shots []Story
 			runErr = &StoryboardError{Code: "invalid_storyboard_output"}
 		}
 	}
+	if runErr == nil && p.StructureVersion == 2 {
+		if current.SourceScript == nil || current.SourceScript.StructureVersion != 2 {
+			runErr = &StoryboardError{Code: "invalid_storyboard_output"}
+		} else {
+			shots, err = projects.BindStoryboard(shots, projects.SceneIDs(*current.SourceScript))
+			if err != nil {
+				runErr = &StoryboardError{Code: "invalid_storyboard_output"}
+			}
+		}
+	}
 	current.Progress = 100
 	current.UpdatedAt = time.Now().UTC()
 	p.UpdatedAt = current.UpdatedAt
@@ -228,6 +256,9 @@ func (s *FileStore) finishStoryboardLocked(g StoryboardGeneration, shots []Story
 	} else {
 		current.Status = "succeeded"
 		p.Storyboard = &Storyboard{Provider: current.Provider, SourceScriptVersion: current.SourceScriptVersion, Shots: shots}
+		if p.StructureVersion == 2 {
+			p.Storyboard.StructureVersion, p.Storyboard.SourceSceneIDs = 2, projects.SceneIDs(*current.SourceScript)
+		}
 		p.Version++
 	}
 	d := s.clone()

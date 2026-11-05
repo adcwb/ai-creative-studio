@@ -12,6 +12,7 @@ import (
 type RuntimeSelection = governance.RuntimeSelection
 
 type ProjectInput struct {
+	StructureVersion      int    `json:"structure_version,omitempty"`
 	SingleEpisode         bool   `json:"-"`
 	TargetDurationSeconds int64  `json:"-"`
 	Kind                  string `json:"kind,omitempty"`
@@ -26,6 +27,8 @@ type ProjectUpdate struct {
 }
 
 type Project struct {
+	StructureVersion             int                   `json:"structure_version,omitempty"`
+	StructureMappings            []StructureMapping    `json:"structure_mappings,omitempty"`
 	SeriesEpisodeID              string                `json:"series_episode_id,omitempty"`
 	Kind                         string                `json:"kind,omitempty"`
 	ScriptProvider               string                `json:"script_provider,omitempty"`
@@ -57,6 +60,9 @@ func NormalizeText(value, label string, minimum, maximum int) (string, error) {
 }
 
 func NormalizeProjectInput(in ProjectInput) (ProjectInput, error) {
+	if in.StructureVersion != 0 && in.StructureVersion != 2 {
+		return ProjectInput{}, InputError("项目结构版本不受支持")
+	}
 	if in.Kind != "" && in.Kind != "drama" && in.Kind != "image" && in.Kind != "digital-human" {
 		return ProjectInput{}, InputError("无效的创作类型")
 	}
@@ -71,9 +77,11 @@ func NormalizeProjectInput(in ProjectInput) (ProjectInput, error) {
 }
 
 func CloneProject(project Project) Project {
+	project.StructureMappings = CloneStructureMappings(project.StructureMappings)
 	if project.Storyboard != nil {
 		plan := *project.Storyboard
 		plan.Shots = append([]StoryboardShot(nil), plan.Shots...)
+		plan.SourceSceneIDs = append([]string(nil), plan.SourceSceneIDs...)
 		project.Storyboard = &plan
 	}
 	if project.LatestStoryboardGeneration != nil {

@@ -117,6 +117,14 @@ def main():
                 call(alice, 'GET', member, member_route)
                 call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'viewer'}, aq)
                 call(bob, 'GET', governance + query, governance)
+                structure_project = call(alice, 'POST', '/api/v1/projects' + query, '/api/v1/projects', {'title': 'Stable identity scope', 'brief': 'An explicit metadata-only identity upgrade.'}, aq, status=201, key='secure-structure-project')
+                structure_path = '/api/v1/projects/' + structure_project['id'] + '/structure-upgrades'
+                structure_route = '/api/v1/projects/{id}/structure-upgrades'
+                structure_body = {'expected_version': structure_project['version']}
+                call(alice, 'POST', structure_path + query, structure_route, structure_body, status=403, key='secure-structure-no-csrf')
+                call(bob, 'POST', structure_path + query, structure_route, structure_body, bq, status=403, key='secure-structure-viewer')
+                upgraded = call(alice, 'POST', structure_path + query, structure_route, structure_body, aq, key='secure-structure-upgrade')
+                assert upgraded['structure_version'] == 2 and 'structure_mappings' not in upgraded
                 call(bob, 'PUT', budget + query, budget, {'currency': 'USD', 'limit_minor': 301, 'expected_limit_minor': 300}, bq, status=403)
                 call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'remove'}, aq)
                 call(bob, 'GET', governance + query, governance, status=403)
@@ -254,7 +262,7 @@ def main():
                 call(alice, 'POST', variable_target + '/copies' + query, route + '/copies', dict(version_id=variable_saved['version']['id'], name='Copied recipe', visibility='private'), aq, status=201)
                 call(alice, 'POST', '/api/v1/auth/logout', '/api/v1/auth/logout', {}, aq)
                 assert call(alice, 'GET', session_route, session_route)['authenticated'] is False
-                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay'], 'live_provider_calls': 0}))
+                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'explicit stable structure upgrade, CSRF and viewer refusal'], 'live_provider_calls': 0}))
             finally:
                 process.terminate()
                 process.wait(timeout=15)

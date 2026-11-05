@@ -1,4 +1,13 @@
 const messages: Record<string, string> = {
+  "角色标识缺失、无效或重复。": "A character identity is missing, invalid or duplicated.",
+  "场次标识缺失、无效或重复。": "A scene identity is missing, invalid or duplicated.",
+  "对白必须引用有效的角色标识。": "Dialogue must refer to a valid character identity.",
+  "稳定关联": "Stable associations",
+  "保留角色与场次关联": "Keep character and scene associations",
+  "为旧项目启用稳定关联后，角色改名和场次重排会保留对应关系。原稿与旧成片仍保留；本操作不会生成内容或拆分剧集。": "Enable stable associations to keep references when renaming characters or reordering scenes. Original drafts and exports remain. This does not generate content or split episodes.",
+  "启用稳定关联": "Enable stable associations",
+  "稳定关联已启用。角色改名和场次调整将保留原有引用。": "Stable associations enabled. Character renames and scene changes will keep existing references.",
+
   "项目列表读取失败": "Unable to load projects",
   "让故事，从这里开场": "Your story starts here",
   "记录一个想法，整理成三个场景，再打磨对白与分镜计划。": "Capture an idea, shape three scenes, then refine dialogue and shots.",

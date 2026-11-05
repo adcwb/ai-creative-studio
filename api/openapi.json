@@ -21535,6 +21535,153 @@
           }
         }
       }
+    },
+    "/api/v1/projects/{id}/structure-upgrades": {
+      "post": {
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "所有项目写操作在同一空间共享项目域命名空间，与图像任务键独立。指纹含操作、目标项目和规范化完整请求（含 expected_version）。同一提交网络重试必须保留键和 body；同键不同操作/目标/body 返回 idempotency_conflict。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          }
+        ],
+        "operationId": "upgradeProjectStructure",
+        "summary": "显式启用旧项目稳定角色与场次关联",
+        "description": "幂等CAS写入。原子保存确定性的来源版本/摘要映射和稳定ID；项目版本+1，有剧本时剧本版本+1，原来当前的分镜同步来源版本；过期分镜解析其真实历史来源，缺失/矛盾时拒绝且不改原件。原历史和媒体/旧成片不变，不调用模型。返回当前投影，同键重放不会覆盖后续编辑。已经启用时仅记录回执，不再次递增版本。只读或已撤销成员拒绝，旧客户端不可删除新版结构ID。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StructureUpgradeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "稳定关联已持久化；或同键重放当前项目",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求、权限、来源映射、并发或存储错误；失败不会猜测或覆盖原稿",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "请求、权限、来源映射、并发或存储错误；失败不会猜测或覆盖原稿",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "请求、权限、来源映射、并发或存储错误；失败不会猜测或覆盖原稿",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "请求、权限、来源映射、并发或存储错误；失败不会猜测或覆盖原稿",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "请求、权限、来源映射、并发或存储错误；失败不会猜测或覆盖原稿",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "请求、权限、来源映射、并发或存储错误；失败不会猜测或覆盖原稿",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "请求、权限、来源映射、并发或存储错误；失败不会猜测或覆盖原稿",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -22249,6 +22396,11 @@
             "minLength": 1,
             "maxLength": 200,
             "description": "后端去除首尾空白后按 Unicode 字符计数；不接受 null。"
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "description": "结构版本2的稳定身份；保存、改名和重排时保留。旧版本省略。"
           }
         }
       },
@@ -22271,6 +22423,11 @@
             "minLength": 1,
             "maxLength": 300,
             "description": "后端去除首尾空白后按 Unicode 字符计数；不接受 null。"
+          },
+          "character_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "description": "结构版本2必须引用本稿已有角色id；character为可读名称快照，服务端按id更新，不按改后的名字猜测。"
           }
         }
       },
@@ -22308,6 +22465,11 @@
             "minimum": 1,
             "maximum": 9007199254740991,
             "default": 1
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "description": "结构版本2的稳定身份；保存、改名和重排时保留。旧版本省略。"
           }
         }
       },
@@ -22346,9 +22508,18 @@
               "$ref": "#/components/schemas/ScriptScene"
             },
             "minItems": 1
+          },
+          "structure_version": {
+            "type": "integer",
+            "enum": [
+              0,
+              2
+            ],
+            "default": 0,
+            "description": "省略/0为旧名字引用，2必须为每个角色和场次提供唯一id，并通过character_id关联对白。已启用项目禁止降级写入。"
           }
         },
-        "description": "Editable story with up to 30 unique characters and 1–120 scenes. Scenes can be silent and carry an optional episode number. Saving a first handwritten draft does not require generation.",
+        "description": "Editable story with up to 30 unique characters and 1–120 scenes. Scenes can be silent and carry an optional episode number. Saving a first handwritten draft does not require generation. 结构版本2以角色/场次稳定ID关联；character显示名由character_id对应角色更新，删除被对白引用的角色会失败；角色名仍须唯一。旧项目必须显式升级后再保存新版结构；GET不自动分配ID。",
         "example": {
           "title": "雨夜来信",
           "logline": "两名旧友因一封错寄的信，在雨夜车站重逢并决定合作。",
@@ -22406,7 +22577,79 @@
               ]
             }
           ]
-        }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "structure_version": {
+                "type": "integer",
+                "enum": [
+                  0
+                ]
+              }
+            }
+          },
+          {
+            "required": [
+              "structure_version"
+            ],
+            "properties": {
+              "structure_version": {
+                "type": "integer",
+                "enum": [
+                  2
+                ]
+              },
+              "characters": {
+                "type": "array",
+                "items": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ScriptCharacter"
+                    },
+                    {
+                      "required": [
+                        "id"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "scenes": {
+                "type": "array",
+                "items": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ScriptScene"
+                    },
+                    {
+                      "required": [
+                        "id"
+                      ],
+                      "properties": {
+                        "dialogue": {
+                          "type": "array",
+                          "items": {
+                            "allOf": [
+                              {
+                                "$ref": "#/components/schemas/ScriptDialogue"
+                              },
+                              {
+                                "required": [
+                                  "character_id"
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
       },
       "ScriptGeneration": {
         "type": "object",
@@ -22626,6 +22869,15 @@
             "pattern": "^[a-f0-9]{32}$",
             "readOnly": true,
             "description": "Server-owned independent series episode association; absent for legacy standalone/multi-episode projects."
+          },
+          "structure_version": {
+            "type": "integer",
+            "enum": [
+              0,
+              2
+            ],
+            "readOnly": true,
+            "description": "省略/0为旧结构，2启用稳定角色/场次关联。"
           }
         },
         "description": "单项目只有一份当前剧本。无稿时省略 script/script_brief，无尝试时省略 latest_generation，不返回 null。生成活动期间拒绝内容修改和新生成，精确幂等重放仍返回当前投影。项目没有独立的伪状态字段。 第五轮每项目另有一份当前分镜；两种生成均锁定项目写操作。source_script_version 不随分镜编辑改变。",
@@ -22669,6 +22921,15 @@
               "digital-human"
             ],
             "description": "Creation workspace type; omitted legacy values mean drama. Immutable after creation."
+          },
+          "structure_version": {
+            "type": "integer",
+            "enum": [
+              0,
+              2
+            ],
+            "default": 0,
+            "description": "新版客户端使用2。省略保留旧API行为；系列新集默认2。"
           }
         }
       },
@@ -22837,6 +23098,11 @@
           "continuity": {
             "type": "string",
             "maxLength": 1000
+          },
+          "scene_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "description": "结构版本2正scene_index对应source_scene_ids中的id；独立镜头scene_index=0省略。不匹配拒绝，禁止默默重绑到当前剧本。"
           }
         },
         "description": "镜头 ID 在计划内唯一；scene_index 为来源剧本场景数组的 1-based 序号，必须结合 source_script_version 理解，不能当作跨版本稳定场景 ID。",
@@ -22872,6 +23138,24 @@
           "provider": {
             "type": "string",
             "description": "当前已保存分镜自身的生成来源。"
+          },
+          "structure_version": {
+            "type": "integer",
+            "enum": [
+              0,
+              2
+            ],
+            "readOnly": true
+          },
+          "source_scene_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "description": "结构版本2的稳定身份；保存、改名和重排时保留。旧版本省略。"
+            },
+            "readOnly": true,
+            "description": "结构版本2固定来源剧本的场次ID顺序；过期分镜仍使用此数组，不使用当前剧本顺序。"
           }
         },
         "description": "每项目仅一份当前计划。来源版本由后端写入，编辑保存不能改写它；过期后仍允许编辑并保留过期提示。",
@@ -29678,6 +29962,19 @@
           "ordinal",
           "project_local_episode"
         ]
+      },
+      "StructureUpgradeInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_version"
+        ],
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
       }
     },
     "securitySchemes": {

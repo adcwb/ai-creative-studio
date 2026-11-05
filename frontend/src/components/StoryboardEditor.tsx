@@ -1,8 +1,8 @@
 import { translate, useI18n } from '../i18n'
 import { cameraMovementLabels, shotSizeLabels, storyboardDraftError, type StoryboardShot } from '../drama'
 
-export function StoryboardEditor({shots, sceneCount = 0, provider, editing, disabled, dirty, sourceVersion, stale, onChange, onEdit, onCancel, onSave}: {
-  shots: StoryboardShot[]; sceneCount?: number; provider?: string; editing: boolean; disabled: boolean; dirty: boolean; sourceVersion: number; stale: boolean
+export function StoryboardEditor({shots, sceneCount = 0, sourceSceneIds, provider, editing, disabled, dirty, sourceVersion, stale, onChange, onEdit, onCancel, onSave}: {
+  shots: StoryboardShot[]; sceneCount?: number; sourceSceneIds?: string[]; provider?: string; editing: boolean; disabled: boolean; dirty: boolean; sourceVersion: number; stale: boolean
   onChange: (shots: StoryboardShot[]) => void; onEdit: () => void; onCancel: () => void; onSave: () => void
 }) {
   useI18n()
@@ -23,7 +23,7 @@ export function StoryboardEditor({shots, sceneCount = 0, provider, editing, disa
         <div className="drama-scene-label">SHOT {String(index + 1).padStart(2, '0')} <span>{translate("第 {p0} 镜", {p0: index + 1})}</span></div>
         {editing ? <>
           <div className="media-actions"><button type="button" disabled={disabled || index === 0} onClick={() => move(index, -1)}>{translate("上移第 {p0} 镜", {p0: index + 1})}</button><button type="button" disabled={disabled || index === shots.length - 1} onClick={() => move(index, 1)}>{translate("下移第 {p0} 镜", {p0: index + 1})}</button><button type="button" disabled={disabled || shots.length === 1} onClick={() => onChange(shots.filter((_, item) => item !== index))}>{translate("删除第 {p0} 镜", {p0: index + 1})}</button></div><div className="storyboard-fields">
-            <div><label htmlFor={`shot-scene-${index}`}>{translate("第 {p0} 镜场景引用", {p0: index + 1})}</label><select id={`shot-scene-${index}`} value={shot.scene_index} onChange={event => change(index, {scene_index: Number(event.target.value)})}>{Array.from({length: sceneCount + 1}, (_, i) => i).map(scene => <option key={scene} value={scene}>{scene === 0 ? translate("独立镜头") : translate("来源剧本第 {p0} 场", {p0: scene})}</option>)}</select></div>
+            <div><label htmlFor={`shot-scene-${index}`}>{translate("第 {p0} 镜场景引用", {p0: index + 1})}</label><select id={`shot-scene-${index}`} value={shot.scene_index} onChange={event => change(index, {scene_index: Number(event.target.value), ...(sourceSceneIds ? {scene_id: sourceSceneIds[Number(event.target.value) - 1]} : {})})}>{Array.from({length: (sourceSceneIds?.length ?? sceneCount) + 1}, (_, i) => i).map(scene => <option key={scene} value={scene}>{scene === 0 ? translate("独立镜头") : translate("来源剧本第 {p0} 场", {p0: scene})}</option>)}</select></div>
             <div><label htmlFor={`shot-size-${index}`}>{translate("第 {p0} 镜景别", {p0: index + 1})}</label><select id={`shot-size-${index}`} value={shot.shot_size} onChange={event => change(index, {shot_size: event.target.value as StoryboardShot['shot_size']})}>{Object.entries(shotSizeLabels).map(([value, label]) => <option key={value} value={value}>{translate(label)}</option>)}</select></div>
             <div><label htmlFor={`shot-camera-${index}`}>{translate("第 {p0} 镜运镜", {p0: index + 1})}</label><select id={`shot-camera-${index}`} value={shot.camera_movement} onChange={event => change(index, {camera_movement: event.target.value as StoryboardShot['camera_movement']})}>{Object.entries(cameraMovementLabels).map(([value, label]) => <option key={value} value={value}>{translate(label)}</option>)}</select></div>
             <div><label htmlFor={`shot-duration-${index}`}>{translate("第 {p0} 镜时长（秒）", {p0: index + 1})}</label><input id={`shot-duration-${index}`} type="number" min="1" max="60" step="1" value={shot.duration_seconds || ''} onChange={event => change(index, {duration_seconds: Number(event.target.value)})} /></div>

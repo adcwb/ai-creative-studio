@@ -1,6 +1,6 @@
 # 自定义提示词与长篇漫剧实施计划
 
-创建：2026-11-04；修订9：2026-11-05。状态：Implementing，**P0A首批实现已开始，任务未全部完成**。已fetch核对代码基线与origin/master均为`9e687c584632fdc98628c42592ff3df2ff0304cb`。用户已授权按阶段实施；按最新授权，全部规格实施且验证完成后推送GitHub并跟进CI；完成前只做本地阶段提交，不部署。
+创建：2026-11-04；修订10：2026-11-05。状态：Implementing，**P0A首批实现已开始，任务未全部完成**。已fetch核对代码基线与origin/master均为`9e687c584632fdc98628c42592ff3df2ff0304cb`。用户已授权按阶段实施；按最新授权，全部规格实施且验证完成后推送GitHub并跟进CI；完成前只做本地阶段提交，不部署。
 
 规格：[入口](../specs/2026-11-04-creative-series/README.md) · [需求](../specs/2026-11-04-creative-series/requirements.md) · [设计](../specs/2026-11-04-creative-series/design.md) · [验收](../specs/2026-11-04-creative-series/acceptance.md)。以下目标路径是拟定实施位置；已存在的文件按最小改动扩展，不要求一次重写所有模块。
 
@@ -51,6 +51,10 @@ flowchart LR
 
 - [x] **T31** 实现series/season/episode实体、分页仓储、同事务创建每集Project及独立版本，UI集号/导出profile快照适配，不设200集产品上限。目标：`modules/series`、`persistence/seriesrepo`、`application/series_*`、`features/series`、`ProjectPage.tsx`。依赖：T01表现/迁移决策、T02、T07；验收AC-S01、AC-Q01、AC-R01。退出：200集及新增201集元数据可管理，不声称已通过完整生产容量。
 - [ ] **T32** 稳定character/scene ID和旧索引/名字映射；旧多集显式拆分预览/迁移、素材授权复制、幂等中断续跑与旧入口兼容。目标：`modules/projects/script.go`、`storyboard.go`、`media_episodes.go`、Project/Media仓储、离线迁移器。依赖：T31；验收 AC-S02、AC-S03、AC-O08。退出：对账与回退演练通过，不能猜测未知归属。
+- [x] **T32A** 稳定身份子阶段：版本2角色/场次/对白/分镜来源，旧项目显式升级与原映射、CAS回执、原稿恢复及文件/PG往返。依赖T31；AC-S03子项，证据见[稳定关联记录](../specs/2026-11-04-creative-series/structure-implementation.md)。不代表T32拆集完成。
+- [ ] **T32B** 旧1/7/120集的显式迁移预览、来源版本/摘要与目标季编号核对、独立镜头归属选择；预览不修改源项目。依赖T32A；AC-S02。
+- [ ] **T32C** 独立迁移任务仓储、稳定目标身份/准备状态、授权素材复制及流式字节验证、持久步骤/幂等续跑；不复制旧令牌和运行任务。依赖T32B；AC-S02、AC-O08。
+- [ ] **T32D** 迁移前后ID/数量/摘要/空间对账、崩溃和撤权恢复、旧项目与成片保留、文件/PG往返及本地集号1验收。依赖T32C；AC-S02–AC-S03、AC-O08。完成后才勾选T32。
 - [ ] **T33** 正式圣经、角色弧线、事件/知识边界/伏笔版本、风格/声音卡的必要扩展；上下文编译与finding/decision分离。目标：series、library模块与仓储、`application/series_context_*`。依赖：T31–T32；验收 AC-S04–AC-S07。退出：AI建议不自动改正式事实，超长上下文可解释，声音授权合同明确。
 - [ ] **T34** 编剧工作台、季集节拍视图、证据跳转和text生成合同；新增功能绑定目录、OpenAPI、前端和后端负向用例同步。目标：`features/series`、`ProjectScript.tsx`、`gateway_models.go`与真实功能目录实际位置。依赖：T33、T23；验收 AC-S01、AC-S03–AC-S05、AC-O01。退出：单集候选—采纳闭环通过，未使用整季全文请求。
 
@@ -105,3 +109,7 @@ T31 的领域、独立文件/PG目录、CAS排序、原回执、每集Project原
 ## 第九阶段记录
 
 T31元数据工作区闭环已完成：系列/季/集HTTP与C端页面、当前项目标题、原请求恢复、过期游标拒绝、单集本地编号、输出默认值、真实text单集意图、PG队列传递和不可变导出编号；支持交换及插入顺移，两季200集与新增201集元数据验证通过。证据见[系列工作区记录](../specs/2026-11-04-creative-series/series-ui-implementation.md)。因此T31按其元数据退出条件勾选，不表示T07或AC-S01的后续正式事实串联已经完成，也不表示200集实际制作容量达标。下一阶段T32仍未勾选；旧多集拆分尚未实施，不能推送整套方案。
+
+## 修订10阶段进展
+
+T32A稳定身份已接入当前创作、真实网关接收和历史恢复；旧项目显式升级，不随机改GET，不猜测过期分镜的来源，原稿和成片保留。文件/PG、双API、重启、离线往返和桌面/手机验证见[稳定关联实施记录](../specs/2026-11-04-creative-series/structure-implementation.md)。T32B–T32D的实际拆集、素材授权复制和持久迁移续跑尚未实现，T32保持未勾选；先完成这些依赖再推进连续性和导演编排，不提前推送。

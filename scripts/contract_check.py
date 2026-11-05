@@ -133,6 +133,8 @@ def main():
                         route += "/storyboard-generations"
                     elif suffix.endswith("/storyboard"):
                         route += "/storyboard"
+                    elif suffix.endswith("/structure-upgrades"):
+                        route += "/structure-upgrades"
                     elif suffix.endswith("/script"):
                         route += "/script"
                     elif suffix.endswith("/generations"):
@@ -216,6 +218,34 @@ def main():
                 call("POST", bind_url, bind_route, binding, "library-contract-bind")
                 assert len(call("GET", bind_url, bind_route)["items"]) == 1
                 call("GET", route + q + "&status=archived", route)
+
+            def check_structure():
+                p = project_call("POST", body={"title": "Stable source contract", "brief": "An original script keeps associations across edits."}, key="structure-contract-project", expected=201)
+                suffix = "/" + p["id"]
+                project_call("POST", suffix + "/generations", {"expected_version": p["version"]}, "structure-contract-script", 202)
+                legacy = wait_script(p["id"])
+                assert "structure_version" not in legacy and "id" not in legacy["script"]["scenes"][0]
+                body = {"expected_version": legacy["version"]}
+                upgraded = project_call("POST", suffix + "/structure-upgrades", body, "structure-contract-upgrade")
+                assert upgraded["structure_version"] == 2 and upgraded["script"]["structure_version"] == 2
+                assert "structure_mappings" not in upgraded
+                assert upgraded["version"] == legacy["version"] + 1
+                assert upgraded["script_version"] == legacy["script_version"] + 1
+                edited = copy.deepcopy(upgraded["script"])
+                edited["characters"][0]["name"] = "Renamed character"
+                edited["scenes"].reverse()
+                changed = project_call("PUT", suffix + "/script", {"expected_version": upgraded["version"], "script": edited}, "structure-contract-rename")
+                assert changed["script"]["scenes"][-1]["id"] == upgraded["script"]["scenes"][0]["id"]
+                old_id = upgraded["script"]["characters"][0]["id"]
+                for scene in changed["script"]["scenes"]:
+                    for line in scene["dialogue"]:
+                        if line["character_id"] == old_id:
+                            assert line["character"] == "Renamed character"
+                project_call("PUT", suffix + "/script", {"expected_version": changed["version"], "script": legacy["script"]}, "structure-contract-old-client", 400)
+                project_call("POST", suffix + "/structure-upgrades", body, "structure-contract-other-space", 404, space="team-demo")
+                project_call("POST", suffix + "/structure-upgrades", dict(body, expected_version=999), "structure-contract-upgrade", 409)
+                stop(); start()
+                assert project_call("POST", suffix + "/structure-upgrades", body, "structure-contract-upgrade") == changed
 
             def check_history():
                 project = project_call("POST", body={"title": "历史合同", "brief": "两位旧友在车站相遇并交换一本书。"}, key="history-create", expected=201)
@@ -547,6 +577,7 @@ def main():
                 project_case = check_projects()
                 check_storyboards()
                 check_history()
+                check_structure()
                 check_creative()
                 check_library()
                 check_series()
@@ -595,6 +626,7 @@ def main():
                 print("Verified: real project create/detail/edit, Eino structured mock script, 400/404/409 paths, version/source preservation, failed generation keeps draft, all-write accepted-key replay across restarts, and script execution independent of unavailable image configuration.")
                 print("Verified: storyboard mock generation/editing, 400/404/409 guards, source script revision/staleness, failed generation keeps old plan, persisted receipts across restart and successful regeneration clears staleness.")
                 print("Verified: immutable script history restoration, monotonic versions, replay/conflict/cross-space/restart guards; asynchronous brief analysis, provider registry and creative job persistence.")
+                print("Verified: explicit stable identity upgrade, rename/reorder, old-client write refusal, scope isolation and original receipt replay after restart.")
                 print("Verified: library card versions, ordered history, cross-space isolation, pinned project bindings and original receipts across archive and restart.")
                 print("No real credential was read and no external provider was enabled; all runtime data and processes were temporary.")
             finally:

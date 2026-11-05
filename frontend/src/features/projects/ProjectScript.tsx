@@ -12,6 +12,11 @@ export function ProjectScript({state}: {state: ProjectEditorState}) {
   const {space, id, editor, effectiveCreative, scriptPreview, runtimeChoice, setRuntimeChoice, active, generation, generate, setToolsDirty} = state
   if (!id || !editor.project) return null
   return <>
+        {editor.project.structure_version !== 2 && <section className="panel editing-note" aria-label={translate('稳定关联')}>
+          <h2>{translate('保留角色与场次关联')}</h2>
+          <p>{translate('为旧项目启用稳定关联后，角色改名和场次重排会保留对应关系。原稿与旧成片仍保留；本操作不会生成内容或拆分剧集。')}</p>
+          <button type="button" disabled={editor.locked || editor.dirty || Boolean(editor.loadError)} onClick={() => editor.submit('structure')}>{translate('启用稳定关联')}</button>
+        </section>}
         <RuntimeModelPicker gatewayOnly space={space} capability="text" preview={scriptPreview} value={runtimeChoice} onChange={setRuntimeChoice} disabled={editor.locked} />
         <section className="panel drama-generation" aria-labelledby="generation-heading"><div className="section-heading"><div><span className="eyebrow">02 / A FIRST DRAFT</span><h2 id="generation-heading">{effectiveCreative?.mode === 'real' ? translate("生成 AI 剧本") : translate("生成模拟剧本")}</h2></div><span>{translate("按故事组织角色、分集与场次")}</span></div>
           <p>{translate("根据已保存简报，由后端生成结构化剧本；成功后替换当前稿，失败会保留已有剧本。")}</p>
@@ -21,7 +26,7 @@ export function ProjectScript({state}: {state: ProjectEditorState}) {
           <GenerationHistory space={space} projectId={id} revision={editor.historyRevision} />
         </section>
         {editor.project.script_brief && editor.project.script_brief !== editor.project.brief && <div className="editing-note drama-source-note"><strong>{translate("当前剧本来自之前的简报")}</strong><p>{translate("项目需求已更新，现有剧本仍保留原来的内容。重新生成成功后才会替换。")}</p><details><summary>{translate("查看剧本来源简报")}</summary><p>{editor.project.script_brief}</p></details></div>}
-        {editor.script ? <DramaScriptEditor provider={editor.project.script_provider} script={editor.script} editing={editor.editingScript} disabled={editor.locked || editor.briefDirty || editor.editingStoryboard || Boolean(editor.loadError)} dirty={editor.scriptDirty} onChange={editor.setScript} onEdit={() => editor.setEditingScript(true)} onCancel={editor.cancelScript} onSave={() => editor.submit('script')} /> : <section className="panel drama-no-script"><Icon name="script" /><h2>{translate("故事在等一个开场")}</h2><button onClick={() => {editor.setScript({title: editor.project!.title, logline: editor.project!.brief.slice(0, 300), characters: [], scenes: [{heading: translate("新场次"), action: translate("场景动作"), dialogue: [], episode_number: 1}]}); editor.setEditingScript(true)}}>{translate("开始手写剧本")}</button><p>{translate("保存项目简报后，选择网关模型生成剧本。你也可以手工编辑场景与对白。")}</p></section>}
+        {editor.script ? <DramaScriptEditor provider={editor.project.script_provider} script={editor.script} editing={editor.editingScript} disabled={editor.locked || editor.briefDirty || editor.editingStoryboard || Boolean(editor.loadError)} dirty={editor.scriptDirty} onChange={editor.setScript} onEdit={() => editor.setEditingScript(true)} onCancel={editor.cancelScript} onSave={() => editor.submit('script')} /> : <section className="panel drama-no-script"><Icon name="script" /><h2>{translate("故事在等一个开场")}</h2><button onClick={() => {editor.setScript({...(editor.project!.structure_version === 2 ? {structure_version: 2 as const} : {}), title: editor.project!.title, logline: editor.project!.brief.slice(0, 300), characters: [], scenes: [{...(editor.project!.structure_version === 2 ? {id: crypto.randomUUID()} : {}), heading: translate("新场次"), action: translate("场景动作"), dialogue: [], episode_number: 1}]}); editor.setEditingScript(true)}}>{translate("开始手写剧本")}</button><p>{translate("保存项目简报后，选择网关模型生成剧本。你也可以手工编辑场景与对白。")}</p></section>}
 
 
     <details className="panel project-tools"><summary>{translate("创作辅助工具与版本历史")}</summary><CreativeTools historyOnly project={editor.project} space={space} disabled={editor.locked || editor.dirty} onRestore={() => editor.reload(true)} onDirtyChange={setToolsDirty} /></details>

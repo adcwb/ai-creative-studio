@@ -165,6 +165,8 @@ flowchart LR
 
 ScriptCharacter 增加 id 和可选 library_asset/version；Dialogue 增加 character_id，显示名仍保存作快照。Scene 增加 id，StoryboardShot 增加 scene_id；新增结构合同版本，旧名字/scene_index 经确定性映射转换。ID 由保存的迁移映射产生，不在每次读取随机生成；场次重排、角色改名不改变关联。找不到、重复或越界引用拒绝迁移，保留原件。
 
+2026-11-05实现状态：稳定ID、原映射、显式升级及来源分镜为T32A已实现，接口和验证见[稳定关联记录](structure-implementation.md)。角色库版本、跨集连续性、旧多集实际拆分和后续修订依赖仍为计划，不能把本节全部设计视为已完成。
+
 基于现有 revisions 纯规则增加持久 EpisodeRevision / Branch / DependencyEdge。Manifest 必须包含剧本、分镜、时间轴、字幕、资产/声音版本、模板来源、context 和父修订摘要；不能把认证、费用、运行时权限或发布令牌放进可恢复内容。恢复创建新修订并保留并发时钟，模型权限重新校验。
 
 角色状态如伤口/服装/道具归入 story event 或该集 binding override，不通过更新全局资产版本来偷偷改早期集。新风格卡保存色板/线条/构图说明与参考；声音卡只保存有许可的 voice reference/notes，真实密钥仍在网关凭据系统。原 character/product/scene JSON 兼容读取，不强制补假声音。

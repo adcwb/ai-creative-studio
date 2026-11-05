@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, errorMessage, request } from '../api'
 import { generationActive, projectDraftError, scriptDraftError, storyboardDraftError, type StoryboardShot, type StoryboardGeneration, type DramaProject, type DramaScript, type ProjectDraft, type ScriptGeneration } from '../drama'
 
-type Operation = 'create' | 'brief' | 'script' | 'generate' | 'storyboard' | 'generateStoryboard'
+type Operation = 'create' | 'brief' | 'script' | 'generate' | 'storyboard' | 'generateStoryboard' | 'structure'
 interface Attempt { operation: Operation; path: string; body: string; key: string }
 const emptyDraft: ProjectDraft = {title: '', brief: ''}
 
@@ -88,7 +88,7 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
     const controller = new AbortController(); controllers.current.add(controller)
     try {
       const result = await request<DramaProject | ScriptGeneration | StoryboardGeneration>(current.path, {
-        method: current.operation === 'create' || current.operation === 'generate' || current.operation === 'generateStoryboard' ? 'POST' : 'PUT',
+        method: current.operation === 'create' || current.operation === 'generate' || current.operation === 'generateStoryboard' || current.operation === 'structure' ? 'POST' : 'PUT',
         headers: {'Content-Type': 'application/json', 'Idempotency-Key': current.key}, body: current.body, signal: controller.signal,
       })
       if (!mounted.current || controller.signal.aborted) return
@@ -99,7 +99,7 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
         setRevision(value => value + 1); setHistoryRevision(value => value + 1)
       } else {
         acceptProject(result as DramaProject, true)
-        setNotice(current.operation === 'create' ? translate("项目已创建并保存。") : current.operation === 'brief' ? translate("项目简报已保存。") : current.operation === 'storyboard' ? translate("分镜修改已保存。") : translate("剧本修改已保存。"))
+        setNotice(current.operation === 'structure' ? translate('稳定关联已启用。角色改名和场次调整将保留原有引用。') : current.operation === 'create' ? translate("项目已创建并保存。") : current.operation === 'brief' ? translate("项目简报已保存。") : current.operation === 'storyboard' ? translate("分镜修改已保存。") : translate("剧本修改已保存。"))
       }
     } catch (failure) {
       if (!mounted.current || controller.signal.aborted) return
@@ -119,14 +119,15 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
     if (error) {setActionError(error); return}
     if ((operation === 'generate' || operation === 'generateStoryboard') && (briefDirty || scriptDirty || editingScript || editingStoryboard)) return
     if (operation === 'generateStoryboard' && !project?.script) return
+    if (operation === 'structure' && (briefDirty || editingScript || editingStoryboard)) return
     const selected = operation === 'generateStoryboard' ? storyboardChoice : runtimeChoice
     const preview = {operation: operation === 'generateStoryboard' ? 'storyboard' as const : 'script' as const, project_id: id ?? '', input: {expected_version: baseline?.version}}
     if ((operation === 'generate' || operation === 'generateStoryboard') && !creationReady(selected, preview)) return
     const query = new URLSearchParams({space_id: space})
     const projectPath = `/projects/${encodeURIComponent(id ?? '')}`
-    const basePath = `${operation === 'create' ? '/projects' : operation === 'generate' ? `${projectPath}/generations` : operation === 'script' ? `${projectPath}/script` : operation === 'storyboard' ? `${projectPath}/storyboard` : operation === 'generateStoryboard' ? `${projectPath}/storyboard-generations` : projectPath}?${query}`
+    const basePath = `${operation === 'create' ? '/projects' : operation === 'generate' ? `${projectPath}/generations` : operation === 'script' ? `${projectPath}/script` : operation === 'storyboard' ? `${projectPath}/storyboard` : operation === 'generateStoryboard' ? `${projectPath}/storyboard-generations` : operation === 'structure' ? `${projectPath}/structure-upgrades` : projectPath}?${query}`
     const path = operation === 'generate' || operation === 'generateStoryboard' ? creationPath(basePath) : basePath
-    const body = JSON.stringify(operation === 'create' ? {title: draft.title.trim(), brief: draft.brief.trim()} : operation === 'brief' ? {title: draft.title.trim(), brief: draft.brief.trim(), expected_version: baseline?.version} : operation === 'script' ? {script, expected_version: baseline?.version} : operation === 'storyboard' ? {shots, expected_version: baseline?.version} : {expected_version: baseline?.version, ...(selected ? {...runtimeFields(selected), expected_provider: selected.model.provider, expected_model: selected.model.model} : expectedProvider ? {expected_provider: expectedProvider, expected_model: expectedModel ?? ''} : {})})
+    const body = JSON.stringify(operation === 'create' ? {structure_version: 2, title: draft.title.trim(), brief: draft.brief.trim()} : operation === 'brief' ? {title: draft.title.trim(), brief: draft.brief.trim(), expected_version: baseline?.version} : operation === 'script' ? {script, expected_version: baseline?.version} : operation === 'storyboard' ? {shots, expected_version: baseline?.version} : operation === 'structure' ? {expected_version: baseline?.version} : {expected_version: baseline?.version, ...(selected ? {...runtimeFields(selected), expected_provider: selected.model.provider, expected_model: selected.model.model} : expectedProvider ? {expected_provider: expectedProvider, expected_model: expectedModel ?? ''} : {})})
     if (attempt.current?.path !== path || attempt.current.body !== body) attempt.current = {operation, path, body, key: crypto.randomUUID()}
     void execute(attempt.current)
   }

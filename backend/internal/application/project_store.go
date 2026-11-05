@@ -9,6 +9,8 @@ import (
 	"errors"
 	"sort"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/projects"
 )
 
 type ProjectRepository interface {
@@ -74,6 +76,7 @@ func (s *FileStore) projectLocked(space, id string) (Project, error) {
 
 func (s *FileStore) projectViewLocked(project Project) Project {
 	project = cloneProject(project)
+	project.StructureMappings = nil
 	project.LatestGeneration = nil
 	if generation, ok := s.data.ScriptGenerations[project.LatestGenerationID]; ok && generation.ProjectID == project.ID && generation.SpaceID == project.SpaceID {
 		project.LatestGeneration = &generation
@@ -124,7 +127,7 @@ func (s *FileStore) CreateProject(space, key string, in ProjectInput) (Project, 
 	if kind == "" {
 		kind = "drama"
 	}
-	project := Project{ID: id, Kind: kind, SpaceID: space, Title: in.Title, Brief: in.Brief, Version: 1, CreatedAt: now, UpdatedAt: now}
+	project := Project{ID: id, StructureVersion: in.StructureVersion, Kind: kind, SpaceID: space, Title: in.Title, Brief: in.Brief, Version: 1, CreatedAt: now, UpdatedAt: now}
 	receipt.ProjectID = id
 	d := s.clone()
 	d.Projects[id] = project
@@ -329,6 +332,21 @@ func (s *FileStore) SaveProjectScript(space, id, key string, in ScriptSaveInput)
 		}
 	}
 	// A handwritten script can be the first draft; generation is optional.
+	if project.StructureVersion == 2 && in.Script.StructureVersion != 2 {
+		if project.Script != nil {
+			return Project{}, projectInputError("此项目已启用稳定关联，请刷新编辑器以保留角色和场次标识")
+		}
+		in.Script, _, err = projects.CompileStructure(in.Script, structureNamespace(project)+":manual:"+key, project.ScriptVersion+1)
+		if err != nil {
+			return Project{}, err
+		}
+	}
+	if project.StructureVersion == 0 && in.Script.StructureVersion == 2 {
+		if project.Script != nil || project.Storyboard != nil {
+			return Project{}, projectInputError("请先为旧项目启用稳定关联，再保存新版结构")
+		}
+		project.StructureVersion = 2
+	}
 	if project.Script == nil {
 		project.ScriptProvider = "manual"
 		project.ScriptBrief = project.Brief
@@ -396,13 +414,19 @@ func (s *FileStore) finishScriptLocked(generation ScriptGeneration, script Scrip
 	}
 	if runErr == nil {
 		script, err = NormalizeScript(script)
-		if err != nil {
+		if err != nil || script.StructureVersion != 0 {
 			runErr = &ScriptError{Code: "invalid_script_output"}
 		}
 	}
 	if runErr == nil && project.SeriesEpisodeID != "" {
 		if err := singleEpisodeScript(&script); err != nil {
 			runErr = providerFailure("invalid_provider_response")
+		}
+	}
+	if runErr == nil && project.StructureVersion == 2 {
+		script, err = generatedStructure(project, script, current.ID)
+		if err != nil {
+			runErr = &ScriptError{Code: "invalid_script_output"}
 		}
 	}
 	current.Progress = 100
