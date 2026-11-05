@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"sync"
 	"syscall"
 	"time"
 
@@ -49,26 +50,29 @@ type Repository interface {
 	Finish(Task, GenerationResult, error) error
 }
 type FileStore struct {
-	story        *storyrepo.Store
-	migrations   *migrationrepo.Store
-	series       *seriesrepo.Store
-	uploads      *uploadrepo.Store
-	library      *libraryrepo.Store
-	prompts      *promptrepo.Store
-	pg           *postgresScope
-	blobs        *managedBlobs
-	execution    *ExecutionGovernor
-	runtime      *ModelRuntime
-	budget       *BudgetLedger
-	exchange     ExchangeProvider
-	creative     *creativeStore
-	media        *MediaStore
-	mu           stateMutex
-	path         string
-	data         snapshot
-	lock         *os.File
-	results      *os.Root
-	capabilities Capabilities
+	storyWorkerMu     sync.Mutex
+	storyWorkerClosed bool
+	storyRunner       *storyCheckRunner
+	story             *storyrepo.Store
+	migrations        *migrationrepo.Store
+	series            *seriesrepo.Store
+	uploads           *uploadrepo.Store
+	library           *libraryrepo.Store
+	prompts           *promptrepo.Store
+	pg                *postgresScope
+	blobs             *managedBlobs
+	execution         *ExecutionGovernor
+	runtime           *ModelRuntime
+	budget            *BudgetLedger
+	exchange          ExchangeProvider
+	creative          *creativeStore
+	media             *MediaStore
+	mu                stateMutex
+	path              string
+	data              snapshot
+	lock              *os.File
+	results           *os.Root
+	capabilities      Capabilities
 }
 
 func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
@@ -334,6 +338,7 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 	return s, nil
 }
 func (s *FileStore) Close() error {
+	s.stopStoryChecks()
 	if s.uploads != nil {
 		s.uploads.Close()
 	}

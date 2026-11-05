@@ -21,7 +21,28 @@ func (s *Store) Directory(ctx context.Context, space, id string) (DirectorySnaps
 	if !series.ScopeID.MatchString(space) || !series.ID.MatchString(id) {
 		return out, series.ErrNotFound
 	}
-	read := func(r reader) error {
+	read := func(r reader) error { var e error; out, e = readDirectory(r, id); return e }
+	if s.db == nil {
+		e := s.withFile(ctx, space, func(f *fileAccess) error { return read(f) })
+		return out, e
+	}
+	tx, e := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
+	if e != nil {
+		return out, ErrStorage
+	}
+	defer tx.Rollback()
+	if e = read(sqlAccess{ctx, space, tx}); e != nil {
+		return out, e
+	}
+	if tx.Commit() != nil {
+		return out, ErrStorage
+	}
+	return out, nil
+}
+
+func readDirectory(r reader, id string) (DirectorySnapshot, error) {
+	out := DirectorySnapshot{Seasons: []series.Node{}, Episodes: []series.Node{}}
+	read := func() error {
 		var e error
 		out.Root, e = r.get("series", id)
 		if e != nil {
@@ -56,20 +77,33 @@ func (s *Store) Directory(ctx context.Context, space, id string) (DirectorySnaps
 		})
 		return nil
 	}
-	if s.db == nil {
-		e := s.withFile(ctx, space, func(f *fileAccess) error { return read(f) })
-		return out, e
+	e := read()
+	return out, e
+}
+
+// WithDirectory keeps the file directory view stable during a local authored
+// transaction. The callback must not reenter this store or perform network I/O.
+func (s *Store) WithDirectory(ctx context.Context, space, id string, fn func(DirectorySnapshot) error) error {
+	if s.db != nil || !series.ScopeID.MatchString(space) || !series.ID.MatchString(id) {
+		return series.ErrInput
 	}
-	tx, e := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
-	if e != nil {
-		return out, ErrStorage
+	return s.withFile(ctx, space, func(f *fileAccess) error {
+		dir, e := readDirectory(f, id)
+		if e != nil {
+			return e
+		}
+		return fn(dir)
+	})
+}
+
+// DirectoryTx joins an existing short authored transaction, preserving the same
+// space serialization used by directory mutations without another connection.
+func (s *Store) DirectoryTx(ctx context.Context, tx *sql.Tx, space, id string) (DirectorySnapshot, error) {
+	if tx == nil || !series.ScopeID.MatchString(space) || !series.ID.MatchString(id) {
+		return DirectorySnapshot{}, series.ErrInput
 	}
-	defer tx.Rollback()
-	if e = read(sqlAccess{ctx, space, tx}); e != nil {
-		return out, e
+	if _, e := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,728219128))`, space); e != nil {
+		return DirectorySnapshot{}, e
 	}
-	if tx.Commit() != nil {
-		return out, ErrStorage
-	}
-	return out, nil
+	return readDirectory(sqlAccess{ctx, space, tx}, id)
 }

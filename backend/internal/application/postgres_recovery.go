@@ -29,6 +29,10 @@ func ReconcilePostgresJobs(ctx context.Context, db *sql.DB) error {
 		}
 	}
 
+	_, err = tx.ExecContext(ctx, `UPDATE studio_story_checks d SET state='unknown',payload=jsonb_set(jsonb_set(jsonb_set(d.payload,'{check,state}','"unknown"'::jsonb),'{check,error_code}','"execution_outcome_unknown"'::jsonb),'{check,updated_at}',to_jsonb(clock_timestamp())) WHERE d.state='running' AND EXISTS(SELECT 1 FROM execution_jobs j WHERE j.tenant_id=d.space_id AND j.id=d.id AND j.kind='story_check' AND j.state='unknown')`)
+	if err != nil {
+		return err
+	}
 	_, err = tx.ExecContext(ctx, `UPDATE studio_cost_entries d SET state='unknown',payload=d.payload || '{"state":"unknown","evidence_ref":"queue_dispatch_outcome_unknown"}'::jsonb WHERE d.state='reserved' AND EXISTS(SELECT 1 FROM execution_jobs j WHERE j.tenant_id=d.tenant_id AND d.entity_id=regexp_replace(j.kind,'_resume$','')||':'||j.id AND j.state='unknown')`)
 	if err != nil {
 		return err

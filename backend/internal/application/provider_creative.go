@@ -141,6 +141,9 @@ func strictCreativeJSON(data []byte, out any) error {
 	return nil
 }
 func (p *OpenAICreativeProvider) json(ctx context.Context, in any, instruction string, out any) error {
+	return p.jsonBounded(ctx, in, instruction, out, 64<<10, 256<<10)
+}
+func (p *OpenAICreativeProvider) jsonBounded(ctx context.Context, in any, instruction string, out any, maxRequest, maxResponse int) error {
 	if p.textModel == "" {
 		return providerFailure("provider_unavailable")
 	}
@@ -154,10 +157,10 @@ func (p *OpenAICreativeProvider) json(ctx context.Context, in any, instruction s
 		delete(body, "response_format")
 	}
 	encoded, encodeErr := json.Marshal(body)
-	if encodeErr != nil || len(encoded) > 64<<10 {
+	if encodeErr != nil || len(encoded) > maxRequest {
 		return providerFailure("provider_rejected")
 	}
-	b, err := p.request(ctx, "POST", "/chat/completions", body, 256<<10)
+	b, err := p.request(ctx, "POST", "/chat/completions", body, maxResponse)
 	if err != nil {
 		return err
 	}

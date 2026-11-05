@@ -7,12 +7,15 @@ import {useI18n} from '../../i18n'
 import {useDirectory} from './useDirectory'
 import {readSeriesRecovery,useSeriesWrite} from './useSeriesWrite'
 import {directoryURL} from './types'
+import {StoryBodyView as ReadBody} from './StoryBodyView'
+import {StoryChecksPanel} from './StoryChecksPanel'
 import {EpisodeField,StoryFields} from './StoryFields'
 import {emptyBody,storyLabels,type StoryContextFreshness,type StoryContextSelection,type StoryContextSnapshot,type StoryContextSummary,type StoryBody,type StoryCharacter,type StoryEpisode,type StoryHistory,type StoryInput,type StoryKind,type StoryPage,type StoryPreview,type StorySummary,type StoryVersion} from './storyTypes'
 
 export function StoryWorkspace({root}:{root:string}){const{t}=useI18n();const[open,setOpen]=useState(false);return <details className="panel project-tools story-workspace" onToggle={e=>{if(e.currentTarget.open)setOpen(true)}}><summary>{t('故事资料与连续性')}</summary>{open&&<StoryTabs root={root}/>}</details>}
 function StoryTabs({root}:{root:string}){
  const{t}=useI18n();const{space,requestLeave}=useAppWorkspace();const[tab,setTab]=useState<StoryKind|'context'>('bible'),[revision,setRevision]=useState(0),[characters,setCharacters]=useState<StoryCharacter[]>([]),[bibleError,setBibleError]=useState('')
+ const refresh=useCallback(()=>setRevision(v=>v+1),[])
  const episodes=useDirectory<StoryEpisode>(`/series/${root}/story-episodes?limit=100`,space!.id,revision)
  useEffect(()=>{const abort=new AbortController();void(async()=>{try{const list=await request<StoryPage>(directoryURL(`/series/${root}/story-records?kind=bible`,space!.id),{signal:abort.signal});const head=list.items[0];const bible=head?await request<StoryVersion>(directoryURL(`/series/${root}/story-records/${head.id}`,space!.id),{signal:abort.signal}):null;if(!abort.signal.aborted){setCharacters(bible?.status==='active'?bible.body.bible?.characters??[]:[]);setBibleError('')}}catch(e){if(!abort.signal.aborted)setBibleError(errorMessage(e,t('故事资料读取失败')))}})();return()=>abort.abort()
  // Keep the writer's selections when the language changes.
@@ -21,7 +24,7 @@ function StoryTabs({root}:{root:string}){
  return <><p>{t('先保存正式设定，再为每集核对需要的资料。保存与预览不会调用模型。')}</p><button type="button" onClick={()=>setRevision(v=>v+1)}>{t('刷新正式资料')}</button><p className="drama-help">{t('刷新来源不会覆盖当前草稿。')}</p><nav className="project-steps" aria-label={t('故事资料分类')}>{([...Object.entries(storyLabels),['context','本集上下文']] as [StoryKind|'context',string][]).map(([key,label])=><button type="button" key={key} aria-pressed={tab===key} onClick={()=>requestLeave(()=>setTab(key))}>{t(label)}</button>)}</nav>
  {bibleError&&<p className="error" role="alert">{bibleError}</p>}{episodes.error&&<p className="error" role="alert">{episodes.error}</p>}
  {episodes.next_cursor&&<button type="button" disabled={episodes.more} onClick={()=>void episodes.loadMore()}>{t('加载更多剧集选项')}</button>}
- {tab==='context'?<ContextPanel key="context" space={space!.id} episodes={episodes.items}/>:<StoryTab key={tab} root={root} space={space!.id} kind={tab} revision={revision} episodes={episodes.items} characters={characters} refresh={()=>setRevision(v=>v+1)}/>}
+ {tab==='context'?<ContextPanel key="context" space={space!.id} episodes={episodes.items} refresh={refresh}/>:<StoryTab key={tab} root={root} space={space!.id} kind={tab} revision={revision} episodes={episodes.items} characters={characters} refresh={refresh}/>}
  </>
 }
 function StoryTab({root,space,kind,revision,episodes,characters,refresh}:{root:string;space:string;kind:StoryKind;revision:number;episodes:StoryEpisode[];characters:StoryCharacter[];refresh:()=>void}){
@@ -61,9 +64,8 @@ function StoryEditor({root,kind,item,space,characters,episodes,onSaved,onClose}:
  {shown&&<article className="editing-note"><h4>{t('版本 {p0}',{p0:shown.number})} · {shown.title}</h4><ReadBody body={shown.body}/>{writable&&<button type="button" disabled={locked} onClick={()=>requestLeave(()=>{setTitle(shown.title);setBody(structuredClone(shown.body));setRequired(shown.required);setStatus(shown.status);write.markDirty()})}>{t('以此版本作为新草稿')}</button>}<p>{t('历史版本保持不变。保存草稿会追加正式新版本。')}</p></article>}</section>}
  </section>
 }
-function ReadBody({body,names}:{body:StoryBody;names?:Map<string,string>}){const{t}=useI18n();const b=body.bible,f=body.fact,e=body.event,x=body.foreshadow;return <div className="story-content">{b&&<>{[b.theme,b.world_rules,b.story_arc,b.visual_intent,b.immutable_rules].filter(Boolean).map((text,i)=><p key={i}>{text}</p>)}{b.characters.map(c=><div key={c.id}><p><strong>{c.name}</strong>{[c.desire,c.flaw,c.arc].filter(Boolean).length?` · ${[c.desire,c.flaw,c.arc].filter(Boolean).join(' · ')}`:''}</p>{[c.relationships,c.visual_intent,c.voice_intent].filter(Boolean).map((text,i)=><p key={i}>{text}</p>)}</div>)}</>}{f&&<><p>{t(f.perspective==='objective'?'客观设定':f.perspective==='subjective'?'角色所信':'待证信息')}</p>{f.believer_id&&names&&<p>{t('持有此认知的角色')} · {names.get(f.believer_id)??t('未找到的系列人物')}</p>}<p>{f.subject} · {f.predicate} · {f.value}</p>{f.story_time&&<p>{f.story_time}</p>}</>}{e&&<>{[e.description,e.story_time,e.state_change].filter(Boolean).map((text,i)=><p key={i}>{text}</p>)}</>}{x&&<p>{x.intent}</p>}</div>}
 
-function ContextPanel({space,episodes}:{space:string;episodes:StoryEpisode[]}){
+function ContextPanel({space,episodes,refresh}:{space:string;episodes:StoryEpisode[];refresh:()=>void}){
  const{t}=useI18n();const{space:currentSpace,requestLeave}=useAppWorkspace();const[episode,setEpisode]=useState(''),[preview,setPreview]=useState<StoryPreview|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false)
  const controller=useRef<AbortController|null>(null),flight=useRef(false);useEffect(()=>()=>controller.current?.abort(),[]);useNavigationTask(busy)
  async function build(){if(flight.current||!episode)return;flight.current=true;setBusy(true);setError('');const abort=new AbortController();controller.current=abort;try{const p=await request<StoryPreview>(directoryURL(`/episodes/${episode}/context-previews`,space),{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':crypto.randomUUID()},body:'{}',signal:abort.signal});if(!abort.signal.aborted)setPreview(p)}catch(e){if(!abort.signal.aborted)setError(errorMessage(e,t('上下文预览失败')))}finally{flight.current=false;if(!abort.signal.aborted)setBusy(false)}}
@@ -72,13 +74,14 @@ function ContextPanel({space,episodes}:{space:string;episodes:StoryEpisode[]}){
  const reasons:Record<string,string>={archived:'资料已归档',outside_episode_range:'不在本集适用范围',future_event:'叙事尚未出现的事件',input_capacity:'超过本次输入容量',not_retrieved:'未命中本次检索条件'}
  return <section className="series-form"><h2>{t('本集上下文')}</h2><p className="drama-help">{t('核对本集会使用哪些正式资料。这不是AI连续性检查，也不会生成剧本。')}</p>{!episodes.length&&<p>{t('先在季与剧集中添加一集，再来核对资料。')}</p>}<EpisodeField label="选择要核对的剧集" value={episode} episodes={episodes} optional={false} onChange={v=>requestLeave(()=>{setEpisode(v);setPreview(null)})}/><button type="button" disabled={!episode||busy||currentSpace?.role==='viewer'} onClick={()=>void build()}>{busy?t('正在核对资料…'):t('预览本集资料')}</button>{error&&<p className="error" role="alert">{error}</p>}
  {preview&&<section aria-label={t('本集资料预览')}><p>{t('本集纳入 {p0} 份资料，省略 {p1} 份。',{p0:preview.included.length,p1:preview.omitted.length})}</p>{preview.problems.map((p,i)=><p className="error" key={i}>{t(p.message)}</p>)}{preview.included.map(v=><article className="story-card" key={v.id}><div><h3>{v.title}</h3><p>{t('版本 {p0}',{p0:v.number})}</p><ReadBody body={v.body} names={names}/>{v.body.fact&&<><p>{v.audience_knows?t('观众在本集已知'):t('观众在本集尚未知情')}</p><p>{t('本集知情角色')} · {v.known_by.length?v.known_by.map(id=>names.get(id)??t('未找到的系列人物')).join('、'):t('尚无知情角色')}</p></>}</div></article>)}{!!preview.omitted.length&&<details><summary>{t('查看省略原因')}</summary>{preview.omitted.map(v=><p key={v.id}>{sources.get(v.id)?.title} · {t(reasons[v.reason]??'资料未纳入本集')} · {t('版本 {p0}',{p0:sources.get(v.id)?.number??''})}</p>)}</details>}<p className="drama-help">{t('预览固定了本次来源版本。资料或剧集顺序修改后，请重新核对。')}</p></section>}
- {episode&&<ContextSnapshots key={episode} episode={episode} space={space} sources={preview?.sources??[]}/>}
+ {episode&&<ContextSnapshots key={episode} episode={episode} space={space} sources={preview?.sources??[]} refresh={refresh}/>}
  </section>
 }
 
-function ContextSnapshots({episode,space,sources}:{episode:string;space:string;sources:StorySummary[]}){
- const{t}=useI18n();const{space:currentSpace}=useAppWorkspace();const[revision,setRevision]=useState(0),[shown,setShown]=useState<StoryContextSnapshot|null>(null),[loading,setLoading]=useState(false),[error,setError]=useState('')
+function ContextSnapshots({episode,space,sources,refresh}:{episode:string;space:string;sources:StorySummary[];refresh:()=>void}){
+ const{t}=useI18n();const{space:currentSpace,requestLeave}=useAppWorkspace();const[revision,setRevision]=useState(0),[shown,setShown]=useState<StoryContextSnapshot|null>(null),[loading,setLoading]=useState(false),[error,setError]=useState('')
  const[freshness,setFreshness]=useState<StoryContextFreshness|null>(null)
+ const[checkPending,setCheckPending]=useState(false)
  const path=`/episodes/${episode}/context-snapshots`
  const saved=useCallback((v:StoryContextSnapshot)=>{setShown(v);setFreshness(null);setRevision(n=>n+1)},[])
  const write=useSeriesWrite<StoryContextSnapshot>(`story-context:${episode}`,path,'POST',saved)
@@ -95,15 +98,16 @@ function ContextSnapshots({episode,space,sources}:{episode:string;space:string;s
  const titles=new Map(shown?.context.sources.map(v=>[v.id,v.title])??[])
  const reasons:Record<string,string>={archived:'资料已归档',outside_episode_range:'不在本集适用范围',future_event:'叙事尚未出现的事件',input_capacity:'超过本次输入容量',not_retrieved:'未命中本次检索条件'}
  return <section className="story-history story-snapshots" aria-label={t('本集资料快照')}><h3>{t('保存可追溯的本集资料')}</h3><p className="drama-help">{t('按关键词或明确选中的资料准备本集输入，故事圣经与必需资料始终优先核对。保存不会调用模型。')}</p>
- <form onSubmit={e=>{e.preventDefault();void write.save({query,record_ids:selected})}}><fieldset disabled={locked}><label>{t('本次关注的关键词')}<input value={query} onChange={e=>{setQuery(e.target.value);write.markDirty()}} placeholder={t('例如：雨夜 误认 父亲')}/></label><p className="drama-help">{t('任一关键词命中即纳入；留空时按叙事范围准备资料。超出本次输入容量会列出原因，不会限制项目资料总量。')}</p>
+ <form onSubmit={e=>{e.preventDefault();const save=()=>void write.save({query,record_ids:selected});if(checkPending&&!write.uncertain)requestLeave(save);else save()}}><fieldset disabled={locked}><label>{t('本次关注的关键词')}<input value={query} onChange={e=>{setQuery(e.target.value);write.markDirty()}} placeholder={t('例如：雨夜 误认 父亲')}/></label><p className="drama-help">{t('任一关键词命中即纳入；留空时按叙事范围准备资料。超出本次输入容量会列出原因，不会限制项目资料总量。')}</p>
  {available.some(v=>!v.required&&v.kind!=='bible')&&<details><summary>{t('明确带入其他资料')}</summary>{available.filter(v=>!v.required&&v.kind!=='bible').map(v=><label className="story-check" key={v.id}><input type="checkbox" checked={selected.includes(v.id)} onChange={e=>{setSelected(old=>e.target.checked?[...old,v.id]:old.filter(id=>id!==v.id));write.markDirty()}}/>{v.title}</label>)}</details>}</fieldset>
  {write.error&&<p className="error" role="alert">{write.error}</p>}{write.storageNotice&&<p role="status">{write.storageNotice}</p>}{write.uncertain&&<p className="editing-note">{t('上次保存结果尚未确认。请用原请求核对，避免重复创建。')}</p>}
  {currentSpace?.role!=='viewer'&&<button type="submit" className="primary" disabled={write.busy}>{write.busy?t('正在保存…'):write.uncertain?t('核对并重试保存'):t('保存本集资料快照')}</button>}</form>
  <div className="series-heading"><h3>{t('已保存的上下文')}</h3><button type="button" onClick={()=>setRevision(n=>n+1)}>{t('刷新快照列表')}</button></div>
  {(error||list.error)&&<p role="alert" className="error">{error||list.error}</p>}{(list.loading||loading)&&<p role="status">{t('正在读取上下文…')}</p>}{!list.loading&&!list.error&&!list.items.length&&<p className="page-empty">{t('还没有本集快照。保存后可核对当时的资料和剧本。')}</p>}
- {list.items.map(v=><article className="story-card" key={v.id}><div><h4>{v.script_version>0?t('剧本版本 {p0}',{p0:v.script_version}):t('尚未保存剧本')}</h4><p>{t('纳入 {p0} 份资料，待处理 {p1} 项。',{p0:v.included_count,p1:v.problem_count})}</p><time dateTime={v.created_at}>{new Date(v.created_at).toLocaleString()}</time></div><button type="button" disabled={loading} onClick={()=>void read(v.id)}>{t('查看当时资料')}</button></article>)}{list.next_cursor&&<button type="button" disabled={list.more} onClick={()=>void list.loadMore()}>{t('加载更多快照')}</button>}
+ {list.items.map(v=><article className="story-card" key={v.id}><div><h4>{v.script_version>0?t('剧本版本 {p0}',{p0:v.script_version}):t('尚未保存剧本')}</h4><p>{t('纳入 {p0} 份资料，待处理 {p1} 项。',{p0:v.included_count,p1:v.problem_count})}</p><time dateTime={v.created_at}>{new Date(v.created_at).toLocaleString()}</time></div><button type="button" disabled={loading} onClick={()=>requestLeave(()=>void read(v.id))}>{t('查看当时资料')}</button></article>)}{list.next_cursor&&<button type="button" disabled={list.more} onClick={()=>void list.loadMore()}>{t('加载更多快照')}</button>}
  {shown&&<article className="editing-note" aria-label={t('已固定的本集上下文')}><h3>{t('这次保存的资料与剧本')}</h3><p>{t('这是历史快照，不会随正式资料编辑而变化。后续AI执行前还需核对来源是否更新。')}</p><button type="button" disabled={loading} onClick={()=>void check()}>{t('核对当前来源')}</button>{freshness&&<p role="status">{freshness.current?t('本次核对时来源版本未变，仍需处理快照中的待核对项。'):t('来源已更新。这份快照继续保留原稿；需要使用新稿时，请重新保存快照。')}</p>}{shown.context.problems.map((v,i)=><p role="alert" className="error" key={i}>{t(v.message)}</p>)}
  <p>{t('本集纳入 {p0} 份资料，省略 {p1} 份。',{p0:shown.context.included.length,p1:shown.context.omitted.length})}</p>{shown.context.included.map(v=><section key={v.id}><h4>{v.title} · {t('版本 {p0}',{p0:v.number})}</h4><ReadBody body={v.body} names={names}/></section>)}{!!shown.context.omitted.length&&<details><summary>{t('查看省略原因')}</summary>{shown.context.omitted.map(v=><p key={v.id}>{titles.get(v.id)} · {t(reasons[v.reason]??'资料未纳入本集')}</p>)}</details>}
  <details><summary>{t('查看当时剧本')}</summary>{shown.script?<><h4>{shown.script.title}</h4>{shown.script.scenes.map(v=><section key={v.id}><h4>{v.heading}</h4><p>{v.action}</p>{v.dialogue.map((line,i)=><p key={i}>{line.character}：{line.text}</p>)}</section>)}</>:<p>{t('保存时尚未填写剧本。')}</p>}</details></article>}
+ {shown&&<StoryChecksPanel key={shown.id} space={space} episode={episode} snapshot={shown} onChanged={refresh} onPendingChange={setCheckPending}/>}
  </section>
 }

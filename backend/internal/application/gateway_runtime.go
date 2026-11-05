@@ -69,6 +69,9 @@ func (r *ModelRuntime) executeGateway(ctx context.Context, q RuntimeSelection, d
 	providers := RuntimeProviders{}
 	switch q.Capability {
 	case "text":
+		if q.FeatureKey == "story_continuity" {
+			providers.StoryCheck = gatewayStoryCheck{api: api}
+		}
 		providers.Creative = runtimeCreative{p: &gatewayCreativeProvider{OpenAICreativeProvider: api, model: m, voice: q.Voice}, capability: q.Capability}
 	case "vision":
 		providers.Vision = &gatewayCreativeProvider{OpenAICreativeProvider: api, model: m}

@@ -43,7 +43,7 @@ func eachFile(ctx context.Context, dir string, fn func(record) error) error {
 				return ErrStorage
 			}
 			for _, entity := range entities {
-				if entity.Name() == ".contexts" {
+				if entity.Name() == ".contexts" || entity.Name() == ".checks" || entity.Name() == ".decisions" {
 					if !entity.IsDir() || entity.Type()&os.ModeSymlink != 0 {
 						return ErrStorage
 					}

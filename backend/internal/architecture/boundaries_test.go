@@ -17,7 +17,7 @@ func TestBusinessModuleDependencies(t *testing.T) {
 	allowed := map[string]map[string]bool{
 		"projects": {"governance": true},
 		// A continuity snapshot pins one pure script value, never application state.
-		"story": {"projects": true},
+		"story": {"projects": true, "governance": true},
 		"media": {"publishing": true, "prompts": true},
 		// Migration compiles source value snapshots with the same pure script,
 		// timeline and directory validation as normal editing. I/O and task

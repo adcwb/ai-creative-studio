@@ -1,4 +1,4 @@
-export interface RuntimePreview {operation: 'image' | 'script' | 'storyboard' | 'creative' | 'analysis' | 'alignment'; project_id?: string; input: Record<string, unknown>}
+export interface RuntimePreview {operation: 'story_continuity' | 'image' | 'script' | 'storyboard' | 'creative' | 'analysis' | 'alignment'; project_id?: string; input: Record<string, unknown>}
 export interface RuntimeModelOption {
   gateway_id?: string; gateway_name?: string; name?: string; capabilities?: string[]; reason_code?: string
   id: string; version: number; provider: string; model: string; capability: string; is_default: boolean; available: boolean
@@ -11,7 +11,7 @@ export function runtimeFields(choice: RuntimeChoice | null) {
 export function runtimeReady(choice: RuntimeChoice | null, preview?: RuntimePreview) {
   if (!choice) return true
   const operation = preview?.operation === 'creative' ? String(preview.input.kind) : preview?.operation
-  const required = ({image:'image',script:'text',storyboard:'text',analysis:'text',vision:'vision',consistency:'vision',video:'video',speech:'speech',alignment:'asr'} as Record<string,string>)[operation ?? '']
+  const required = ({story_continuity:'text',image:'image',script:'text',storyboard:'text',analysis:'text',vision:'vision',consistency:'vision',video:'video',speech:'speech',alignment:'asr'} as Record<string,string>)[operation ?? '']
   return choice.model.available && (!required || choice.model.capability === required) && (choice.model.capability !== 'speech' || !!choice.voice.trim())
 }
 export function initialRuntimeChoice(model: RuntimeModelOption): RuntimeChoice {return {model, voice: ''}}

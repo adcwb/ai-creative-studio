@@ -23965,6 +23965,592 @@
           }
         }
       }
+    },
+    "/api/v1/episodes/{id}/continuity-checks": {
+      "post": {
+        "operationId": "createStoryContinuityCheck",
+        "summary": "Queue a real gateway text check of a current pinned episode context",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "Preserve this key and normalized selection on uncertain outcomes. Replaying returns the originally saved snapshot even after sources change."
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Durably accepted; poll the returned check ID. Preserve the original key and exact body after an unknown response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryCheck"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoryCheckInput"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listStoryContinuityChecks",
+        "summary": "List episode check summaries",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "List saved context summaries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryCheckPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/episodes/{id}/continuity-checks/{check_id}": {
+      "get": {
+        "operationId": "getStoryContinuityCheck",
+        "summary": "Read one advisory check and verified evidence",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "check_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Read one immutable context and pinned script",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryCheck"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/episodes/{id}/continuity-checks/{check_id}/findings/{finding_id}/review": {
+      "get": {
+        "operationId": "reviewStoryContinuityFinding",
+        "summary": "Compare a finding with pinned evidence and current formal material",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "check_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "finding_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Read one immutable context and pinned script",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryFindingReview"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/episodes/{id}/continuity-checks/{check_id}/findings/{finding_id}/decisions": {
+      "post": {
+        "operationId": "decideStoryContinuityFinding",
+        "summary": "Record an explicit human decision; atomically append a formal version only for adoption",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "Preserve this key and normalized selection on uncertain outcomes. Replaying returns the originally saved snapshot even after sources change."
+          },
+          {
+            "name": "check_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "finding_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Save immutable episode retrieval context; no model call",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryDecision"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoryDecisionInput"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -34137,6 +34723,516 @@
           "material_changed"
         ],
         "description": "Read-only comparison of pinned versions with current sources at the time of the check. Does not authorize dispatch; a later executor must recheck its own pins."
+      },
+      "StoryCheckInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "context_snapshot_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "model_config_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "model_config_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "context_snapshot_id",
+          "model_config_id",
+          "model_config_version"
+        ]
+      },
+      "StoryCheckEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "record_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "version_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "scene_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "quote": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "quote"
+        ],
+        "oneOf": [
+          {
+            "required": [
+              "record_id",
+              "version_id"
+            ],
+            "not": {
+              "required": [
+                "scene_id"
+              ]
+            }
+          },
+          {
+            "required": [
+              "scene_id"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "record_id"
+                  ]
+                },
+                {
+                  "required": [
+                    "version_id"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "StoryFinding": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "contradiction",
+              "knowledge",
+              "chronology",
+              "foreshadow",
+              "character_arc",
+              "ambiguity"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "note",
+              "warning",
+              "critical"
+            ]
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/StoryCheckEvidence"
+            }
+          },
+          "target_record_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "proposal": {
+            "$ref": "#/components/schemas/StoryWrite"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "kind",
+          "severity",
+          "confidence",
+          "explanation",
+          "evidence"
+        ]
+      },
+      "StoryCheckResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "summary": {
+            "type": "string"
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoryFinding"
+            }
+          }
+        },
+        "required": [
+          "summary",
+          "findings"
+        ]
+      },
+      "StoryCheck": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "space_id": {
+            "type": "string"
+          },
+          "series_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "episode_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "input": {
+            "$ref": "#/components/schemas/StoryCheckInput"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "unknown",
+              "cancelled"
+            ]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "result": {
+            "$ref": "#/components/schemas/StoryCheckResult"
+          }
+        },
+        "required": [
+          "id",
+          "space_id",
+          "series_id",
+          "episode_id",
+          "input",
+          "state",
+          "provider",
+          "model",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "description": "Durable, gateway-only text continuity check. Poll GET; no automatic generation retries. unknown means an interrupted upstream outcome cannot be established. A result is advisory, not a formal story mutation. No budget/price fields are required."
+      },
+      "StoryCheckSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "episode_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "context_snapshot_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "unknown",
+              "cancelled"
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error_code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "episode_id",
+          "context_snapshot_id",
+          "state",
+          "model",
+          "created_at"
+        ]
+      },
+      "StoryCheckPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoryCheckSummary"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "StoryDecisionInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "adopt",
+              "reject",
+              "intentional"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "review_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "acknowledge_changed": {
+            "type": "boolean"
+          },
+          "proposal": {
+            "$ref": "#/components/schemas/StoryWrite"
+          }
+        },
+        "required": [
+          "action",
+          "reason",
+          "review_sha256",
+          "acknowledge_changed"
+        ],
+        "description": "Explicit human decision. adopt validates current source review, acknowledgement of changed inputs, and target CAS. reject/intentional require a reason and do not mutate formal material. Preserve original key/body on uncertainty."
+      },
+      "StoryDecision": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "episode_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "check_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "finding_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "adopt",
+              "reject",
+              "intentional"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "review_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "context_snapshot_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "target_record_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "version_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "episode_id",
+          "check_id",
+          "finding_id",
+          "action",
+          "reason",
+          "review_sha256",
+          "context_snapshot_id",
+          "created_by",
+          "created_at"
+        ]
+      },
+      "StoryFindingReview": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "check_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "finding": {
+            "$ref": "#/components/schemas/StoryFinding"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/StoryContextSnapshot"
+          },
+          "current_target": {
+            "$ref": "#/components/schemas/StoryVersion"
+          },
+          "current_bible": {
+            "$ref": "#/components/schemas/StoryVersion"
+          },
+          "review_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "sources_changed": {
+            "type": "boolean"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/StoryDecision"
+          },
+          "current_script": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Script"
+              },
+              {
+                "type": "object",
+                "nullable": true,
+                "enum": [
+                  null
+                ]
+              }
+            ]
+          },
+          "current_script_version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "script_changed": {
+            "type": "boolean"
+          },
+          "project_changed": {
+            "type": "boolean"
+          },
+          "directory_changed": {
+            "type": "boolean"
+          },
+          "changed_sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorySourceChange"
+            }
+          }
+        },
+        "required": [
+          "check_id",
+          "finding",
+          "snapshot",
+          "review_sha256",
+          "sources_changed",
+          "current_script",
+          "current_script_version",
+          "script_changed",
+          "project_changed",
+          "directory_changed",
+          "changed_sources"
+        ],
+        "description": "One pinned finding with its original evidence, current formal target and current comparison digest. Loading and comparing do not call a model. Only an explicit decision can append a formal version."
+      },
+      "StorySourceChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "previous": {
+            "$ref": "#/components/schemas/StorySummary"
+          },
+          "current": {
+            "$ref": "#/components/schemas/StorySummary"
+          }
+        },
+        "anyOf": [
+          {
+            "required": [
+              "previous"
+            ]
+          },
+          {
+            "required": [
+              "current"
+            ]
+          }
+        ]
       }
     },
     "securitySchemes": {

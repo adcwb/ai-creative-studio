@@ -30,6 +30,17 @@ http.createServer(async (req,res)=>{
  if(req.url==='/v1/images/generations' && body.model==='synthetic-image') {res.end(JSON.stringify({data:[{b64_json:png()}]}));return}
  if(req.url==='/v1/chat/completions' && body.model==='synthetic-text') {
   const instruction=body.messages?.[0]?.content??''
+  if(instruction.includes('"findings"')){
+   const input=JSON.parse(body.messages[1].content),record=input.material.find(r=>r.kind==='bible')
+   const evidence=[{record_id:record.id,version_id:record.version_id,quote:record.body.bible.theme||record.title}]
+   const result={summary:'本地合成连续性审阅，供测试显式判断。',findings:[
+    {id:'',title:'核对本集人物意图',kind:'ambiguity',severity:'note',confidence:'low',explanation:'可能是作者有意设计的悬念，请核对原文。',evidence,proposal:{expected_version:0,title:'对来客身份的认知',kind:'fact',status:'active',required:false,body:{evidence:[],fact:{subject:'小满',predicate:'尚不确定',value:'来客身份',perspective:'unconfirmed',story_time:'',known_by:[]}}}},
+    {id:'',title:'可能有意保留的悬念',kind:'knowledge',severity:'note',confidence:'low',explanation:'观众未知信息不一定是错误。',evidence},
+    {id:'',title:'可忽略的创作疑问',kind:'character_arc',severity:'note',confidence:'low',explanation:'请以作者的人物弧线设计为准。',evidence}
+   ]}
+
+   res.end(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(result)}}],usage:{prompt_tokens:20,completion_tokens:30}}));return
+  }
   const content=instruction.includes('"shots"') ? {shots:[{id:'synthetic-shot',scene_index:1,description:'本地协议验收画面，非真实模型生成。',shot_size:'medium',camera_movement:'static',duration_seconds:4,dialogue:''}]} : instruction.includes('"scenes"') ? {title:'本地协议验收剧本',logline:'这是一份验证真实网关链路的本地合成测试结果。',characters:[{name:'甲',description:'本地合成角色甲。'},{name:'乙',description:'本地合成角色乙。'}],scenes:[1,2,3].map(i=>({heading:`本地测试场次${i}`,action:'本地合成场景动作，仅作协议验收。',dialogue:[{character:'甲',text:'这是本地测试对白。'},{character:'乙',text:'不调用真实供应商。'}]}))} : {summary:'本地协议验收分析。',questions:[],suggestions:[]}
   res.end(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(content)}}],usage:{prompt_tokens:20,completion_tokens:30}}));return
  }

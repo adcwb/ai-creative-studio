@@ -35,6 +35,7 @@ func Handler(repo Repository, origin string) http.Handler {
 	registerStoryboardRoutes(mux, repo)
 	if store, ok := repo.(*FileStore); ok {
 		store.media.resumePendingExports()
+		store.startStoryChecks()
 		registerSeriesRoutes(mux, store)
 		registerStoryRoutes(mux, store)
 		registerEpisodeMigrationRoutes(mux, store)

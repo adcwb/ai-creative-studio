@@ -25,7 +25,7 @@ import (
 var ErrStorage = errors.New("story storage unavailable")
 var ErrKey = errors.New("story idempotency conflict")
 
-const Schema = contextSchema + `CREATE TABLE IF NOT EXISTS studio_story_versions (
+const Schema = checkSchema + decisionSchema + contextSchema + `CREATE TABLE IF NOT EXISTS studio_story_versions (
  space_id text NOT NULL,series_id text NOT NULL,id text NOT NULL,number bigint NOT NULL CHECK(number>0),version_id text NOT NULL,key_hash text NOT NULL,request_digest text NOT NULL,payload jsonb NOT NULL,
  PRIMARY KEY(space_id,series_id,id,number),UNIQUE(space_id,series_id,id,version_id),UNIQUE(space_id,series_id,id,key_hash),
  CHECK((payload->'version'->>'space_id'=space_id AND payload->'version'->>'series_id'=series_id AND payload->'version'->>'id'=id AND (payload->'version'->>'number')::bigint=number AND payload->'version'->>'version_id'=version_id AND payload->>'key_hash'=key_hash AND payload->>'request_digest'=request_digest) IS TRUE));
@@ -52,10 +52,11 @@ type HistoryPage struct {
 	Next  string          `json:"next_cursor"`
 }
 type record struct {
-	Format  int           `json:"format"`
-	Key     string        `json:"key_hash"`
-	Digest  string        `json:"request_digest"`
-	Version story.Version `json:"version"`
+	Adoption *DecisionRecord `json:"adoption,omitempty"`
+	Format   int             `json:"format"`
+	Key      string          `json:"key_hash"`
+	Digest   string          `json:"request_digest"`
+	Version  story.Version   `json:"version"`
 }
 
 var keyPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{8,128}$`)
@@ -91,7 +92,7 @@ func Open(dir string, db *sql.DB) (*Store, error) {
 	return &Store{dir, db}, nil
 }
 func validRecord(r record) bool {
-	return r.Format == 1 && story.Hash.MatchString(r.Key) && story.Hash.MatchString(r.Digest) && story.Valid(r.Version) && ((r.Version.Kind == "bible") == (r.Version.ID == BibleID(r.Version.SeriesID)))
+	return (r.Adoption == nil || (validDecision(*r.Adoption) && r.Adoption.Decision.Action == "adopt" && r.Adoption.Decision.TargetRecordID == r.Version.ID && r.Adoption.Decision.VersionID == r.Version.VersionID && r.Adoption.Decision.Actor == r.Version.Actor)) && r.Format == 1 && story.Hash.MatchString(r.Key) && story.Hash.MatchString(r.Digest) && story.Valid(r.Version) && ((r.Version.Kind == "bible") == (r.Version.ID == BibleID(r.Version.SeriesID)))
 }
 func decode(raw io.Reader) (record, error) {
 	var r record
@@ -395,7 +396,7 @@ func (s *Store) ids(q Scope) ([]string, error) {
 	}
 	out := []string{}
 	for _, v := range entries {
-		if v.Name() == ".contexts" {
+		if v.Name() == ".contexts" || v.Name() == ".checks" || v.Name() == ".decisions" {
 			if !v.IsDir() || v.Type()&os.ModeSymlink != 0 {
 				return nil, ErrStorage
 			}

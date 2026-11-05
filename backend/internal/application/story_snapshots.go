@@ -111,11 +111,11 @@ func (s *FileStore) CheckStoryContext(ctx context.Context, space, episode, id st
 		return out, e
 	}
 	out.DirectoryChanged = story.Digest(dir) != snapshot.DirectorySHA256
-	sources := []story.Summary{}
-	if e = s.story.Visit(ctx, q, func(v story.Version) error { sources = append(sources, story.Summarize(v)); return nil }); e != nil {
+	heads, e := s.story.HeadDigest(ctx, q)
+	if e != nil {
 		return out, e
 	}
-	out.MaterialChanged = story.Digest(sources) != snapshot.Context.SourcesSHA256
+	out.MaterialChanged = heads != snapshot.Context.SourcesSHA256
 	s.mu.Lock()
 	if s.pg != nil && s.pg.err != nil {
 		e = s.pg.err

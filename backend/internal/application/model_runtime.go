@@ -13,11 +13,12 @@ import (
 )
 
 type RuntimeProviders struct {
-	Image     ImageProvider
-	Creative  CreativeProvider
-	Vision    VisionProvider
-	Alignment AlignmentProvider
-	Music     MusicProvider
+	StoryCheck StoryCheckProvider
+	Image      ImageProvider
+	Creative   CreativeProvider
+	Vision     VisionProvider
+	Alignment  AlignmentProvider
+	Music      MusicProvider
 }
 
 // No environment lookup is performed by this runtime. Platform secret references

@@ -17,5 +17,14 @@ export function emptyBody(kind:StoryKind):StoryBody {const evidence:StoryBody['e
 
 export interface StoryContextSelection {query:string;record_ids:string[]}
 export interface StoryContextSummary {id:string;episode_id:string;script_version:number;created_at:string;included_count:number;problem_count:number;content_sha256:string}
-export interface StoryContextSnapshot {id:string;episode_id:string;script_version:number;created_at:string;content_sha256:string;context:Omit<StoryPreview,'snapshot_sha256'>&{selection:StoryContextSelection};script:null|{title:string;scenes:{id:string;heading:string;action:string;dialogue:{character:string;text:string}[]}[]}}
+export interface StoryContextSnapshot {series_id:string;id:string;episode_id:string;script_version:number;created_at:string;content_sha256:string;context:Omit<StoryPreview,'snapshot_sha256'>&{selection:StoryContextSelection};script:null|{title:string;scenes:{id:string;heading:string;action:string;dialogue:{character:string;text:string}[]}[]}}
 export interface StoryContextFreshness {snapshot_id:string;current:boolean;directory_changed:boolean;project_changed:boolean;script_changed:boolean;material_changed:boolean}
+
+export interface StoryCheckEvidence {record_id?:string;version_id?:string;scene_id?:string;quote:string}
+export interface StoryFinding {id:string;title:string;kind:string;severity:string;confidence:string;explanation:string;evidence:StoryCheckEvidence[];target_record_id?:string;proposal?:StoryInput}
+export interface StoryCheckSummary {id:string;episode_id:string;context_snapshot_id:string;state:string;model:string;created_at:string;error_code?:string}
+export interface StoryCheck {id:string;episode_id:string;input:{context_snapshot_id:string;model_config_id:string;model_config_version:number};state:string;model:string;error_code?:string;result?:{summary:string;findings:StoryFinding[]}}
+
+export interface StoryDecision {id:string;episode_id:string;check_id:string;finding_id:string;action:'adopt'|'reject'|'intentional';reason:string;review_sha256:string;context_snapshot_id:string;target_record_id?:string;version_id?:string;created_by:string;created_at:string}
+export interface StoryFindingReview {check_id:string;finding:StoryFinding;snapshot:StoryContextSnapshot;current_target?:StoryVersion;current_bible?:StoryVersion;review_sha256:string;sources_changed:boolean;current_script:StoryContextSnapshot["script"];current_script_version:number;script_changed:boolean;project_changed:boolean;directory_changed:boolean;changed_sources:{previous?:StorySummary;current?:StorySummary}[];decision?:StoryDecision}
+export interface StoryDecisionInput {action:'adopt'|'reject'|'intentional';reason:string;review_sha256:string;acknowledge_changed:boolean;proposal?:StoryInput}

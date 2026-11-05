@@ -227,7 +227,7 @@ func SummarizeContext(s ContextSnapshot) ContextSummary {
 }
 
 // Search authored prose, not JSON field names, stable IDs or implicit prompts.
-func searchable(v Version) string {
+func authoredTexts(v Version) []string {
 	texts := []string{v.Title}
 	if b := v.Body.Bible; b != nil {
 		texts = append(texts, b.Theme, b.WorldRules, b.StoryArc, b.VisualIntent, b.ImmutableRules)
@@ -247,5 +247,7 @@ func searchable(v Version) string {
 	for _, e := range v.Body.Evidence {
 		texts = append(texts, e.Quote)
 	}
-	return strings.Join(texts, "\n")
+	return texts
 }
+
+func searchable(v Version) string { return strings.Join(authoredTexts(v), "\n") }
