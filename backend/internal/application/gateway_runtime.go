@@ -65,6 +65,9 @@ func (r *ModelRuntime) executeGateway(ctx context.Context, q RuntimeSelection, d
 	api := newCreativeProvider(string(secret), g.Gateway.BaseURL, client)
 	api.SetModels(m.Model, m.Model, m.Model)
 	api.maxOutputTokens = m.MaxOutputTokens
+	api.textProtocol = m.TextProtocol
+	api.contextWindowTokens = m.ContextWindowTokens
+	api.nativeInputCounting = m.NativeInputCounting
 	api.jsonOutput = &m.JSONOutput
 	providers := RuntimeProviders{}
 	switch q.Capability {

@@ -73,6 +73,10 @@ func providerMessage(code string) string {
 		return "图像服务鉴权失败，请检查服务端配置。"
 	case "provider_rate_limited":
 		return "图像服务限流或额度不足，请检查后再显式重试。"
+	case "provider_input_capacity":
+		return "输入资料与预留输出超过上游模型窗口，请减少本次资料或选择容量合适的模型；未自动截断或重发。"
+	case "provider_input_count_unavailable":
+		return "上游原生输入计数未完成，没有发送生成请求；请核对模型接口与计数能力后显式重试。"
 	case "provider_rejected":
 		return "图像服务拒绝了请求，请修改描述或检查服务端配置。"
 	case "provider_timeout":
@@ -93,7 +97,7 @@ func safeFailure(err error, provider string) (string, string) {
 	var failure *ProviderError
 	if errors.As(err, &failure) {
 		switch failure.Code {
-		case "mock_failed", "provider_auth_failed", "provider_rate_limited", "provider_rejected", "provider_error", "provider_timeout", "invalid_provider_response", "execution_interrupted", "provider_unavailable":
+		case "provider_input_capacity", "provider_input_count_unavailable", "mock_failed", "provider_auth_failed", "provider_rate_limited", "provider_rejected", "provider_error", "provider_timeout", "invalid_provider_response", "execution_interrupted", "provider_unavailable":
 			code = failure.Code
 		}
 	} else if provider == "mock-svg" {

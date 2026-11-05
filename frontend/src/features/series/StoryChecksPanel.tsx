@@ -12,7 +12,7 @@ import type {StoryFindingReview,StoryCheck,StoryCheckSummary,StoryContextSnapsho
 
 const preview:RuntimePreview={operation:'story_continuity',input:{}}
 const stateNames:Record<string,string>={queued:'等待检查',running:'正在检查',succeeded:'检查完成',failed:'检查未完成',unknown:'结果未知',cancelled:'已停止'}
-const errorNames:Record<string,string>={story_context_changed:'资料或剧本已更新，请重新保存快照后检查。',invalid_story_check_output:'模型返回的引用或建议无法核验，未改动正式资料。',invalid_provider_response:'模型返回格式不符合要求，未改动正式资料。',execution_governance_denied:'内容审核或执行校验未通过，请联系管理员。',model_runtime_denied:'模型或执行权限已变化，请核对当前配置。',provider_rate_limited:'上游网关暂时拒绝了请求，请核对网关状态。'}
+const errorNames:Record<string,string>={provider_input_capacity:'输入资料与预留输出超过上游模型窗口，请减少本次资料或选择容量合适的模型；未自动截断或重发。',provider_input_count_unavailable:'上游原生输入计数未完成，没有发送生成请求；请核对模型接口与计数能力后显式重试。',story_context_changed:'资料或剧本已更新，请重新保存快照后检查。',invalid_story_check_output:'模型返回的引用或建议无法核验，未改动正式资料。',invalid_provider_response:'模型返回格式不符合要求，未改动正式资料。',execution_governance_denied:'内容审核或执行校验未通过，请联系管理员。',model_runtime_denied:'模型或执行权限已变化，请核对当前配置。',provider_rate_limited:'上游网关暂时拒绝了请求，请核对网关状态。'}
 export function StoryChecksPanel({space,episode,snapshot,onChanged,onPendingChange}:{space:string;episode:string;snapshot:StoryContextSnapshot;onChanged:()=>void;onPendingChange:(value:boolean)=>void}){
  const{t}=useI18n();const{space:currentSpace,requestLeave}=useAppWorkspace();const[choice,setChoice]=useState<RuntimeChoice|null>(null),[revision,setRevision]=useState(0),[check,setCheck]=useState<StoryCheck|null>(null),[basis,setBasis]=useState(snapshot),[error,setError]=useState(''),[loading,setLoading]=useState(false)
  const[review,setReview]=useState<StoryFindingReview|null>(null),[reviewError,setReviewError]=useState(''),[reviewBusy,setReviewBusy]=useState(false)

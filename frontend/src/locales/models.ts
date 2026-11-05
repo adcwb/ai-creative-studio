@@ -108,5 +108,12 @@ const models: Record<string, string> = {
  '输入 / 输出 token': 'Input / output tokens', '用量已报告': 'Usage reported', '累计调用上限': 'Total call limits', '调用时间': 'Started', '耗时': 'Duration',
  'HTTP 请求数': 'HTTP requests', '调用上限': 'Call limit', '共 {count} 条调用': '{count} calls', '未知': 'Unknown', '成功': 'Succeeded', '失败': 'Failed', '结果未知': 'Unknown outcome',
  '调用上限用于预留，不能视为实际费用；缺失用量显示未知，各币种分别统计。': 'Call limits are reserved ceilings, not actual costs. Missing usage is unknown. Currencies are reported separately.', '调用限制与费用账本': 'Call limits and cost ledger',
+ "文本接口与输入能力（选填）": "Text protocol and input capability (optional)",
+ "文本接口": "Text protocol",
+ "上游总上下文 token（选填）": "Upstream total context tokens (optional)",
+ "上游已确认支持 Responses 原生输入计数": "The gateway is verified to support native Responses input counting",
+ "仅对明确支持的网关启用：先计数完整输入与指引，再预留最大输出。计数失败不发送生成请求。未配置不会增加项目额度或成本门槛；不会猜测其他模型的分词规则。": "Enable only for verified gateways: count the full input and instructions, then reserve the maximum output. Failed counting sends no generation. Leaving this unset adds no project quota or cost gate; other tokenizers are never guessed.",
+ "输入资料与预留输出超过上游模型窗口，请减少本次资料或选择容量合适的模型；未自动截断或重发。": "The input plus reserved output exceeds the upstream context window. Reduce this input or choose a suitable model. Nothing was silently truncated or resent.",
+ "上游原生输入计数未完成，没有发送生成请求；请核对模型接口与计数能力后显式重试。": "Native upstream input counting did not complete. No generation was sent. Check the protocol and counting capability before explicitly retrying.",
 }
 export default models

@@ -28,6 +28,13 @@ http.createServer(async (req,res)=>{
  if(body.model==='synthetic-reject'){res.writeHead(429);res.end(JSON.stringify({error:'Synthetic upstream refusal'}));return}
  if(req.url==='/v1/images/edits' && body.model==='synthetic-image' && body.image_hashes?.length){res.end(JSON.stringify({data:[{b64_json:png()}]}));return}
  if(req.url==='/v1/images/generations' && body.model==='synthetic-image') {res.end(JSON.stringify({data:[{b64_json:png()}]}));return}
+ if(req.url==='/v1/responses/input_tokens'&&body.model?.startsWith('synthetic-text')){
+  res.end(JSON.stringify({object:'response.input_tokens',input_tokens:body.model.endsWith('-overflow')?4096:700}));return
+ }
+ if(req.url==='/v1/responses'&&body.model==='synthetic-text'){
+  const content=body.instructions?.includes('"findings"')?{summary:'原生计数后的本地合成审阅。',findings:[]}:{summary:'原生计数后的本地合成分析。',questions:[],suggestions:[]}
+  res.end(JSON.stringify({object:'response',status:'completed',error:null,output:[{type:'message',role:'assistant',status:'completed',content:[{type:'output_text',text:JSON.stringify(content)}]}],usage:{input_tokens:700,output_tokens:30}}));return
+ }
  if(req.url==='/v1/chat/completions' && body.model==='synthetic-text') {
   const instruction=body.messages?.[0]?.content??''
   if(instruction.includes('"findings"')){

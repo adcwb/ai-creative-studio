@@ -65,12 +65,19 @@ func (s *FileStore) executeStoryCheck(ctx context.Context, r storyrepo.CheckReco
 		if providers.StoryCheck == nil {
 			return ErrExecutionGovernance
 		}
-		fresh, e := s.CheckStoryContext(ctx, c.Space, c.EpisodeID, c.Input.ContextID)
-		if e != nil {
-			return e
+		sourceCurrent := func(ctx context.Context) error {
+			fresh, e := s.CheckStoryContext(ctx, c.Space, c.EpisodeID, c.Input.ContextID)
+			if e != nil {
+				return e
+			}
+			if !fresh.Current {
+				return story.ErrConflict
+			}
+			return nil
 		}
-		if !fresh.Current {
-			return story.ErrConflict
+		ctx = context.WithValue(ctx, textGenerationGuardKey{}, sourceCurrent)
+		if e = sourceCurrent(ctx); e != nil {
+			return e
 		}
 		if e = dispatch(ctx); e != nil {
 			return e

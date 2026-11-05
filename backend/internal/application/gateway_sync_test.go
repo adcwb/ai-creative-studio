@@ -80,6 +80,15 @@ func TestGatewaySyncPreservesConfigurationAndDeduplicates(t *testing.T) {
 	t.Setenv("MODEL_GATEWAY_ALLOWED_HOSTS", u.Host)
 	runtime, g, original := gatewayFixture(t, upstream.URL+"/v1")
 	s := runtime.auth.models
+	original.TextProtocol = "responses"
+	original.NativeInputCounting = true
+	original.ContextWindowTokens = 8192
+	configured, e := s.saveGatewayModel("tenant-a", original.Version, original)
+	if e != nil {
+		t.Fatal(e)
+	}
+	original = configured.Models[0]
+
 	result, err := s.syncGatewayModels(context.Background(), "tenant-a", g.ID, g.Version)
 	if err != nil || result.Added != 1 || result.Existing != 1 || len(result.Report.Models) != 2 {
 		t.Fatal("import failed", result, err)

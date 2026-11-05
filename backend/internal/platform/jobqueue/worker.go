@@ -63,7 +63,7 @@ func Run(ctx context.Context, q Queue, kind string, handler Handler) error {
 			}
 		}
 		if q.Slots == nil || acquired {
-			traceCtx, span := tracing.Start(tracing.WithParent(runCtx, j.TraceParent), "worker.execute", tracing.Attributes{Kind: j.Kind})
+			traceCtx, span := tracing.Start(tracing.WithParent(WithLeaseFence(runCtx, q, j), j.TraceParent), "worker.execute", tracing.Attributes{Kind: j.Kind})
 			err = handler(traceCtx, q, j)
 			outcome := "ok"
 			if err != nil {

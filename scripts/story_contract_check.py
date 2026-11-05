@@ -24,13 +24,28 @@ def main():
     spec = json.loads((ROOT / 'api/openapi.json').read_text())
     resolver = RefResolver.from_schema(spec)
     calls = []
+    native_counts, native_generations = [], []
     class Upstream(http.server.BaseHTTPRequestHandler):
         def log_message(self, *_):
             pass
+        def reply(self, value):
+            raw = json.dumps(value).encode()
+            self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
         def do_POST(self):
-            assert self.path == '/v1/chat/completions'
             assert self.headers['Authorization'] == 'Bearer synthetic-continuity-key'
             body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+            if self.path == '/v1/responses/input_tokens':
+                native_counts.append(body)
+                assert body['instructions'] and body['input'] and body['tool_choice']=='none'
+                self.reply(dict(object='response.input_tokens',input_tokens=4096 if body['model'].endswith('-overflow') else 700));return
+            if self.path == '/v1/responses':
+                native_generations.append(body)
+                for key in ['model','input','instructions','text','tools','tool_choice']:
+                    assert body[key]==native_counts[-1][key]
+                assert body['max_output_tokens']==512 and not body['store'] and not body['background'] and not body['stream'] and body['truncation']=='disabled'
+                result=dict(summary='Native-counted local-only review.',findings=[])
+                self.reply(dict(object='response',status='completed',error=None,output=[dict(type='message',role='assistant',status='completed',content=[dict(type='output_text',text=json.dumps(result))])],usage=dict(input_tokens=700,output_tokens=30)));return
+            assert self.path == '/v1/chat/completions'
             assert body['model'] == 'synthetic-continuity-text' and body['max_completion_tokens'] == 512
             assert 'response_format' not in body
             data = json.loads(body['messages'][1]['content'])
@@ -183,11 +198,36 @@ def main():
                 assert reconciled['number']==2 and reconciled['body']['cast']['characters'][0]['asset_version_id']==asset['version']['id']
                 history=call(viewer,'GET',story_path+'/'+reconciled['id']+'/versions'+query,story_route+'/{record_id}/versions')
                 assert len(history['items'])==2
+                # Explicit Responses capability uses native counts, never a guessed tokenizer.
+                native_model={**model,'text_protocol':'responses','context_window_tokens':2048,'native_input_counting':True}
+                model=call(owner,'PATCH','/api/v1/gateway-models/'+model['id']+query,'/api/v1/gateway-models/{id}',dict(expected_version=model['version'],model=native_model),aq)['models'][0]
+                assert not native_counts and not native_generations
+                fresh=call(owner,'POST',snapshots+query,'/api/v1/episodes/{id}/context-snapshots',{},aq,status=201)
+                native_request=dict(context_snapshot_id=fresh['id'],model_config_id=model['id'],model_config_version=model['version'])
+                call(owner,'POST',checks+query,check_route,{**native_request,'native_input_counting':False},aq,status=400)
+                native_check=call(owner,'POST',checks+query,check_route,native_request,aq,status=202,key='story-http-native-original')
+                native_detail=checks+'/'+native_check['id']
+                deadline=time.monotonic()+8
+                while native_check['state'] in ('queued','running'):
+                    assert time.monotonic()<deadline
+                    time.sleep(.025);native_check=call(owner,'GET',native_detail+query,detail_route)
+                assert native_check['state']=='succeeded' and len(native_counts)==len(native_generations)==1
+                model=call(owner,'PATCH','/api/v1/gateway-models/'+model['id']+query,'/api/v1/gateway-models/{id}',dict(expected_version=model['version'],model={**model,'model':'synthetic-continuity-overflow'}),aq)['models'][0]
+                original=call(owner,'POST',checks+query,check_route,native_request,aq,status=202,key='story-http-native-original')
+                assert original==native_check and len(native_counts)==len(native_generations)==1
+                oversized_request={**native_request,'model_config_version':model['version']}
+                oversized=call(owner,'POST',checks+query,check_route,oversized_request,aq,status=202,key='story-http-native-overflow')
+                deadline=time.monotonic()+8
+                while oversized['state'] in ('queued','running'):
+                    assert time.monotonic()<deadline
+                    time.sleep(.025);oversized=call(owner,'GET',checks+'/'+oversized['id']+query,detail_route)
+                assert oversized['state']=='failed' and oversized['error_code']=='provider_input_capacity' and len(native_counts)==2 and len(native_generations)==1
+                assert call(owner,'POST',checks+query,check_route,oversized_request,aq,status=202,key='story-http-native-overflow')==oversized
                 call(owner,'PUT',members,'/api/v1/organizations/{id}/members',dict(email=b['user']['email'],role='remove'),aq)
                 call(viewer,'GET',detail+query,detail_route,status=403)
                 call(viewer,'GET',first+'/review'+query,first_route+'/review',status=403)
                 assert len(calls)==1, 'local decisions resent a paid check'
-                print(json.dumps(dict(result='passed',contract_responses=count,synthetic_gateway_calls=len(calls),live_provider_calls=0,checks=['real guarded text protocol','no pricing configuration','strict schemas','CSRF and roles','pinned evidence','current script comparison','explicit source acknowledgement','adoption CAS','original decision replay preserves later edits','intentional misdirection and rejection','explicit cast identities, asset pinning, CAS and original replay','revoked access'])))
+                print(json.dumps(dict(result='passed',contract_responses=count,synthetic_gateway_calls=len(calls)+len(native_counts)+len(native_generations),native_count_calls=len(native_counts),native_generation_calls=len(native_generations),live_provider_calls=0,checks=['real guarded text protocol','no pricing configuration','strict schemas','CSRF and roles','pinned evidence','current script comparison','explicit source acknowledgement','adoption CAS','original decision replay preserves later edits','intentional misdirection and rejection','explicit cast identities, asset pinning, CAS and original replay','native Responses input count and output reservation','no generation after native capacity failure','native original receipt replay','revoked access'])))
             finally:
                 process.terminate()
                 try:

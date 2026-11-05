@@ -30765,6 +30765,25 @@
             "minimum": 0,
             "maximum": 9007199254740991,
             "description": "Declared upstream input capability for image_edit, not an application quota. Legacy zero/omitted defaults to one image. No reference data is silently dropped."
+          },
+          "text_protocol": {
+            "type": "string",
+            "enum": [
+              "",
+              "chat_completions",
+              "responses"
+            ],
+            "description": "Optional text protocol. Empty preserves Chat Completions."
+          },
+          "context_window_tokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Declared native total token capacity, not a project quota. Applied only with verified native input counting."
+          },
+          "native_input_counting": {
+            "type": "boolean",
+            "description": "Responses-only: count the complete native input and reserve max output before generation. Optional, default false."
           }
         }
       },
@@ -31423,6 +31442,25 @@
             "minimum": 0,
             "maximum": 9007199254740991,
             "description": "Declared upstream input capability for image_edit, not an application quota. Legacy zero/omitted defaults to one image. No reference data is silently dropped."
+          },
+          "text_protocol": {
+            "type": "string",
+            "enum": [
+              "",
+              "chat_completions",
+              "responses"
+            ],
+            "description": "Optional text protocol. Empty preserves Chat Completions."
+          },
+          "context_window_tokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Declared native total token capacity, not a project quota. Applied only with verified native input counting."
+          },
+          "native_input_counting": {
+            "type": "boolean",
+            "description": "Responses-only: count the complete native input and reserve max output before generation. Optional, default false."
           }
         }
       },

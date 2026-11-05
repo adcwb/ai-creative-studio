@@ -32,23 +32,26 @@ type storedGateway struct {
 	Ciphertext string    `json:"ciphertext,omitempty"`
 }
 type GatewayModel struct {
-	MaxReferenceImages int       `json:"max_reference_images,omitempty"`
-	Pending            bool      `json:"pending,omitempty"`
-	ID                 string    `json:"id"`
-	GatewayID          string    `json:"gateway_id"`
-	Name               string    `json:"name"`
-	Model              string    `json:"model"`
-	Capabilities       []string  `json:"capabilities"`
-	Enabled            bool      `json:"enabled"`
-	Version            int64     `json:"version"`
-	MaxOutputTokens    int       `json:"max_output_tokens"`
-	JSONOutput         bool      `json:"json_output"`
-	VideoSeconds       int       `json:"video_seconds"`
-	VideoSize          string    `json:"video_size"`
-	Currency           string    `json:"currency"`
-	MaximumMinor       int64     `json:"maximum_minor"`
-	PriceSource        string    `json:"price_source"`
-	UpdatedAt          time.Time `json:"updated_at"`
+	TextProtocol        string    `json:"text_protocol,omitempty"`
+	ContextWindowTokens int64     `json:"context_window_tokens,omitempty"`
+	NativeInputCounting bool      `json:"native_input_counting,omitempty"`
+	MaxReferenceImages  int       `json:"max_reference_images,omitempty"`
+	Pending             bool      `json:"pending,omitempty"`
+	ID                  string    `json:"id"`
+	GatewayID           string    `json:"gateway_id"`
+	Name                string    `json:"name"`
+	Model               string    `json:"model"`
+	Capabilities        []string  `json:"capabilities"`
+	Enabled             bool      `json:"enabled"`
+	Version             int64     `json:"version"`
+	MaxOutputTokens     int       `json:"max_output_tokens"`
+	JSONOutput          bool      `json:"json_output"`
+	VideoSeconds        int       `json:"video_seconds"`
+	VideoSize           string    `json:"video_size"`
+	Currency            string    `json:"currency"`
+	MaximumMinor        int64     `json:"maximum_minor"`
+	PriceSource         string    `json:"price_source"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 type FeatureDefinition struct {
 	Key        string `json:"key"`
@@ -191,6 +194,19 @@ func validateGatewaySnapshot(d modelSnapshot) error {
 	return nil
 }
 func validateGatewayModel(m GatewayModel) error {
+	if m.TextProtocol != "" && m.TextProtocol != "chat_completions" && m.TextProtocol != "responses" {
+		return errModelInput
+	}
+	if m.ContextWindowTokens < 0 || m.ContextWindowTokens > 9007199254740991 {
+		return errModelInput
+	}
+	if (m.TextProtocol != "" || m.ContextWindowTokens > 0 || m.NativeInputCounting) && !modelHasCapability(m, "text") {
+		return errModelInput
+	}
+	if m.NativeInputCounting && (m.TextProtocol != "responses" || m.ContextWindowTokens <= int64(m.MaxOutputTokens)) {
+		return errModelInput
+	}
+
 	if m.MaxReferenceImages < 0 || m.MaxReferenceImages > 9007199254740991 || (m.MaxReferenceImages > 0 && !modelHasCapability(m, "image_edit")) || !validGatewayModelID(m.Model) || utf8.RuneCountInString(m.Name) < 1 || utf8.RuneCountInString(m.Name) > 80 || len(m.Capabilities) == 0 && !m.Pending || m.Pending && m.Enabled || len(m.Capabilities) > 8 || m.MaxOutputTokens < 1 || m.MaxOutputTokens > 9007199254740991 || m.MaximumMinor < 0 || m.MaximumMinor > 9007199254740991 || len(m.PriceSource) > 240 {
 		return errModelInput
 	}
