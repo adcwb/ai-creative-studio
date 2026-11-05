@@ -1,29 +1,47 @@
-import {test, expect, type Page} from '@playwright/test'
+import {createHash} from 'node:crypto'
+import {test, expect, type Page, type BrowserContext} from '@playwright/test'
 import {chooseLanguage} from '../e2e/support/navigation'
 const api = 'http://localhost:8084/api/v1'
 const upstream = 'http://127.0.0.1:5193'
-async function setup(page: Page, configured = true) {
+// Reuse a real authenticated fixture session; isolate each test in a new real
+// organization. Avoid turning the workflow suite into an authentication storm.
+let promptCookies: Awaited<ReturnType<BrowserContext['cookies']>> | null = null
+async function setup(page: Page, configured = true, referenceImages = false) {
+  if (promptCookies) await page.context().addCookies(promptCookies)
   await page.goto('/')
-  await page.getByRole('button', {name: '创建新账户', exact: true}).click()
-  await page.locator('#auth-email').fill(`prompt-${test.info().project.name}-${crypto.randomUUID()}@example.invalid`)
-  await page.locator('#auth-password').fill('Synthetic-prompts-only-password!')
-  await page.getByRole('button', {name: '注册并登录', exact: true}).click()
+  if (!promptCookies) {
+    await page.getByRole('button', {name: '创建新账户', exact: true}).click()
+    await page.locator('#auth-email').fill(`prompt-${test.info().project.name}-${crypto.randomUUID()}@example.invalid`)
+    await page.locator('#auth-password').fill('Synthetic-prompts-only-password!')
+    await page.getByRole('button', {name: '注册并登录', exact: true}).click()
+  }
   await expect(page.locator('.app-shell')).toBeVisible()
   const session = await (await page.request.get(api + '/auth/session')).json()
-  const query = '?space_id=' + session.spaces[0].id
+  promptCookies = await page.context().cookies()
   const headers = {Origin: 'http://localhost:5179', 'X-CSRF-Token': session.csrf_token}
+  const organization = await page.request.post(api + '/organizations', {headers, data: {name: `Prompt fixture ${crypto.randomUUID()}`}})
+  expect(organization.status()).toBe(201)
+  const space = await organization.json()
+  const query = '?space_id=' + space.id
+  await page.evaluate(id => sessionStorage.setItem('studio.space', id), space.id)
+  await page.reload()
+  await expect(page.locator('.app-shell')).toBeVisible()
+  await expect(page.locator('#space')).toHaveValue(space.id)
+  let configuredModel: {id: string; version: number} | undefined
   if (configured) {
     const response = await page.request.post(api + '/ai-gateways' + query, {headers, data: {expected_version: 0, gateway: {name: 'Synthetic prompt gateway', base_url: upstream + '/v1', enabled: true, timeout_seconds: 30}, credential: {action: 'set', secret: 'synthetic-key-A'}}})
     expect(response.status()).toBe(200)
     const gateway = (await response.json()).gateways[0]
-    const entry = await page.request.post(api + '/gateway-models' + query, {headers, data: {expected_version: 0, model: {gateway_id: gateway.id, name: 'Synthetic image', model: 'synthetic-image', capabilities: ['image'], enabled: true, max_output_tokens: 512, json_output: false}}})
+    const entry = await page.request.post(api + '/gateway-models' + query, {headers, data: {expected_version: 0, model: {gateway_id: gateway.id, name: 'Synthetic image', model: 'synthetic-image', capabilities: referenceImages ? ['image','image_edit'] : ['image'], ...(referenceImages ? {max_reference_images:2} : {}), enabled: true, max_output_tokens: 512, json_output: false}}})
     expect(entry.status()).toBe(200)
     const model = (await entry.json()).models[0]
+    configuredModel = model
     expect((await page.request.put(api + '/model-features/image_generation' + query, {headers, data: {expected_version: 0, binding: {feature_key: 'image_generation', model_config_id: model.id, enabled: true, allow_override: true}}})).status()).toBe(200)
+    if (referenceImages) expect((await page.request.put(api + '/model-features/image_edit' + query, {headers, data:{expected_version:0,binding:{feature_key:'image_edit',model_config_id:model.id,enabled:true,allow_override:true}}})).status()).toBe(200)
     await page.getByRole('button', {name: '刷新模型目录', exact: true}).click()
     await expect(page.getByRole('combobox', {name: '模型选择', exact: true})).toHaveValue(model.id)
   }
-  return {query, headers, session}
+  return {query, headers, session, configuredModel}
 }
 async function saveNew(page: Page, name: string, body: string) {
   await page.getByLabel('描述你的画面', {exact: true}).fill(body)
@@ -206,4 +224,90 @@ test('variable recipes preview on the server and submit expanded text with fixed
   await expect.poll(async () => (await (await page.request.get(api + '/tasks/' + task.id + query)).json()).status).toBe('succeeded')
   const state = await (await request.get(upstream + '/__state')).json()
   expect(state.requests.slice(before.requests.length).some((r: {body: {prompt?: string}}) => r.body.prompt?.includes('白色小猫，暖色光线，简洁构图') && !r.body.prompt.includes('{{subject}}'))).toBe(true)
+})
+
+test('reference recipes preserve ordered versions and actual project gateway parameters', async ({page, request}) => {
+  test.setTimeout(90000)
+  const {query, headers, configuredModel} = await setup(page, true, true)
+  const before = await (await request.get(upstream + '/__state')).json()
+  const projects = []
+  for (const title of ['参考来源项目', '配方目标项目']) {
+    const response = await page.request.post(api + '/projects' + query, {headers: {...headers, 'Idempotency-Key': crypto.randomUUID()}, data: {title, brief: '仅本地合成参考素材协议验收，不调用收费模型。'}})
+    expect(response.status()).toBe(201); projects.push(await response.json())
+  }
+  const images = await page.evaluate(() => ['#355c44', '#b86847'].map(color => {const canvas = document.createElement('canvas'); canvas.width = canvas.height = 64; const context = canvas.getContext('2d')!; context.fillStyle = color; context.fillRect(0, 0, 64, 64); return canvas.toDataURL('image/png').split(',')[1]}))
+  const ids: string[] = []
+  for (const image of images) {
+    const response = await page.request.post(api + '/projects/' + projects[0].id + '/media/uploads' + query + '&filename=reference.png&role=reference', {headers: {...headers, 'Content-Type': 'image/png', 'Idempotency-Key': crypto.randomUUID()}, data: Buffer.from(image, 'base64')})
+    expect(response.status()).toBe(200); ids.push((await response.json()).uploaded_asset_id)
+  }
+  const library = await page.request.post(api + '/library/assets' + query, {headers: {...headers, 'Idempotency-Key': crypto.randomUUID()}, data: {kind: 'character', card: {name: '配方角色参考卡', description: '', prohibited_changes: [], character: {}}, references: ids.map((asset_id, i) => ({project_id: projects[0].id, asset_id, role: 'reference', view_angle: i ? 'side' : 'front'}))}})
+  expect(library.status()).toBe(201)
+  const card = await library.json()
+  await page.getByLabel('描述你的画面', {exact: true}).fill('根据两幅参考创作，保留轮廓与色调，柔和侧光')
+  await page.getByRole('combobox', {name: '视觉风格', exact: true}).selectOption('illustration')
+  await page.getByRole('button', {name: '保存当前描述', exact: true}).click()
+  const editor = page.getByRole('dialog', {name: '保存自己的提示词', exact: true})
+  const privateName = '不公开的私人配方名称'
+  await editor.getByLabel('提示词名称', {exact: true}).fill(privateName)
+  await editor.locator('.prompt-reference-editor > summary').click()
+  await editor.getByLabel('配方资产卡', {exact: true}).selectOption(card.asset.id)
+  await editor.getByLabel('固定资产版本', {exact: true}).selectOption(card.version.id)
+  for (const index of [1, 0]) {
+    await editor.getByLabel('版本内参考图', {exact: true}).selectOption(card.version.references[index].id)
+    await editor.getByRole('button', {name: '添加固定参考图', exact: true}).click()
+  }
+  await expect(editor.locator('.prompt-bound-references li')).toHaveCount(2)
+  await editor.getByRole('button', {name: '保存提示词', exact: true}).click()
+  await expect(editor).toBeHidden()
+  const recipeCard = page.locator('.prompt-library-card').filter({hasText: privateName})
+  await expect(recipeCard.getByRole('link', {name: '在项目制作中使用', exact: true})).toBeVisible()
+  await expect(recipeCard.getByRole('button', {name: '选用提示词', exact: true})).toHaveCount(0)
+  await page.goto(`/projects/${projects[1].id}/production`)
+  const board = page.locator('.production-board')
+  await board.getByRole('button', {name: '使用保存的提示词', exact: true}).click()
+  await page.getByRole('dialog', {name: '选择项目提示词', exact: true}).getByRole('button').filter({hasText: privateName}).click()
+  const use = page.getByRole('dialog', {name: '应用项目配方', exact: true})
+  await use.getByRole('button', {name: '预览完整提示词', exact: true}).click()
+  const applied = page.waitForResponse(r => r.url().includes('/prompt-applications?') && r.request().method() === 'POST')
+  await page.screenshot({path: `/tmp/studio-reference-dialog-${test.info().project.name}.png`})
+  await use.getByRole('button', {name: '应用到项目制作', exact: true}).click()
+  expect((await applied).status()).toBe(201)
+  await expect(use).toBeHidden()
+  await expect(board.getByLabel('项目图像比例', {exact: true})).toHaveValue('4:5')
+  await expect(board.getByLabel('项目图像风格', {exact: true})).toHaveValue('illustration')
+  expect((await (await request.get(upstream + '/__state')).json()).calls).toBe(before.calls)
+  const accepted = page.waitForResponse(r => r.url().includes('/gateway-creative-jobs?') && r.request().method() === 'POST')
+  await board.getByRole('button', {name: '生成候选', exact: true}).click()
+  const response = await accepted
+  expect(response.status()).toBe(202)
+  expect(response.request().postDataJSON().image_parameters).toEqual({kind: 'poster', ratio: '4:5', style: 'illustration'})
+  const job = await response.json()
+  await expect.poll(async () => (await (await page.request.get(api + '/projects/' + projects[1].id + '/creative-jobs' + query)).json()).find((j: {id: string}) => j.id === job.id).status).toBe('succeeded')
+  const observed = await (await request.get(upstream + '/__state')).json()
+  const sent = observed.requests.slice(before.requests.length).find((r: {path: string}) => r.path === '/v1/images/edits')
+  expect(sent.body.image_hashes).toEqual([images[1], images[0]].map(raw => createHash('sha256').update(Buffer.from(raw, 'base64')).digest('hex')))
+  expect(sent.body.prompt).toContain('Style: illustration. Aspect ratio: 4:5.')
+  const media = await (await page.request.get(api + '/projects/' + projects[1].id + '/media' + query)).json()
+  expect(media.prompt_applications).toHaveLength(1)
+  expect(JSON.stringify(media)).not.toContain(privateName)
+  await board.getByLabel('项目图像比例', {exact: true}).selectOption('16:9')
+  await board.getByLabel('项目图像风格', {exact: true}).selectOption('natural')
+  await board.getByText('采用与生成记录', {exact: true}).click()
+  await board.getByRole('button', {name: '复用参考与提示', exact: true}).click()
+  await expect(board.getByLabel('项目图像比例', {exact: true})).toHaveValue('4:5')
+  await expect(board.getByLabel('项目图像风格', {exact: true})).toHaveValue('illustration')
+  // A changed upstream declaration must refuse the same two-image combination, without dropping a reference or retrying generation.
+  const management = await (await page.request.get(api + '/model-management' + query)).json()
+  const model = management.models.find((m: {id: string}) => m.id === configuredModel!.id)
+  const updated = await page.request.patch(api + '/gateway-models/' + model.id + query, {headers, data: {expected_version: model.version, model: {...model, max_reference_images: 1}}})
+  expect(updated.status()).toBe(200)
+  const narrowed = (await updated.json()).models.find((m: {id: string}) => m.id === model.id)
+  const refused = await page.request.post(api + '/projects/' + projects[1].id + '/gateway-creative-jobs' + query, {headers: {...headers, 'Idempotency-Key': crypto.randomUUID()}, data: {kind: 'image', prompt: job.prompt, expected_version: projects[1].version, model_config_id: narrowed.id, model_config_version: narrowed.version, expected_provider: 'gateway-images', expected_model: narrowed.model, image_parameters: job.image_parameters, reference_asset_ids: job.reference_asset_ids, prompt_source: {template_id: job.prompt_source.template_id, version_id: job.prompt_source.version_id, application_id: job.prompt_source.application_id, variables: job.prompt_source.variables, edited: false}}})
+  expect(refused.status()).toBe(400)
+  expect((await refused.json()).error.message).toContain('不支持此参考组合')
+  await board.getByRole('button', {name: '刷新模型目录', exact: true}).click()
+  await expect(board.getByRole('button', {name: '生成候选', exact: true})).toBeDisabled()
+  expect((await (await request.get(upstream + '/__state')).json()).calls).toBe(observed.calls)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })

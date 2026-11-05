@@ -36,6 +36,7 @@ func Handler(repo Repository, origin string) http.Handler {
 	if store, ok := repo.(*FileStore); ok {
 		registerLibraryRoutes(mux, store)
 		registerPromptRoutes(mux, store)
+		registerPromptApplicationRoutes(mux, store)
 		registerGovernanceRoutes(mux, store)
 		registerRuntimeCatalog(mux, store)
 		registerRuntimeQuote(mux, store)

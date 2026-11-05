@@ -186,7 +186,7 @@ func (s *FileStore) buildQuoteExecutionRequest(tenant string, in RuntimeQuoteInp
 		if err := s.validateCreativeControls(project.ID, tenant, input, Capabilities{Provider: entry.Provider, Model: entry.Model}); err != nil {
 			return ExecutionRequest{}, err
 		}
-		job := CreativeJob{ReferenceAssetIDs: input.ReferenceAssetIDs, FirstFrameAssetID: input.FirstFrameAssetID, LastFrameAssetID: input.LastFrameAssetID, MotionReferenceAssetID: input.MotionReferenceAssetID, SpaceID: tenant, ProjectID: project.ID, Provider: entry.Provider, Model: entry.Model, Kind: input.Kind, Prompt: input.Prompt, ShotID: input.ShotID, Character: input.Character, ReferenceAssetID: input.ReferenceAssetID, ComparisonAssetID: input.ComparisonAssetID, MaskAssetID: input.MaskAssetID, AudioAssetID: input.AudioAssetID, Source: ProjectInput{Title: project.Title, Brief: project.Brief}, RuntimeSelection: &selection}
+		job := CreativeJob{ImageParameters: input.ImageParameters, ReferenceAssetIDs: input.ReferenceAssetIDs, FirstFrameAssetID: input.FirstFrameAssetID, LastFrameAssetID: input.LastFrameAssetID, MotionReferenceAssetID: input.MotionReferenceAssetID, SpaceID: tenant, ProjectID: project.ID, Provider: entry.Provider, Model: entry.Model, Kind: input.Kind, Prompt: input.Prompt, ShotID: input.ShotID, Character: input.Character, ReferenceAssetID: input.ReferenceAssetID, ComparisonAssetID: input.ComparisonAssetID, MaskAssetID: input.MaskAssetID, AudioAssetID: input.AudioAssetID, Source: ProjectInput{Title: project.Title, Brief: project.Brief}, RuntimeSelection: &selection}
 		return s.creativeExecutionRequest(job)
 	}
 	if in.Operation == "alignment" {

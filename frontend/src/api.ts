@@ -8,7 +8,7 @@ export interface Capabilities {
   model?: string; reason_code?: string; message: string
 }
 export interface ResultSource { provider: Provider; model?: string; result_mime?: string; result_width?: number; result_height?: number }
-export interface PromptSource {variables?: Record<string, string>; template_id: string; version_id: string; edited: boolean; compiled_sha256?: string; effective_sha256?: string}
+export interface PromptSource {application_id?: string;variables?: Record<string, string>; template_id: string; version_id: string; edited: boolean; compiled_sha256?: string; effective_sha256?: string}
 export interface TaskInput { prompt_source?: PromptSource; prompt: string; kind: Kind; ratio: Ratio; style: Style }
 export interface Task extends TaskInput, ResultSource {
   id: string; space_id: string

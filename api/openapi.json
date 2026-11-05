@@ -14015,6 +14015,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "model_config_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Current authorized gateway model identity; required for its declared reference limit."
+          },
+          {
+            "name": "model_config_version",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
           }
         ],
         "responses": {
@@ -18464,6 +18480,299 @@
           }
         }
       }
+    },
+    "/api/v1/projects/{id}/prompt-applications/{applicationId}": {
+      "get": {
+        "operationId": "getProjectPromptApplication",
+        "summary": "Get an immutable project recipe application",
+        "description": "Current project-space access required. An explicitly applied recipe snapshot is visible to project members independently from later template visibility. No model dispatch.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "applicationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt operation completed without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptApplication"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Unconfirmed save; replay the original path, body and key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/prompt-applications": {
+      "post": {
+        "operationId": "applyProjectPromptRecipe",
+        "summary": "Apply a fixed recipe and copy its ordered reference images",
+        "description": "Editor only; CSRF and idempotency required. Current-space library versions and content hashes are checked. Immutable project-owned references, compiled input, source snapshot and receipt commit atomically with the media version. No model call and no overwrite of existing work. Failed staging may leave safe unreferenced blobs, never an accepted partial application.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt operation completed without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptApplication"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Unconfirmed save; replay the original path, body and key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Prompt operation completed without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptApplication"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unconfirmed save; replay the original path, body and key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "template_id",
+                  "version_id",
+                  "expected_media_version"
+                ],
+                "properties": {
+                  "template_id": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{32}$"
+                  },
+                  "version_id": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{32}$"
+                  },
+                  "variables": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 1000
+                    }
+                  },
+                  "expected_media_version": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -20351,6 +20660,12 @@
             },
             "description": "Independent episode timelines keyed by episode number 2..999. timeline remains episode 1. At most 120 saved episodes.",
             "maxProperties": 119
+          },
+          "prompt_applications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PromptApplication"
+            }
           }
         },
         "required": [
@@ -20579,6 +20894,12 @@
           "motion_reference_asset_id": {
             "type": "string",
             "description": "Project MP4 used as reference guidance, not guaranteed motion transfer."
+          },
+          "prompt_source": {
+            "$ref": "#/components/schemas/PromptSourceInput"
+          },
+          "image_parameters": {
+            "$ref": "#/components/schemas/PromptImageParameters"
           }
         },
         "required": [
@@ -20720,6 +21041,12 @@
           "motion_reference_asset_id": {
             "type": "string",
             "description": "Project MP4 used as reference guidance, not guaranteed motion transfer."
+          },
+          "prompt_source": {
+            "$ref": "#/components/schemas/PromptSource"
+          },
+          "image_parameters": {
+            "$ref": "#/components/schemas/PromptImageParameters"
           }
         },
         "required": [
@@ -24219,6 +24546,12 @@
             "type": "boolean",
             "default": false,
             "description": "Imported catalog entry awaiting administrator configuration. Pending models must be disabled; no capabilities are inferred."
+          },
+          "max_reference_images": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Declared upstream input capability for image_edit, not an application quota. Legacy zero/omitted defaults to one image. No reference data is silently dropped."
           }
         }
       },
@@ -24871,6 +25204,12 @@
             "type": "boolean",
             "default": false,
             "description": "Imported catalog entry awaiting administrator configuration. Pending models must be disabled; no capabilities are inferred."
+          },
+          "max_reference_images": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Declared upstream input capability for image_edit, not an application quota. Legacy zero/omitted defaults to one image. No reference data is silently dropped."
           }
         }
       },
@@ -25143,6 +25482,12 @@
             "items": {
               "$ref": "#/components/schemas/PromptVariable"
             }
+          },
+          "reference_bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PromptReferenceBinding"
+            }
           }
         },
         "required": [
@@ -25320,6 +25665,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PromptVariable"
+            }
+          },
+          "reference_bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PromptReferenceBinding"
             }
           }
         },
@@ -25564,6 +25915,10 @@
               "type": "string",
               "maxLength": 1000
             }
+          },
+          "application_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
           }
         },
         "required": [
@@ -25601,6 +25956,16 @@
               "type": "string",
               "maxLength": 1000
             }
+          },
+          "reference_bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PromptReferenceBinding"
+            }
+          },
+          "application_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
           }
         },
         "required": [
@@ -25722,6 +26087,120 @@
               "minLength": 1,
               "maxLength": 1000
             }
+          }
+        }
+      },
+      "PromptReferenceBinding": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "library_asset_id",
+          "asset_version_id",
+          "reference_id",
+          "purpose"
+        ],
+        "properties": {
+          "library_asset_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "asset_version_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "reference_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "subject",
+              "style",
+              "composition",
+              "character",
+              "scene",
+              "product"
+            ]
+          }
+        }
+      },
+      "PromptImageParameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "poster",
+              "portrait",
+              "general"
+            ]
+          },
+          "ratio": {
+            "type": "string",
+            "enum": [
+              "1:1",
+              "4:5",
+              "16:9"
+            ]
+          },
+          "style": {
+            "type": "string",
+            "enum": [
+              "natural",
+              "studio",
+              "illustration"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "ratio",
+          "style"
+        ]
+      },
+      "PromptApplication": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "prompt",
+          "defaults",
+          "prompt_source",
+          "reference_asset_ids",
+          "created_by",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 1000
+          },
+          "defaults": {
+            "$ref": "#/components/schemas/PromptImageParameters"
+          },
+          "prompt_source": {
+            "$ref": "#/components/schemas/PromptSource"
+          },
+          "reference_asset_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }

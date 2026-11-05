@@ -17,6 +17,7 @@ var ErrConflict = errors.New("prompt version conflict")
 var ErrArchived = errors.New("prompt archived")
 var ErrNotFound = errors.New("prompt not found")
 var ErrDenied = errors.New("prompt write denied")
+var libraryID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,80}$`)
 var ID = regexp.MustCompile(`^[a-f0-9]{32}$`)
 
 type Actor struct {
@@ -30,11 +31,12 @@ type Defaults struct {
 	Style string `json:"style"`
 }
 type Recipe struct {
-	Syntax    string     `json:"syntax"`
-	Body      string     `json:"body"`
-	Defaults  Defaults   `json:"defaults"`
-	Notes     string     `json:"notes"`
-	Variables []Variable `json:"variables,omitempty"`
+	Syntax            string             `json:"syntax"`
+	Body              string             `json:"body"`
+	Defaults          Defaults           `json:"defaults"`
+	Notes             string             `json:"notes"`
+	Variables         []Variable         `json:"variables,omitempty"`
+	ReferenceBindings []ReferenceBinding `json:"reference_bindings,omitempty"`
 }
 type Metadata struct {
 	Name        string   `json:"name"`
@@ -70,12 +72,14 @@ type Result struct {
 	Favorite bool     `json:"favorite"`
 }
 type Source struct {
-	TemplateID      string            `json:"template_id"`
-	VersionID       string            `json:"version_id"`
-	CompiledSHA256  string            `json:"compiled_sha256"`
-	EffectiveSHA256 string            `json:"effective_sha256"`
-	Edited          bool              `json:"edited"`
-	Variables       map[string]string `json:"variables,omitempty"`
+	TemplateID        string             `json:"template_id"`
+	VersionID         string             `json:"version_id"`
+	CompiledSHA256    string             `json:"compiled_sha256"`
+	EffectiveSHA256   string             `json:"effective_sha256"`
+	Edited            bool               `json:"edited"`
+	Variables         map[string]string  `json:"variables,omitempty"`
+	ApplicationID     string             `json:"application_id,omitempty"`
+	ReferenceBindings []ReferenceBinding `json:"reference_bindings,omitempty"`
 }
 
 func TextSHA(s string) string { h := sha256.Sum256([]byte(s)); return hex.EncodeToString(h[:]) }
@@ -118,5 +122,33 @@ func NormalizeRecipe(r Recipe) (Recipe, error) {
 	if (d.Kind != "poster" && d.Kind != "portrait" && d.Kind != "general") || (d.Ratio != "1:1" && d.Ratio != "4:5" && d.Ratio != "16:9") || (d.Style != "natural" && d.Style != "studio" && d.Style != "illustration") {
 		return r, ErrInput
 	}
+	seen := map[string]bool{}
+	for _, ref := range r.ReferenceBindings {
+		if !libraryID.MatchString(ref.AssetID) || !libraryID.MatchString(ref.VersionID) || !libraryID.MatchString(ref.ReferenceID) || (ref.Purpose != "subject" && ref.Purpose != "style" && ref.Purpose != "composition" && ref.Purpose != "character" && ref.Purpose != "scene" && ref.Purpose != "product") {
+			return r, ErrInput
+		}
+		key := ref.AssetID + ":" + ref.VersionID + ":" + ref.ReferenceID
+		if seen[key] {
+			return r, ErrInput
+		}
+		seen[key] = true
+	}
 	return normalizeVariables(r)
+}
+
+// References are version-pinned recipe data, not credentials or arbitrary URLs.
+type ReferenceBinding struct {
+	AssetID     string `json:"library_asset_id"`
+	VersionID   string `json:"asset_version_id"`
+	ReferenceID string `json:"reference_id"`
+	Purpose     string `json:"purpose"`
+}
+type Application struct {
+	ID                string    `json:"id"`
+	Prompt            string    `json:"prompt"`
+	Defaults          Defaults  `json:"defaults"`
+	Source            Source    `json:"prompt_source"`
+	ReferenceAssetIDs []string  `json:"reference_asset_ids"`
+	CreatedBy         string    `json:"created_by"`
+	CreatedAt         time.Time `json:"created_at"`
 }

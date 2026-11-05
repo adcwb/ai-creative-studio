@@ -214,6 +214,18 @@ def main():
                 assert expanded['prompt'] == 'White cat under warm light'
                 variable_task = call(alice, 'POST', '/api/v1/tasks' + query, '/api/v1/tasks', dict(prompt=expanded['prompt'], kind='poster', ratio='4:5', style='natural', prompt_source=dict(template_id=variable_saved['template']['id'], version_id=variable_saved['version']['id'], variables=dict(subject='White cat'), edited=False)), aq, status=202, key='secure-variable-image')
                 assert variable_task['prompt_source']['variables'] == {'subject':'White cat'}
+                project = call(alice, 'POST', '/api/v1/projects' + query, '/api/v1/projects', dict(title='Prompt application contract', brief='Synthetic recipe application without a model call.'), aq, status=201, key='secure-prompt-project')
+                applications = '/api/v1/projects/' + project['id'] + '/prompt-applications'
+                application_route = '/api/v1/projects/{id}/prompt-applications'
+                application_input = dict(template_id=variable_saved['template']['id'], version_id=variable_saved['version']['id'], variables=dict(subject='White cat'), expected_media_version=1)
+                application = call(alice, 'POST', applications + query, application_route, application_input, aq, status=201, key='secure-prompt-application')
+                assert application['prompt'] == 'White cat under warm light' and application['reference_asset_ids'] == []
+                replayed = call(alice, 'POST', applications + query, application_route, application_input, aq, status=200, key='secure-prompt-application')
+                assert replayed['id'] == application['id']
+                call(alice, 'GET', applications + '/' + application['id'] + query, application_route + '/{applicationId}')
+                call(bob, 'GET', applications + '/' + application['id'] + query, application_route + '/{applicationId}', status=403)
+                call(alice, 'GET', '/api/v1/projects/' + project['id'] + '/media' + query, '/api/v1/projects/{id}/media')
+                call(alice, 'POST', variable_target + '/copies' + query, route + '/copies', dict(version_id=variable_saved['version']['id'], name='Copied recipe', visibility='private'), aq, status=201)
                 call(alice, 'POST', '/api/v1/auth/logout', '/api/v1/auth/logout', {}, aq)
                 assert call(alice, 'GET', session_route, session_route)['authenticated'] is False
                 print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay'], 'live_provider_calls': 0}))

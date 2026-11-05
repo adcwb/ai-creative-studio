@@ -2,6 +2,7 @@ package application
 
 import (
 	"encoding/json"
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/prompts"
 	"io"
 	"os"
 )
@@ -54,10 +55,11 @@ func (s *FileStore) creativeExecutionRequest(job CreativeJob) (ExecutionRequest,
 	}
 	request.Parameters, _ = json.Marshal(struct {
 		Kind, Shot, Character string
+		ImageParameters       *prompts.Defaults           `json:"image_parameters,omitempty"`
 		VideoSpecification    *reviewedVideoSpecification `json:"video_specification,omitempty"`
 		ImageSpecification    *reviewedImageSpecification `json:"image_specification,omitempty"`
 		ReferenceRoles        []string                    `json:"reference_roles,omitempty"`
-	}{job.Kind, job.ShotID, job.Character, spec, imageSpec, roles})
+	}{job.Kind, job.ShotID, job.Character, job.ImageParameters, spec, imageSpec, roles})
 	return request, nil
 }
 

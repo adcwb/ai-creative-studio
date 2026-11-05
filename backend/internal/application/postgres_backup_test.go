@@ -29,6 +29,7 @@ func TestPostgresNativeBackupRestore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	promptProject, promptApplication := applyPromptForTest(t, store, actor, recipe, "backup-prompt-application")
 	task, _, err := store.Create("synthetic-backup", "backup-key", Input{Prompt: "synthetic backup image", Kind: "poster"})
 	if err != nil {
 		t.Fatal(err)
@@ -74,6 +75,9 @@ func TestPostgresNativeBackupRestore(t *testing.T) {
 	restoredDB := stdlib.OpenDB(*cfg)
 	defer restoredDB.Close()
 	restored := postgresTestStore(t, restoredDB)
+	if state := restored.media.Get(promptProject.ID, actor.Space); len(state.PromptApplications) != 1 || state.PromptApplications[0].ID != promptApplication.ID {
+		t.Fatal("native restore prompt application mismatch")
+	}
 	if got, e := restored.prompts.Version(context.Background(), actor, recipe.Template.ID, recipe.Version.ID); e != nil || got.SHA256 != recipe.Version.SHA256 {
 		t.Fatal("native restore prompt mismatch", e)
 	}

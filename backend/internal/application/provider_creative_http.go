@@ -40,6 +40,9 @@ func registerCreativeRoutes(mux *http.ServeMux, s *FileStore) {
 					return
 				}
 			}
+			if !s.resolveCreativePrompt(w, r, space, r.PathValue("id"), key, &in) {
+				return
+			}
 			if !resolveModelRequest(w, r, s, &in.ModelRequest, creativeRuntimeCapability(in.Kind), operationFeature("creative", &in)) {
 				return
 			}

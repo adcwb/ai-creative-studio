@@ -27,7 +27,7 @@ backend/
 
 `cmd → bootstrap / application → modules / platform`。
 
-`modules` 只能依赖标准库和显式批准的业务值类型：`projects → governance` 用于持久化的模型选择；`media → publishing` 用于兼容现有媒体快照中的发布状态。业务模块不依赖 HTTP、SQL、供应商 SDK、文件存储、`application` 或 `bootstrap`。`platform` 不反向依赖业务模块或启动装配。这些规则由 `internal/architecture` 中的测试检查。
+`modules` 只能依赖标准库和显式批准的业务值类型：`projects → governance` 用于持久化的模型选择；`media → publishing` 用于兼容现有媒体快照中的发布状态，`media → prompts` 用于项目内固定的配方应用快照。业务模块不依赖 HTTP、SQL、供应商 SDK、文件存储、`application` 或 `bootstrap`。`platform` 不反向依赖业务模块或启动装配。这些规则由 `internal/architecture` 中的测试检查。
 
 ## 修改代码时的归属
 

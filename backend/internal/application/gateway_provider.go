@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -140,6 +141,32 @@ func (p *gatewayImageProvider) GenerateWithMask(ctx context.Context, in Input, r
 	return p.edit(ctx, in, reference, mime, mask)
 }
 func (p *gatewayImageProvider) edit(ctx context.Context, in Input, reference []byte, mime string, mask []byte) (GenerationResult, error) {
+	return p.editReferences(ctx, in, []referenceMedia{{Data: reference, MIME: mime, Role: "reference"}}, mask)
+}
+func (p *gatewayImageProvider) GenerateWithReferences(ctx context.Context, in Input, refs []referenceMedia) (GenerationResult, error) {
+	return p.editReferences(ctx, in, refs, nil)
+}
+func gatewayReferenceLimit(m GatewayModel) int {
+	if !modelHasCapability(m, "image_edit") {
+		return 0
+	}
+	if m.MaxReferenceImages > 0 {
+		return m.MaxReferenceImages
+	}
+	return 1
+}
+func (p *gatewayImageProvider) editReferences(ctx context.Context, in Input, refs []referenceMedia, mask []byte) (GenerationResult, error) {
+	if len(refs) < 1 || len(refs) > gatewayReferenceLimit(p.model) {
+		return GenerationResult{}, providerFailure("unsupported_capability")
+	}
+	for _, ref := range refs {
+		if ref.Role != "reference" {
+			return GenerationResult{}, providerFailure("unsupported_capability")
+		}
+		if _, e := nativeImage(ref.Data, ref.MIME); e != nil {
+			return GenerationResult{}, e
+		}
+	}
 	if !modelHasCapability(p.model, "image_edit") {
 		return GenerationResult{}, providerFailure("unsupported_capability")
 	}
@@ -147,13 +174,11 @@ func (p *gatewayImageProvider) edit(ctx context.Context, in Input, reference []b
 	if e != nil {
 		return GenerationResult{}, e
 	}
-	if _, e = nativeImage(reference, mime); e != nil {
-		return GenerationResult{}, e
-	}
+
 	var body bytes.Buffer
 	form := multipart.NewWriter(&body)
 	size, _, _ := imageSize(in.Ratio)
-	for k, v := range map[string]string{"model": p.model.Model, "prompt": in.Prompt, "size": size, "n": "1"} {
+	for k, v := range map[string]string{"model": p.model.Model, "prompt": "Style: " + in.Style + ". Aspect ratio: " + in.Ratio + ". " + in.Prompt, "size": size, "n": "1"} {
 		if form.WriteField(k, v) != nil {
 			return GenerationResult{}, providerFailure("provider_error")
 		}
@@ -169,8 +194,10 @@ func (p *gatewayImageProvider) edit(ctx context.Context, in Input, reference []b
 		_, e = part.Write(data)
 		return e
 	}
-	if add("image[]", "reference.png", mime, reference) != nil {
-		return GenerationResult{}, providerFailure("provider_error")
+	for i, ref := range refs {
+		if add("image[]", fmt.Sprintf("reference-%d.png", i+1), ref.MIME, ref.Data) != nil {
+			return GenerationResult{}, providerFailure("provider_error")
+		}
 	}
 	if mask != nil && add("mask", "mask.png", "image/png", mask) != nil {
 		return GenerationResult{}, providerFailure("provider_error")

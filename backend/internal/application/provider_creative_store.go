@@ -14,15 +14,19 @@ import (
 	"sort"
 	"time"
 
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/prompts"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/tracing"
 )
 
 type CreativeJobInput struct {
-	ReferenceAssetIDs      []string `json:"reference_asset_ids,omitempty"`
-	FirstFrameAssetID      string   `json:"first_frame_asset_id,omitempty"`
-	LastFrameAssetID       string   `json:"last_frame_asset_id,omitempty"`
-	MotionReferenceAssetID string   `json:"motion_reference_asset_id,omitempty"`
+	PromptSource           *promptSourceInput `json:"prompt_source,omitempty"`
+	promptSnapshot         *prompts.Source
+	ImageParameters        *prompts.Defaults `json:"image_parameters,omitempty"`
+	ReferenceAssetIDs      []string          `json:"reference_asset_ids,omitempty"`
+	FirstFrameAssetID      string            `json:"first_frame_asset_id,omitempty"`
+	LastFrameAssetID       string            `json:"last_frame_asset_id,omitempty"`
+	MotionReferenceAssetID string            `json:"motion_reference_asset_id,omitempty"`
 
 	ModelRequest
 	consentActor          string
@@ -42,10 +46,12 @@ type CreativeJobInput struct {
 	Character             string `json:"character,omitempty"`
 }
 type CreativeJob struct {
-	ReferenceAssetIDs      []string `json:"reference_asset_ids,omitempty"`
-	FirstFrameAssetID      string   `json:"first_frame_asset_id,omitempty"`
-	LastFrameAssetID       string   `json:"last_frame_asset_id,omitempty"`
-	MotionReferenceAssetID string   `json:"motion_reference_asset_id,omitempty"`
+	PromptSource           *prompts.Source   `json:"prompt_source,omitempty"`
+	ImageParameters        *prompts.Defaults `json:"image_parameters,omitempty"`
+	ReferenceAssetIDs      []string          `json:"reference_asset_ids,omitempty"`
+	FirstFrameAssetID      string            `json:"first_frame_asset_id,omitempty"`
+	LastFrameAssetID       string            `json:"last_frame_asset_id,omitempty"`
+	MotionReferenceAssetID string            `json:"motion_reference_asset_id,omitempty"`
 
 	VoiceConsentBy        string `json:"voice_consent_by,omitempty"`
 	AvatarID              string `json:"avatar_id,omitempty"`
@@ -262,6 +268,18 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	if in.Kind != "analysis" && in.Kind != "image" && in.Kind != "speech" && in.Kind != "video" && in.Kind != "vision" && in.Kind != "consistency" && in.Kind != "music" && in.Kind != "lip_sync" && in.Kind != "sound_effect" && in.Kind != "digital_human" {
 		return CreativeJob{}, false, ErrInvalidProjectInput
 	}
+	if in.ImageParameters != nil {
+		if in.Kind != "image" {
+			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
+		p := in.ImageParameters
+		if p.Kind == "" || p.Ratio == "" || p.Style == "" {
+			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
+		if _, e := Normalize(Input{Prompt: "validate image parameters", Kind: p.Kind, Ratio: p.Ratio, Style: p.Style}); e != nil {
+			return CreativeJob{}, false, e
+		}
+	}
 	if in.Kind != "analysis" {
 		var err error
 		in.Prompt, err = normalizeProjectText(in.Prompt, "创作提示", 3, 2000)
@@ -465,7 +483,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		return CreativeJob{}, false, err
 	}
 	now := time.Now().UTC()
-	job := CreativeJob{ReferenceAssetIDs: append([]string(nil), in.ReferenceAssetIDs...), FirstFrameAssetID: in.FirstFrameAssetID, LastFrameAssetID: in.LastFrameAssetID, MotionReferenceAssetID: in.MotionReferenceAssetID, TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), AudioAssetID: in.AudioAssetID, ComparisonAssetID: in.ComparisonAssetID, MaskAssetID: in.MaskAssetID, ReferenceAssetID: in.ReferenceAssetID, ID: jid, SpaceID: space, ProjectID: id, Kind: in.Kind, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Prompt: in.Prompt, ShotID: in.ShotID, Character: in.Character, Source: ProjectInput{Title: p.Title, Brief: p.Brief}, CreatedAt: now, UpdatedAt: now}
+	job := CreativeJob{PromptSource: in.promptSnapshot, ImageParameters: in.ImageParameters, ReferenceAssetIDs: append([]string(nil), in.ReferenceAssetIDs...), FirstFrameAssetID: in.FirstFrameAssetID, LastFrameAssetID: in.LastFrameAssetID, MotionReferenceAssetID: in.MotionReferenceAssetID, TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), AudioAssetID: in.AudioAssetID, ComparisonAssetID: in.ComparisonAssetID, MaskAssetID: in.MaskAssetID, ReferenceAssetID: in.ReferenceAssetID, ID: jid, SpaceID: space, ProjectID: id, Kind: in.Kind, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Prompt: in.Prompt, ShotID: in.ShotID, Character: in.Character, Source: ProjectInput{Title: p.Title, Brief: p.Brief}, CreatedAt: now, UpdatedAt: now}
 	job.AvatarID, job.VoiceConsentReference, job.VoiceConfirmed, job.AIGenerated = in.AvatarID, in.VoiceConsentReference, in.VoiceConfirmed, in.Kind == "digital_human"
 	if in.Kind == "digital_human" {
 		job.VoiceConsentBy = in.consentActor
@@ -785,6 +803,9 @@ func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob
 		} else {
 			var result GenerationResult
 			input := Input{Kind: "general", Prompt: job.Prompt, Ratio: "16:9", Style: "natural"}
+			if p := job.ImageParameters; p != nil {
+				input.Kind, input.Ratio, input.Style = p.Kind, p.Ratio, p.Style
+			}
 			if len(job.ReferenceAssetIDs) > 0 {
 				adapter, ok := imageProvider.(multiReferenceImageProvider)
 				if !ok {

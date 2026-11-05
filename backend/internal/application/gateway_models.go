@@ -32,22 +32,23 @@ type storedGateway struct {
 	Ciphertext string    `json:"ciphertext,omitempty"`
 }
 type GatewayModel struct {
-	Pending         bool      `json:"pending,omitempty"`
-	ID              string    `json:"id"`
-	GatewayID       string    `json:"gateway_id"`
-	Name            string    `json:"name"`
-	Model           string    `json:"model"`
-	Capabilities    []string  `json:"capabilities"`
-	Enabled         bool      `json:"enabled"`
-	Version         int64     `json:"version"`
-	MaxOutputTokens int       `json:"max_output_tokens"`
-	JSONOutput      bool      `json:"json_output"`
-	VideoSeconds    int       `json:"video_seconds"`
-	VideoSize       string    `json:"video_size"`
-	Currency        string    `json:"currency"`
-	MaximumMinor    int64     `json:"maximum_minor"`
-	PriceSource     string    `json:"price_source"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	MaxReferenceImages int       `json:"max_reference_images,omitempty"`
+	Pending            bool      `json:"pending,omitempty"`
+	ID                 string    `json:"id"`
+	GatewayID          string    `json:"gateway_id"`
+	Name               string    `json:"name"`
+	Model              string    `json:"model"`
+	Capabilities       []string  `json:"capabilities"`
+	Enabled            bool      `json:"enabled"`
+	Version            int64     `json:"version"`
+	MaxOutputTokens    int       `json:"max_output_tokens"`
+	JSONOutput         bool      `json:"json_output"`
+	VideoSeconds       int       `json:"video_seconds"`
+	VideoSize          string    `json:"video_size"`
+	Currency           string    `json:"currency"`
+	MaximumMinor       int64     `json:"maximum_minor"`
+	PriceSource        string    `json:"price_source"`
+	UpdatedAt          time.Time `json:"updated_at"`
 }
 type FeatureDefinition struct {
 	Key        string `json:"key"`
@@ -190,7 +191,7 @@ func validateGatewaySnapshot(d modelSnapshot) error {
 	return nil
 }
 func validateGatewayModel(m GatewayModel) error {
-	if !validGatewayModelID(m.Model) || utf8.RuneCountInString(m.Name) < 1 || utf8.RuneCountInString(m.Name) > 80 || len(m.Capabilities) == 0 && !m.Pending || m.Pending && m.Enabled || len(m.Capabilities) > 8 || m.MaxOutputTokens < 1 || m.MaxOutputTokens > 9007199254740991 || m.MaximumMinor < 0 || m.MaximumMinor > 9007199254740991 || len(m.PriceSource) > 240 {
+	if m.MaxReferenceImages < 0 || m.MaxReferenceImages > 9007199254740991 || (m.MaxReferenceImages > 0 && !modelHasCapability(m, "image_edit")) || !validGatewayModelID(m.Model) || utf8.RuneCountInString(m.Name) < 1 || utf8.RuneCountInString(m.Name) > 80 || len(m.Capabilities) == 0 && !m.Pending || m.Pending && m.Enabled || len(m.Capabilities) > 8 || m.MaxOutputTokens < 1 || m.MaxOutputTokens > 9007199254740991 || m.MaximumMinor < 0 || m.MaximumMinor > 9007199254740991 || len(m.PriceSource) > 240 {
 		return errModelInput
 	}
 	if _, e := CurrencyMinorUnits(m.Currency); m.Currency != "" && e != nil {

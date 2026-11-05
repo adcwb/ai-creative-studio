@@ -7,10 +7,11 @@ import (
 )
 
 type promptSourceInput struct {
-	TemplateID string            `json:"template_id"`
-	VersionID  string            `json:"version_id"`
-	Edited     bool              `json:"edited"`
-	Variables  map[string]string `json:"variables,omitempty"`
+	ApplicationID string            `json:"application_id,omitempty"`
+	TemplateID    string            `json:"template_id"`
+	VersionID     string            `json:"version_id"`
+	Edited        bool              `json:"edited"`
+	Variables     map[string]string `json:"variables,omitempty"`
 }
 
 // Resolve only at acceptance. Workers consume the immutable task input, never
@@ -19,6 +20,10 @@ type promptSourceInput struct {
 func resolvePromptSource(w http.ResponseWriter, r *http.Request, repo Repository, space, key, parentID string, in *Input, source *promptSourceInput) bool {
 	if source == nil {
 		return true
+	}
+	if source.ApplicationID != "" {
+		promptError(w, prompts.ErrInput)
+		return false
 	}
 	if !prompts.ID.MatchString(source.TemplateID) || !prompts.ID.MatchString(source.VersionID) {
 		promptError(w, prompts.ErrInput)
@@ -62,6 +67,10 @@ func resolvePromptSource(w http.ResponseWriter, r *http.Request, repo Repository
 	version, e := store.prompts.Version(r.Context(), a, source.TemplateID, source.VersionID)
 	if e != nil {
 		promptError(w, e)
+		return false
+	}
+	if len(version.ReferenceBindings) > 0 {
+		problem(w, 400, "prompt_references_require_project", "此配方包含参考图，请在项目制作中使用")
 		return false
 	}
 	result, e := prompts.Compile(version.Recipe, source.Variables)

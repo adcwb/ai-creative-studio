@@ -179,6 +179,10 @@ func registerPromptRoutes(mux *http.ServeMux, s *FileStore) {
 		if !decodeProject(w, r, &in) {
 			return
 		}
+		if _, e := s.promptReferences(r.Context(), a.Space, in.Version); e != nil {
+			promptError(w, e)
+			return
+		}
 		id := libraryStableID(a.Space, a.User+":"+key, "prompt")
 		out, e := s.prompts.Mutate(r.Context(), a, id, key, promptrepo.Command{Operation: "create", Metadata: in.Metadata, Recipe: in.Version})
 		if e != nil {
@@ -219,6 +223,10 @@ func registerPromptRoutes(mux *http.ServeMux, s *FileStore) {
 			Version     prompts.Recipe    `json:"version"`
 		}
 		if !decodeProject(w, r, &in) {
+			return
+		}
+		if _, e := s.promptReferences(r.Context(), a.Space, in.Version); e != nil {
+			promptError(w, e)
 			return
 		}
 		cmd := promptrepo.Command{Operation: "version", Recipe: in.Version, ExpectedHead: in.Expected, ExpectedRow: in.ExpectedRow}

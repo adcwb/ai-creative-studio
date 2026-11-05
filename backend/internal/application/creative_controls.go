@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -80,6 +81,17 @@ func (s *FileStore) validateCreativeControls(project, space string, in CreativeJ
 		return nil
 	}
 	allowed := creativeControls(caps.Provider, caps.Model, in.Kind)
+	if in.selection != nil && in.selection.GatewayID != "" && in.Kind == "image" && s.runtime != nil && s.runtime.auth != nil {
+		models := s.runtime.auth.models
+		models.mu.Lock()
+		m := models.data.Tenants[space].Models[in.selection.ModelID]
+		current := m.Version == in.selection.Version
+		models.mu.Unlock()
+		if !current {
+			return errRuntimeUnavailable
+		}
+		allowed = CreativeControls{MaxReferences: gatewayReferenceLimit(m)}
+	}
 	if in.ReferenceAssetID != "" || in.MaskAssetID != "" || len(in.ReferenceAssetIDs) > allowed.MaxReferences || (len(in.ReferenceAssetIDs) > 0 && allowed.MaxReferences == 0) || ((in.FirstFrameAssetID != "" || in.LastFrameAssetID != "") && !allowed.Frames) || (in.LastFrameAssetID != "" && in.FirstFrameAssetID == "") || (in.MotionReferenceAssetID != "" && !allowed.MotionReference) {
 		return projectInputError("所选模型不支持此参考组合，尾帧必须配合首帧，且不能混用旧单参考或遮罩")
 	}
@@ -104,7 +116,25 @@ func registerCreativeControls(mux *http.ServeMux, s *FileStore) {
 			return
 		}
 		q := r.URL.Query()
-		respond(w, 200, creativeControls(q.Get("provider"), q.Get("model"), q.Get("kind")))
+		controls := creativeControls(q.Get("provider"), q.Get("model"), q.Get("kind"))
+		if id := q.Get("model_config_id"); id != "" && q.Get("kind") == "image" && s.runtime != nil && s.runtime.auth != nil {
+			scope, _ := r.Context().Value(authScopeKey{}).(authScope)
+			selection, _, e := s.runtime.Resolve(r.Context(), space, scope.UserID, id, "image")
+			if e != nil {
+				storeError(w, e)
+				return
+			}
+			if raw := q.Get("model_config_version"); raw != "" && raw != strconv.FormatInt(selection.Version, 10) {
+				problem(w, 409, "provider_changed", "模型配置已变化，请刷新模型目录")
+				return
+			}
+			models := s.runtime.auth.models
+			models.mu.Lock()
+			m := models.data.Tenants[space].Models[selection.ModelID]
+			models.mu.Unlock()
+			controls = CreativeControls{MaxReferences: gatewayReferenceLimit(m)}
+		}
+		respond(w, 200, controls)
 	})
 }
 
