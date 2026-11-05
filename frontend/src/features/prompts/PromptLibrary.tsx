@@ -2,6 +2,7 @@ import {useEffect, useRef, useState, type ReactNode} from 'react'
 import {errorMessage, request, type Catalog, type TaskInput} from '../../api'
 import {Icon} from '../../components/Icon'
 import {useI18n} from '../../i18n'
+import {UsePromptDialog} from './UsePromptDialog'
 import {PromptEditor} from './PromptEditor'
 import {readPending, type PendingPrompt, type PromptPage, type PromptResult, type PromptVersion} from './types'
 import './prompts.css'
@@ -24,6 +25,7 @@ export function PromptLibrary({space, actor, readOnly, catalog, draft, disabled,
   const [busy, setBusy] = useState(false)
   const [editor, setEditor] = useState<{initial: PromptResult | null; seed: TaskInput; recovery?: PendingPrompt | null} | null>(null)
   const [pending, setPending] = useState(() => readPending(space, actor))
+  const [using, setUsing] = useState<{item: PromptResult; version: PromptVersion} | null>(null)
   const [history, setHistory] = useState<{item: PromptResult; versions: PromptVersion[]; next: string} | null>(null)
   const historyDialog = useRef<HTMLDialogElement>(null)
   const historyActive = Boolean(history)
@@ -65,6 +67,7 @@ export function PromptLibrary({space, actor, readOnly, catalog, draft, disabled,
   async function choose(item: PromptResult, version = item.version) {
     if (disabled || busy) return
     if (draft.prompt.trim() && !window.confirm(t('用此提示词替换当前画面描述和参数？取消可保留原草稿。'))) return
+    if (version.syntax === 'variables_v1') {setHistory(null); setUsing({item, version}); return}
     setError(''); setBusy(true)
     try {
       const preview = await request<{prompt: string; defaults: TaskInput}>(`/prompt-templates/${item.template.id}/preview?${query}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({version_id: version.id})})
@@ -84,6 +87,7 @@ export function PromptLibrary({space, actor, readOnly, catalog, draft, disabled,
       <div className="template-grid">{items.map(item => <article className="prompt-library-card" key={item.template.id}><h3>{item.template.name}</h3><p>{item.template.description || item.version.body}</p><span className="prompt-card-meta">{item.template.category} {item.template.tags.map(x => `#${x}`).join(' ')} · {t('版本 {number}', {number: item.version.number})}</span><div className="prompt-card-actions"><button className="primary" disabled={disabled || busy || item.template.status !== 'active'} onClick={() => {void choose(item)}}>{t('选用提示词')}</button><button disabled={busy} onClick={() => {void showHistory(item)}}>{t('版本记录')}</button><button aria-pressed={item.favorite} disabled={busy} onClick={() => {void mutate(item, 'favorite')}}>{t(item.favorite ? '取消收藏' : '收藏')}</button>{!readOnly && <><button disabled={busy || item.template.status !== 'active' || Boolean(pending)} onClick={() => openEditor(item)}>{t('编辑')}</button><button disabled={busy || Boolean(pending)} onClick={() => {void mutate(item, 'copy')}}>{t('复制为我的提示词')}</button><button disabled={busy} onClick={() => {void mutate(item, item.template.status === 'active' ? 'archive' : 'restore')}}>{t(item.template.status === 'active' ? '归档' : '恢复使用')}</button></>}</div></article>)}</div>
       {next && <button disabled={loading} onClick={() => setCursor(next)}>{t('加载更多提示词')}</button>}
     </>}
+    {using && <UsePromptDialog space={space} item={using.item} version={using.version} onClose={() => setUsing(null)} onApply={value => {onChoose(value); setUsing(null); setNotice(t('已填入固定版本，可继续修改。点击创建图像后才会调用模型。'))}} />}
     {editor && <PromptEditor space={space} actor={actor} initial={editor.initial} seed={editor.seed} catalog={catalog} recovery={editor.recovery} onSaved={() => {setEditor(null); setPending(null); setTab('mine'); refresh(); setNotice(t('提示词已保存，没有发起模型调用。'))}} onClose={() => {setEditor(null); setPending(readPending(space, actor))}} />}
     {history && <dialog ref={historyDialog} className="detail-dialog" aria-labelledby="prompt-history-title" onCancel={() => setHistory(null)}><div className="dialog-header"><h2 id="prompt-history-title">{t('版本记录')} · {history.item.template.name}</h2><button className="icon-button" aria-label={t('关闭版本记录')} onClick={() => setHistory(null)}><Icon name="close" /></button></div><p className="composer-help">{t('历史正文保持不变。选用只预填；另存副本不会覆盖当前版本。')}</p><div className="prompt-history">{history.versions.map(version => <article key={version.id}><strong>{t('版本 {number}', {number: version.number})} · {formatDate(version.created_at)}</strong><p>{version.body}</p><small>{version.notes}</small><div className="prompt-card-actions"><button disabled={disabled || busy || history.item.template.status !== 'active'} onClick={() => {void choose(history.item, version)}}>{t('选用此版本')}</button>{!readOnly && <><button disabled={busy || Boolean(pending) || history.item.template.status !== 'active'} onClick={() => {const initial = {...history.item, version}; setHistory(null); openEditor(initial)}}>{t('以此版本继续编辑')}</button><button disabled={busy || Boolean(pending)} onClick={() => {void mutate(history.item, 'copy', version)}}>{t('另存为新提示词')}</button></>}</div></article>)}</div>{history.next && <button disabled={busy} onClick={() => {void showHistory(history.item, history.next)}}>{t('加载更多版本')}</button>}</dialog>}
   </>

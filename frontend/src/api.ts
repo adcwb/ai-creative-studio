@@ -8,7 +8,7 @@ export interface Capabilities {
   model?: string; reason_code?: string; message: string
 }
 export interface ResultSource { provider: Provider; model?: string; result_mime?: string; result_width?: number; result_height?: number }
-export interface PromptSource {template_id: string; version_id: string; edited: boolean; compiled_sha256?: string; effective_sha256?: string}
+export interface PromptSource {variables?: Record<string, string>; template_id: string; version_id: string; edited: boolean; compiled_sha256?: string; effective_sha256?: string}
 export interface TaskInput { prompt_source?: PromptSource; prompt: string; kind: Kind; ratio: Ratio; style: Style }
 export interface Task extends TaskInput, ResultSource {
   id: string; space_id: string
@@ -26,7 +26,7 @@ export interface Catalog {
 export const kindLabels: Record<Kind, string> = {poster: "创意海报", portrait: "肖像概念", general: "通用图像"}
 export const baseURL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '')
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number, readonly code?: string) {
+  constructor(message: string, readonly status: number, readonly code?: string, readonly field?: string) {
     super(message)
     this.name = 'ApiError'
   }
@@ -40,8 +40,8 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 	const response = await fetch(`${baseURL}/api/v1${path}`, {...init, headers, credentials: 'include', signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout})
   if (!response.ok) {
     if (response.status === 401 && !path.startsWith('/auth/') && typeof window !== 'undefined') window.dispatchEvent(new Event('studio-session-expired'))
-    const body = await response.json().catch(() => null) as {error?: {message?: string; code?: string}} | null
-    throw new ApiError(localizedError(body?.error?.message, body?.error?.code ?? String(response.status)), response.status, body?.error?.code)
+    const body = await response.json().catch(() => null) as {error?: {message?: string; code?: string; field?: string}} | null
+    throw new ApiError(localizedError(body?.error?.message, body?.error?.code ?? String(response.status)), response.status, body?.error?.code, body?.error?.field)
   }
   return response.json() as Promise<T>
 }

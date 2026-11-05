@@ -1,6 +1,7 @@
 import type {TaskInput} from '../../api'
 export interface PromptMetadata {name: string; description: string; category: string; tags: string[]; visibility: 'private' | 'organization'}
-export interface PromptRecipe {syntax: 'plain'; body: string; defaults: Pick<TaskInput, 'kind' | 'ratio' | 'style'>; notes: string}
+export interface PromptVariable {name: string; label: string; type: 'text' | 'enum'; required: boolean; default?: string; max_length: number; options?: string[]}
+export interface PromptRecipe {syntax: 'plain' | 'variables_v1'; variables?: PromptVariable[]; body: string; defaults: Pick<TaskInput, 'kind' | 'ratio' | 'style'>; notes: string}
 export interface PromptTemplate extends PromptMetadata {id: string; space_id: string; owner_id: string; status: 'active' | 'archived'; head_version_id: string; row_version: number; created_at: string; updated_at: string}
 export interface PromptVersion extends PromptRecipe {id: string; template_id: string; space_id: string; number: number; sha256: string; created_by: string; created_at: string}
 export interface PromptResult {template: PromptTemplate; version: PromptVersion; favorite: boolean}

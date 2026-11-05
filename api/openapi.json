@@ -16995,7 +16995,7 @@
       "get": {
         "operationId": "listPromptTemplates",
         "summary": "listPromptTemplates",
-        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal; variables_v1 performs a single server-side text substitution with declared text/enum values. It never evaluates expressions or recursively interprets inserted text. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
         "parameters": [
           {
             "name": "space_id",
@@ -17165,7 +17165,7 @@
       "post": {
         "operationId": "createPromptTemplate",
         "summary": "createPromptTemplate",
-        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal; variables_v1 performs a single server-side text substitution with declared text/enum values. It never evaluates expressions or recursively interprets inserted text. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
         "parameters": [
           {
             "name": "space_id",
@@ -17285,7 +17285,7 @@
       "get": {
         "operationId": "getPromptTemplate",
         "summary": "getPromptTemplate",
-        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal; variables_v1 performs a single server-side text substitution with declared text/enum values. It never evaluates expressions or recursively interprets inserted text. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
         "parameters": [
           {
             "name": "space_id",
@@ -17392,7 +17392,7 @@
       "patch": {
         "operationId": "updatePromptMetadata",
         "summary": "updatePromptMetadata",
-        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal; variables_v1 performs a single server-side text substitution with declared text/enum values. It never evaluates expressions or recursively interprets inserted text. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
         "parameters": [
           {
             "name": "space_id",
@@ -17521,7 +17521,7 @@
       "get": {
         "operationId": "listPromptVersions",
         "summary": "listPromptVersions",
-        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal; variables_v1 performs a single server-side text substitution with declared text/enum values. It never evaluates expressions or recursively interprets inserted text. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
         "parameters": [
           {
             "name": "space_id",
@@ -17647,7 +17647,7 @@
       "post": {
         "operationId": "appendPromptVersion",
         "summary": "appendPromptVersion",
-        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal; variables_v1 performs a single server-side text substitution with declared text/enum values. It never evaluates expressions or recursively interprets inserted text. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
         "parameters": [
           {
             "name": "space_id",
@@ -17776,7 +17776,7 @@
       "get": {
         "operationId": "getPromptVersion",
         "summary": "getPromptVersion",
-        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal; variables_v1 performs a single server-side text substitution with declared text/enum values. It never evaluates expressions or recursively interprets inserted text. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
         "parameters": [
           {
             "name": "space_id",
@@ -17894,7 +17894,7 @@
       "post": {
         "operationId": "copyPromptTemplate",
         "summary": "copyPromptTemplate",
-        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal; variables_v1 performs a single server-side text substitution with declared text/enum values. It never evaluates expressions or recursively interprets inserted text. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
         "parameters": [
           {
             "name": "space_id",
@@ -18023,7 +18023,7 @@
       "put": {
         "operationId": "setPromptFavorite",
         "summary": "setPromptFavorite",
-        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal; variables_v1 performs a single server-side text substitution with declared text/enum values. It never evaluates expressions or recursively interprets inserted text. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
         "parameters": [
           {
             "name": "space_id",
@@ -18170,7 +18170,7 @@
       "post": {
         "operationId": "previewPromptVersion",
         "summary": "previewPromptVersion",
-        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal; variables_v1 performs a single server-side text substitution with declared text/enum values. It never evaluates expressions or recursively interprets inserted text. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
         "parameters": [
           {
             "name": "space_id",
@@ -18284,6 +18284,13 @@
                   "version_id": {
                     "type": "string",
                     "pattern": "^[a-f0-9]{32}$"
+                  },
+                  "variables": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 1000
+                    }
                   }
                 },
                 "required": [
@@ -18959,6 +18966,10 @@
               },
               "message": {
                 "type": "string"
+              },
+              "field": {
+                "type": "string",
+                "description": "The invalid variable name or input field; never includes private recipe body."
               }
             }
           }
@@ -25079,7 +25090,8 @@
           "syntax": {
             "type": "string",
             "enum": [
-              "plain"
+              "plain",
+              "variables_v1"
             ]
           },
           "body": {
@@ -25125,6 +25137,12 @@
           "notes": {
             "type": "string",
             "maxLength": 500
+          },
+          "variables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PromptVariable"
+            }
           }
         },
         "required": [
@@ -25223,7 +25241,8 @@
           "syntax": {
             "type": "string",
             "enum": [
-              "plain"
+              "plain",
+              "variables_v1"
             ]
           },
           "body": {
@@ -25296,6 +25315,12 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "variables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PromptVariable"
+            }
           }
         },
         "required": [
@@ -25532,6 +25557,13 @@
           },
           "edited": {
             "type": "boolean"
+          },
+          "variables": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 1000
+            }
           }
         },
         "required": [
@@ -25562,6 +25594,13 @@
           "effective_sha256": {
             "type": "string",
             "pattern": "^[a-f0-9]{64}$"
+          },
+          "variables": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 1000
+            }
           }
         },
         "required": [
@@ -25623,6 +25662,13 @@
               "ratio",
               "style"
             ]
+          },
+          "variables": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 1000
+            }
           }
         },
         "required": [
@@ -25631,6 +25677,53 @@
           "compiled_sha256",
           "defaults"
         ]
+      },
+      "PromptVariable": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "type",
+          "required"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,31}$"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "enum"
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "default": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "max_length": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 1000
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            }
+          }
+        }
       }
     },
     "securitySchemes": {

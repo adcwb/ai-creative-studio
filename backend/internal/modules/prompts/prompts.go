@@ -30,10 +30,11 @@ type Defaults struct {
 	Style string `json:"style"`
 }
 type Recipe struct {
-	Syntax   string   `json:"syntax"`
-	Body     string   `json:"body"`
-	Defaults Defaults `json:"defaults"`
-	Notes    string   `json:"notes"`
+	Syntax    string     `json:"syntax"`
+	Body      string     `json:"body"`
+	Defaults  Defaults   `json:"defaults"`
+	Notes     string     `json:"notes"`
+	Variables []Variable `json:"variables,omitempty"`
 }
 type Metadata struct {
 	Name        string   `json:"name"`
@@ -69,11 +70,12 @@ type Result struct {
 	Favorite bool     `json:"favorite"`
 }
 type Source struct {
-	TemplateID      string `json:"template_id"`
-	VersionID       string `json:"version_id"`
-	CompiledSHA256  string `json:"compiled_sha256"`
-	EffectiveSHA256 string `json:"effective_sha256"`
-	Edited          bool   `json:"edited"`
+	TemplateID      string            `json:"template_id"`
+	VersionID       string            `json:"version_id"`
+	CompiledSHA256  string            `json:"compiled_sha256"`
+	EffectiveSHA256 string            `json:"effective_sha256"`
+	Edited          bool              `json:"edited"`
+	Variables       map[string]string `json:"variables,omitempty"`
 }
 
 func TextSHA(s string) string { h := sha256.Sum256([]byte(s)); return hex.EncodeToString(h[:]) }
@@ -108,13 +110,13 @@ func NormalizeMetadata(m Metadata) (Metadata, error) {
 	return m, nil
 }
 func NormalizeRecipe(r Recipe) (Recipe, error) {
-	// Plain syntax is deliberately literal: braces never invoke a variable engine.
-	if r.Syntax != "plain" || !utf8.ValidString(r.Body+r.Notes) || utf8.RuneCountInString(strings.TrimSpace(r.Body)) < 3 || utf8.RuneCountInString(r.Body) > 1000 || utf8.RuneCountInString(r.Notes) > 500 {
+	// Syntax is explicit: upgrading never interprets braces in existing plain recipes.
+	if (r.Syntax != "plain" && r.Syntax != "variables_v1") || !utf8.ValidString(r.Body+r.Notes) || utf8.RuneCountInString(strings.TrimSpace(r.Body)) < 3 || utf8.RuneCountInString(r.Body) > 1000 || utf8.RuneCountInString(r.Notes) > 500 {
 		return r, ErrInput
 	}
 	d := r.Defaults
 	if (d.Kind != "poster" && d.Kind != "portrait" && d.Kind != "general") || (d.Ratio != "1:1" && d.Ratio != "4:5" && d.Ratio != "16:9") || (d.Style != "natural" && d.Style != "studio" && d.Style != "illustration") {
 		return r, ErrInput
 	}
-	return r, nil
+	return normalizeVariables(r)
 }

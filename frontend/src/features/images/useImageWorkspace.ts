@@ -35,7 +35,7 @@ export function useImageController() {
   function editTask(task: Task) {
     studio.newAttempt(); setDetailId(null)
     setEditing({task, previous: editing?.previous ?? draft})
-    setDraft({prompt: task.prompt, kind: task.kind, ratio: task.ratio, style: task.style, ...(task.prompt_source ? {prompt_source: {template_id: task.prompt_source.template_id, version_id: task.prompt_source.version_id, edited: true}} : {})})
+    setDraft({prompt: task.prompt, kind: task.kind, ratio: task.ratio, style: task.style, ...(task.prompt_source ? {prompt_source: {template_id: task.prompt_source.template_id, version_id: task.prompt_source.version_id, variables: task.prompt_source.variables, edited: true}} : {})})
     void navigate('/studio'); focusPrompt()
   }
   function cancelEdit() {

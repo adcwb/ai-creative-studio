@@ -3,13 +3,14 @@ package application
 import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/prompts"
 	"net/http"
-	"strings"
+	"reflect"
 )
 
 type promptSourceInput struct {
-	TemplateID string `json:"template_id"`
-	VersionID  string `json:"version_id"`
-	Edited     bool   `json:"edited"`
+	TemplateID string            `json:"template_id"`
+	VersionID  string            `json:"version_id"`
+	Edited     bool              `json:"edited"`
+	Variables  map[string]string `json:"variables,omitempty"`
 }
 
 // Resolve only at acceptance. Workers consume the immutable task input, never
@@ -42,7 +43,7 @@ func resolvePromptSource(w http.ResponseWriter, r *http.Request, repo Repository
 	store.mu.Unlock()
 	if original != nil && original.PromptSource != nil {
 		old := original.PromptSource
-		if old.TemplateID == source.TemplateID && old.VersionID == source.VersionID && original.Prompt == in.Prompt && original.Kind == in.Kind && original.Ratio == in.Ratio && original.Style == in.Style {
+		if old.TemplateID == source.TemplateID && old.VersionID == source.VersionID && reflect.DeepEqual(old.Variables, canonicalVariables(source.Variables)) && original.Prompt == in.Prompt && original.Kind == in.Kind && original.Ratio == in.Ratio && original.Style == in.Style {
 			copy := *old
 			in.PromptSource = &copy
 			return true
@@ -63,12 +64,28 @@ func resolvePromptSource(w http.ResponseWriter, r *http.Request, repo Repository
 		promptError(w, e)
 		return false
 	}
-	compiled := strings.TrimSpace(version.Body)
+	result, e := prompts.Compile(version.Recipe, source.Variables)
+	if e != nil {
+		promptError(w, e)
+		return false
+	}
+	compiled := result.Text
 	edited := in.Prompt != compiled
 	if edited && !source.Edited {
 		promptError(w, prompts.ErrInput)
 		return false
 	}
-	in.PromptSource = &prompts.Source{TemplateID: source.TemplateID, VersionID: source.VersionID, CompiledSHA256: prompts.TextSHA(compiled), EffectiveSHA256: prompts.TextSHA(in.Prompt), Edited: edited}
+	in.PromptSource = &prompts.Source{TemplateID: source.TemplateID, VersionID: source.VersionID, CompiledSHA256: prompts.TextSHA(compiled), EffectiveSHA256: prompts.TextSHA(in.Prompt), Edited: edited, Variables: canonicalVariables(source.Variables)}
 	return true
+}
+
+func canonicalVariables(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := map[string]string{}
+	for k, v := range values {
+		out[k] = v
+	}
+	return out
 }

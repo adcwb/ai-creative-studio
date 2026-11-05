@@ -337,3 +337,60 @@ func TestPromptAdminArchiveDoesNotGrantPrivateRead(t *testing.T) {
 		})
 	}
 }
+
+func TestPromptVariablesHTTPPreviewAndPinnedSource(t *testing.T) {
+	s := testStore(t)
+	a := prompts.Actor{Space: "personal-demo", User: "demo-user", Writable: true}
+	c := promptCommand()
+	c.Recipe.Syntax = "variables_v1"
+	c.Recipe.Body = "{{subject}}，{{tone}}光线"
+	tone := "暖色"
+	c.Recipe.Variables = []prompts.Variable{{Name: "subject", Label: "主体", Type: "text", Required: true, MaxLength: 1000}, {Name: "tone", Label: "色调", Type: "enum", Default: &tone, Options: []string{"暖色", "冷灰"}, MaxLength: 20}}
+	created, e := s.prompts.Mutate(context.Background(), a, "66666666666666666666666666666666", "variables-create", c)
+	if e != nil {
+		t.Fatal(e)
+	}
+	h := Handler(s, "")
+	call := func(path, key string, body any) *httptest.ResponseRecorder {
+		b, _ := json.Marshal(body)
+		r := httptest.NewRequest("POST", path, bytes.NewReader(b))
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("Idempotency-Key", key)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	path := "/api/v1/prompt-templates/" + created.Template.ID + "/preview?space_id=personal-demo"
+	w := call(path, "", map[string]any{"version_id": created.Version.ID})
+	if w.Code != 400 || !bytes.Contains(w.Body.Bytes(), []byte(`"field":"subject"`)) {
+		t.Fatal("missing field", w.Code, w.Body.String())
+	}
+	w = call(path, "", map[string]any{"version_id": created.Version.ID, "variables": map[string]string{"subject": "白色小猫"}})
+	if w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	var preview prompts.Compilation
+	if json.Unmarshal(w.Body.Bytes(), &preview) != nil || preview.Text != "白色小猫，暖色光线" {
+		t.Fatal("compiled preview", w.Body.String())
+	}
+	if len(s.List(a.Space)) != 0 {
+		t.Fatal("preview generated task")
+	}
+	body := map[string]any{"prompt": preview.Text, "kind": "poster", "ratio": "4:5", "style": "natural", "prompt_source": map[string]any{"template_id": created.Template.ID, "version_id": created.Version.ID, "variables": map[string]string{"subject": "白色小猫"}, "edited": false}}
+	w = call("/api/v1/tasks?space_id=personal-demo", "variables-image", body)
+	if w.Code != 202 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	var task Task
+	json.Unmarshal(w.Body.Bytes(), &task)
+	if task.PromptSource.Variables["subject"] != "白色小猫" || task.PromptSource.CompiledSHA256 != preview.SHA256 {
+		t.Fatal("variable attribution missing")
+	}
+	_, e = s.prompts.Mutate(context.Background(), a, created.Template.ID, "archive-variable", promptrepo.Command{Operation: "metadata", Metadata: created.Template.Metadata, ExpectedRow: 1, Status: "archived"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if w = call("/api/v1/tasks?space_id=personal-demo", "variables-image", body); w.Code != 200 {
+		t.Fatal("archived variable replay", w.Code, w.Body.String())
+	}
+}

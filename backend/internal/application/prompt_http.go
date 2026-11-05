@@ -25,9 +25,14 @@ func promptActor(r *http.Request, space string) prompts.Actor {
 	return prompts.Actor{Space: space, User: "demo-user", Writable: true}
 }
 func promptError(w http.ResponseWriter, e error) {
+	var field *prompts.FieldError
+	if errors.As(e, &field) {
+		respond(w, 400, map[string]any{"error": map[string]string{"code": field.Code, "message": "提示词变量或展开文本无效，请检查对应字段", "field": field.Field}})
+		return
+	}
 	switch {
 	case errors.Is(e, prompts.ErrInput):
-		problem(w, 400, "invalid_prompt_parameter", "提示词名称、正文或参数无效；首版仅支持纯文本配方")
+		problem(w, 400, "invalid_prompt_parameter", "提示词名称、正文或参数无效，请检查配方字段")
 	case errors.Is(e, prompts.ErrNotFound):
 		problem(w, 404, "not_found", "提示词不存在或当前不可见")
 	case errors.Is(e, prompts.ErrDenied):
@@ -306,7 +311,8 @@ func registerPromptRoutes(mux *http.ServeMux, s *FileStore) {
 			return
 		}
 		var in struct {
-			VersionID string `json:"version_id"`
+			VersionID string            `json:"version_id"`
+			Variables map[string]string `json:"variables,omitempty"`
 		}
 		if !decodeProject(w, r, &in) {
 			return
@@ -325,7 +331,11 @@ func registerPromptRoutes(mux *http.ServeMux, s *FileStore) {
 			promptError(w, e)
 			return
 		}
-		text := strings.TrimSpace(v.Body)
-		respond(w, 200, map[string]any{"prompt": text, "characters": utf8.RuneCountInString(text), "compiled_sha256": prompts.TextSHA(text), "defaults": v.Defaults})
+		compiled, e := prompts.Compile(v.Recipe, in.Variables)
+		if e != nil {
+			promptError(w, e)
+			return
+		}
+		respond(w, 200, compiled)
 	})
 }

@@ -50,9 +50,9 @@ def main():
         def client():
             return urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         alice, bob, anonymous = client(), client(), client()
-        def call(opener, method, path, route, body=None, csrf='', status=200):
+        def call(opener, method, path, route, body=None, csrf='', status=200, key='secure-contract-operation'):
             nonlocal count
-            headers = {'Content-Type': 'application/json', 'Origin': origin, 'X-CSRF-Token': csrf, 'Idempotency-Key': 'secure-contract-operation'}
+            headers = {'Content-Type': 'application/json', 'Origin': origin, 'X-CSRF-Token': csrf, 'Idempotency-Key': key}
             request = urllib.request.Request(origin + path, method=method, headers=headers, data=None if body is None else json.dumps(body).encode())
             try:
                 response = opener.open(request, timeout=15)
@@ -205,6 +205,15 @@ def main():
                 call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'remove'}, aq)
                 call(bob, 'GET', target + query, route, status=403)
                 call(bob, 'POST', target + '/versions' + query, route + '/versions', dict(expected_head_version_id=shared['version']['id'], version=recipe), bq, status=403)
+                variable_recipe = dict(syntax='variables_v1', body='{{subject}} under {{palette}} light', defaults=dict(kind='poster', ratio='4:5', style='natural'), notes='variable contract', variables=[dict(name='subject', label='Subject', type='text', required=True, max_length=100), dict(name='palette', label='Palette', type='enum', required=False, default='warm', options=['warm','cool'], max_length=20)])
+                variable_saved = call(alice, 'POST', prompts + query, prompts, dict(name='Variable recipe', visibility='private', version=variable_recipe), aq, status=201, key='secure-variable-operation')
+                variable_target = prompts + '/' + variable_saved['template']['id']
+                missing = call(alice, 'POST', variable_target + '/preview' + query, route + '/preview', dict(version_id=variable_saved['version']['id']), aq, status=400)
+                assert missing['error']['field'] == 'subject'
+                expanded = call(alice, 'POST', variable_target + '/preview' + query, route + '/preview', dict(version_id=variable_saved['version']['id'], variables=dict(subject='White cat')), aq)
+                assert expanded['prompt'] == 'White cat under warm light'
+                variable_task = call(alice, 'POST', '/api/v1/tasks' + query, '/api/v1/tasks', dict(prompt=expanded['prompt'], kind='poster', ratio='4:5', style='natural', prompt_source=dict(template_id=variable_saved['template']['id'], version_id=variable_saved['version']['id'], variables=dict(subject='White cat'), edited=False)), aq, status=202, key='secure-variable-image')
+                assert variable_task['prompt_source']['variables'] == {'subject':'White cat'}
                 call(alice, 'POST', '/api/v1/auth/logout', '/api/v1/auth/logout', {}, aq)
                 assert call(alice, 'GET', session_route, session_route)['authenticated'] is False
                 print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay'], 'live_provider_calls': 0}))
