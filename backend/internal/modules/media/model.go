@@ -17,20 +17,22 @@ type LibrarySource struct {
 	VersionID string `json:"version_id"`
 }
 type MediaAsset struct {
-	ParentAssetIDs []string        `json:"parent_asset_ids,omitempty"`
-	LibrarySources []LibrarySource `json:"library_sources,omitempty"`
-	ContentSHA256  string          `json:"content_sha256,omitempty"`
-	CharacterID    string          `json:"character_id,omitempty"`
-	ID             string          `json:"id"`
-	Kind           string          `json:"kind"`
-	MIMEType       string          `json:"mime_type"`
-	Name           string          `json:"name"`
-	Role           string          `json:"role"`
-	Character      string          `json:"character"`
-	ShotID         string          `json:"shot_id"`
-	Duration       float64         `json:"duration"`
-	Source         string          `json:"source"`
-	FileURL        string          `json:"file_url"`
+	ProvenanceVersion int             `json:"provenance_version,omitempty"`
+	ProvenanceUnknown bool            `json:"provenance_unknown,omitempty"`
+	ParentAssetIDs    []string        `json:"parent_asset_ids,omitempty"`
+	LibrarySources    []LibrarySource `json:"library_sources,omitempty"`
+	ContentSHA256     string          `json:"content_sha256,omitempty"`
+	CharacterID       string          `json:"character_id,omitempty"`
+	ID                string          `json:"id"`
+	Kind              string          `json:"kind"`
+	MIMEType          string          `json:"mime_type"`
+	Name              string          `json:"name"`
+	Role              string          `json:"role"`
+	Character         string          `json:"character"`
+	ShotID            string          `json:"shot_id"`
+	Duration          float64         `json:"duration"`
+	Source            string          `json:"source"`
+	FileURL           string          `json:"file_url"`
 }
 
 type MediaClip struct {

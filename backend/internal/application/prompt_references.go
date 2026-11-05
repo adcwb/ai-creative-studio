@@ -34,6 +34,13 @@ func (s *FileStore) promptReferences(ctx context.Context, space string, recipe p
 		found := false
 		for _, ref := range v.References {
 			if ref.ID == binding.ReferenceID {
+				next, e := s.prepareReferenceLineage(ctx, space, ref)
+				if e != nil && !errors.Is(e, errMediaLineageUnknown) {
+					return nil, e
+				}
+				if e == nil {
+					ref = next
+				}
 				refs = append(refs, ref)
 				found = true
 				break
@@ -191,7 +198,7 @@ func registerPromptApplicationRoutes(mux *http.ServeMux, s *FileStore) {
 			for _, source := range ref.LibrarySources {
 				sources = append(sources, media.LibrarySource{AssetID: source.AssetID, VersionID: source.VersionID})
 			}
-			assets = append(assets, MediaAsset{LibrarySources: uniqueLibrarySources(sources), ContentSHA256: ref.SHA256, ID: assetID, Kind: "image", MIMEType: ref.MIMEType, Name: fmt.Sprintf("Recipe reference %d", i+1), Role: "reference", Source: "library:" + version.ReferenceBindings[i].AssetID + ":" + version.ReferenceBindings[i].VersionID, FileURL: mediaURL(space, project, "assets/"+assetID+"/file")})
+			assets = append(assets, MediaAsset{ProvenanceVersion: 1, ProvenanceUnknown: ref.ProvenanceVersion == 0, LibrarySources: uniqueLibrarySources(sources), ContentSHA256: ref.SHA256, ID: assetID, Kind: "image", MIMEType: ref.MIMEType, Name: fmt.Sprintf("Recipe reference %d", i+1), Role: "reference", Source: "library:" + version.ReferenceBindings[i].AssetID + ":" + version.ReferenceBindings[i].VersionID, FileURL: mediaURL(space, project, "assets/"+assetID+"/file")})
 		}
 		if scope, ok := r.Context().Value(authScopeKey{}).(authScope); ok && scope.recheckWrite != nil && !scope.recheckWrite() {
 			promptError(w, prompts.ErrDenied)

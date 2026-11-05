@@ -65,17 +65,18 @@ type Source struct {
 	VersionID string `json:"version_id"`
 }
 type Reference struct {
-	LibrarySources  []Source `json:"library_sources,omitempty"`
-	ID              string   `json:"id"`
-	Role            string   `json:"role"`
-	ViewAngle       string   `json:"view_angle"`
-	MIMEType        string   `json:"mime_type"`
-	Width           int      `json:"width"`
-	Height          int      `json:"height"`
-	SizeBytes       int64    `json:"size_bytes"`
-	SHA256          string   `json:"content_sha256"`
-	SourceProjectID string   `json:"source_project_id"`
-	SourceAssetID   string   `json:"source_asset_id"`
+	ProvenanceVersion int      `json:"provenance_version,omitempty"`
+	LibrarySources    []Source `json:"library_sources,omitempty"`
+	ID                string   `json:"id"`
+	Role              string   `json:"role"`
+	ViewAngle         string   `json:"view_angle"`
+	MIMEType          string   `json:"mime_type"`
+	Width             int      `json:"width"`
+	Height            int      `json:"height"`
+	SizeBytes         int64    `json:"size_bytes"`
+	SHA256            string   `json:"content_sha256"`
+	SourceProjectID   string   `json:"source_project_id"`
+	SourceAssetID     string   `json:"source_asset_id"`
 }
 type Card struct {
 	Name              string     `json:"name"`
@@ -233,6 +234,9 @@ func Digest(v any) (string, error) {
 func ValidateReferences(refs []Reference) error {
 	seen := map[string]bool{}
 	for _, r := range refs {
+		if r.ProvenanceVersion != 0 && r.ProvenanceVersion != 1 {
+			return ErrInput
+		}
 		sources := map[Source]bool{}
 		for _, source := range r.LibrarySources {
 			if !IDPattern.MatchString(source.AssetID) || !IDPattern.MatchString(source.VersionID) || sources[source] {

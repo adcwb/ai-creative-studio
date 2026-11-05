@@ -210,6 +210,20 @@ func TestLibrarySecureRolesAndSpaceIsolation(t *testing.T) {
 		t.Fatal("untrusted declaration identity", authorized.Body.String())
 	}
 	authRequest(t, h, "GET", authorizationPath, "", viewerToken, "", 200)
+	project, _, err := s.CreateProject(space, "secure-lineage-project", ProjectInput{Title: "Media lineage scope", Brief: "Synthetic media source inspection"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := s.media.AddAsset(project.ID, space, "secure-lineage-upload", "Synthetic reference", "reference", "", "", "uploaded", syntheticCreativePNG(), "image/png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lineagePath := "/api/v1/projects/" + project.ID + "/media/assets/" + state.Assets[0].ID + "/lineage?space_id=" + space
+	authRequest(t, h, "GET", lineagePath, "", "", "", 401)
+	authRequest(t, h, "GET", lineagePath, "", ownerToken, "", 200)
+	authRequest(t, h, "GET", lineagePath, "", viewerToken, "", 200)
+	authRequest(t, h, "GET", "/api/v1/projects/"+project.ID+"/media/assets/"+state.Assets[0].ID+"/lineage?space_id="+other, "", viewerToken, "", 404)
+
 	for kind, input := range intentCards() {
 		body := projectJSON(t, input)
 		authRequest(t, h, "POST", base+"?space_id="+space, body, ownerToken, "", 403)
@@ -235,6 +249,7 @@ func TestLibrarySecureRolesAndSpaceIsolation(t *testing.T) {
 	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"library-viewer@example.test","role":"remove"}`, ownerToken, ownerSession.CSRF, 200)
 	authRequest(t, h, "GET", base+"?space_id="+space+"&kind=voice", "", viewerToken, "", 403)
 	authRequest(t, h, "GET", authorizationPath, "", viewerToken, "", 403)
+	authRequest(t, h, "GET", lineagePath, "", viewerToken, "", 403)
 	authRequest(t, h, "POST", authorizationPath, declaration, viewerToken, viewerSession.CSRF, 403)
 
 }

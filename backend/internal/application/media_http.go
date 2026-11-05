@@ -15,6 +15,8 @@ import (
 
 func mediaError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, errMediaLineageUnknown):
+		problem(w, 409, "media_lineage_unverified", "素材来源记录不足，不能用于新的模型生成；历史作品保留，请从有明确来源的素材重新制作")
 	case errors.Is(err, errMediaVersion):
 		problem(w, 409, "version_conflict", "媒体版本已变化，请重载后操作")
 	case errors.Is(err, errMediaKey):
@@ -32,6 +34,7 @@ func mediaError(w http.ResponseWriter, err error) {
 	}
 }
 func registerMediaRoutes(mux *http.ServeMux, s *FileStore) {
+	registerLibraryLineageRoutes(mux, s)
 	registerAlignmentRoutes(mux, s)
 	registerPosterRoutes(mux, s)
 	registerSocialRoutes(mux, s)

@@ -358,13 +358,21 @@ def main():
                 call(alice, 'PUT', upload_target + '/parts/0' + query, upload_route + '/{upload_id}/parts/{offset}', csrf=aq, binary=png)
                 completed = call(alice, 'POST', upload_target + '/complete' + query, upload_route + '/{upload_id}/complete', {}, aq)
                 assert completed['state'] == 'completed' and completed['uploaded_asset_id']
+                lineage_route='/api/v1/projects/{id}/media/assets/{assetId}/lineage'
+                lineage_path='/api/v1/projects/'+project['id']+'/media/assets/'+completed['uploaded_asset_id']+'/lineage'
+                lineage=call(alice,'GET',lineage_path+query,lineage_route)
+                assert lineage['status']=='recorded' and lineage['library_sources']==[] and lineage['content_sha256']==hashlib.sha256(png).hexdigest()
+                call(anonymous,'GET',lineage_path+query,lineage_route,status=401)
+                call(bob,'GET',lineage_path+query,lineage_route,status=403)
+                call(alice,'GET',lineage_path+'?space_id='+other,lineage_route,status=403)
+
                 assert call(alice, 'POST', upload_target + '/complete' + query, upload_route + '/{upload_id}/complete', {}, aq)['uploaded_asset_id'] == completed['uploaded_asset_id']
                 cancelled = call(alice, 'POST', uploads + query, upload_route, transfer_input, aq, status=201, key='secure-upload-cancel-create')
                 call(alice, 'POST', uploads + '/' + cancelled['id'] + '/cancel' + query, upload_route + '/{upload_id}/cancel', {}, aq)
                 call(alice, 'POST', variable_target + '/copies' + query, route + '/copies', dict(version_id=variable_saved['version']['id'], name='Copied recipe', visibility='private'), aq, status=201)
                 call(alice, 'POST', '/api/v1/auth/logout', '/api/v1/auth/logout', {}, aq)
                 assert call(alice, 'GET', session_route, session_route)['authenticated'] is False
-                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'library use declarations: CSRF, viewer, forged actor, original grant receipt and current revocation', 'explicit stable structure upgrade, CSRF and viewer refusal', 'episode copy preview, hidden target, viewer/CSRF refusal and revoked progress access', 'canonical story versions, immutable retrieval snapshots, current-source comparisons, original receipts, null-script safeguards and revoked access'], 'live_provider_calls': 0}))
+                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'library use declarations: CSRF, viewer, forged actor, original grant receipt and current revocation', 'read-only media lineage, exact uploaded bytes and current membership boundaries', 'explicit stable structure upgrade, CSRF and viewer refusal', 'episode copy preview, hidden target, viewer/CSRF refusal and revoked progress access', 'canonical story versions, immutable retrieval snapshots, current-source comparisons, original receipts, null-script safeguards and revoked access'], 'live_provider_calls': 0}))
             finally:
                 process.terminate()
                 process.wait(timeout=15)

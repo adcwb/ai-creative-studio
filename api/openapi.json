@@ -25291,6 +25291,150 @@
         },
         "description": "Current use permission only comes from GET. POST atomically records a CAS update with its receipt; accepted-key replay returns the original historical receipt and MUST NOT be treated as current authority. No model call. Existing history remains readable after revoke; new mutating provider dispatch requires current same-revision authorization, purpose/version scope and unexpired declaration. Revocation cannot undo an already sent request. Known upstream read-only reconciliation remains available; uncertain generations are never automatically resubmitted."
       }
+    },
+    "/api/v1/projects/{id}/media/assets/{assetId}/lineage": {
+      "get": {
+        "operationId": "inspectMediaLineage",
+        "summary": "Inspect source records for one owned media asset",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "assetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaLineageView"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "媒体资源限额：单项目120素材/30导出，同时最多2个合成，以及全局容量上限。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Read-only source/byte inspection is unavailable. No file or receipt was changed. Repeat GET or restore matching records; no generation is submitted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Read-only, explicit per-asset inspection. Recover only from trusted bindings/applications, creative job + ingestion receipt, or sealed episode copy proofs. Never infer sources from names or the current poster document. Recovered sources remain subject to current authorization at each new dispatch. Unverifiable history remains viewable/editable but cannot be used as a new model input or a new library authorization root. Does not write old media/receipts or call models."
+      }
     }
   },
   "components": {
@@ -27056,6 +27200,19 @@
             "uniqueItems": true,
             "readOnly": true,
             "description": "Server-written local edit ancestry. Normalizing or composing an image does not erase its library use scope; episode migration flattens ancestry to independent pinned sources."
+          },
+          "provenance_version": {
+            "type": "integer",
+            "enum": [
+              1
+            ],
+            "readOnly": true,
+            "description": "Server-written source-record format. This is not verified legal rights or live model quality. Absent on legacy metadata."
+          },
+          "provenance_unknown": {
+            "type": "boolean",
+            "readOnly": true,
+            "description": "Unresolved source history retained through a copy. It cannot authorize new model inputs, even when bytes are available."
           }
         },
         "required": [
@@ -30699,6 +30856,14 @@
             "uniqueItems": true,
             "readOnly": true,
             "description": "Server-written ancestry, not a grant. Reused for each future generation; copying or deriving does not remove ancestor revocations."
+          },
+          "provenance_version": {
+            "type": "integer",
+            "enum": [
+              1
+            ],
+            "readOnly": true,
+            "description": "Server-frozen complete inherited scope for this reference. Legacy references dynamically follow their trusted source project/media record. Missing old records never establish a new authorization root."
           }
         },
         "required": [
@@ -36979,6 +37144,40 @@
           "mime_type",
           "uses"
         ]
+      },
+      "MediaLineageView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "asset_id",
+          "status",
+          "library_sources"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "recorded",
+              "recovered",
+              "unverifiable"
+            ]
+          },
+          "library_sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibrarySource"
+            },
+            "uniqueItems": true
+          },
+          "content_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
       }
     },
     "securitySchemes": {

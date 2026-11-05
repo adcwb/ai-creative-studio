@@ -484,7 +484,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		return CreativeJob{}, false, err
 	}
 	now := time.Now().UTC()
-	pins, err := s.pinCreativeLibraryMedia(context.Background(), id, space, in)
+	pins, err := s.pinCreativeLibraryMedia(context.WithValue(context.WithValue(context.Background(), lineageCreativeSnapshotKey{}, c.data), lineageCoreSnapshotKey{}, s.data.Projects), id, space, in)
 	if err != nil {
 		return CreativeJob{}, false, err
 	}

@@ -115,7 +115,7 @@ func (m *MediaStore) normalizeSocialPhoto(project, space, key string, in photoNo
 		return p, e
 	}
 	hash := sha256.Sum256(data)
-	p.Assets = append(p.Assets, MediaAsset{ParentAssetIDs: []string{a.ID}, ContentSHA256: hex.EncodeToString(hash[:]), ID: id, Kind: "image", MIMEType: "image/jpeg", Name: "social-photo.jpg", Role: "photo", Source: "social-photo-normalized", FileURL: mediaURL(space, project, "assets/"+id+"/file")})
+	p.Assets = append(p.Assets, MediaAsset{ProvenanceVersion: 1, ParentAssetIDs: []string{a.ID}, ContentSHA256: hex.EncodeToString(hash[:]), ID: id, Kind: "image", MIMEType: "image/jpeg", Name: "social-photo.jpg", Role: "photo", Source: "social-photo-normalized", FileURL: mediaURL(space, project, "assets/"+id+"/file")})
 	p.Version++
 	d.Projects[k] = p
 	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest, AssetID: id}

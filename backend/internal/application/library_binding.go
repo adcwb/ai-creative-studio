@@ -112,6 +112,11 @@ func registerLibraryBindingRoutes(mux *http.ServeMux, s *FileStore) {
 			libraryError(w, library.ErrInput)
 			return
 		}
+		v, err = s.prepareLibraryCopyLineage(r.Context(), space, v)
+		if err != nil {
+			libraryError(w, err)
+			return
+		}
 		result, err := m.bindLibrary(r.Context(), project, space, key, in, digest, v)
 		if err != nil {
 			mediaError(w, err)
@@ -163,7 +168,7 @@ func (m *MediaStore) bindLibrary(ctx context.Context, project, space, key string
 		for _, inherited := range ref.LibrarySources {
 			sources = append(sources, media.LibrarySource{AssetID: inherited.AssetID, VersionID: inherited.VersionID})
 		}
-		p.Assets = append(p.Assets, MediaAsset{LibrarySources: uniqueLibrarySources(sources), ContentSHA256: ref.SHA256, ID: id, Kind: "image", MIMEType: ref.MIMEType, Name: v.Card.Name + " · " + ref.ViewAngle, Role: "reference", Character: character, ShotID: in.ShotID, Source: "library:" + v.AssetID + ":" + v.ID, FileURL: mediaURL(space, project, "assets/"+id+"/file")})
+		p.Assets = append(p.Assets, MediaAsset{ProvenanceVersion: 1, ProvenanceUnknown: ref.ProvenanceVersion == 0, LibrarySources: uniqueLibrarySources(sources), ContentSHA256: ref.SHA256, ID: id, Kind: "image", MIMEType: ref.MIMEType, Name: v.Card.Name + " · " + ref.ViewAngle, Role: "reference", Character: character, ShotID: in.ShotID, Source: "library:" + v.AssetID + ":" + v.ID, FileURL: mediaURL(space, project, "assets/"+id+"/file")})
 		binding.MediaAssetIDs = append(binding.MediaAssetIDs, id)
 	}
 	p.LibraryBindings = append(p.LibraryBindings, binding)

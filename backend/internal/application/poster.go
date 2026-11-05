@@ -145,7 +145,7 @@ func (m *MediaStore) ExportPoster(project, space, key string, version int) (Medi
 		}
 	}
 	hash := sha256.Sum256(data)
-	p.Assets = append(p.Assets, MediaAsset{ParentAssetIDs: parents, ContentSHA256: hex.EncodeToString(hash[:]), ID: id, Kind: "image", MIMEType: "image/png", Name: "poster.png", Role: "poster", Source: "poster-composite", FileURL: mediaURL(space, project, "assets/"+id+"/file")})
+	p.Assets = append(p.Assets, MediaAsset{ProvenanceVersion: 1, ParentAssetIDs: parents, ContentSHA256: hex.EncodeToString(hash[:]), ID: id, Kind: "image", MIMEType: "image/png", Name: "poster.png", Role: "poster", Source: "poster-composite", FileURL: mediaURL(space, project, "assets/"+id+"/file")})
 	p.Version++
 	d.Projects[k] = p
 	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest, AssetID: id}

@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adcwb/ai-creative-studio/backend/internal/modules/library"
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/media"
 )
 
@@ -59,139 +58,6 @@ func cloneLibraryPins(in []libraryMediaPin) []libraryMediaPin {
 	return out
 }
 
-// Old bindings are resolved from their trusted version/reference order. A display
-// string or a client supplied source ID is never sufficient proof of lineage.
-func (s *FileStore) libraryMediaSources(ctx context.Context, project, space, id string) ([]media.LibrarySource, string, string, error) {
-	return s.libraryMediaSourcesVisited(ctx, project, space, id, map[string]bool{})
-}
-func (s *FileStore) libraryMediaSourcesVisited(ctx context.Context, project, space, id string, visiting map[string]bool) ([]media.LibrarySource, string, string, error) {
-	if e := ctx.Err(); e != nil {
-		return nil, "", "", e
-	}
-	if visiting[id] {
-		return nil, "", "", ErrBlobIntegrity
-	}
-	visiting[id] = true
-	defer delete(visiting, id)
-	state := s.media.Get(project, space)
-	var asset *MediaAsset
-	for i := range state.Assets {
-		if state.Assets[i].ID == id {
-			asset = &state.Assets[i]
-			break
-		}
-	}
-	if asset == nil {
-		return nil, "", "", ErrNotFound
-	}
-	sources := append([]media.LibrarySource(nil), asset.LibrarySources...)
-	expected := asset.ContentSHA256
-	for _, parent := range asset.ParentAssetIDs {
-		if !library.IDPattern.MatchString(parent) {
-			return nil, "", "", ErrBlobIntegrity
-		}
-		inherited, _, _, e := s.libraryMediaSourcesVisited(ctx, project, space, parent, visiting)
-		if e != nil {
-			return nil, "", "", e
-		}
-		sources = append(sources, inherited...)
-	}
-
-	if len(sources) == 0 {
-		for _, b := range state.LibraryBindings {
-			for i, mid := range b.MediaAssetIDs {
-				if mid != id {
-					continue
-				}
-				if s.library == nil {
-					return nil, "", "", errRuntimeDenied
-				}
-				v, e := s.library.Version(ctx, space, b.AssetID, b.VersionID)
-				if e != nil {
-					return nil, "", "", e
-				}
-				if i >= len(v.References) || v.References[i].MIMEType != asset.MIMEType {
-					return nil, "", "", ErrBlobIntegrity
-				}
-				if expected != "" && expected != v.References[i].SHA256 {
-					return nil, "", "", ErrBlobIntegrity
-				}
-				expected = v.References[i].SHA256
-				sources = append(sources, media.LibrarySource{AssetID: b.AssetID, VersionID: b.VersionID})
-				for _, source := range v.References[i].LibrarySources {
-					sources = append(sources, media.LibrarySource{AssetID: source.AssetID, VersionID: source.VersionID})
-				}
-			}
-		}
-	}
-
-	if len(sources) == 0 {
-		for _, app := range state.PromptApplications {
-			for i, mid := range app.ReferenceAssetIDs {
-				if mid != id {
-					continue
-				}
-				if i >= len(app.Source.ReferenceBindings) || s.library == nil {
-					return nil, "", "", ErrBlobIntegrity
-				}
-				binding := app.Source.ReferenceBindings[i]
-				v, e := s.library.Version(ctx, space, binding.AssetID, binding.VersionID)
-				if e != nil {
-					return nil, "", "", e
-				}
-				var ref *library.Reference
-				for j := range v.References {
-					if v.References[j].ID == binding.ReferenceID {
-						ref = &v.References[j]
-						break
-					}
-				}
-				if ref == nil || ref.MIMEType != asset.MIMEType || expected != "" && expected != ref.SHA256 {
-					return nil, "", "", ErrBlobIntegrity
-				}
-				expected = ref.SHA256
-				sources = append(sources, media.LibrarySource{AssetID: binding.AssetID, VersionID: binding.VersionID})
-				for _, source := range ref.LibrarySources {
-					sources = append(sources, media.LibrarySource{AssetID: source.AssetID, VersionID: source.VersionID})
-				}
-			}
-		}
-	}
-	if len(sources) == 0 {
-		if strings.HasPrefix(asset.Source, "library:") {
-			return nil, "", "", errRuntimeDenied
-		}
-		return nil, "", asset.MIMEType, nil
-	}
-	for _, source := range sources {
-		if !library.IDPattern.MatchString(source.AssetID) || !library.IDPattern.MatchString(source.VersionID) {
-			return nil, "", "", ErrBlobIntegrity
-		}
-	}
-	if len(expected) != 64 {
-		return nil, "", "", ErrBlobIntegrity
-	}
-	path, mime, e := s.media.file(project, space, id, false, false)
-	if e != nil {
-		return nil, "", "", e
-	}
-	if mime != asset.MIMEType {
-		return nil, "", "", ErrBlobIntegrity
-	}
-	f, e := openLocalBlob(path)
-	if e != nil {
-		return nil, "", "", e
-	}
-	defer f.Close()
-	info, e := hashBlobStream(ctx, "", f)
-	if e != nil {
-		return nil, "", "", e
-	}
-	if info.SHA256 != expected {
-		return nil, "", "", ErrBlobIntegrity
-	}
-	return uniqueLibrarySources(sources), expected, mime, nil
-}
 func creativeMediaIDs(in CreativeJobInput) []string {
 	ids := append([]string(nil), in.ReferenceAssetIDs...)
 	ids = append(ids, in.ReferenceAssetID, in.FirstFrameAssetID, in.LastFrameAssetID, in.MotionReferenceAssetID, in.MaskAssetID, in.AudioAssetID, in.ComparisonAssetID)
@@ -216,6 +82,7 @@ func libraryMediaPurpose(kind, mime string) string {
 	return "image_reference"
 }
 func (s *FileStore) pinCreativeLibraryMedia(ctx context.Context, project, space string, in CreativeJobInput) ([]libraryMediaPin, error) {
+	ctx = withLineageWalk(ctx)
 	var pins []libraryMediaPin
 	for _, id := range creativeMediaIDs(in) {
 		sources, sha, mime, e := s.libraryMediaSources(ctx, project, space, id)

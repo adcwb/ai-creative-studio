@@ -247,7 +247,8 @@ func (s *FileStore) copyMigrationAsset(ctx context.Context, j m.Job, copy m.Asse
 		return m.Proof{}, preflight
 	}
 	sources, expectedSHA, _, e := s.libraryMediaSources(ctx, j.ProjectID, j.Space, copy.Source.ID)
-	if e != nil {
+	unknown := errors.Is(e, errMediaLineageUnknown)
+	if e != nil && !unknown {
 		return m.Proof{}, e
 	}
 	// This is an actual byte copy, not a source URL or hard-link alias. A target
@@ -325,6 +326,9 @@ func (s *FileStore) copyMigrationAsset(ctx context.Context, j m.Job, copy m.Asse
 	}
 	a := copy.Source
 	a.ParentAssetIDs = nil // copied targets use flattened trusted ancestry, not source-project aliases
+	a.ProvenanceVersion = 1
+	a.ProvenanceUnknown = unknown
+	a.ContentSHA256 = proof.SHA256
 	if len(sources) > 0 {
 		a.LibrarySources = sources
 		a.ContentSHA256 = proof.SHA256

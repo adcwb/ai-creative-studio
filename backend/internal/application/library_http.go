@@ -40,6 +40,8 @@ type libraryCursor struct {
 
 func libraryError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, errMediaLineageUnknown):
+		problem(w, 409, "media_lineage_unverified", "素材来源记录不足，不能据此建立新的授权来源；历史作品保留，请从有明确来源的素材重新制作")
 	case errors.Is(err, library.ErrPayload):
 		problem(w, 413, "library_request_too_large", "本次资产资料包超过传输工作集，请拆分保存；项目资产数量不受此限制")
 	case errors.Is(err, library.ErrInput):
@@ -300,6 +302,12 @@ func registerLibraryRoutes(mux *http.ServeMux, s *FileStore) {
 					libraryError(w, libraryrepo.ErrStorage)
 					return
 				}
+				prepared, e := s.prepareReferenceLineage(r.Context(), space, *retained)
+				if e != nil {
+					libraryError(w, e)
+					return
+				}
+				retained = &prepared
 				retained.Role, retained.ViewAngle = source.Role, source.ViewAngle
 				if e := appendReference(*retained); e != nil {
 					libraryError(w, e)
@@ -344,7 +352,7 @@ func registerLibraryRoutes(mux *http.ServeMux, s *FileStore) {
 			for _, source := range sources {
 				inherited = append(inherited, library.Source{AssetID: source.AssetID, VersionID: source.VersionID})
 			}
-			ref := library.Reference{LibrarySources: inherited, ID: libraryStableID(space, key, assetID+":"+digest+":"+strconv.Itoa(i)), Role: source.Role, ViewAngle: source.ViewAngle, MIMEType: mime, Width: cfg.Width, Height: cfg.Height, SizeBytes: int64(len(data)), SHA256: hex.EncodeToString(h[:]), SourceProjectID: source.ProjectID, SourceAssetID: source.AssetID}
+			ref := library.Reference{ProvenanceVersion: 1, LibrarySources: inherited, ID: libraryStableID(space, key, assetID+":"+digest+":"+strconv.Itoa(i)), Role: source.Role, ViewAngle: source.ViewAngle, MIMEType: mime, Width: cfg.Width, Height: cfg.Height, SizeBytes: int64(len(data)), SHA256: hex.EncodeToString(h[:]), SourceProjectID: source.ProjectID, SourceAssetID: source.AssetID}
 			if e := appendReference(ref); e != nil {
 				libraryError(w, e)
 				return

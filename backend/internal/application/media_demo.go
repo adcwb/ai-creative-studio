@@ -2,7 +2,9 @@ package application
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"image"
 	"image/color"
@@ -87,7 +89,8 @@ func (m *MediaStore) Demo(project, space, key string, version int, shots []Story
 		if err := m.storeBlob(space, project, id); err != nil {
 			return MediaAsset{}, err
 		}
-		a := MediaAsset{ID: id, Kind: kind, MIMEType: mime, Name: name, Role: "demo", ShotID: shot, Source: "synthetic", FileURL: mediaURL(space, project, "assets/"+id+"/file")}
+		hash := sha256.Sum256(data)
+		a := MediaAsset{ProvenanceVersion: 1, ContentSHA256: hex.EncodeToString(hash[:]), ID: id, Kind: kind, MIMEType: mime, Name: name, Role: "demo", ShotID: shot, Source: "synthetic", FileURL: mediaURL(space, project, "assets/"+id+"/file")}
 		p.Assets = append(p.Assets, a)
 		return a, nil
 	}

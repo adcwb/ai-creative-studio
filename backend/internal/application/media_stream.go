@@ -44,18 +44,17 @@ func (m *MediaStore) addAssetFile(ctx context.Context, project, space, key, name
 	}
 	digest := mediaDigest([]string{"upload", name, role, character, shotID, source, mime, content})
 	sources, _ := ctx.Value(libraryOutputSourcesKey{}).([]media.LibrarySource)
-	rawSHA := ""
+	f, e := openLocalBlob(path)
+	if e != nil {
+		return MediaState{}, e
+	}
+	info, e := hashBlobStream(ctx, "", f)
+	f.Close()
+	if e != nil {
+		return MediaState{}, e
+	}
+	rawSHA := info.SHA256
 	if len(sources) > 0 {
-		f, e := openLocalBlob(path)
-		if e != nil {
-			return MediaState{}, e
-		}
-		info, e := hashBlobStream(ctx, "", f)
-		f.Close()
-		if e != nil {
-			return MediaState{}, e
-		}
-		rawSHA = info.SHA256
 		digest = mediaDigest(struct {
 			Legacy  string
 			Sources []media.LibrarySource
@@ -141,7 +140,7 @@ func (m *MediaStore) addAssetFile(ctx context.Context, project, space, key, name
 		m.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error { return jobqueue.CheckLeaseTx(ctx, tx, j) }
 		defer func() { m.pg.beforeCommit = nil }()
 	}
-	a := MediaAsset{LibrarySources: sources, ContentSHA256: rawSHA, ID: id, Kind: kind, MIMEType: mime, Name: name, Role: role, Character: character, ShotID: shotID, Duration: duration, Source: source, FileURL: mediaURL(space, project, "assets/"+id+"/file")}
+	a := MediaAsset{ProvenanceVersion: 1, LibrarySources: sources, ContentSHA256: rawSHA, ID: id, Kind: kind, MIMEType: mime, Name: name, Role: role, Character: character, ShotID: shotID, Duration: duration, Source: source, FileURL: mediaURL(space, project, "assets/"+id+"/file")}
 	p.Assets = append(p.Assets, a)
 	p.Version++
 	d.Projects[k] = p

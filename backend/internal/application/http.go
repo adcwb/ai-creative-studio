@@ -284,6 +284,10 @@ func problem(w http.ResponseWriter, status int, code, message string) {
 	respond(w, status, map[string]any{"error": map[string]string{"code": code, "message": message}})
 }
 func storeError(w http.ResponseWriter, err error) {
+	if errors.Is(err, errMediaLineageUnknown) {
+		problem(w, 409, "media_lineage_unverified", "素材来源记录不足，不能用于新的模型生成；历史作品保留，请从有明确来源的素材重新制作")
+		return
+	}
 	var failure *ProviderError
 	if errors.As(err, &failure) && failure.Code == "library_use_denied" {
 		problem(w, 409, failure.Code, providerMessage(failure.Code))
