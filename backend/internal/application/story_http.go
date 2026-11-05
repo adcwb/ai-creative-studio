@@ -51,6 +51,7 @@ func registerStoryRoutes(mux *http.ServeMux, s *FileStore) {
 		return
 	}
 	registerStoryEpisodeOptions(mux, s)
+	registerStorySnapshotRoutes(mux, s)
 	scope := func(w http.ResponseWriter, r *http.Request, write bool) (story.Actor, string, bool) {
 		var space, key string
 		var ok bool

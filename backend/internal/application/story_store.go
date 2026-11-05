@@ -162,11 +162,8 @@ func (s *FileStore) PreviewStoryContext(ctx context.Context, space, episode stri
 		order = append(order, story.Episode{ID: n.ID, SeasonID: n.Parent, SeasonOrdinal: seasons[n.Parent], Ordinal: n.Ordinal, Version: n.Version})
 	}
 	q := storyrepo.Scope{Space: space, Series: scope.Series.ID}
-	versions, e := s.story.Snapshot(ctx, q)
-	if e != nil {
-		return out, e
-	}
-	out.Preview, e = story.Compile(scope.Series.ID, episode, order, versions, 0)
+	retrieved, e := story.Retrieve(scope.Series.ID, episode, order, story.Selection{}, func(fn func(story.Version) error) error { return s.story.Visit(ctx, q, fn) })
+	out.Preview = retrieved.Preview
 	if e != nil {
 		return out, e
 	}

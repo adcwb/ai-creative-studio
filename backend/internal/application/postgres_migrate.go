@@ -153,6 +153,9 @@ func ImportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 	if err = storyrepo.CopyValidation(ctx, filepath.Join(dir, "story"), filepath.Join(validation, "story")); err != nil {
 		return report, err
 	}
+	if err = storyrepo.CopyContextValidation(ctx, filepath.Join(dir, "story"), filepath.Join(validation, "story")); err != nil {
+		return report, err
+	}
 	if err = migrationrepo.CopyValidation(ctx, filepath.Join(dir, "episode-migrations"), filepath.Join(validation, "episode-migrations")); err != nil {
 		return report, err
 	}
@@ -245,6 +248,10 @@ func ImportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 		return report, err
 	}
 	report.Records["story_versions"], err = storyrepo.ImportFiles(ctx, tx, filepath.Join(dir, "story"))
+	if err != nil {
+		return report, err
+	}
+	report.Records["story_contexts"], err = storyrepo.ImportContexts(ctx, tx, filepath.Join(dir, "story"))
 	if err != nil {
 		return report, err
 	}
@@ -363,6 +370,10 @@ func ExportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 		return report, err
 	}
 	report.Records["story_versions"], err = storyrepo.ExportFiles(ctx, tx, filepath.Join(stage, "story"))
+	if err != nil {
+		return report, err
+	}
+	report.Records["story_contexts"], err = storyrepo.ExportContexts(ctx, tx, filepath.Join(stage, "story"))
 	if err != nil {
 		return report, err
 	}

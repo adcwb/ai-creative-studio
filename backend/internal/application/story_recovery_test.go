@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/series"
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/story"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/storyrepo"
 )
 
@@ -25,6 +26,9 @@ func TestStoryCommittedCrashHelper(t *testing.T) {
 	}
 	root := os.Getenv("STUDIO_STORY_CRASH_ROOT")
 	saveStory(t, s, root, storyrepo.BibleID(root), "story-committed-crash", storyBible())
+	if _, e = s.CreateStoryContext(context.Background(), storyActor, os.Getenv("STUDIO_STORY_CRASH_EPISODE"), "context-committed-crash", story.Selection{Query: "寻找"}); e != nil {
+		t.Fatal(e)
+	}
 	os.Stdout.WriteString("STORY_DURABLE\n")
 	for {
 		time.Sleep(time.Second)
@@ -36,12 +40,12 @@ func TestStorySIGKILLAfterCommitReplaysOriginalVersion(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	root, _ := storyFixture(t, s)
+	root, episodes := storyFixture(t, s)
 	if e = s.Close(); e != nil {
 		t.Fatal(e)
 	}
 	cmd := exec.Command(os.Args[0], "-test.run=^TestStoryCommittedCrashHelper$")
-	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "STUDIO_STORY_CRASH_DIR=" + dir, "STUDIO_STORY_CRASH_ROOT=" + root}
+	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "STUDIO_STORY_CRASH_DIR=" + dir, "STUDIO_STORY_CRASH_ROOT=" + root, "STUDIO_STORY_CRASH_EPISODE=" + episodes[0].ID}
 	pipe, e := cmd.StdoutPipe()
 	if e != nil {
 		t.Fatal(e)
@@ -87,6 +91,14 @@ func TestStorySIGKILLAfterCommitReplaysOriginalVersion(t *testing.T) {
 	again := saveStory(t, s, root, v.ID, "story-committed-crash", storyBible())
 	if !reflect.DeepEqual(v, again) || v.Number != 1 {
 		t.Fatal("crash duplicated an authored version")
+	}
+	snapshot, e := s.CreateStoryContext(context.Background(), storyActor, episodes[0].ID, "context-committed-crash", story.Selection{Query: "寻找"})
+	if e != nil {
+		t.Fatal("crash lost context receipt", e)
+	}
+	contexts, e := s.story.ListContexts(context.Background(), storyrepo.Scope{Space: storyActor.Space, Series: root}, episodes[0].ID, "", 100)
+	if e != nil || len(contexts.Items) != 1 || contexts.Items[0].ID != snapshot.ID {
+		t.Fatal("crash duplicated context", e)
 	}
 	history, e := s.story.History(context.Background(), storyrepo.Scope{Space: storyActor.Space, Series: root}, v.ID, 0, 100)
 	if e != nil || len(history.Items) != 1 {

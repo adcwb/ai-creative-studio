@@ -16,7 +16,9 @@ func TestBusinessModuleDependencies(t *testing.T) {
 	root := filepath.Join("..", "modules")
 	allowed := map[string]map[string]bool{
 		"projects": {"governance": true},
-		"media":    {"publishing": true, "prompts": true},
+		// A continuity snapshot pins one pure script value, never application state.
+		"story": {"projects": true},
+		"media": {"publishing": true, "prompts": true},
 		// Migration compiles source value snapshots with the same pure script,
 		// timeline and directory validation as normal editing. I/O and task
 		// recovery remain in application and persistence, under the rules below.

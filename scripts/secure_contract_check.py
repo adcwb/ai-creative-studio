@@ -178,9 +178,36 @@ def main():
                 context_preview = call(alice, 'POST', context_path + query, context_route, {}, aq, key='secure-story-context')
                 assert context_preview['problems'] == [] and context_preview['included'][0]['number'] == 2
                 call(alice, 'POST', context_path + query, context_route, {'actor_id': 'owner'}, aq, status=400, key='secure-story-forged-actor')
+                snapshots_path = '/api/v1/episodes/' + migration['target_project_id'] + '/context-snapshots'
+                snapshots_route = '/api/v1/episodes/{id}/context-snapshots'
+                selection = {'query': 'canonical', 'record_ids': []}
+                call(anonymous, 'GET', snapshots_path + query, snapshots_route, status=401)
+                call(alice, 'POST', snapshots_path + query, snapshots_route, selection, status=403, key='context-no-csrf')
+                call(bob, 'POST', snapshots_path + query, snapshots_route, selection, bq, status=403, key='context-viewer')
+                pinned_context = call(alice, 'POST', snapshots_path + query, snapshots_route, selection, aq, status=201, key='context-original')
+                assert pinned_context['context']['included'][0]['version_id'] == latest_story['version_id']
+                assert call(alice, 'POST', snapshots_path + query, snapshots_route, selection, aq, status=201, key='context-original') == pinned_context
+                call(alice, 'POST', snapshots_path + query, snapshots_route, {'query': 'changed'}, aq, status=409, key='context-original')
+                pinned_path, pinned_route = snapshots_path + '/' + pinned_context['id'], snapshots_route + '/{snapshot_id}'
+                assert call(bob, 'GET', pinned_path + query, pinned_route) == pinned_context
+                fresh_route = pinned_route + '/freshness'
+                freshness = call(bob, 'GET', pinned_path + '/freshness' + query, fresh_route)
+                assert freshness['current'] and not freshness['material_changed']
+                contexts = call(bob, 'GET', snapshots_path + query, snapshots_route)
+                assert len(contexts['items']) == 1 and 'context' not in contexts['items'][0] and 'script' not in contexts['items'][0]
+                call(alice, 'POST', snapshots_path + query, snapshots_route, {'actor_id': 'forged'}, aq, status=400, key='context-forged')
+                empty_episode = call(alice, 'POST', '/api/v1/seasons/' + season['id'] + '/episodes' + query, '/api/v1/seasons/{id}/episodes', {'title': 'Context before a first script'}, aq, status=201, key='empty-context-episode')
+                empty_path = '/api/v1/episodes/' + empty_episode['id'] + '/context-snapshots'
+                empty_snapshot = call(alice, 'POST', empty_path + query, snapshots_route, {}, aq, status=201, key='empty-context-snapshot')
+                assert empty_snapshot['script'] is None and any(p['code'] == 'script_required' for p in empty_snapshot['context']['problems'])
+                moved_directory = call(bob, 'GET', pinned_path + '/freshness' + query, fresh_route)
+                assert moved_directory['directory_changed'] and not moved_directory['current']
                 call(bob, 'PUT', budget + query, budget, {'currency': 'USD', 'limit_minor': 301, 'expected_limit_minor': 300}, bq, status=403)
                 call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'remove'}, aq)
                 call(bob, 'GET', task_path + query, task_route, status=403)
+                call(bob, 'GET', pinned_path + '/freshness' + query, fresh_route, status=403)
+                call(bob, 'GET', pinned_path + query, pinned_route, status=403)
+                call(bob, 'GET', snapshots_path + query, snapshots_route, status=403)
                 call(bob, 'GET', story_path + query, story_route, status=403)
                 call(bob, 'GET', governance + query, governance, status=403)
                 assert call(bob, 'GET', governance + '?space_id=' + other, governance)['limit_minor'] == 0
@@ -317,7 +344,7 @@ def main():
                 call(alice, 'POST', variable_target + '/copies' + query, route + '/copies', dict(version_id=variable_saved['version']['id'], name='Copied recipe', visibility='private'), aq, status=201)
                 call(alice, 'POST', '/api/v1/auth/logout', '/api/v1/auth/logout', {}, aq)
                 assert call(alice, 'GET', session_route, session_route)['authenticated'] is False
-                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'explicit stable structure upgrade, CSRF and viewer refusal', 'episode copy preview, hidden target, viewer/CSRF refusal and revoked progress access', 'canonical story versions, old receipts, read-only pinned context and revoked story access'], 'live_provider_calls': 0}))
+                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'explicit stable structure upgrade, CSRF and viewer refusal', 'episode copy preview, hidden target, viewer/CSRF refusal and revoked progress access', 'canonical story versions, immutable retrieval snapshots, current-source comparisons, original receipts, null-script safeguards and revoked access'], 'live_provider_calls': 0}))
             finally:
                 process.terminate()
                 process.wait(timeout=15)

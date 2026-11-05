@@ -65,9 +65,22 @@ func TestStorySecureHTTPCurrentRolesCSRFVersionsAndRevocation(t *testing.T) {
 	authRequest(t, h, "POST", ctxPath, `{}`, viewerToken, viewerSession.CSRF, 403)
 	authRequest(t, h, "POST", ctxPath, `{}`, token, session.CSRF, 200)
 	authRequest(t, h, "POST", ctxPath, `{"actor_id":"owner"}`, token, session.CSRF, 400)
+	snapshots := "/api/v1/episodes/" + ep.ID + "/context-snapshots"
+	authRequest(t, h, "POST", snapshots+q, `{}`, token, "", 403)
+	authRequest(t, h, "POST", snapshots+q, `{}`, viewerToken, viewerSession.CSRF, 403)
+	authRequest(t, h, "POST", snapshots+q, `{"created_by":"forged"}`, token, session.CSRF, 400)
+	sw := authRequest(t, h, "POST", snapshots+q, `{"query":"规则","record_ids":[]}`, token, session.CSRF, 201)
+	var snapshot story.ContextSnapshot
+	if e = json.Unmarshal(sw.Body.Bytes(), &snapshot); e != nil || !story.ValidSnapshot(snapshot) {
+		t.Fatal("invalid HTTP snapshot", e, sw.Body.String())
+	}
+	authRequest(t, h, "GET", snapshots+q, "", viewerToken, "", 200)
+	authRequest(t, h, "GET", snapshots+"/"+snapshot.ID+q, "", viewerToken, "", 200)
 	other := createProject(t, s)
 	authRequest(t, h, "GET", base+"/"+v.ID+"?space_id="+other.SpaceID, "", token, "", 403)
 	authRequest(t, h, "PUT", members, `{"email":"story-viewer@example.invalid","role":"remove"}`, token, session.CSRF, 200)
+	authRequest(t, h, "GET", snapshots+q, "", viewerToken, "", 403)
+	authRequest(t, h, "GET", snapshots+"/"+snapshot.ID+q, "", viewerToken, "", 403)
 	authRequest(t, h, "GET", base+q, "", viewerToken, "", 403)
 	authRequest(t, h, "POST", base+q, projectJSON(t, storyBible()), viewerToken, viewerSession.CSRF, 403)
 }

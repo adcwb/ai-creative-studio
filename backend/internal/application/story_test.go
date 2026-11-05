@@ -279,6 +279,10 @@ func TestPostgresStoryOfflineRoundTripPreservesVersionsReceiptsAndSource(t *test
 	if e != nil {
 		t.Fatal(e)
 	}
+	snapshot, e := file.CreateStoryContext(ctx, storyActor, eps[0].ID, "story-offline-context", story.Selection{Query: "寻找"})
+	if e != nil {
+		t.Fatal(e)
+	}
 	if e = file.Close(); e != nil {
 		t.Fatal(e)
 	}
@@ -287,7 +291,7 @@ func TestPostgresStoryOfflineRoundTripPreservesVersionsReceiptsAndSource(t *test
 		t.Fatal(e)
 	}
 	report, e := ImportPostgresData(ctx, source, db)
-	if e != nil || report.Records["story_versions"] != 2 {
+	if e != nil || report.Records["story_versions"] != 2 || report.Records["story_contexts"] != 1 {
 		t.Fatal("story import", e, report.Records)
 	}
 	after, e := os.ReadFile(filepath.Join(source, "state.json"))
@@ -300,13 +304,17 @@ func TestPostgresStoryOfflineRoundTripPreservesVersionsReceiptsAndSource(t *test
 	if e != nil || !reflect.DeepEqual(got, head) {
 		t.Fatal("PG head differs", e)
 	}
+	pinned, e := pg.CreateStoryContext(ctx, storyActor, eps[0].ID, "story-offline-context", story.Selection{Query: "寻找"})
+	if e != nil || !reflect.DeepEqual(pinned, snapshot) {
+		t.Fatal("PG context snapshot differs", e)
+	}
 	again, e := pg.PreviewStoryContext(ctx, storyActor.Space, eps[0].ID)
 	if e != nil || !reflect.DeepEqual(preview, again) {
 		t.Fatal("PG context pins differ", e)
 	}
 	restoredDir := filepath.Join(t.TempDir(), "restored")
 	report, e = ExportPostgresData(ctx, restoredDir, db)
-	if e != nil || report.Records["story_versions"] != 2 {
+	if e != nil || report.Records["story_versions"] != 2 || report.Records["story_contexts"] != 1 {
 		t.Fatal("story export", e, report.Records)
 	}
 	restored, e := OpenStore(restoredDir)
@@ -314,6 +322,10 @@ func TestPostgresStoryOfflineRoundTripPreservesVersionsReceiptsAndSource(t *test
 		t.Fatal(e)
 	}
 	defer restored.Close()
+	pinned, e = restored.CreateStoryContext(ctx, storyActor, eps[0].ID, "story-offline-context", story.Selection{Query: "寻找"})
+	if e != nil || !reflect.DeepEqual(pinned, snapshot) {
+		t.Fatal("restored context receipt differs", e)
+	}
 	got = saveStory(t, restored, root, original.ID, "story-offline-create", storyBible())
 	if !reflect.DeepEqual(got, original) {
 		t.Fatal("offline switch lost original receipt")

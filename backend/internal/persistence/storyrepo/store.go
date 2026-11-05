@@ -25,7 +25,7 @@ import (
 var ErrStorage = errors.New("story storage unavailable")
 var ErrKey = errors.New("story idempotency conflict")
 
-const Schema = `CREATE TABLE IF NOT EXISTS studio_story_versions (
+const Schema = contextSchema + `CREATE TABLE IF NOT EXISTS studio_story_versions (
  space_id text NOT NULL,series_id text NOT NULL,id text NOT NULL,number bigint NOT NULL CHECK(number>0),version_id text NOT NULL,key_hash text NOT NULL,request_digest text NOT NULL,payload jsonb NOT NULL,
  PRIMARY KEY(space_id,series_id,id,number),UNIQUE(space_id,series_id,id,version_id),UNIQUE(space_id,series_id,id,key_hash),
  CHECK((payload->'version'->>'space_id'=space_id AND payload->'version'->>'series_id'=series_id AND payload->'version'->>'id'=id AND (payload->'version'->>'number')::bigint=number AND payload->'version'->>'version_id'=version_id AND payload->>'key_hash'=key_hash AND payload->>'request_digest'=request_digest) IS TRUE));
@@ -57,6 +57,8 @@ type record struct {
 	Digest  string        `json:"request_digest"`
 	Version story.Version `json:"version"`
 }
+
+var keyPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{8,128}$`)
 
 var namePattern = regexp.MustCompile(`^([0-9]{20})-([a-f0-9]{64})\.json$`)
 
@@ -393,6 +395,12 @@ func (s *Store) ids(q Scope) ([]string, error) {
 	}
 	out := []string{}
 	for _, v := range entries {
+		if v.Name() == ".contexts" {
+			if !v.IsDir() || v.Type()&os.ModeSymlink != 0 {
+				return nil, ErrStorage
+			}
+			continue
+		}
 		if !v.IsDir() || !story.ID.MatchString(v.Name()) || v.Type()&os.ModeSymlink != 0 {
 			return nil, ErrStorage
 		}
