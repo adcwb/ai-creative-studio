@@ -23,7 +23,9 @@ async function setup(page: Page, configured = true, referenceImages = false) {
   expect(organization.status()).toBe(201)
   const space = await organization.json()
   const query = '?space_id=' + space.id
-  await page.evaluate(id => sessionStorage.setItem('studio.space', id), space.id)
+  // Set the fixture selection at the new document's start. Setting it on the
+  // outgoing page can race its pending React selection-persistence effect.
+  await page.addInitScript(id => sessionStorage.setItem('studio.space', id), space.id)
   await page.reload()
   await expect(page.locator('.app-shell')).toBeVisible()
   await expect(page.locator('#space')).toHaveValue(space.id)

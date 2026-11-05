@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 
@@ -49,6 +50,58 @@ func libraryTestDB(t *testing.T) *sql.DB {
 		t.Fatal(err)
 	}
 	return db
+}
+
+func TestLegacyPostgresImportIsReadOnlyIncludingRollback(t *testing.T) {
+	db := libraryTestDB(t)
+	dir := t.TempDir()
+	v1 := result("actor", "v1", "space", 1)
+	v2 := result("actor", "v2", "space", 2)
+	v2.Asset.Status = "archived"
+	path := legacyFixture(t, dir, []libraryrepo.Result{v1, v2}, map[string]any{"create": map[string]any{"digest": "first", "result": v1}, "archive": map[string]any{"digest": "last", "result": v2}})
+	original, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rollback := range []bool{true, false} {
+		tx, err := db.BeginTx(context.Background(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		count, err := libraryrepo.ImportFiles(context.Background(), tx, dir)
+		if err != nil {
+			tx.Rollback()
+			t.Fatal(err)
+		}
+		if count != 5 {
+			t.Fatal("lost records", count)
+		}
+		if rollback {
+			err = tx.Rollback()
+		} else {
+			err = tx.Commit()
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil || len(entries) != 1 || entries[0].Name() != filepath.Base(path) {
+			t.Fatal("offline import mutated source", entries, err)
+		}
+		after, err := os.ReadFile(path)
+		if err != nil || string(after) != string(original) {
+			t.Fatal("source changed", err)
+		}
+	}
+	s, _ := libraryrepo.Open("", db)
+	got, err := s.Get(context.Background(), "space", "actor")
+	if err != nil || got.Asset.Status != "archived" {
+		t.Fatal(got, err)
+	}
+	old, ok, err := s.Replay(context.Background(), "space", "create", "first")
+	if err != nil || !ok || old.Version.ID != "v1" || old.Asset.Status != "active" {
+		t.Fatal(old, ok, err)
+	}
 }
 
 func TestPostgresLibraryCASReplayAndMigration(t *testing.T) {

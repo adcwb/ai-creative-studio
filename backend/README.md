@@ -60,3 +60,5 @@ go test ./internal/modules/... ./internal/architecture
 本轮完成目录分层、业务模型与纯规则提取、共享装配及依赖检查。`application` 内仍保留原有供应商适配、HTTP 和持久化实现，`FileStore` 仍是现有事务协作的入口；这些实现没有通过目录迁移自动解耦。
 
 PostgreSQL的scope快照读取方式与`stateMutex`事务语义仍沿用兼容实现；模型执行使用非财务dispatch回执，不依赖预算或报价。文件模式导出/对齐与PG worker均区分排队和执行并发。后续应按业务用例逐个引入显式事务接口和查询仓库，再迁移具体适配器；不能为了目录拆分而破坏当前跨模块的一致性。
+
+文件资产库使用按空间/资产追加的不可变事务文件，旧`library/{space}.json`首次访问时在锁内原子升级并保留原件；新目录为有效来源。累计64MiB不再阻止保存，旧二进制不能直接对升级目录续写。迁移与实际验证见[资产库存储记录](../docs/superpowers/specs/2026-11-04-creative-series/storage-implementation.md)。

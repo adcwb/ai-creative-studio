@@ -1,4 +1,4 @@
-// Package libraryrepo persists library metadata using per-space file snapshots
+// Package libraryrepo persists library metadata using per-asset transaction files
 // or indexed PostgreSQL rows. It never reads another space to answer a query.
 package libraryrepo
 
@@ -7,19 +7,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"io"
 	"os"
-	"path/filepath"
-	"runtime"
-	"sort"
-	"sync"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/library"
 )
 
 var ErrNotFound = errors.New("library resource not found")
 var ErrKey = errors.New("library idempotency conflict")
-var ErrLimit = errors.New("library capacity exceeded")
 var ErrStorage = errors.New("library storage unavailable")
 
 const Schema = `CREATE TABLE IF NOT EXISTS studio_library_assets (
@@ -51,7 +45,6 @@ type disk struct {
 	Receipts map[string]receipt         `json:"receipts"`
 }
 type Store struct {
-	mu  sync.Mutex
 	dir string
 	db  *sql.DB
 }
@@ -90,119 +83,20 @@ func (s *Store) Replay(ctx context.Context, space, key, digest string) (Result, 
 			return Result{}, false, ErrStorage
 		}
 	} else {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		d, err := s.read(space)
-		if err != nil {
+		var found bool
+		err := s.withFileLock(ctx, space, func() error {
+			var err error
+			r, found, err = s.fileReceipt(ctx, space, key)
+			return err
+		})
+		if err != nil || !found {
 			return Result{}, false, err
-		}
-		var ok bool
-		r, ok = d.Receipts[key]
-		if !ok {
-			return Result{}, false, nil
 		}
 	}
 	if r.Digest != digest {
 		return Result{}, false, ErrKey
 	}
 	return r.Result, true, nil
-}
-func (s *Store) read(space string) (disk, error) {
-	if !library.IDPattern.MatchString(space) {
-		return disk{}, library.ErrInput
-	}
-	var d disk
-	root, err := os.OpenRoot(s.dir)
-	if err != nil {
-		return disk{}, ErrStorage
-	}
-	defer root.Close()
-	f, err := root.Open(space + ".json")
-	if os.IsNotExist(err) {
-		return fresh(), nil
-	}
-	if err != nil {
-		return disk{}, ErrStorage
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil || !info.Mode().IsRegular() || info.Size() > 64<<20 {
-		return disk{}, ErrStorage
-	}
-	b, err := io.ReadAll(io.LimitReader(f, (64<<20)+1))
-	if err != nil {
-		return disk{}, ErrStorage
-	}
-	if len(b) > 64<<20 || json.Unmarshal(b, &d) != nil || d.Format != 1 || d.Assets == nil || d.Versions == nil || d.Receipts == nil {
-		return disk{}, ErrStorage
-	}
-	for id, a := range d.Assets {
-		if a.ID != id || a.SpaceID != space || (a.Status != "active" && a.Status != "archived") {
-			return disk{}, ErrStorage
-		}
-		v, ok := d.Versions[a.HeadVersionID]
-		if !ok || v.AssetID != id || v.SpaceID != space {
-			return disk{}, ErrStorage
-		}
-	}
-	for id, v := range d.Versions {
-		if v.ID != id || v.SpaceID != space || d.Assets[v.AssetID].ID == "" {
-			return disk{}, ErrStorage
-		}
-		if _, e := library.Normalize(d.Assets[v.AssetID].Kind, v.Card); e != nil {
-			return disk{}, ErrStorage
-		}
-		if v.Number < 1 || library.ValidateReferences(v.References) != nil {
-			return disk{}, ErrStorage
-		}
-		h, e := library.Digest(struct {
-			Card       library.Card
-			References []library.Reference
-		}{v.Card, v.References})
-		if e != nil || h != v.SHA256 {
-			return disk{}, ErrStorage
-		}
-	}
-	for _, r := range d.Receipts {
-		if r.Result.Asset.SpaceID != space || r.Result.Version.SpaceID != space || r.Result.Asset.ID != r.Result.Version.AssetID || d.Versions[r.Result.Version.ID].ID == "" {
-			return disk{}, ErrStorage
-		}
-	}
-	return d, nil
-}
-func (s *Store) save(space string, d disk) error {
-	b, err := json.Marshal(d)
-	if err != nil || len(b) > 64<<20 {
-		return ErrLimit
-	}
-	f, err := os.CreateTemp(s.dir, ".library-")
-	if err != nil {
-		return ErrStorage
-	}
-	defer os.Remove(f.Name())
-	_, err = f.Write(b)
-	if err == nil {
-		err = f.Sync()
-	}
-	err = errors.Join(err, f.Close())
-	if err != nil {
-		return ErrStorage
-	}
-	if os.Rename(f.Name(), filepath.Join(s.dir, space+".json")) != nil {
-		return ErrStorage
-	}
-	// Production runs on Linux. Sync the directory entry as well as contents;
-	// Windows unit tests exercise rules/replay, not power-loss durability.
-	if runtime.GOOS != "windows" {
-		dir, e := os.Open(s.dir)
-		if e != nil {
-			return ErrStorage
-		}
-		if e = errors.Join(dir.Sync(), dir.Close()); e != nil {
-			return ErrStorage
-		}
-	}
-	return nil
 }
 func validateQuery(q Query) error {
 	if q.Limit < 1 || q.Limit > 100 {
@@ -243,22 +137,12 @@ func (s *Store) List(ctx context.Context, space string, q Query) ([]library.Asse
 		}
 		return out, rows.Err()
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	d, err := s.read(space)
-	if err != nil {
-		return nil, err
-	}
-	for _, a := range d.Assets {
-		if a.ID > q.After && (q.Kind == "" || a.Kind == q.Kind) && (q.Status == "" || a.Status == q.Status) {
-			out = append(out, a)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
-	if len(out) > q.Limit {
-		out = out[:q.Limit]
-	}
-	return out, nil
+	err := s.withFileLock(ctx, space, func() error {
+		var err error
+		out, err = s.fileList(ctx, space, q)
+		return err
+	})
+	return out, err
 }
 func (s *Store) Get(ctx context.Context, space, id string) (Result, error) {
 	if !library.IDPattern.MatchString(space) || !library.IDPattern.MatchString(id) {
@@ -276,17 +160,13 @@ func (s *Store) Get(ctx context.Context, space, id string) (Result, error) {
 		}
 		return r, nil
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	d, err := s.read(space)
-	if err != nil {
-		return Result{}, err
-	}
-	a, ok := d.Assets[id]
-	if !ok {
-		return Result{}, ErrNotFound
-	}
-	return Result{a, d.Versions[a.HeadVersionID]}, nil
+	var out Result
+	err := s.withFileLock(ctx, space, func() error {
+		var err error
+		out, err = s.fileCurrent(space, id)
+		return err
+	})
+	return out, err
 }
 func (s *Store) Version(ctx context.Context, space, asset, id string) (library.Version, error) {
 	if !library.IDPattern.MatchString(space) || !library.IDPattern.MatchString(asset) || !library.IDPattern.MatchString(id) {
@@ -304,17 +184,13 @@ func (s *Store) Version(ctx context.Context, space, asset, id string) (library.V
 		}
 		return v, nil
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	d, err := s.read(space)
-	if err != nil {
-		return library.Version{}, err
-	}
-	v, ok := d.Versions[id]
-	if !ok || v.AssetID != asset {
-		return library.Version{}, ErrNotFound
-	}
-	return v, nil
+	var out library.Version
+	err := s.withFileLock(ctx, space, func() error {
+		var err error
+		out, err = s.fileVersion(space, asset, id)
+		return err
+	})
+	return out, err
 }
 func (s *Store) Versions(ctx context.Context, space, asset, after string, limit int) ([]library.Version, error) {
 	if limit < 1 || limit > 100 {
@@ -348,22 +224,12 @@ func (s *Store) Versions(ctx context.Context, space, asset, after string, limit 
 		}
 		return out, rows.Err()
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	d, err := s.read(space)
-	if err != nil {
-		return nil, err
-	}
-	for _, v := range d.Versions {
-		if v.AssetID == asset && (before == 0 || v.Number < before) {
-			out = append(out, v)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Number > out[j].Number })
-	if len(out) > limit {
-		out = out[:limit]
-	}
-	return out, nil
+	err := s.withFileLock(ctx, space, func() error {
+		var err error
+		out, err = s.fileVersions(ctx, space, asset, before, limit)
+		return err
+	})
+	return out, err
 }
 
 // Mutation is executed under the same lock/transaction as its receipt. The
@@ -375,43 +241,13 @@ func (s *Store) Mutate(ctx context.Context, space, key, digest, expected string,
 	if s.db != nil {
 		return s.mutateSQL(ctx, space, key, digest, expected, result, archive)
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	d, err := s.read(space)
-	if err != nil {
-		return Result{}, err
-	}
-	if r, ok := d.Receipts[key]; ok {
-		if r.Digest != digest {
-			return Result{}, ErrKey
-		}
-		return r.Result, nil
-	}
-	old, exists := d.Assets[result.Asset.ID]
-	if err = validateMutation(old, exists, expected, result, archive); err != nil {
-		return Result{}, err
-	}
-	if !archive {
-		if _, ok := d.Versions[result.Version.ID]; ok {
-			return Result{}, library.ErrConflict
-		}
-		n := 1
-		if exists {
-			n = d.Versions[old.HeadVersionID].Number + 1
-		}
-		if result.Version.Number != n {
-			return Result{}, library.ErrConflict
-		}
-	}
-	d.Assets[result.Asset.ID] = result.Asset
-	if !archive {
-		d.Versions[result.Version.ID] = result.Version
-	}
-	d.Receipts[key] = receipt{digest, result}
-	if err = s.save(space, d); err != nil {
-		return Result{}, err
-	}
-	return result, nil
+	var out Result
+	err := s.withFileLock(ctx, space, func() error {
+		var err error
+		out, err = s.fileMutate(ctx, space, key, digest, expected, result, archive)
+		return err
+	})
+	return out, err
 }
 func validateMutation(old library.Asset, exists bool, expected string, r Result, archive bool) error {
 	if !exists && expected != "" {

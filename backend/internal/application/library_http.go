@@ -50,8 +50,8 @@ func libraryError(w http.ResponseWriter, err error) {
 		problem(w, 409, "idempotency_conflict", "同一请求键不能用于不同内容")
 	case errors.Is(err, libraryrepo.ErrNotFound), errors.Is(err, ErrNotFound):
 		problem(w, 404, "not_found", "资产或参考素材不存在")
-	case errors.Is(err, libraryrepo.ErrLimit), errors.Is(err, errMediaLimit):
-		problem(w, 429, "library_limit", "资产库容量已达上限")
+	case errors.Is(err, errMediaLimit):
+		mediaError(w, err)
 	default:
 		problem(w, 503, "library_storage_error", "资产保存结果未确认，请使用原请求键核对")
 	}
