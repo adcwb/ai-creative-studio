@@ -347,12 +347,12 @@ func TestPostgresMusicAcceptanceWithoutCostsRetainsConcurrency(t *testing.T) {
 	if err != nil || created || replay.ID != job.ID {
 		t.Fatal("music idempotency failed", err)
 	}
-	if _, _, err = s.createCreativeJob(tenant, project.ID, "music-pg-concurrent", in); !errors.Is(err, ErrGenerationActive) {
-		t.Fatal("concurrent project generation was not protected", err)
+	if next, created, err := s.createCreativeJob(tenant, project.ID, "music-pg-concurrent", in); err != nil || !created || next.ID == job.ID || next.Status != "queued" {
+		t.Fatal("worker concurrency blocked persistent admission", next, err)
 	}
 	var count int
-	if err = db.QueryRow("SELECT count(*) FROM execution_jobs WHERE tenant_id=$1 AND kind='creative'", tenant).Scan(&count); err != nil || count != 1 {
-		t.Fatal("concurrency rejection left a queue job", count, err)
+	if err = db.QueryRow("SELECT count(*) FROM execution_jobs WHERE tenant_id=$1 AND kind='creative'", tenant).Scan(&count); err != nil || count != 2 {
+		t.Fatal("accepted work was not durably queued", count, err)
 	}
 	entries, err := ledger.Entries(tenant, "USD")
 	if err != nil || len(entries) != 0 {

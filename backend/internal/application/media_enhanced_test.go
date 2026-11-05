@@ -46,8 +46,8 @@ func TestEnhancedTimelineValidation(t *testing.T) {
 	}
 	baseline.OutputResolution = "1080p"
 	baseline.Clips = []MediaClip{{ID: "shot-1", AssetID: "image", Duration: 30}, {ID: "shot-2", AssetID: "image", Duration: 30}, {ID: "shot-3", AssetID: "image", Duration: .5}}
-	if validateTimeline(p, baseline) == nil {
-		t.Fatal("1080p work limit bypassed")
+	if err := validateTimeline(p, baseline); err != nil {
+		t.Fatal("output resolution still imposed a duration quota", err)
 	}
 }
 

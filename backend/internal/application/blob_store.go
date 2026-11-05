@@ -23,6 +23,8 @@ import (
 	"time"
 )
 
+// MaxBlobBytes bounds legacy in-memory callers, not complete objects. Video
+// exports, materialization and backups use StreamingBlobStore instead.
 const MaxBlobBytes int64 = 128 << 20
 
 var ErrBlobNotFound = errors.New("blob not found")
@@ -50,7 +52,7 @@ func blobKey(space, project, name string) string {
 }
 func validBlobInfo(info BlobInfo) bool {
 	h, e := hex.DecodeString(info.SHA256)
-	return blobKeyPattern.MatchString(info.Key) && info.Size >= 0 && info.Size <= MaxBlobBytes && e == nil && len(h) == 32 && strings.ToLower(info.SHA256) == info.SHA256
+	return blobKeyPattern.MatchString(info.Key) && info.Size >= 0 && info.Size < 1<<63-1 && e == nil && len(h) == 32 && strings.ToLower(info.SHA256) == info.SHA256
 }
 func checkBlobKey(key string) error {
 	if !blobKeyPattern.MatchString(key) {
@@ -59,7 +61,7 @@ func checkBlobKey(key string) error {
 	return nil
 }
 func readVerifiedBlob(ctx context.Context, store BlobStore, info BlobInfo) ([]byte, error) {
-	if !validBlobInfo(info) {
+	if !validBlobInfo(info) || info.Size > MaxBlobBytes {
 		return nil, ErrBlobIntegrity
 	}
 	r, e := store.OpenRange(ctx, info.Key, 0, -1)
@@ -148,7 +150,7 @@ func (s *FileBlobStore) open(key string) (*os.File, error) {
 		return nil, e
 	}
 	st, e := f.Stat()
-	if e != nil || !st.Mode().IsRegular() || st.Size() > MaxBlobBytes {
+	if e != nil || !st.Mode().IsRegular() {
 		f.Close()
 		return nil, ErrBlobIntegrity
 	}
@@ -163,11 +165,7 @@ func (s *FileBlobStore) Stat(ctx context.Context, key string) (BlobInfo, error) 
 		return BlobInfo{}, e
 	}
 	defer f.Close()
-	b, e := io.ReadAll(io.LimitReader(f, MaxBlobBytes+1))
-	if e != nil {
-		return BlobInfo{}, e
-	}
-	return blobInfo(key, b), nil
+	return hashBlobStream(ctx, key, f)
 }
 
 type blobReadCloser struct {
@@ -309,7 +307,7 @@ func (s *S3BlobStore) OpenRange(ctx context.Context, key string, start, length i
 	if e := checkBlobKey(key); e != nil {
 		return nil, e
 	}
-	if start < 0 || start > MaxBlobBytes || length < -1 || length > MaxBlobBytes-start {
+	if start < 0 || length < -1 || length > (1<<63-1)-start {
 		return nil, errors.New("invalid blob range")
 	}
 	h := map[string]string{}
@@ -343,10 +341,6 @@ func (s *S3BlobStore) OpenRange(ctx context.Context, key string, start, length i
 		closeBlobResponse(r)
 		return nil, fmt.Errorf("S3 get failed (%d)", r.StatusCode)
 	}
-	if r.ContentLength > MaxBlobBytes {
-		closeBlobResponse(r)
-		return nil, ErrBlobIntegrity
-	}
 	if partial {
 		value := r.Header.Get("Content-Range")
 		parts := regexp.MustCompile(`^bytes ([0-9]+)-([0-9]+)/([0-9]+)$`).FindStringSubmatch(value)
@@ -357,7 +351,7 @@ func (s *S3BlobStore) OpenRange(ctx context.Context, key string, start, length i
 		first, e1 := strconv.ParseInt(parts[1], 10, 64)
 		last, e2 := strconv.ParseInt(parts[2], 10, 64)
 		total, e3 := strconv.ParseInt(parts[3], 10, 64)
-		if e1 != nil || e2 != nil || e3 != nil || first != start || last < first || total <= last || total > MaxBlobBytes || r.ContentLength != last-first+1 || (length >= 0 && r.ContentLength != length) {
+		if e1 != nil || e2 != nil || e3 != nil || first != start || last < first || total <= last || r.ContentLength != last-first+1 || (length >= 0 && r.ContentLength != length) {
 			closeBlobResponse(r)
 			return nil, ErrBlobIntegrity
 		}
@@ -378,8 +372,10 @@ func (s *S3BlobStore) Delete(ctx context.Context, key string) error {
 
 // Sign all supplied headers, including conditions, checksums and metadata.
 func (s *S3BlobStore) sign(req *http.Request, b []byte, now time.Time) {
+	s.signPayload(req, s3Hash(string(b)), now)
+}
+func (s *S3BlobStore) signPayload(req *http.Request, payload string, now time.Time) {
 	date, stamp := now.UTC().Format("20060102"), now.UTC().Format("20060102T150405Z")
-	payload := s3Hash(string(b))
 	req.Header.Set("X-Amz-Content-Sha256", payload)
 	req.Header.Set("X-Amz-Date", stamp)
 	if s.config.SessionToken != "" {

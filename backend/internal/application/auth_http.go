@@ -20,6 +20,7 @@ type authScopeKey struct{}
 type authScope struct {
 	UserID, SpaceID, Role string
 	reviewMembers         func() []productionMember
+	recheckWrite          func() bool
 }
 type AuthOptions struct {
 	SystemConfig      *deployconfig.Store
@@ -297,7 +298,14 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 			auth.models.serve(w, r, s)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), authScopeKey{}, authScope{UserID: user.ID, SpaceID: space, Role: role, reviewMembers: func() []productionMember { return auth.productionMembers(space) }})))
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), authScopeKey{}, authScope{UserID: user.ID, SpaceID: space, Role: role, reviewMembers: func() []productionMember { return auth.productionMembers(space) }, recheckWrite: func() bool {
+			current, _, ok := auth.authenticate(token)
+			if !ok || current.ID != user.ID {
+				return false
+			}
+			role := auth.role(user.ID, space)
+			return role != "" && role != "viewer"
+		}})))
 	})
 }
 func (s *AuthStore) createOrganization(w http.ResponseWriter, r *http.Request, user AuthUser) {
@@ -314,16 +322,6 @@ func (s *AuthStore) createOrganization(w http.ResponseWriter, r *http.Request, u
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	count := 0
-	for _, o := range s.data.Organizations {
-		if o.OwnerID == user.ID {
-			count++
-		}
-	}
-	if count >= 20 || len(s.data.Organizations) >= 10000 {
-		problem(w, 429, "organization_limit", "空间数量达到上限")
-		return
-	}
 	d := s.clone()
 	id := "org-" + authRandom(16)
 	d.Organizations[id] = AuthOrganization{ID: id, Name: in.Name, OwnerID: user.ID, Members: map[string]string{user.ID: "owner"}}
@@ -399,10 +397,6 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 	current := org.Members[uid]
 	if current == "owner" || (role == "admin" && (current == "admin" || in.Role == "admin")) {
 		problem(w, 403, "role_denied", "不能修改此角色")
-		return
-	}
-	if len(org.Members) >= 200 && current == "" && in.Role != "remove" {
-		problem(w, 429, "member_limit", "成员数量达到上限")
 		return
 	}
 	if !beginAuthAudit(w, r) {

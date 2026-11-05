@@ -29,7 +29,7 @@ export function projectDraftError(draft: ProjectDraft) {
   return fieldLengthError(draft.title, 1, 80, translate("项目名称")) || fieldLengthError(draft.brief, 3, 2000, translate("创作简报"))
 }
 export function scriptDraftError(script: DramaScript) {
-  if (script.characters.length > 30 || script.scenes.length < 1 || script.scenes.length > 120) return translate('剧本支持最多30个角色和1–120个场景。')
+  if (script.scenes.length < 1) return translate('剧本需包含场景，角色与对白引用必须有效。')
   const names = new Set<string>()
   for (const character of script.characters) {
     const name = character.name.trim()
@@ -40,7 +40,7 @@ export function scriptDraftError(script: DramaScript) {
   }
   let error = fieldLengthError(script.title, 1, 80, translate("剧本标题")) || fieldLengthError(script.logline, 3, 300, translate("故事梗概"))
   for (const [index, scene] of script.scenes.entries()) {
-    if (!Number.isInteger(scene.episode_number ?? 1) || (scene.episode_number ?? 1) < 1 || (scene.episode_number ?? 1) > 999) return translate('集数需为1–999。')
+    if (!Number.isSafeInteger(scene.episode_number ?? 1) || (scene.episode_number ?? 1) < 1) return translate('集数需为有效正整数。')
     if (scene.dialogue.length > 100 || scene.dialogue.some(line => !names.has(line.character.trim()))) return translate('对白必须引用已有角色，每场最多100条。')
     error ||= fieldLengthError(scene.heading, 1, 100, translate("第 {p0} 场标题", {p0: index + 1})) || fieldLengthError(scene.action, 1, 1000, translate("第 {p0} 场动作", {p0: index + 1}))
     for (const line of scene.dialogue) error ||= fieldLengthError(line.text, 1, 300, translate("第 {p0} 场对白", {p0: index + 1}))
@@ -65,13 +65,13 @@ export const storyboardGenerationLabels: Record<StoryboardGeneration['status'], 
   queued: '等待生成分镜', running: '正在生成分镜', succeeded: '分镜已生成', failed: '分镜生成失败',
 }
 export function storyboardDraftError(shots: StoryboardShot[]) {
-  if (shots.length < 1 || shots.length > 120) return translate("分镜计划需包含 1–120 个镜头。")
+  if (shots.length < 1) return translate("分镜计划需包含镜头。")
   const ids = new Set<string>()
   for (const [index, shot] of shots.entries()) {
     const label = translate("第 {p0} 镜", {p0: index + 1})
     if (!/^[A-Za-z0-9_-]{1,40}$/.test(shot.id) || ids.has(shot.id)) return translate("{p0}标识无效或重复。", {p0: label})
     ids.add(shot.id)
-    if (!Number.isInteger(shot.scene_index) || shot.scene_index < 0 || shot.scene_index > 120) return translate("{p0}场景引用需为0–120。", {p0: label})
+    if (!Number.isInteger(shot.scene_index) || shot.scene_index < 0) return translate("{p0}场景引用需为非负整数。", {p0: label})
     const textError = fieldLengthError(shot.description, 1, 1000, translate("{p0}画面描述", {p0: label})) || fieldLengthError(shot.dialogue, 0, 2000, translate("{p0}对白", {p0: label}))
     if (textError) return textError
     if (!Object.hasOwn(shotSizeLabels, shot.shot_size) || !Object.hasOwn(cameraMovementLabels, shot.camera_movement)) return translate("{p0}景别或运镜无效。", {p0: label})

@@ -146,16 +146,6 @@ func (m *MediaStore) bindLibrary(project, space, key string, in libraryBindingIn
 	if p.Version != in.ExpectedVersion {
 		return p, errMediaVersion
 	}
-	if len(p.LibraryBindings) >= 60 || len(p.Assets)+len(files) > 120 {
-		return p, errMediaLimit
-	}
-	var size int64
-	for _, b := range files {
-		size += int64(len(b))
-	}
-	if m.overQuota(size) {
-		return p, errMediaLimit
-	}
 	binding := media.LibraryBinding{ID: mediaID(), AssetID: in.AssetID, VersionID: in.VersionID, Name: v.Card.Name, Kind: in.Usage, Usage: in.Usage, ShotID: in.ShotID, MediaAssetIDs: []string{}, CreatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
 	for i, b := range files {
 		id := mediaID()

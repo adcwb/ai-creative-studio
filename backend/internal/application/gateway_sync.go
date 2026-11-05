@@ -57,22 +57,6 @@ func (s *ModelConfigStore) syncGatewayModels(ctx context.Context, tenant, id str
 		}
 	}
 	out := GatewaySyncResult{}
-	newCount := 0
-	for _, modelID := range result["models"].([]string) {
-		if !known[modelID] {
-			newCount++
-		}
-	}
-	if len(t.Models)+newCount > 200 {
-		current.Gateway.SyncError = "gateway_model_capacity"
-		t.Gateways[id] = current
-		t.Version++
-		d.Tenants[tenant] = t
-		if err = s.commit(d); err != nil {
-			return GatewaySyncResult{}, err
-		}
-		return GatewaySyncResult{}, errGatewayCapacity
-	}
 	for _, modelID := range result["models"].([]string) {
 		if known[modelID] {
 			out.Existing++

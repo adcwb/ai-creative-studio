@@ -53,16 +53,10 @@ func (m *MediaStore) SaveProductionDecision(project, space, key string, in Produ
 		if !exists || (a.Kind != "image" && a.Kind != "video") {
 			return p, mediaInvalid("请选择当前作品中的图片或视频")
 		}
-		if len(p.Selections) >= 2000 {
-			return p, errMediaLimit
-		}
 		p.Selections = append(p.Selections, media.Selection{ID: mediaID(), ShotID: in.ShotID, AssetID: in.AssetID, Note: in.Text, CreatedAt: now})
 	case "review":
 		if !exists || in.Text == "" || (a.Kind == "image" && in.Time != 0) || (a.Kind != "image" && in.Time > a.Duration) {
 			return p, mediaInvalid("批注须绑定素材和有效时间点")
-		}
-		if len(p.Reviews) >= 2000 {
-			return p, errMediaLimit
 		}
 		p.Reviews = append(p.Reviews, media.ReviewNote{AssigneeID: in.AssigneeID, Priority: in.Priority, CreatedBy: in.actor, UpdatedBy: in.actor, UpdatedAt: now, ID: mediaID(), ShotID: in.ShotID, AssetID: in.AssetID, Time: in.Time, Text: in.Text, CreatedAt: now})
 	case "resolve", "assign":

@@ -60,7 +60,7 @@ func TestArkCompatibleTextContract(t *testing.T) {
 	}
 }
 
-func TestRealImageQueueLimitPreservesIdempotentReplay(t *testing.T) {
+func TestRealImageQueueHasNoAdmissionQuotaAndPreservesReplay(t *testing.T) {
 	caps := Capabilities{Provider: "openai-images", Mode: "real", Model: OpenAIModel, Ready: true}
 	s, e := OpenStore(t.TempDir(), caps)
 	if e != nil {
@@ -73,8 +73,8 @@ func TestRealImageQueueLimitPreservesIdempotentReplay(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
-	if _, _, e = s.Create("personal-demo", "limit-five", in); e != ErrProviderNotReady {
-		t.Fatal("unbounded costly queue", e)
+	if fifth, created, err := s.Create("personal-demo", "limit-five", in); err != nil || !created || fifth.Status != "queued" {
+		t.Fatal("worker concurrency became a submission quota", fifth, err)
 	}
 	if _, created, e := s.Create("personal-demo", "limit-one", in); e != nil || created {
 		t.Fatal("rate limit blocked safe replay", e)

@@ -147,7 +147,7 @@ func TestBlobS3Service(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		s.media.wg.Wait()
+		s.media.jobs.wait()
 		state := s.media.Get(project, tenant)
 		if state.Exports[0].Status != "succeeded" {
 			t.Fatalf("real service render: %+v", state.Exports[0])

@@ -207,9 +207,6 @@ func (r *douyinRuntime) prepareContext(ctx context.Context, project, space, user
 		if e != nil || !info.Mode().IsRegular() || info.Size() > limit {
 			return douyinPrepared{}, false, mediaInvalid("Douyin image maximum 20MiB; video maximum 128MiB")
 		}
-		if len(socialState(p).Jobs) >= 100 {
-			return douyinPrepared{}, false, errMediaLimit
-		}
 		return douyinPrepared{}, false, nil
 	}
 	if prior, replay, e := preflight(); e != nil || replay {
@@ -307,9 +304,6 @@ func (r *douyinRuntime) prepareContext(ctx context.Context, project, space, user
 		}
 	}
 	state := socialState(p)
-	if len(state.Jobs) >= 100 {
-		return out, errMediaLimit
-	}
 	now := r.now()
 	expiry := now.Add(5 * time.Minute)
 	if cap := config.TicketExpiresAt.Add(-time.Minute); cap.Before(expiry) {

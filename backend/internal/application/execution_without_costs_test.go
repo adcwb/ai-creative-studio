@@ -24,7 +24,7 @@ func TestSelectedImageModelHasNoHourlyCostQuota(t *testing.T) {
 			t.Fatal("historical attempt count blocked configured model", i, err)
 		}
 		// Complete each local fixture without calling a provider, retaining all
-		// failed attempts. Queue-concurrency protection must still apply.
+		// failed attempts. Execution concurrency belongs to the worker queue.
 		if err := s.Finish(task, GenerationResult{}, errors.New("synthetic local failure")); err != nil {
 			t.Fatal(err)
 		}
@@ -34,8 +34,8 @@ func TestSelectedImageModelHasNoHourlyCostQuota(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, _, err := s.Create("personal-demo", "concurrent-image-overflow", in); !errors.Is(err, ErrProviderNotReady) {
-		t.Fatal("removing cost quota removed concurrency protection", err)
+	if queued, _, err := s.Create("personal-demo", "concurrent-image-overflow", in); err != nil || queued.Status != "queued" {
+		t.Fatal("execution concurrency blocked queue admission", queued, err)
 	}
 }
 

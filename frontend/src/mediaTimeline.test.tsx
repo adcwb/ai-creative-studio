@@ -34,7 +34,7 @@ describe('crossfade and overlay timing', () => {
       expect(compositionError(clips, [{...layer, ...update}], assets)).toBe('overlay')
     }
     expect(compositionError(clips, [layer, layer], assets)).toBe('overlay')
-    expect(compositionError(clips, Array.from({length: 5}, (_, i) => ({...layer, id: `layer-${i}`})), assets)).toBe('overlay')
+    expect(compositionError(clips, Array.from({length: 5}, (_, i) => ({...layer, id: `layer-${i}`})), assets)).toBeNull()
   })
   it('requires an explicit source audio choice and valid image settings', () => {
     expect(compositionError(clips, [{...layer, preserve_source_audio: false}], assets)).toBe('overlay')

@@ -121,9 +121,6 @@ func (m *MediaStore) createSocial(project, space, key string, in SocialCreate) (
 			}
 		}
 	}
-	if len(state.Jobs) >= 100 {
-		return socialView(p), errMediaLimit
-	}
 	state.Jobs = append(state.Jobs, SocialJob{PhotoSourceKey: sourceKey, MediaType: in.MediaType, PhotoAssetIDs: append([]string(nil), in.PhotoAssetIDs...), ID: mediaID(), Platform: in.Platform, Mode: in.Mode, Status: "prepared", AssetID: in.AssetID, ExportID: in.ExportID, Title: in.Title, Caption: in.Caption, DownloadURL: file, MIMEType: mime, CreatedAt: time.Now().UTC().Format(time.RFC3339), Version: 1, ConnectionID: in.ConnectionID, Intent: &in})
 	p.Social = &state
 	p.Version++

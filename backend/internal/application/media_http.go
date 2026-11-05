@@ -1,10 +1,13 @@
 package application
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
+	"os"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/tracing"
@@ -16,8 +19,10 @@ func mediaError(w http.ResponseWriter, err error) {
 		problem(w, 409, "version_conflict", "媒体版本已变化，请重载后操作")
 	case errors.Is(err, errMediaKey):
 		problem(w, 409, "idempotency_conflict", "此请求键已用于不同媒体操作")
+	case errors.Is(err, errRuntimeDenied):
+		problem(w, 403, "role_denied", "当前权限已变化，请重新登录或联系管理员")
 	case errors.Is(err, errMediaLimit):
-		problem(w, 429, "media_limit", "达到媒体资源限额：每项目120素材/30导出、同时2个合成")
+		problem(w, 413, "unsupported_media_payload", "当前操作无法处理此媒体输入，请检查文件格式与尺寸")
 	case errors.Is(err, ErrNotFound):
 		problem(w, 404, "not_found", "媒体不存在")
 	case errors.Is(err, errMediaInput):
@@ -119,8 +124,7 @@ func registerMediaRoutes(mux *http.ServeMux, s *FileStore) {
 		select {
 		case uploadSlots <- struct{}{}:
 			defer func() { <-uploadSlots }()
-		default:
-			problem(w, 429, "media_limit", "同时最多两个上传")
+		case <-r.Context().Done():
 			return
 		}
 		mime := r.Header.Get("Content-Type")
@@ -135,12 +139,30 @@ func registerMediaRoutes(mux *http.ServeMux, s *FileStore) {
 				return
 			}
 		}
-		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 32<<20))
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+		defer cancel()
+		_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(5 * time.Minute))
+		defer http.NewResponseController(w).SetReadDeadline(time.Time{})
+		f, err := os.CreateTemp(m.dir, ".upload-")
 		if err != nil {
-			problem(w, 413, "upload_too_large", "单素材最大 32 MiB")
+			problem(w, 503, "media_storage_error", "暂时无法保存文件，请保留原请求并稍后重试")
 			return
 		}
-		p, err := m.AddAsset(r.PathValue("id"), space, key, q.Get("filename"), q.Get("role"), q.Get("character"), q.Get("shot_id"), "uploaded", body, mime)
+		defer os.Remove(f.Name())
+		_, err = io.CopyBuffer(f, contextBlobReader{ctx, r.Body}, make([]byte, 64<<10))
+		if err == nil {
+			err = f.Sync()
+		}
+		err = errors.Join(err, f.Close())
+		if err != nil {
+			mediaError(w, err)
+			return
+		}
+		var authorize func() bool
+		if scope, ok := r.Context().Value(authScopeKey{}).(authScope); ok {
+			authorize = scope.recheckWrite
+		}
+		p, err := m.addAssetFile(ctx, r.PathValue("id"), space, key, q.Get("filename"), q.Get("role"), q.Get("character"), q.Get("shot_id"), "uploaded", f.Name(), mime, authorize)
 		if err != nil {
 			mediaError(w, err)
 			return

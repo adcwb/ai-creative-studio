@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
@@ -77,9 +76,9 @@ type AlignmentStore struct {
 	provider   AlignmentProvider
 	caps       Capabilities
 	cancels    map[string]context.CancelFunc
-	wg         sync.WaitGroup
 	failure    error
 	closed     bool
+	jobs       *localJobs
 }
 
 func estimateAlignmentCapabilities() Capabilities {
@@ -190,10 +189,10 @@ func (a *AlignmentStore) close() {
 		cancel()
 	}
 	a.mu.Unlock()
-	a.wg.Wait()
+	a.jobs.close()
 }
 func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInput) (AlignmentTask, bool, error) {
-	if in.EpisodeNumber < 0 || in.EpisodeNumber > 999 || in.ExpectedVersion < 1 || !shotIDPattern.MatchString(in.ClipID) || (in.Mode != "estimate" && in.Mode != "asr" && in.Mode != "forced" && in.Mode != "transcription") {
+	if in.EpisodeNumber < 0 || in.EpisodeNumber > 9007199254740991 || in.ExpectedVersion < 1 || !shotIDPattern.MatchString(in.ClipID) || (in.Mode != "estimate" && in.Mode != "asr" && in.Mode != "forced" && in.Mode != "transcription") {
 		return AlignmentTask{}, false, mediaInvalid("字幕对齐输入无效")
 	}
 	in.Text = strings.TrimSpace(in.Text)
@@ -212,11 +211,11 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 	a := m.alignment
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.failure != nil {
-		return AlignmentTask{}, false, a.failure
-	}
 	if a.closed {
 		return AlignmentTask{}, false, errors.New("alignment store closed")
+	}
+	if a.failure != nil {
+		return AlignmentTask{}, false, a.failure
 	}
 	rk := mediaKey(space, project) + ":" + key
 	digest := mediaDigest([]any{"alignment", in})
@@ -271,24 +270,6 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 	if (in.ExpectedProvider != "" && in.ExpectedProvider != caps.Provider) || (in.Mode != "estimate" && in.selection == nil && (in.ExpectedProvider != caps.Provider || in.ExpectedModel == "" || in.ExpectedModel != caps.Model)) || (in.ExpectedModel != "" && in.ExpectedModel != caps.Model) {
 		return AlignmentTask{}, false, ErrProviderChanged
 	}
-	recent, paid, active := 0, 0, 0
-	for _, task := range a.data.Tasks {
-		if task.CreatedAt.After(time.Now().Add(-time.Hour)) {
-			recent++
-			if task.Mode == "asr" || task.Mode == "transcription" {
-				paid++
-			}
-		}
-		if task.Status == "queued" || task.Status == "running" {
-			active++
-			if task.ProjectID == project && task.SpaceID == space {
-				return AlignmentTask{}, false, ErrGenerationActive
-			}
-		}
-	}
-	if len(a.data.Tasks) >= 500 || len(a.data.Receipts) >= 1000 || recent >= 20 || active >= 2 || ((in.Mode == "asr" || in.Mode == "transcription") && paid >= 10) {
-		return AlignmentTask{}, false, errMediaLimit
-	}
 	if in.Mode == "estimate" {
 		if _, err := estimateSubtitleCues(in.Text, clip.Duration); err != nil {
 			return AlignmentTask{}, false, err
@@ -312,10 +293,17 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 	if a.pg != nil {
 		return task, true, nil
 	}
-	ctx, cancel := context.WithTimeout(tracing.WithParent(context.Background(), task.TraceParent), 3*time.Minute)
+	ctx, cancel := context.WithCancel(tracing.WithParent(context.Background(), task.TraceParent))
 	a.cancels[task.ID] = cancel
-	a.wg.Add(1)
-	go func() { defer a.wg.Done(); defer cancel(); a.run(ctx, m, task.ID) }()
+	if a.jobs == nil {
+		a.jobs = newLocalJobs(2)
+	}
+	a.jobs.submit(func() {
+		defer cancel()
+		runCtx, stop := context.WithTimeout(ctx, 3*time.Minute)
+		defer stop()
+		a.run(runCtx, m, task.ID)
+	})
 	return task, true, nil
 }
 func cloneAlignmentTask(t AlignmentTask) AlignmentTask {
@@ -352,9 +340,6 @@ func (a *AlignmentStore) cancel(project, space, key, id string) (AlignmentTask, 
 			return AlignmentTask{}, errMediaKey
 		}
 		return cloneAlignmentTask(t), nil
-	}
-	if len(a.data.Receipts) >= 1000 {
-		return AlignmentTask{}, errMediaLimit
 	}
 	if t.Status == "succeeded" || t.Status == "failed" {
 		return AlignmentTask{}, ErrConflict

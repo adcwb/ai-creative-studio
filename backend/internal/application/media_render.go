@@ -11,6 +11,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"log/slog"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -92,8 +93,8 @@ func validateMedia(path, mime string) (string, float64, error) {
 			}
 		case "video":
 			video++
-			if s.Width > 3840 || s.Height > 2160 || s.Width < 1 || s.Height < 1 || s.CodecName != "h264" {
-				return "", 0, mediaInvalid("仅支持至 3840×2160 的 H.264 视频")
+			if s.Width < 1 || s.Height < 1 || s.Width > 3840 || s.Height > 3840 || int64(s.Width)*int64(s.Height) > 3840*2160 || s.CodecName != "h264" {
+				return "", 0, mediaInvalid("仅支持横屏或竖屏 4K 范围内的 H.264 视频")
 			}
 		default:
 			return "", 0, mediaInvalid("上传媒体不能带字幕、附件或数据流")
@@ -108,6 +109,8 @@ func validateMedia(path, mime string) (string, float64, error) {
 	return "", 0, mediaInvalid("媒体流数量无效")
 }
 func ffmpeg(ctx context.Context, args ...string) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
 	base := []string{"-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-threads", "1", "-filter_threads", "1", "-filter_complex_threads", "1"}
 	cmd := exec.CommandContext(ctx, "ffmpeg", append(base, args...)...)
 	var stderr bytes.Buffer
@@ -126,11 +129,14 @@ func (m *MediaStore) StartExport(project, space, key string, version int, traceP
 	return m.StartEpisodeExport(project, space, key, version, 0, traceParents...)
 }
 func (m *MediaStore) StartEpisodeExport(project, space, key string, version, episode int, traceParents ...string) (MediaExport, error) {
-	if episode < 0 || episode > 999 {
-		return MediaExport{}, mediaInvalid("集数需为1–999")
+	if episode < 0 || episode > 9007199254740991 {
+		return MediaExport{}, mediaInvalid("集数需为有效正整数")
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.closed {
+		return MediaExport{}, errors.New("media store closed")
+	}
 	d := m.clone()
 	k := mediaKey(space, project)
 	p := mediaState(d, k)
@@ -181,25 +187,11 @@ func (m *MediaStore) StartEpisodeExport(project, space, key string, version, epi
 			}
 		}
 	}
-	active := 0
-	for _, pp := range d.Projects {
-		for _, e := range pp.Exports {
-			if e.Status == "running" || e.Status == "queued" {
-				active++
-			}
-		}
-	}
-	if active >= 2 || len(p.Exports) >= 30 || m.overQuota(256<<20) {
-		return MediaExport{}, errMediaLimit
-	}
 	parent := ""
 	if len(traceParents) == 1 && tracing.ValidParent(traceParents[0]) {
 		parent = traceParents[0]
 	}
-	e := MediaExport{EpisodeNumber: episode, TraceParent: parent, ID: mediaID(), Status: "running", Timeline: selected}
-	if m.pg != nil {
-		e.Status = "queued"
-	}
+	e := MediaExport{EpisodeNumber: episode, TraceParent: parent, ID: mediaID(), Status: "queued", Timeline: selected}
 	e.Duration = timelineDuration(e.Timeline)
 	p.Exports = append(p.Exports, e)
 	d.Projects[k] = p
@@ -217,13 +209,40 @@ func (m *MediaStore) StartEpisodeExport(project, space, key string, version, epi
 	if m.pg != nil {
 		return e, nil
 	}
-	ctx, cancel := context.WithTimeout(tracing.WithParent(context.Background(), e.TraceParent), 5*time.Minute)
+	ctx, cancel := context.WithCancel(tracing.WithParent(context.Background(), e.TraceParent))
 	m.cancels[e.ID] = cancel
-	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
+	if m.jobs == nil {
+		m.jobs = newLocalJobs(2)
+	}
+	m.jobs.submit(func() {
 		defer cancel()
-		err := m.render(ctx, p, e)
+		m.mu.Lock()
+		if m.closed || ctx.Err() != nil {
+			m.mu.Unlock()
+			return
+		}
+		d := m.clone()
+		current := d.Projects[k]
+		found := false
+		for i := range current.Exports {
+			if current.Exports[i].ID == e.ID && current.Exports[i].Status == "queued" {
+				current.Exports[i].Status = "running"
+				found = true
+				break
+			}
+		}
+		if !found {
+			delete(m.cancels, e.ID)
+			m.mu.Unlock()
+			return
+		}
+		d.Projects[k] = current
+		err := m.commit(d)
+		m.mu.Unlock()
+		if err != nil {
+			return
+		}
+		err = m.render(ctx, p, e)
 		if err == nil && m.blobs != nil {
 			for _, ext := range []string{".mp4", ".srt", ".vtt"} {
 				if err = m.storeBlob(space, project, e.ID+ext); err != nil {
@@ -232,7 +251,7 @@ func (m *MediaStore) StartEpisodeExport(project, space, key string, version, epi
 			}
 		}
 		m.finishExport(k, e.ID, space, project, err)
-	}()
+	})
 	return e, nil
 }
 func (m *MediaStore) finishExport(k, id, space, project string, renderErr error) {
@@ -316,7 +335,7 @@ func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) er
 	defer os.RemoveAll(dir)
 	var concat, subs, vtt strings.Builder
 	vtt.WriteString("WEBVTT\n\n")
-	width, height, _, err := outputSpec(e.Timeline)
+	width, height, err := outputSpec(e.Timeline)
 	if err != nil {
 		return err
 	}
@@ -326,6 +345,12 @@ func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) er
 	}
 	if e.Timeline.OutputResolution == "1080p" {
 		maxRate = "8M"
+	}
+	if e.Timeline.OutputResolution == "1440p" {
+		maxRate = "12M"
+	}
+	if e.Timeline.OutputResolution == "1800p" {
+		maxRate = "18M"
 	}
 	if e.Timeline.OutputResolution == "2160p" {
 		maxRate = "24M"
@@ -427,30 +452,23 @@ func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) er
 	}
 	audioMap := "0:a:0"
 	nextInput := 1
-	var filters []string
-	mixInputs := "[0:a]"
-	if e.Timeline.MusicAssetID != "" {
-		args = append(args, "-stream_loop", "-1", "-protocol_whitelist", "file,pipe", "-i", filepath.Join(m.dir, e.Timeline.MusicAssetID))
-		filters = append(filters, fmt.Sprintf("[%d:a]volume=%f[music]", nextInput, e.Timeline.MusicVolume))
-		mixInputs += "[music]"
-		nextInput++
-	}
-	for i, track := range e.Timeline.AudioTracks {
-		args = append(args, "-ss", seconds(track.TrimStart), "-t", seconds(track.Duration), "-protocol_whitelist", "file,pipe", "-i", filepath.Join(m.dir, track.AssetID))
-		filters = append(filters, fmt.Sprintf("[%d:a]asetpts=PTS-STARTPTS,volume=%s,adelay=%d:all=1[track%d]", nextInput, seconds(track.Volume), int(track.Start*1000+.5), i))
-		mixInputs += fmt.Sprintf("[track%d]", i)
-		nextInput++
-	}
-	if nextInput > 1 {
-		filters = append(filters, fmt.Sprintf("%samix=inputs=%d:duration=first:normalize=0,alimiter=limit=0.95:latency=1[a]", mixInputs, nextInput))
-		args = append(args, "-filter_complex", strings.Join(filters, ";"))
-		audioMap = "[a]"
+	if e.Timeline.MusicAssetID != "" || len(e.Timeline.AudioTracks) > 0 {
+		stem, err := m.mixTimelineAudio(ctx, dir, e.Timeline, args, elapsed)
+		if err != nil {
+			return err
+		}
+		args = append(args, "-protocol_whitelist", "file,pipe", "-i", stem)
+		nextInput = 2
+		audioMap = "1:a:0"
 	}
 	softSubs := subtitleCount > 0 && (e.Timeline.SubtitleMode == "" || e.Timeline.SubtitleMode == "soft")
 	if softSubs {
 		args = append(args, "-f", "srt", "-i", srt)
 	}
 	args = append(args, "-map", "0:v:0", "-map", audioMap)
+	if audioMap == "1:a:0" {
+		args = append(args, "-af", "alimiter=limit=0.95:latency=1")
+	}
 	if softSubs {
 		args = append(args, "-map", fmt.Sprintf("%d:s:0", nextInput), "-c:s", "mov_text", "-metadata:s:s:0", "language=zho", "-disposition:s:0", "default")
 	}
@@ -467,12 +485,22 @@ func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) er
 		return err
 	}
 	info, err := os.Stat(out)
-	if err != nil || info.Size() > 128<<20 {
-		return errors.New("导出超过128MiB限制")
+	if err != nil || info.Size() <= 0 {
+		return errors.New("导出文件不完整")
 	}
 	probe, err := probeMedia(out)
 	if err != nil || len(probe.Streams) < 2 {
 		return errors.New("导出校验失败")
+	}
+	actualDuration, parseErr := strconv.ParseFloat(probe.Format.Duration, 64)
+	validDimensions := false
+	for _, stream := range probe.Streams {
+		if stream.CodecType == "video" && stream.Width == width && stream.Height == height {
+			validDimensions = true
+		}
+	}
+	if parseErr != nil || math.Abs(actualDuration-elapsed) > .12 || !validDimensions {
+		return errors.New("导出尺寸或时长与设定不一致")
 	}
 	return os.Rename(out, filepath.Join(m.dir, e.ID+".mp4"))
 }

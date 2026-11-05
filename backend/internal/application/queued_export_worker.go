@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 )
@@ -67,8 +66,7 @@ func RunQueuedExportWorker(ctx context.Context, q jobqueue.Queue, s *FileStore) 
 		if err = q.Dispatch(ctx, j); err != nil {
 			return err
 		}
-		renderCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-		defer cancel()
+		renderCtx := ctx
 		renderErr := m.exportInputs(j.TenantID, payload.ProjectID, p, export)
 		if renderErr == nil {
 			renderErr = m.render(renderCtx, p, export)

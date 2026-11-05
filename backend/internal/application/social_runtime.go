@@ -320,15 +320,6 @@ func (r *socialRuntime) complete(ctx context.Context, project, space, user, bind
 	ss := socialState(media)
 	stampSocialToken(&token, time.Now())
 	accountKey := authDigest(space + ":" + project + ":" + r.clientKey + ":" + token.OpenID)
-	existing := false
-	for _, c := range ss.Connections {
-		if c.AccountKey == accountKey {
-			existing = true
-		}
-	}
-	if !existing && len(ss.Connections) >= 20 {
-		return SocialView{}, errMediaLimit
-	}
 	connection := SocialConnection{AccountKey: accountKey, ID: mediaID(), Platform: "tiktok", Status: "connected", DisplayName: "TikTok " + accountKey[:8], Version: 1, ExpiresAt: time.Now().Add(time.Duration(token.Expires) * time.Second).UTC().Format(time.RFC3339)}
 	replaced := false
 	for i, c := range ss.Connections {

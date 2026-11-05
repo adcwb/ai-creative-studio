@@ -70,8 +70,8 @@ func NormalizeScript(script Script) (Script, error) {
 	if script.Logline, err = NormalizeText(script.Logline, "一句话梗概", 3, 300); err != nil {
 		return Script{}, err
 	}
-	if len(script.Characters) > 30 || len(script.Scenes) < 1 || len(script.Scenes) > 120 {
-		return Script{}, InputError("剧本支持最多30个角色和1–120个场景")
+	if len(script.Scenes) < 1 {
+		return Script{}, InputError("剧本需包含场景，角色与对白引用必须有效")
 	}
 	names := map[string]bool{}
 	for i := range script.Characters {
@@ -89,8 +89,8 @@ func NormalizeScript(script Script) (Script, error) {
 	}
 	for i := range script.Scenes {
 		scene := &script.Scenes[i]
-		if scene.EpisodeNumber < 0 || scene.EpisodeNumber > 999 {
-			return Script{}, InputError("集数需为1–999")
+		if scene.EpisodeNumber < 0 || scene.EpisodeNumber > 9007199254740991 {
+			return Script{}, InputError("集数需为有效正整数")
 		}
 		if scene.Heading, err = NormalizeText(scene.Heading, "场景标题", 1, 100); err != nil {
 			return Script{}, err

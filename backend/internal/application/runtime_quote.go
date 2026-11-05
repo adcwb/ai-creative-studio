@@ -191,7 +191,7 @@ func (s *FileStore) buildQuoteExecutionRequest(tenant string, in RuntimeQuoteInp
 	}
 	if in.Operation == "alignment" {
 		var input AlignmentInput
-		if decodeQuotePayload(in.Input, &input) != nil || input.EpisodeNumber < 0 || input.EpisodeNumber > 999 || input.ModelRequest != (ModelRequest{}) || !validRuntimeAlignmentMode(input.Mode, entry.Model, &selection) || strings.TrimSpace(input.Text) != "" {
+		if decodeQuotePayload(in.Input, &input) != nil || input.EpisodeNumber < 0 || input.EpisodeNumber > 9007199254740991 || input.ModelRequest != (ModelRequest{}) || !validRuntimeAlignmentMode(input.Mode, entry.Model, &selection) || strings.TrimSpace(input.Text) != "" {
 			return ExecutionRequest{}, ErrInvalidProjectInput
 		}
 		media := s.media.Get(project.ID, tenant)

@@ -100,7 +100,7 @@ func (m *MediaStore) normalizeSocialPhoto(project, space, key string, in photoNo
 	if e != nil {
 		return p, e
 	}
-	if len(data) > 20000000 || len(p.Assets) >= 120 || m.overQuota(int64(len(data))) {
+	if len(data) > 20000000 {
 		return p, errMediaLimit
 	}
 	id := mediaID()

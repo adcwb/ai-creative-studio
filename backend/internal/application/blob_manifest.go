@@ -149,20 +149,21 @@ func (m *managedBlobs) materialize(ctx context.Context, key, path string) (strin
 	if e != nil {
 		return "", e
 	}
-	if b, e := safeReadLocal(path, MaxBlobBytes); e == nil && blobInfo(key, b) == info {
+	if actual, e := localBlobInfo(ctx, key, path); e == nil && actual == info {
 		return path, nil
 	}
-	b, e := readVerifiedBlob(ctx, m.store, info)
+	r, e := m.store.OpenRange(ctx, key, 0, -1)
 	if e != nil {
 		return "", e
 	}
+	defer r.Close()
 	// Cache replacement is atomic; readers can never open partial downloads.
 	f, e := os.CreateTemp(filepath.Dir(path), ".materialize-")
 	if e != nil {
 		return "", e
 	}
 	defer os.Remove(f.Name())
-	_, e = f.Write(b)
+	e = copyBlobBytes(ctx, f, r, info)
 	if e == nil {
 		e = f.Sync()
 	}
@@ -193,11 +194,7 @@ func (m *MediaStore) storeBlobContext(ctx context.Context, space, project, name 
 	if !validMediaBlobName(name) {
 		return ErrBlobIntegrity
 	}
-	b, e := safeReadLocal(filepath.Join(m.dir, name), MaxBlobBytes)
-	if e != nil {
-		return e
-	}
-	return m.blobs.put(ctx, blobKey(space, project, name), b)
+	return m.blobs.putFile(ctx, blobKey(space, project, name), filepath.Join(m.dir, name))
 }
 func (m *MediaStore) localBlob(space, project, name string) (string, error) {
 	if !validMediaBlobName(name) {
@@ -311,9 +308,12 @@ const BlobSchema = `CREATE TABLE IF NOT EXISTS studio_blobs (
  key text PRIMARY KEY CHECK(key ~ '^[a-f0-9]{64}/[a-f0-9]{64}/[a-f0-9]{32}(\.(png|mp4|srt|vtt))?$'),
  tenant_hash text NOT NULL CHECK(tenant_hash=split_part(key,'/',1)),
  project_hash text NOT NULL CHECK(project_hash=split_part(key,'/',2)),
- size bigint NOT NULL CHECK(size>=0 AND size<=134217728),
+ size bigint NOT NULL CHECK(size>=0),
  sha256 text NOT NULL CHECK(sha256 ~ '^[a-f0-9]{64}$')
-);`
+);
+ALTER TABLE studio_blobs DROP CONSTRAINT IF EXISTS studio_blobs_size_check;
+ALTER TABLE studio_blobs DROP CONSTRAINT IF EXISTS studio_blobs_size_nonnegative;
+ALTER TABLE studio_blobs ADD CONSTRAINT studio_blobs_size_nonnegative CHECK(size>=0);`
 
 type blobSQLExecutor interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)

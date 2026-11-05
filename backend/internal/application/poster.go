@@ -107,9 +107,6 @@ func (m *MediaStore) ExportPoster(project, space, key string, version int) (Medi
 	if err := validatePoster(p, *p.Poster); err != nil {
 		return p, err
 	}
-	if len(p.Assets) >= 120 || m.overQuota(32<<20) {
-		return p, errMediaLimit
-	}
 	dir, err := os.MkdirTemp(m.dir, "poster-")
 	if err != nil {
 		return p, err

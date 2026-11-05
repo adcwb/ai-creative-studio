@@ -285,9 +285,6 @@ func (s *ModelConfigStore) update(tenant string, expected int64, in ModelConfigI
 	if current.Version != expected {
 		return ModelConfigReport{}, errModelConflict
 	}
-	if len(current.Entries) >= 100 && in.ID == "" {
-		return ModelConfigReport{}, errModelInput
-	}
 	var old storedModel
 	if in.ID != "" {
 		var ok bool

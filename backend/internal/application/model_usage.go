@@ -103,9 +103,6 @@ func (s *ModelUsageStore) save(call ModelCall) error {
 	if s.pg != nil && s.pg.err != nil {
 		return s.pg.err
 	}
-	if len(s.data.Calls) >= 10000 && s.data.Calls[call.ID].ID == "" {
-		return errors.New("model usage capacity reached")
-	}
 	next := modelUsageSnapshot{Version: 1, Calls: make(map[string]ModelCall, len(s.data.Calls)+1)}
 	for k, v := range s.data.Calls {
 		next.Calls[k] = v

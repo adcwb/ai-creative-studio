@@ -1,7 +1,6 @@
 package media
 
 import (
-	"fmt"
 	"math"
 )
 
@@ -27,20 +26,17 @@ func Asset(p MediaState, id string) (MediaAsset, bool) {
 }
 
 func ValidateTimeline(p MediaState, t MediaTimeline) error {
-	if t.EpisodeNumber < 0 || t.EpisodeNumber > 999 {
-		return Invalid("集数需为1–999")
+	if t.EpisodeNumber < 0 || t.EpisodeNumber > 9007199254740991 {
+		return Invalid("集数需为有效正整数")
 	}
-	if _, _, _, err := OutputSpec(t); err != nil {
+	if _, _, err := OutputSpec(t); err != nil {
 		return err
 	}
 	if t.SubtitleMode != "" && t.SubtitleMode != "soft" && t.SubtitleMode != "burn" && t.SubtitleMode != "none" {
 		return Invalid("字幕模式无效")
 	}
-	if len(t.AudioTracks) > 8 {
-		return Invalid("附加音轨最多8条")
-	}
-	if len(t.Clips) < 1 || len(t.Clips) > 30 || t.MusicVolume < 0 || t.MusicVolume > 1 {
-		return Invalid("时间轴需包含 1–30 镜，音量须为 0–1")
+	if len(t.Clips) < 1 || t.MusicVolume < 0 || t.MusicVolume > 1 {
+		return Invalid("时间轴需包含镜头，音量须为 0–1")
 	}
 	duration := 0.0
 	ids := map[string]bool{}
@@ -66,7 +62,7 @@ func ValidateTimeline(p MediaState, t MediaTimeline) error {
 			return Invalid("未选择转场")
 		}
 		a, ok := Asset(p, c.AssetID)
-		if !ok || (a.Kind != "image" && a.Kind != "video") || !shotIDPattern.MatchString(c.ID) || ids[c.ID] || c.Duration < 0.5 || c.Duration > 30 || c.TrimStart < 0 || len([]rune(c.Subtitle)) > 300 || c.AudioVolume < 0 || c.AudioVolume > 1 {
+		if !ok || (a.Kind != "image" && a.Kind != "video") || !shotIDPattern.MatchString(c.ID) || ids[c.ID] || c.Duration < 0.5 || c.TrimStart < 0 || len([]rune(c.Subtitle)) > 300 || c.AudioVolume < 0 || c.AudioVolume > 1 {
 			return Invalid("镜头素材、时长、字幕或音量无效")
 		}
 		if err := ValidateSubtitleCues(c.SubtitleCues, c.Duration); err != nil {
@@ -99,9 +95,8 @@ func ValidateTimeline(p MediaState, t MediaTimeline) error {
 		return err
 	}
 	duration = TimelineDuration(t)
-	_, _, maxDuration, _ := OutputSpec(t)
-	if duration > maxDuration {
-		return Invalid(fmt.Sprintf("所选清晰度成片最长 %.0f 秒", maxDuration))
+	if math.IsNaN(duration) || math.IsInf(duration, 0) || duration <= 0 {
+		return Invalid("时间轴时长必须为有限正数")
 	}
 	trackIDs := map[string]bool{}
 	for _, track := range t.AudioTracks {
@@ -125,19 +120,24 @@ func ValidateTimeline(p MediaState, t MediaTimeline) error {
 	return nil
 }
 
-// Output presets bound both dimensions and encoder work. Missing fields preserve legacy exports.
-func OutputSpec(t MediaTimeline) (int, int, float64, error) {
-	w, h, limit := 640, 360, 180.0
+// Output presets describe pixels only. Missing fields preserve legacy exports;
+// execution budgets belong to workers, never to resolution/duration quotas.
+func OutputSpec(t MediaTimeline) (int, int, error) {
+	w, h := 640, 360
 	switch t.OutputResolution {
 	case "", "360p":
 	case "720p":
-		w, h, limit = 1280, 720, 120
+		w, h = 1280, 720
 	case "1080p":
-		w, h, limit = 1920, 1080, 60
+		w, h = 1920, 1080
+	case "1440p":
+		w, h = 2560, 1440
+	case "1800p":
+		w, h = 3200, 1800
 	case "2160p":
-		w, h, limit = 3840, 2160, 15
+		w, h = 3840, 2160
 	default:
-		return 0, 0, 0, Invalid("不支持的输出清晰度")
+		return 0, 0, Invalid("不支持的输出清晰度")
 	}
 	switch t.AspectRatio {
 	case "", "16:9":
@@ -146,9 +146,9 @@ func OutputSpec(t MediaTimeline) (int, int, float64, error) {
 	case "1:1":
 		w = h
 	default:
-		return 0, 0, 0, Invalid("不支持的画面比例")
+		return 0, 0, Invalid("不支持的画面比例")
 	}
-	return w, h, limit, nil
+	return w, h, nil
 }
 
 // All times after composition (extra tracks, overlays and subtitles) are on the
@@ -174,9 +174,6 @@ func HasCrossfade(t MediaTimeline) bool {
 }
 
 func ValidateComposite(p MediaState, t MediaTimeline) error {
-	if len(t.VideoOverlays) > 4 {
-		return Invalid("画面叠层最多4条")
-	}
 	ids := map[string]bool{}
 	total := TimelineDuration(t)
 	for _, layer := range t.VideoOverlays {

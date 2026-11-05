@@ -67,8 +67,8 @@ func StoryboardGenerationView(g StoryboardGeneration) StoryboardGeneration {
 }
 
 func NormalizeStoryboardShots(shots []StoryboardShot) ([]StoryboardShot, error) {
-	if len(shots) < 1 || len(shots) > 120 {
-		return nil, InputError("分镜需包含 1–120 个镜头")
+	if len(shots) < 1 {
+		return nil, InputError("分镜需包含镜头")
 	}
 	shots = append([]StoryboardShot(nil), shots...)
 	ids := map[string]bool{}
@@ -78,8 +78,8 @@ func NormalizeStoryboardShots(shots []StoryboardShot) ([]StoryboardShot, error) 
 			return nil, InputError("镜头标识无效或重复")
 		}
 		ids[shot.ID] = true
-		if shot.SceneIndex < 0 || shot.SceneIndex > 120 {
-			return nil, InputError("场景引用需为0–120，0表示独立镜头")
+		if shot.SceneIndex < 0 {
+			return nil, InputError("场景引用需为非负整数，0表示独立镜头")
 		}
 		var err error
 		for _, field := range []*string{&shot.Purpose, &shot.Performance, &shot.Continuity} {

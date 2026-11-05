@@ -1,0 +1,17 @@
+export default {
+  '集数需为有效正整数。': 'Use a valid positive integer for the episode number.',
+  '输出尺寸：{size}': 'Output size: {size}',
+  '剧本需包含场景，角色与对白引用必须有效。': 'A script needs scenes with valid character and dialogue references.',
+  '分镜计划需包含镜头。': 'A storyboard needs shots.',
+  '{p0}场景引用需为非负整数。': '{p0} needs a nonnegative scene reference.', 
+  '360p · 预览': '360p · Preview',
+  '720p · 预览': '720p · Preview',
+  '1K · 1080p': '1K · 1080p',
+  '2K · 1440p': '2K · 1440p',
+  '3K · 1800p': '3K · 1800p',
+  '4K · 2160p': '4K · 2160p',
+  '添加配音、音乐或音效。起点相对于整部成片；每条可独立裁剪和调整音量，不循环。': 'Add dialogue, music or sound effects. Start times are relative to the entire film. Each track has independent trimming and volume and does not loop.',
+  '添加图片或视频叠层，后列叠层显示在上方。实时预览可拖动播放头；位置与透明度关键帧按局部秒数线性插值，末帧之后保持。': 'Add image or video overlays; later layers appear on top. Scrub the live preview. Position and opacity keyframes interpolate in local seconds and hold after the last keyframe.',
+  '清晰度用于剪辑合成，不代表模型原生画质。素材分辨率不足时会放大，细节以原始素材为准。': 'Output resolution applies to editing and rendering, not native model quality. Lower-resolution sources are resized; detail depends on the original media.',
+  '时间轴时长无效，请检查片段。': 'The timeline duration is invalid. Check the clips.',
+}

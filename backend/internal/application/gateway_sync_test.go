@@ -234,7 +234,7 @@ func TestGatewaySyncCommitFailureLeavesSnapshotUnchanged(t *testing.T) {
 	}
 }
 
-func TestGatewaySyncCapacityFailureDoesNotImportPartialCatalog(t *testing.T) {
+func TestGatewaySyncBeyondOldCatalogQuotaPreservesExistingConfiguration(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ids := make([]map[string]string, 200)
 		for i := range ids {
@@ -247,11 +247,20 @@ func TestGatewaySyncCapacityFailureDoesNotImportPartialCatalog(t *testing.T) {
 	t.Setenv("MODEL_GATEWAY_ALLOWED_HOSTS", u.Host)
 	runtime, g, original := gatewayFixture(t, upstream.URL+"/v1")
 	s := runtime.auth.models
-	if _, err := s.syncGatewayModels(context.Background(), "tenant-a", g.ID, g.Version); !errors.Is(err, errGatewayCapacity) {
-		t.Fatal("capacity overflow accepted", err)
+	if result, err := s.syncGatewayModels(context.Background(), "tenant-a", g.ID, g.Version); err != nil || result.Added != 200 {
+		t.Fatal("old catalog count blocked a complete import", result, err)
 	}
 	report, _ := s.managementReport("tenant-a")
-	if len(report.Models) != 1 || !reflect.DeepEqual(report.Models[0], original) || report.Gateways[0].SyncError != "gateway_model_capacity" || report.Gateways[0].LastSyncedAt != nil {
-		t.Fatal("capacity failure imported or removed models", report)
+	if len(report.Models) != 201 || report.Gateways[0].SyncError != "" || report.Gateways[0].LastSyncedAt == nil {
+		t.Fatal("complete catalog was not committed", report)
 	}
+	for _, m := range report.Models {
+		if m.ID == original.ID {
+			if !reflect.DeepEqual(m, original) {
+				t.Fatal("sync changed existing configured model", m)
+			}
+			return
+		}
+	}
+	t.Fatal("sync removed the existing configured model")
 }

@@ -117,27 +117,34 @@ func MigrateBlobStorage(ctx context.Context, dir string, store BlobStore, toFile
 		if e = ctx.Err(); e != nil {
 			return report, e
 		}
-		var data []byte
+		var info BlobInfo
 		if toFile {
-			data, e = manifest.read(ctx, obj.key)
+			info, e = manifest.info(ctx, obj.key)
 			if e != nil {
 				return report, e
 			}
-			existing, readErr := safeReadLocal(obj.path, MaxBlobBytes)
-			if readErr == nil {
-				if blobInfo(obj.key, existing) != blobInfo(obj.key, data) {
-					return report, errors.New("rollback refuses to overwrite mismatched local file")
-				}
+			if e = verifyBlobStream(ctx, store, info); e != nil {
+				return report, e
+			}
+			existing, readErr := localBlobInfo(ctx, obj.key, obj.path)
+			if readErr == nil && existing != info {
+				return report, errors.New("rollback refuses to overwrite mismatched local file")
 			}
 			if readErr != nil {
 				if !os.IsNotExist(readErr) {
 					return report, readErr
 				}
-				tmp, e := os.CreateTemp(filepath.Dir(obj.path), ".rollback-")
-				if e != nil {
-					return report, e
+				r, err := store.OpenRange(ctx, obj.key, 0, -1)
+				if err != nil {
+					return report, err
 				}
-				_, e = tmp.Write(data)
+				tmp, err := os.CreateTemp(filepath.Dir(obj.path), ".rollback-")
+				if err != nil {
+					r.Close()
+					return report, err
+				}
+				e = copyBlobBytes(ctx, tmp, r, info)
+				r.Close()
 				if e == nil {
 					e = tmp.Sync()
 				}
@@ -151,20 +158,19 @@ func MigrateBlobStorage(ctx context.Context, dir string, store BlobStore, toFile
 				}
 			}
 		} else {
-			data, e = safeReadLocal(obj.path, MaxBlobBytes)
+			if e = manifest.putFile(ctx, obj.key, obj.path); e != nil {
+				return report, e
+			}
+			info, e = manifest.info(ctx, obj.key)
 			if e != nil {
 				return report, e
 			}
-			if e = manifest.put(ctx, obj.key, data); e != nil {
-				return report, e
-			}
-			// A real read-after-write with SHA256 validation, not merely HEAD metadata.
-			if _, e = manifest.read(ctx, obj.key); e != nil {
+			if e = verifyBlobStream(ctx, store, info); e != nil {
 				return report, fmt.Errorf("migration verification failed: %w", e)
 			}
 		}
 		report.Objects++
-		report.Bytes += int64(len(data))
+		report.Bytes += info.Size
 	}
 	for _, p := range []string{dir, filepath.Join(dir, "media"), filepath.Join(dir, "results")} {
 		f, e := os.Open(p)

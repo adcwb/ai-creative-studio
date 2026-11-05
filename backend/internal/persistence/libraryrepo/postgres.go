@@ -20,7 +20,7 @@ func (s *Store) mutateSQL(ctx context.Context, space, key, digest, expected stri
 	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock_shared(728219117)`); err != nil {
 		return Result{}, ErrStorage
 	}
-	// Serialize this tenant's quota/idempotency admission, never the whole library.
+	// Serialize this tenant's version/idempotency mutations, never the whole library.
 	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,728219120))`, space); err != nil {
 		return Result{}, ErrStorage
 	}
@@ -62,27 +62,6 @@ func (s *Store) mutateSQL(ctx context.Context, space, key, digest, expected stri
 		if r.Version.Number != n {
 			return Result{}, library.ErrConflict
 		}
-	}
-	var size int64
-	err = tx.QueryRowContext(ctx, `SELECT COALESCE(sum((ref->>'size_bytes')::bigint),0) FROM studio_library_asset_versions, jsonb_array_elements(payload->'references') ref WHERE space_id=$1`, space).Scan(&size)
-	if err != nil {
-		return Result{}, ErrStorage
-	}
-	if !archive {
-		for _, ref := range r.Version.References {
-			size += ref.SizeBytes
-		}
-	}
-	if size > 128<<20 {
-		return Result{}, ErrLimit
-	}
-	var assets, versions, receipts int
-	err = tx.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM studio_library_assets WHERE space_id=$1),(SELECT count(*) FROM studio_library_asset_versions WHERE space_id=$1),(SELECT count(*) FROM studio_library_receipts WHERE space_id=$1)`, space).Scan(&assets, &versions, &receipts)
-	if err != nil {
-		return Result{}, ErrStorage
-	}
-	if assets >= 1000 && !exists || versions >= 10000 || receipts >= 20000 {
-		return Result{}, ErrLimit
 	}
 	a, _ := json.Marshal(r.Asset)
 	v, _ := json.Marshal(r.Version)

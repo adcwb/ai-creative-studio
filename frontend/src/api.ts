@@ -35,7 +35,8 @@ export function setCSRFToken(token: string) { csrfToken = token }
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   if (csrfToken && !['GET', 'HEAD', 'OPTIONS'].includes((init?.method ?? 'GET').toUpperCase())) headers.set('X-CSRF-Token', csrfToken)
-  const response = await fetch(`${baseURL}/api/v1${path}`, {...init, headers, credentials: 'include', signal: init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(10000)]) : AbortSignal.timeout(10000)})
+	const timeout = AbortSignal.timeout(init?.body instanceof Blob ? 300000 : 10000)
+	const response = await fetch(`${baseURL}/api/v1${path}`, {...init, headers, credentials: 'include', signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout})
   if (!response.ok) {
     if (response.status === 401 && !path.startsWith('/auth/') && typeof window !== 'undefined') window.dispatchEvent(new Event('studio-session-expired'))
     const body = await response.json().catch(() => null) as {error?: {message?: string; code?: string}} | null

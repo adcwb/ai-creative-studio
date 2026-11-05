@@ -32,14 +32,13 @@ export function maxTransitionDuration(clips: readonly ClipTiming[], index: numbe
 }
 export function compositionError(clips: readonly ClipTiming[], overlays: readonly VideoOverlay[], assets: readonly VisualAsset[], tracks: readonly AudioTiming[] = []): 'transition' | 'overlay' | 'audio' | null {
   for (const [index, clip] of clips.entries()) {
-    if (!Number.isFinite(clip.duration) || clip.duration < .5 || clip.duration > 30) return 'transition'
+    if (!Number.isFinite(clip.duration) || clip.duration < .5) return 'transition'
     if (!clip.transition) {if ((clip.transition_duration ?? 0) !== 0) return 'transition'; continue}
     if (clip.transition !== 'fade' && !overlaps(clip.transition)) return 'transition'
     const seconds = clip.transition_duration ?? 0
     if (!Number.isFinite(seconds) || seconds < .1 || seconds > maxTransitionDuration(clips, index)) return 'transition'
   }
   const duration = timelineDuration(clips)
-  if (overlays.length > 4) return 'overlay'
   const ids = new Set<string>()
   for (const layer of overlays) {
     const asset = assets.find(item => item.id === layer.asset_id)
@@ -58,7 +57,6 @@ export function compositionError(clips: readonly ClipTiming[], overlays: readonl
       key.x + layer.width > 1 || key.y + layer.height > 1 || key.opacity < 0 || key.opacity > 1)) return 'overlay'
     ids.add(layer.id)
   }
-  if (tracks.length > 8) return 'audio'
   const trackIds = new Set<string>()
   for (const track of tracks) {
     const asset = assets.find(item => item.id === track.asset_id)

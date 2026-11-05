@@ -10,13 +10,13 @@ import (
 )
 
 func boundedComposition(ctx context.Context, args []string, output, duration, maxRate string) error {
-	args = append(args, "-t", duration, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-r", "24", "-maxrate", maxRate, "-bufsize", "16M", "-threads", "1", "-c:a", "aac", "-ar", "48000", "-ac", "2", "-movflags", "+faststart", "-fs", "134217729", output)
+	args = append(args, "-t", duration, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-r", "24", "-maxrate", maxRate, "-bufsize", "16M", "-threads", "1", "-c:a", "aac", "-ar", "48000", "-ac", "2", "-movflags", "+faststart", output)
 	if err := ffmpeg(ctx, args...); err != nil {
 		return err
 	}
 	info, err := os.Stat(output)
-	if err != nil || info.Size() > 128<<20 {
-		return mediaInvalid("合成中间文件超过128MiB限制")
+	if err != nil || info.Size() <= 0 {
+		return mediaInvalid("合成中间文件不完整")
 	}
 	probe, probeErr := probeMedia(output)
 	actual, parseErr := strconv.ParseFloat(probe.Format.Duration, 64)

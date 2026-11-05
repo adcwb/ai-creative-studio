@@ -50,9 +50,6 @@ func (s *FileStore) ResumeImageTask(space, id, key string) (Task, error) {
 		return t, nil
 	}
 	// Preserve old-key replay even when no new resume receipts can be accepted.
-	if len(s.data.ImageResumeReceipts) >= 1000 {
-		return Task{}, ErrProviderNotReady
-	}
 	if t.Provider != "jimeng-images" || t.UpstreamID == "" || t.Status != "failed" {
 		return Task{}, ErrConflict
 	}

@@ -42,14 +42,14 @@ func TestKeyframeAnd4KBounds(t *testing.T) {
 		t.Fatal(err)
 	}
 	timeline.Clips[0].Duration = 15.01
-	if validateTimeline(p, timeline) == nil {
-		t.Fatal("4K workload limit bypassed")
+	if err := validateTimeline(p, timeline); err != nil {
+		t.Fatal("resolution still imposed a duration quota", err)
 	}
 	for _, ratio := range []string{"16:9", "9:16", "1:1"} {
 		timeline.AspectRatio = ratio
-		w, h, max, e := outputSpec(timeline)
-		if e != nil || max != 15 || w*h > 3840*2160 {
-			t.Fatal(w, h, max, e)
+		w, h, e := outputSpec(timeline)
+		if e != nil || w*h > 3840*2160 || w <= 0 || h <= 0 {
+			t.Fatal(w, h, e)
 		}
 	}
 	for _, name := range []string{"wipeleft", "wiperight", "slideleft", "slideright", "circleopen"} {

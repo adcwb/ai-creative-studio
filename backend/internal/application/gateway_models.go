@@ -190,7 +190,7 @@ func validateGatewaySnapshot(d modelSnapshot) error {
 	return nil
 }
 func validateGatewayModel(m GatewayModel) error {
-	if !validGatewayModelID(m.Model) || utf8.RuneCountInString(m.Name) < 1 || utf8.RuneCountInString(m.Name) > 80 || len(m.Capabilities) == 0 && !m.Pending || m.Pending && m.Enabled || len(m.Capabilities) > 8 || m.MaxOutputTokens < 1 || m.MaxOutputTokens > 6000 || m.MaximumMinor < 0 || m.MaximumMinor > 9007199254740991 || len(m.PriceSource) > 240 {
+	if !validGatewayModelID(m.Model) || utf8.RuneCountInString(m.Name) < 1 || utf8.RuneCountInString(m.Name) > 80 || len(m.Capabilities) == 0 && !m.Pending || m.Pending && m.Enabled || len(m.Capabilities) > 8 || m.MaxOutputTokens < 1 || m.MaxOutputTokens > 9007199254740991 || m.MaximumMinor < 0 || m.MaximumMinor > 9007199254740991 || len(m.PriceSource) > 240 {
 		return errModelInput
 	}
 	if _, e := CurrencyMinorUnits(m.Currency); m.Currency != "" && e != nil {
@@ -272,7 +272,7 @@ func (s *ModelConfigStore) saveGateway(tenant string, expected int64, in AIGatew
 		return ModelManagementReport{}, errModelConflict
 	}
 	u, e := normalizeGatewayURL(in.BaseURL)
-	if e != nil || utf8.RuneCountInString(strings.TrimSpace(in.Name)) < 1 || utf8.RuneCountInString(in.Name) > 80 || in.TimeoutSeconds < 5 || in.TimeoutSeconds > 600 || !validSyncInterval(in.SyncIntervalMinutes) || len(t.Gateways) >= 50 && !exists {
+	if e != nil || utf8.RuneCountInString(strings.TrimSpace(in.Name)) < 1 || utf8.RuneCountInString(in.Name) > 80 || in.TimeoutSeconds < 5 || in.TimeoutSeconds > 600 || !validSyncInterval(in.SyncIntervalMinutes) {
 		return ModelManagementReport{}, errModelInput
 	}
 	if in.ID == "" {
@@ -346,7 +346,7 @@ func (s *ModelConfigStore) saveGatewayModel(tenant string, expected int64, in Ga
 	if old.Version != expected {
 		return ModelManagementReport{}, errModelConflict
 	}
-	if validateGatewayModel(in) != nil || t.Gateways[in.GatewayID].Gateway.ID == "" || exists && old.GatewayID != in.GatewayID || len(t.Models) >= 200 && !exists {
+	if validateGatewayModel(in) != nil || t.Gateways[in.GatewayID].Gateway.ID == "" || exists && old.GatewayID != in.GatewayID {
 		return ModelManagementReport{}, errModelInput
 	}
 	for _, b := range t.Bindings {

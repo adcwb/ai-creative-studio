@@ -279,7 +279,7 @@ func (s *ModelConfigStore) checkGateway(ctx context.Context, tenant, id string, 
 			ID string `json:"id"`
 		} `json:"data"`
 	}
-	if json.Unmarshal(raw, &catalog) != nil || catalog.Data == nil || len(*catalog.Data) > 200 {
+	if json.Unmarshal(raw, &catalog) != nil || catalog.Data == nil {
 		result["error_code"] = "invalid_gateway_catalog"
 		return result, nil
 	}

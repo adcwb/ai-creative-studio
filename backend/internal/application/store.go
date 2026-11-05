@@ -443,22 +443,6 @@ func (s *FileStore) createLocked(space, key string, in Input, retryOf string, ex
 	if len(expectation) > 0 && (expectation[0].Provider != caps.Provider || expectation[0].Model != caps.Model) {
 		return Task{}, false, ErrProviderChanged
 	}
-	// Keep bounded queue pressure. Explicit model execution has no hourly cost quota.
-	if caps.Mode == "real" {
-		active, recent := 0, 0
-		since := time.Now().Add(-time.Hour)
-		for _, task := range s.data.Tasks {
-			if task.Status == "queued" || task.Status == "running" {
-				active++
-			}
-			if task.Provider != "mock-svg" && task.CreatedAt.After(since) {
-				recent++
-			}
-		}
-		if active >= 4 || selection == nil && recent >= 20 {
-			return Task{}, false, ErrProviderNotReady
-		}
-	}
 	raw := make([]byte, 16)
 	if _, err := rand.Read(raw); err != nil {
 		return Task{}, false, err

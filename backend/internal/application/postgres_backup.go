@@ -260,13 +260,8 @@ func BackupPostgresObjects(ctx context.Context, db *sql.DB, dsn string, store Bl
 	if e != nil {
 		return report, e
 	}
-	for key, info := range manifest.Objects {
-		b, err := readVerifiedBlob(ctx, store, info)
-		if err != nil {
-			objects.Close()
-			return report, errors.New("backup object missing or corrupt")
-		}
-		if _, err = objects.Put(ctx, key, b); err != nil {
+	for _, info := range manifest.Objects {
+		if err := copyBlobStream(ctx, store, objects, info); err != nil {
 			objects.Close()
 			return report, err
 		}
@@ -355,7 +350,7 @@ func VerifyPostgresBackup(ctx context.Context, source string) (PostgresBackupMan
 	}
 	defer objects.Close()
 	for _, info := range manifest.Objects {
-		if _, e = readVerifiedBlob(ctx, objects, info); e != nil {
+		if e = verifyBlobStream(ctx, objects, info); e != nil {
 			return manifest, report, e
 		}
 	}
@@ -416,12 +411,7 @@ func RestorePostgresBackup(ctx context.Context, db *sql.DB, dsn, source, destina
 		return report, e
 	}
 	for _, info := range manifest.Objects {
-		b, err := readVerifiedBlob(ctx, from, info)
-		if err != nil {
-			to.Close()
-			return report, err
-		}
-		if _, err = to.Put(ctx, info.Key, b); err != nil {
+		if err := copyBlobStream(ctx, from, to, info); err != nil {
 			to.Close()
 			return report, err
 		}

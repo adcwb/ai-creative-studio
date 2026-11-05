@@ -262,7 +262,7 @@ func TestBlobMediaExportRemoteRoundtrip(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	s.media.wg.Wait()
+	s.media.jobs.wait()
 	p = s.media.Get("p", "tenant")
 	if p.Exports[0].Status != "succeeded" {
 		t.Fatalf("export %+v", p.Exports[0])

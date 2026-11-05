@@ -24,7 +24,7 @@ var errMediaLimit = media.ErrLimit
 func mediaInvalid(message string) error                     { return media.Invalid(message) }
 func mediaAsset(p MediaState, id string) (MediaAsset, bool) { return media.Asset(p, id) }
 func validateTimeline(p MediaState, t MediaTimeline) error  { return media.ValidateTimeline(p, t) }
-func outputSpec(t MediaTimeline) (int, int, float64, error) { return media.OutputSpec(t) }
+func outputSpec(t MediaTimeline) (int, int, error)          { return media.OutputSpec(t) }
 func validatePoster(p MediaState, v PosterDocument) error   { return media.ValidatePoster(p, v) }
 func validateSubtitleCues(cues []SubtitleCue, duration float64) error {
 	return media.ValidateSubtitleCues(cues, duration)

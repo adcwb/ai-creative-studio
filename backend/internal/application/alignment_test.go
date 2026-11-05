@@ -275,7 +275,7 @@ func TestAlignmentCancelRunningAndUnavailableGuard(t *testing.T) {
 	if _, err = a.cancel("p", "s", "cancel-001", task.ID); err != nil {
 		t.Fatal(err)
 	}
-	a.wg.Wait()
+	a.jobs.wait()
 	task = awaitAlignment(t, a, task.ID)
 	if task.Status != "cancelled" || len(task.Cues) != 0 || calls.Load() != 1 {
 		t.Fatal(task, calls.Load())

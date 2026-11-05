@@ -60,9 +60,6 @@ func (m *MediaStore) Demo(project, space, key string, version int, shots []Story
 	if p.Version != version {
 		return p, errMediaVersion
 	}
-	if len(p.Assets) > 110 || m.overQuota(2<<20) {
-		return p, errMediaLimit
-	}
 	if len(shots) == 0 {
 		for i := 0; i < 3; i++ {
 			shots = append(shots, StoryboardShot{ID: fmt.Sprintf("shot-%d", i+1), DurationSeconds: 2, Dialogue: fmt.Sprintf("合成演示镜头 %d · 非 AI 生成", i+1)})

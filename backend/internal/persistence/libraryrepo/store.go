@@ -403,23 +403,6 @@ func (s *Store) Mutate(ctx context.Context, space, key, digest, expected string,
 			return Result{}, library.ErrConflict
 		}
 	}
-	var size int64
-	for _, v := range d.Versions {
-		for _, ref := range v.References {
-			size += ref.SizeBytes
-		}
-	}
-	if !archive {
-		for _, ref := range result.Version.References {
-			size += ref.SizeBytes
-		}
-	}
-	if size > 128<<20 {
-		return Result{}, ErrLimit
-	}
-	if len(d.Assets) >= 1000 && !exists || len(d.Versions) >= 10000 || len(d.Receipts) >= 20000 {
-		return Result{}, ErrLimit
-	}
 	d.Assets[result.Asset.ID] = result.Asset
 	if !archive {
 		d.Versions[result.Version.ID] = result.Version

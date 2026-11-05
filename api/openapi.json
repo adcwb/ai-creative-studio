@@ -4187,7 +4187,7 @@
             }
           },
           "413": {
-            "description": "单文件最大32MiB。",
+            "description": "流式接收原始文件；请求时限、格式与解码安全校验仍生效，不按累计项目用量或32MiB文件额度拒绝。",
             "content": {
               "application/json": {
                 "schema": {
@@ -4241,7 +4241,8 @@
               }
             }
           }
-        }
+        },
+        "description": " Upload bytes are streamed to private storage and validated before publication. There is no cumulative project storage or 32 MiB upload quota; request deadlines and format/decode protections remain. Reusing a key with different bytes is a conflict."
       }
     },
     "/api/v1/projects/{id}/media/exports": {
@@ -17756,7 +17757,7 @@
           "episode_number": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 999,
+            "maximum": 9007199254740991,
             "default": 1
           }
         }
@@ -17788,16 +17789,14 @@
             "items": {
               "$ref": "#/components/schemas/ScriptCharacter"
             },
-            "minItems": 0,
-            "maxItems": 30
+            "minItems": 0
           },
           "scenes": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ScriptScene"
             },
-            "minItems": 1,
-            "maxItems": 120
+            "minItems": 1
           }
         },
         "description": "Editable story with up to 30 unique characters and 1–120 scenes. Scenes can be silent and carry an optional episode number. Saving a first handwritten draft does not require generation.",
@@ -18232,7 +18231,6 @@
           "scene_index": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 120,
             "description": "Zero is a standalone shot. Nonzero indices must exist in the source script. Stale plans retain their original scene references."
           },
           "description": {
@@ -18307,7 +18305,6 @@
           "shots": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 120,
             "items": {
               "$ref": "#/components/schemas/StoryboardShot"
             }
@@ -18348,7 +18345,6 @@
           "shots": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 120,
             "items": {
               "$ref": "#/components/schemas/StoryboardShot"
             }
@@ -18602,8 +18598,7 @@
           },
           "duration": {
             "type": "number",
-            "minimum": 0.5,
-            "maximum": 30
+            "minimum": 0.5
           },
           "trim_start": {
             "type": "number"
@@ -18725,10 +18720,12 @@
               "360p",
               "720p",
               "1080p",
+              "1440p",
+              "1800p",
               "2160p"
             ],
             "default": "360p",
-            "description": "360p <=180s;720p <=120s;1080p <=60s;2160p UHD <=15s. 24fps;128MiB output cap."
+            "description": "Output pixels only; no resolution-dependent duration quota. Product labels: 1K=1080p, 2K=1440p, 3K=1800p, 4K=2160p UHD. Portrait swaps width/height. Rendering/resizing is not proof of native model resolution."
           },
           "aspect_ratio": {
             "type": "string",
@@ -18750,14 +18747,12 @@
           },
           "audio_tracks": {
             "type": "array",
-            "maxItems": 8,
             "items": {
               "$ref": "#/components/schemas/MediaAudioTrack"
             }
           },
           "video_overlays": {
             "type": "array",
-            "maxItems": 4,
             "items": {
               "$ref": "#/components/schemas/MediaVideoOverlay"
             }
@@ -18765,7 +18760,7 @@
           "episode_number": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 999,
+            "maximum": 9007199254740991,
             "description": "Omitted means episode 1. Existing receipts retain their original payload."
           }
         },
@@ -18819,7 +18814,7 @@
           "episode_number": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 999
+            "maximum": 9007199254740991
           }
         },
         "required": [
@@ -18864,7 +18859,6 @@
           },
           "library_bindings": {
             "type": "array",
-            "maxItems": 60,
             "items": {
               "$ref": "#/components/schemas/LibraryBinding"
             }
@@ -18873,15 +18867,13 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ProductionSelection"
-            },
-            "maxItems": 2000
+            }
           },
           "reviews": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ProductionReview"
-            },
-            "maxItems": 2000
+            }
           },
           "episode_timelines": {
             "type": "object",
@@ -19426,7 +19418,7 @@
           "episode_number": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 999
+            "maximum": 9007199254740991
           }
         },
         "description": "任务只产生建议，不自动修改时间轴；用户应用仍须媒体版本CAS。真实ASR未配置时拒绝，不回退估算。"
@@ -19542,7 +19534,7 @@
           "episode_number": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 999,
+            "maximum": 9007199254740991,
             "description": "Omitted means episode 1. Existing receipts retain their original payload."
           }
         },
@@ -19885,7 +19877,6 @@
           },
           "entries": {
             "type": "array",
-            "maxItems": 100,
             "items": {
               "$ref": "#/components/schemas/CostEntry"
             }
@@ -20339,7 +20330,6 @@
           },
           "entries": {
             "type": "array",
-            "maxItems": 100,
             "items": {
               "$ref": "#/components/schemas/ModelConfigEntry"
             }
@@ -22499,7 +22489,6 @@
           },
           "library_bindings": {
             "type": "array",
-            "maxItems": 60,
             "items": {
               "$ref": "#/components/schemas/LibraryBinding"
             }
@@ -22508,15 +22497,13 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ProductionSelection"
-            },
-            "maxItems": 2000
+            }
           },
           "reviews": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ProductionReview"
-            },
-            "maxItems": 2000
+            }
           },
           "uploaded_asset_id": {
             "type": "string",
@@ -22571,7 +22558,7 @@
           "episode_number": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 999
+            "maximum": 9007199254740991
           }
         },
         "required": [
@@ -22725,7 +22712,7 @@
           "max_output_tokens": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 6000
+            "maximum": 9007199254740991
           },
           "json_output": {
             "type": "boolean"
@@ -23377,7 +23364,7 @@
           "max_output_tokens": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 6000
+            "maximum": 9007199254740991
           },
           "json_output": {
             "type": "boolean"

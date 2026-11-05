@@ -42,7 +42,7 @@ var postgresReadinessSQL = func() string {
 	for _, q := range queries {
 		checks = append(checks, "NOT EXISTS ("+q+")")
 	}
-	return "SELECT (SELECT count(*)=1 AND min(version)=1 AND max(version)=1 FROM studio_schema) AND " + strings.Join(checks, " AND ")
+	return "SELECT (SELECT count(*)=1 AND min(version)=1 AND max(version)=1 FROM studio_schema) AND EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_blobs_size_nonnegative') AND " + strings.Join(checks, " AND ")
 }()
 
 func (s *FileStore) PersistenceFailureEpoch() uint64 {

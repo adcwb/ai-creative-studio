@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestReviewImageResumeReceiptLimitPreservesReplay(t *testing.T) {
+func TestImageResumeBeyondOldReceiptQuotaPreservesReplay(t *testing.T) {
 	s, err := OpenStore(t.TempDir(), jimengTestCaps())
 	if err != nil {
 		t.Fatal(err)
@@ -46,11 +46,11 @@ func TestReviewImageResumeReceiptLimitPreservesReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.ResumeImageTask(task.SpaceID, task.ID, "new-over-limit"); err != ErrProviderNotReady {
-		t.Fatal("unbounded receipt acceptance", err)
+	if resumed, err := s.ResumeImageTask(task.SpaceID, task.ID, "new-over-limit"); err != nil || resumed.Status != "queued" {
+		t.Fatal("historical receipts blocked explicit read-only recovery", resumed, err)
 	}
 	replay, err := s.ResumeImageTask(task.SpaceID, task.ID, "accepted-resume")
-	if err != nil || replay.ID != task.ID || replay.Status != "failed" {
+	if err != nil || replay.ID != task.ID || replay.Status != "queued" {
 		t.Fatal("old receipt did not replay current result", replay, err)
 	}
 }

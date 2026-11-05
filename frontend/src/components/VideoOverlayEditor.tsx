@@ -17,7 +17,7 @@ export function VideoOverlayEditor({layers, assets, duration, onChange}: {layers
   ] as const
   return <section aria-label={t('画面叠层')}>
     <h3>{t('画面叠层')}</h3>
-    <p className="drama-help">{t('最多4条图片或视频叠层，后列叠层显示在上方。实时预览可拖动播放头；每层最多16个位置与透明度关键帧，按局部秒数线性插值，末帧之后保持。')}</p>
+    <p className="drama-help">{t('添加图片或视频叠层，后列叠层显示在上方。实时预览可拖动播放头；位置与透明度关键帧按局部秒数线性插值，末帧之后保持。')}</p>
     {!layers.length && <p className="drama-help">{t('尚未添加画面叠层。原镜头时间轴仍正常播放。')}</p>}
     {layers.map((layer, index) => <article key={layer.id}>
       <div className="media-actions"><strong>{t('叠层 {index}', {index: index + 1})}</strong>
@@ -43,6 +43,6 @@ export function VideoOverlayEditor({layers, assets, duration, onChange}: {layers
         }}>{t('添加叠层 {index} 关键帧', {index: index + 1})}</button><button disabled={!layer.keyframes?.length} onClick={() => update(index, {keyframes: []})}>{t('清空叠层 {index} 关键帧', {index: index + 1})}</button></div>
       </section>
     </article>)}
-    <button disabled={!visual.length || layers.length >= 4 || duration < .1} onClick={() => onChange([...layers, {id: crypto.randomUUID(), asset_id: visual[0].id, start: 0, trim_start: 0, duration: Math.min(3, duration, visual[0].kind === 'video' ? visual[0].duration : 3), x: .65, y: .05, width: .3, height: .3, opacity: 1, preserve_source_audio: false, source_audio_volume: 0}])}>{t('添加画面叠层')}</button>
+    <button disabled={!visual.length || duration < .1} onClick={() => onChange([...layers, {id: crypto.randomUUID(), asset_id: visual[0].id, start: 0, trim_start: 0, duration: Math.min(3, duration, visual[0].kind === 'video' ? visual[0].duration : 3), x: .65, y: .05, width: .3, height: .3, opacity: 1, preserve_source_audio: false, source_audio_volume: 0}])}>{t('添加画面叠层')}</button>
   </section>
 }

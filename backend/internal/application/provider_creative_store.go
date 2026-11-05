@@ -233,25 +233,6 @@ func (s *FileStore) guardCreativeLocked(expected, expectedModel string, selected
 	if caps.Mode == "real" && (expected != caps.Provider || caps.Model == "" || expectedModel != caps.Model) {
 		return ErrProviderChanged
 	}
-	// Per-space/project activity is already locked by callers. Bound real generation history
-	// globally as a conservative local cost safeguard, including failed attempts.
-	if caps.Mode == "real" {
-		count := 0
-		since := time.Now().Add(-time.Hour)
-		for _, g := range s.data.ScriptGenerations {
-			if g.Provider != "mock-script" && g.CreatedAt.After(since) {
-				count++
-			}
-		}
-		for _, g := range s.data.StoryboardGenerations {
-			if g.Provider != "mock-storyboard" && g.CreatedAt.After(since) {
-				count++
-			}
-		}
-		if count >= 20 {
-			return ErrProviderNotReady
-		}
-	}
 	return nil
 }
 func (c *creativeStore) mediaCaps() map[string]Capabilities {
@@ -479,22 +460,6 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	if (in.ExpectedProvider != "" && in.ExpectedProvider != caps.Provider) || (caps.Mode == "real" && in.selection == nil && (in.ExpectedProvider != caps.Provider || caps.Model == "" || in.ExpectedModel != caps.Model)) || (in.ExpectedModel != "" && in.ExpectedModel != caps.Model) {
 		return CreativeJob{}, false, ErrProviderChanged
 	}
-	recent := 0
-	active := 0
-	for _, j := range c.data.Jobs {
-		if j.Status == "queued" || j.Status == "running" {
-			active++
-			if j.ProjectID == id && j.SpaceID == space {
-				return CreativeJob{}, false, ErrGenerationActive
-			}
-		}
-		if j.CreatedAt.After(time.Now().Add(-time.Hour)) {
-			recent++
-		}
-	}
-	if len(c.data.Jobs) >= 500 || len(c.data.Receipts) >= 1000 || in.selection == nil && recent >= 20 || active >= 4 {
-		return CreativeJob{}, false, ErrProviderNotReady
-	}
 	jid, err := newProjectID()
 	if err != nil {
 		return CreativeJob{}, false, err
@@ -556,9 +521,6 @@ func (s *FileStore) cancelCreativeJob(space, id, jid, key string) (CreativeJob, 
 			return CreativeJob{}, ErrIdempotencyConflict
 		}
 		return cloneCreativeJob(job), nil
-	}
-	if len(c.data.Receipts) >= 1000 {
-		return CreativeJob{}, ErrProviderNotReady
 	}
 	if job.Status == "succeeded" || job.Status == "failed" {
 		return CreativeJob{}, ErrConflict
@@ -1087,9 +1049,6 @@ func (s *FileStore) resumeCreativeJob(space, id, jid, key string) (CreativeJob, 
 		if active.ProjectID == id && active.SpaceID == space && (active.Status == "queued" || active.Status == "running") {
 			return CreativeJob{}, ErrGenerationActive
 		}
-	}
-	if len(c.data.Receipts) >= 1000 {
-		return CreativeJob{}, ErrProviderNotReady
 	}
 	old := job
 	job.Status = "queued"

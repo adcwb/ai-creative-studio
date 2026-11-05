@@ -58,9 +58,6 @@ func (s *FileStore) createDigitalHuman(space, project, key, actor string, in Dig
 		}
 		return c.data.DigitalHumans[receipt.AvatarID], false, nil
 	}
-	if len(c.data.DigitalHumans) >= 1000 || len(c.data.Receipts) >= 1000 {
-		return DigitalHuman{}, false, ErrProviderNotReady
-	}
 	asset, ok := mediaAsset(s.media.Get(project, space), in.ReferenceAssetID)
 	if !ok || (asset.Kind != "image" && asset.Kind != "video") {
 		return DigitalHuman{}, false, projectInputError("请选择本项目照片或视频")

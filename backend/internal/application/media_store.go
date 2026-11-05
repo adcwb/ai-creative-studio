@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 )
@@ -36,7 +35,8 @@ type MediaStore struct {
 	dir       string
 	data      mediaDisk
 	cancels   map[string]context.CancelFunc
-	wg        sync.WaitGroup
+	jobs      *localJobs
+	closed    bool
 }
 
 func mediaID() string {
@@ -107,11 +107,12 @@ func (m *MediaStore) close() {
 		m.alignment.close()
 	}
 	m.mu.Lock()
+	m.closed = true
 	for _, cancel := range m.cancels {
 		cancel()
 	}
 	m.mu.Unlock()
-	m.wg.Wait()
+	m.jobs.close()
 }
 func (m *MediaStore) clone() mediaDisk {
 	b, _ := json.Marshal(m.data)
@@ -186,52 +187,23 @@ func (m *MediaStore) check(d mediaDisk, k, key, digest string) (bool, error) {
 }
 
 func (m *MediaStore) AddAsset(project, space, key, name, role, character, shotID, source string, data []byte, mime string, leases ...*jobqueue.Job) (MediaState, error) {
-	digest := mediaDigest([]string{"upload", name, role, character, shotID, source, mime, mediaDigest(data)})
-	k := mediaKey(space, project)
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if len(leases) > 0 && leases[0] != nil {
-		if m.pg == nil {
-			return MediaState{}, errors.New("fenced media write requires postgres")
-		}
-		j := *leases[0]
-		if j.TenantID != space {
-			return MediaState{}, ErrNotFound
-		}
-		m.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error { return jobqueue.CheckLeaseTx(ctx, tx, j) }
-		defer func() { m.pg.beforeCommit = nil }()
+	if len(data) > 32<<20 {
+		return MediaState{}, errMediaLimit
 	}
-	d := m.clone()
-	p := mediaState(d, k)
-	if replay, err := m.check(d, k, key, digest); err != nil || replay {
-		return p, err
-	}
-	if len(p.Assets) >= 120 || len(data) > 32<<20 || m.overQuota(int64(len(data))) {
-		return p, errMediaLimit
-	}
-	id := mediaID()
-	path := filepath.Join(m.dir, id)
-	if err := os.WriteFile(path, data, 0600); err != nil {
-		return p, err
-	}
-	kind, duration, err := validateMedia(path, mime)
+	f, err := os.CreateTemp(m.dir, ".asset-input-")
 	if err != nil {
-		os.Remove(path)
-		return p, err
+		return MediaState{}, err
 	}
-	if err = m.storeBlob(space, project, id); err != nil {
-		os.Remove(path)
-		return p, err
+	defer os.Remove(f.Name())
+	_, err = f.Write(data)
+	if err == nil {
+		err = f.Sync()
 	}
-	a := MediaAsset{ID: id, Kind: kind, MIMEType: mime, Name: name, Role: role, Character: character, ShotID: shotID, Duration: duration, Source: source, FileURL: mediaURL(space, project, "assets/"+id+"/file")}
-	p.Assets = append(p.Assets, a)
-	p.Version++
-	d.Projects[k] = p
-	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest, AssetID: id}
-	if err = m.commit(d); err != nil {
-		os.Remove(path)
+	err = errors.Join(err, f.Close())
+	if err != nil {
+		return MediaState{}, err
 	}
-	return p, err
+	return m.addAssetFile(context.Background(), project, space, key, name, role, character, shotID, source, f.Name(), mime, nil, leases...)
 }
 
 func (m *MediaStore) SaveTimeline(project, space, key string, version int, t MediaTimeline) (MediaState, error) {
@@ -263,9 +235,6 @@ func (m *MediaStore) SaveTimeline(project, space, key string, version int, t Med
 		if p.EpisodeTimelines == nil {
 			p.EpisodeTimelines = map[int]MediaTimeline{}
 		}
-		if _, exists := p.EpisodeTimelines[t.EpisodeNumber]; !exists && len(p.EpisodeTimelines) >= 119 {
-			return p, errMediaLimit
-		}
 		p.EpisodeTimelines[t.EpisodeNumber] = t
 	}
 	p.Version++
@@ -295,37 +264,6 @@ func (m *MediaStore) file(project, space, id string, export, subtitles bool) (st
 		}
 	}
 	return "", "", ErrNotFound
-}
-
-// Includes export and scratch files; reserve room before accepting new work.
-func (m *MediaStore) overQuota(extra int64) bool {
-	total := extra
-	// Conservatively reserve encoder scratch/output space for accepted exports as well as new work.
-	for _, p := range m.data.Projects {
-		for _, e := range p.Exports {
-			if e.Status == "running" || e.Status == "queued" {
-				total += 256 << 20
-			}
-		}
-	}
-	err := filepath.WalkDir(m.dir, func(path string, entry os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			return nil
-		}
-		info, err := entry.Info()
-		if err != nil {
-			return err
-		}
-		total += info.Size()
-		if total > 2<<30 {
-			return errMediaLimit
-		}
-		return nil
-	})
-	return err != nil || total > 2<<30
 }
 
 func (m *MediaStore) Available() error { m.mu.Lock(); defer m.mu.Unlock(); return m.failure }

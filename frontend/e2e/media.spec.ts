@@ -131,6 +131,26 @@ test('HD portrait output, burn subtitles, fade and extra audio survive timeline 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 
+test('two-minute portrait 4K settings save without duration quotas and explain source quality', async ({page, request}, info) => {
+  const p = await project(request, `高清剪辑-${info.project.name}-${randomUUID()}`)
+  const path = `${api}/projects/${p.id}/media`
+  expect((await request.post(`${path}/demo${query}`, {headers: {'Idempotency-Key': randomUUID()}, data: {expected_version: 1}})).status()).toBe(200)
+  await open(page, p.title)
+  await page.getByRole('combobox', {name: '输出清晰度', exact: true}).selectOption('2160p')
+  await page.getByRole('combobox', {name: '成片画幅', exact: true}).selectOption('9:16')
+  for (const number of [1, 2, 3]) await page.getByLabel(`片段 ${number} 时长`, {exact: true}).fill('40')
+  await expect(page.getByText('输出尺寸：2160 × 3840', {exact: true})).toBeVisible()
+  await expect(page.getByText('清晰度用于剪辑合成，不代表模型原生画质。素材分辨率不足时会放大，细节以原始素材为准。', {exact: true})).toBeVisible()
+  await expect(page.getByRole('button', {name: '保存时间轴', exact: true})).toBeEnabled()
+  await page.getByRole('button', {name: '保存时间轴', exact: true}).click()
+  await expect(page.getByRole('button', {name: '合成并导出 MP4', exact: true})).toBeEnabled()
+  const saved = await (await request.get(path + query)).json()
+  expect(saved.timeline).toMatchObject({output_resolution: '2160p', aspect_ratio: '9:16'})
+  expect(saved.timeline.clips.reduce((sum: number, clip: {duration: number}) => sum + clip.duration, 0)).toBe(120)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({path: `/tmp/studio-hd-output-${info.project.name}.png`, fullPage: true})
+})
+
 test('mask editor saves a transparent PNG as a new reference without model calls', async ({page, request}, info) => {
   const p = await project(request, `局部遮罩-${info.project.name}-${randomUUID()}`)
   const path = `${api}/projects/${p.id}/media`

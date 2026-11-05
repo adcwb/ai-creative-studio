@@ -37,9 +37,6 @@ func (m *MediaStore) writeLibraryObject(space string, ref library.Reference, dat
 		if !os.IsNotExist(err) {
 			return err
 		}
-		if m.overQuota(int64(len(data))) {
-			return errMediaLimit
-		}
 		if e := writePreparedLibraryCopy(path, data); e != nil {
 			return e
 		}
