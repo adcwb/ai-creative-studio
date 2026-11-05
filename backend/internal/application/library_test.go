@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
@@ -193,4 +194,29 @@ func TestLibrarySecureRolesAndSpaceIsolation(t *testing.T) {
 	authRequest(t, h, "GET", base+"/"+created.Asset.ID+"?space_id="+space, "", viewerToken, "", 200)
 	authRequest(t, h, "POST", base+"?space_id="+space, body, viewerToken, viewerSession.CSRF, 403)
 	authRequest(t, h, "POST", base+"/"+created.Asset.ID+"/archive?space_id="+space, `{"expected_asset_version_id":"`+created.Version.ID+`"}`, viewerToken, viewerSession.CSRF, 403)
+	for kind, input := range intentCards() {
+		body := projectJSON(t, input)
+		authRequest(t, h, "POST", base+"?space_id="+space, body, ownerToken, "", 403)
+		authRequest(t, h, "POST", base+"?space_id="+space, body, viewerToken, viewerSession.CSRF, 403)
+		r := httptest.NewRequest("POST", base+"?space_id="+space, bytes.NewBufferString(body))
+		r.Header.Set("Origin", "http://localhost:5173")
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("X-CSRF-Token", ownerSession.CSRF)
+		r.Header.Set("Idempotency-Key", "secure-intent-"+kind)
+		r.AddCookie(&http.Cookie{Name: "studio_session", Value: ownerToken})
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != 201 {
+			t.Fatal(w.Code, w.Body.String())
+		}
+		var v libraryrepo.Result
+		_ = json.Unmarshal(w.Body.Bytes(), &v)
+		if v.Asset.Kind != kind {
+			t.Fatal("kind mismatch")
+		}
+		authRequest(t, h, "GET", base+"/"+v.Asset.ID+"?space_id="+space, "", viewerToken, "", 200)
+	}
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"library-viewer@example.test","role":"remove"}`, ownerToken, ownerSession.CSRF, 200)
+	authRequest(t, h, "GET", base+"?space_id="+space+"&kind=voice", "", viewerToken, "", 403)
+
 }

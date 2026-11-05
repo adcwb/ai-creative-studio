@@ -40,8 +40,10 @@ type libraryCursor struct {
 
 func libraryError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, library.ErrPayload):
+		problem(w, 413, "library_request_too_large", "本次资产资料包超过传输工作集，请拆分保存；项目资产数量不受此限制")
 	case errors.Is(err, library.ErrInput):
-		problem(w, 400, "invalid_library_input", "资产卡类型、参考图或字段无效")
+		problem(w, 400, "invalid_library_input", "资产卡类型、参考素材或字段无效")
 	case errors.Is(err, library.ErrConflict):
 		problem(w, 409, "asset_version_conflict", "资产版本已更新，请保留草稿并重新读取")
 	case errors.Is(err, library.ErrArchived):
@@ -173,11 +175,19 @@ func registerLibraryRoutes(mux *http.ServeMux, s *FileStore) {
 			return
 		}
 		card, err := library.Normalize(in.Kind, in.Card)
-		if err != nil || len(in.References) > 12 {
+		if err != nil {
 			libraryError(w, library.ErrInput)
 			return
 		}
 		in.Card = card
+		if e := library.ValidateContent(card, []library.Reference{}); e != nil {
+			libraryError(w, e)
+			return
+		}
+		if in.Kind == "voice" && len(in.References) > 0 {
+			libraryError(w, library.ErrInput)
+			return
+		}
 		if in.References == nil {
 			in.References = []libraryReferenceInput{}
 		}
@@ -230,11 +240,32 @@ func registerLibraryRoutes(mux *http.ServeMux, s *FileStore) {
 			number = old.Version.Number + 1
 		}
 		refs := []library.Reference{}
-		type prepared struct {
-			ref  library.Reference
-			data []byte
+		metadata, _ := json.Marshal(struct {
+			Card       library.Card
+			References []library.Reference
+		}{card, refs})
+		metadataBytes := len(metadata)
+		seenRefs := map[string]bool{}
+		appendReference := func(ref library.Reference) error {
+			if seenRefs[ref.ID] || library.ValidateReferences([]library.Reference{ref}) != nil {
+				return library.ErrInput
+			}
+			encoded, e := json.Marshal(ref)
+			if e != nil {
+				return library.ErrInput
+			}
+			extra := len(encoded)
+			if len(refs) > 0 {
+				extra++
+			}
+			if metadataBytes+extra > library.ContentBytes {
+				return library.ErrPayload
+			}
+			metadataBytes += extra
+			seenRefs[ref.ID] = true
+			refs = append(refs, ref)
+			return nil
 		}
-		files := []prepared{}
 		for i, source := range in.References {
 			if source.LibraryVersionID != "" || source.LibraryReferenceID != "" {
 				if create || source.ProjectID != "" || source.AssetID != "" || !library.IDPattern.MatchString(source.LibraryVersionID) || !library.IDPattern.MatchString(source.LibraryReferenceID) {
@@ -269,7 +300,10 @@ func registerLibraryRoutes(mux *http.ServeMux, s *FileStore) {
 					return
 				}
 				retained.Role, retained.ViewAngle = source.Role, source.ViewAngle
-				refs = append(refs, *retained)
+				if e := appendReference(*retained); e != nil {
+					libraryError(w, e)
+					return
+				}
 				continue
 			}
 			if !library.IDPattern.MatchString(source.ProjectID) || !library.IDPattern.MatchString(source.AssetID) {
@@ -301,18 +335,20 @@ func registerLibraryRoutes(mux *http.ServeMux, s *FileStore) {
 			}
 			h := sha256.Sum256(data)
 			ref := library.Reference{ID: libraryStableID(space, key, assetID+":"+digest+":"+strconv.Itoa(i)), Role: source.Role, ViewAngle: source.ViewAngle, MIMEType: mime, Width: cfg.Width, Height: cfg.Height, SizeBytes: int64(len(data)), SHA256: hex.EncodeToString(h[:]), SourceProjectID: source.ProjectID, SourceAssetID: source.AssetID}
-			refs = append(refs, ref)
-			files = append(files, prepared{ref, data})
+			if e := appendReference(ref); e != nil {
+				libraryError(w, e)
+				return
+			}
+			// Prepare one immutable object, then release its bytes before the
+			// next reference. Metadata publishes only after all refs validate.
+			if e := s.media.writeLibraryObject(space, ref, data); e != nil {
+				libraryError(w, e)
+				return
+			}
 		}
 		if library.ValidateReferences(refs) != nil {
 			libraryError(w, library.ErrInput)
 			return
-		}
-		for _, f := range files {
-			if e := s.media.writeLibraryObject(space, f.ref, f.data); e != nil {
-				libraryError(w, e)
-				return
-			}
 		}
 
 		actor := "demo-user"

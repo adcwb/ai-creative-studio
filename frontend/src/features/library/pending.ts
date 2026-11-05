@@ -5,7 +5,7 @@ export function readPendingLibrary(space: string): PendingLibraryWrite | null {
     const raw = sessionStorage.getItem(storageKey(space))
     if (!raw) return null
     const value = JSON.parse(raw) as PendingLibraryWrite
-    if (typeof value.path !== 'string' || !/^\/library\/assets(?:\/[A-Za-z0-9_-]{1,80}\/(?:versions|archive))?$/.test(value.path) || typeof value.body !== 'string' || value.body.length > 65536 || typeof value.key !== 'string' || !/^[A-Za-z0-9_-]{8,128}$/.test(value.key)) return null
+    if (typeof value.path !== 'string' || !/^\/library\/assets(?:\/[A-Za-z0-9_-]{1,80}\/(?:versions|archive))?$/.test(value.path) || typeof value.body !== 'string' || new TextEncoder().encode(value.body).length > (1<<20) || typeof value.key !== 'string' || !/^[A-Za-z0-9_-]{8,128}$/.test(value.key)) return null
     return value
   } catch {return null}
 }
@@ -19,7 +19,7 @@ export function readPendingBinding(space: string, project: string): PendingBindi
     const raw = sessionStorage.getItem(bindingKey(space, project))
     if (!raw) return null
     const value = JSON.parse(raw) as PendingBinding
-    if (typeof value.body !== 'string' || value.body.length > 65536 || typeof value.key !== 'string' || !/^[A-Za-z0-9_-]{8,128}$/.test(value.key)) return null
+    if (typeof value.body !== 'string' || new TextEncoder().encode(value.body).length > (1<<20) || typeof value.key !== 'string' || !/^[A-Za-z0-9_-]{8,128}$/.test(value.key)) return null
     return value
   } catch {return null}
 }

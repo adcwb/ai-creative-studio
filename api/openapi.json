@@ -12516,7 +12516,9 @@
               "enum": [
                 "character",
                 "product",
-                "scene"
+                "scene",
+                "style",
+                "voice"
               ]
             }
           },
@@ -12745,6 +12747,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LibraryResult"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "This request exceeds the bounded metadata working set; split it into separate assets/versions. This is not a project or library capacity allowance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -13137,6 +13149,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LibraryResult"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "This request exceeds the bounded metadata working set; split it into separate assets/versions. This is not a project or library capacity allowance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -29927,7 +29949,6 @@
           },
           "prohibited_changes": {
             "type": "array",
-            "maxItems": 20,
             "uniqueItems": true,
             "items": {
               "type": "string",
@@ -30028,6 +30049,67 @@
               "lighting",
               "viewpoints"
             ]
+          },
+          "style": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "palette": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "linework": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "composition": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "lighting": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "texture": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "palette",
+              "linework",
+              "composition",
+              "lighting",
+              "texture"
+            ]
+          },
+          "voice": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "timbre": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "performance": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "pace": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "pronunciation": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "timbre",
+              "performance",
+              "pace",
+              "pronunciation"
+            ]
           }
         },
         "required": [
@@ -30051,6 +30133,16 @@
                   "required": [
                     "scene"
                   ]
+                },
+                {
+                  "required": [
+                    "style"
+                  ]
+                },
+                {
+                  "required": [
+                    "voice"
+                  ]
                 }
               ]
             }
@@ -30069,6 +30161,16 @@
                 {
                   "required": [
                     "scene"
+                  ]
+                },
+                {
+                  "required": [
+                    "style"
+                  ]
+                },
+                {
+                  "required": [
+                    "voice"
                   ]
                 }
               ]
@@ -30089,11 +30191,80 @@
                   "required": [
                     "product"
                   ]
+                },
+                {
+                  "required": [
+                    "style"
+                  ]
+                },
+                {
+                  "required": [
+                    "voice"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "required": [
+              "style"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "character"
+                  ]
+                },
+                {
+                  "required": [
+                    "product"
+                  ]
+                },
+                {
+                  "required": [
+                    "scene"
+                  ]
+                },
+                {
+                  "required": [
+                    "voice"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "required": [
+              "voice"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "character"
+                  ]
+                },
+                {
+                  "required": [
+                    "product"
+                  ]
+                },
+                {
+                  "required": [
+                    "scene"
+                  ]
+                },
+                {
+                  "required": [
+                    "style"
+                  ]
                 }
               ]
             }
           }
-        ]
+        ],
+        "description": "Exactly one typed card. Style/voice cards describe creative intent; they are not provider controls, voice identities or authorization. Per-version metadata uses a bounded request working set, not a project quota."
       },
       "LibraryReferenceInput": {
         "type": "object",
@@ -30254,7 +30425,9 @@
             "enum": [
               "character",
               "product",
-              "scene"
+              "scene",
+              "style",
+              "voice"
             ]
           },
           "name": {
@@ -30317,7 +30490,6 @@
           },
           "references": {
             "type": "array",
-            "maxItems": 12,
             "items": {
               "$ref": "#/components/schemas/LibraryReference"
             }
@@ -30372,7 +30544,9 @@
             "enum": [
               "character",
               "product",
-              "scene"
+              "scene",
+              "style",
+              "voice"
             ]
           },
           "expected_asset_version_id": {
@@ -30384,7 +30558,6 @@
           },
           "references": {
             "type": "array",
-            "maxItems": 12,
             "items": {
               "$ref": "#/components/schemas/LibraryReferenceInput"
             }
@@ -30394,6 +30567,82 @@
           "kind",
           "card",
           "references"
+        ],
+        "description": "Authored card versions. No fixed reference-count or prohibited-change-count quota. Voice cards currently accept textual performance intent only and must have references:[]; audio authorization and native dispatch are separate capabilities. Images are validated and prepared one at a time before metadata commit; partial preparations are not a successful version.",
+        "oneOf": [
+          {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "character"
+                ]
+              },
+              "card": {
+                "required": [
+                  "character"
+                ]
+              }
+            }
+          },
+          {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "product"
+                ]
+              },
+              "card": {
+                "required": [
+                  "product"
+                ]
+              }
+            }
+          },
+          {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "scene"
+                ]
+              },
+              "card": {
+                "required": [
+                  "scene"
+                ]
+              }
+            }
+          },
+          {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "style"
+                ]
+              },
+              "card": {
+                "required": [
+                  "style"
+                ]
+              }
+            }
+          },
+          {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "voice"
+                ]
+              },
+              "card": {
+                "required": [
+                  "voice"
+                ]
+              },
+              "references": {
+                "maxItems": 0
+              }
+            }
+          }
         ]
       },
       "LibraryArchive": {
@@ -30521,7 +30770,6 @@
           },
           "media_asset_ids": {
             "type": "array",
-            "maxItems": 12,
             "items": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,80}$"
@@ -30550,7 +30798,6 @@
         "properties": {
           "items": {
             "type": "array",
-            "maxItems": 60,
             "items": {
               "$ref": "#/components/schemas/LibraryBinding"
             }

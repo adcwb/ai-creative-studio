@@ -182,7 +182,7 @@ func validFileResult(space, id string, r Result) bool {
 	if _, err := library.Normalize(a.Kind, v.Card); err != nil {
 		return false
 	}
-	if library.ValidateReferences(v.References) != nil {
+	if library.ValidateContent(v.Card, v.References) != nil || library.ValidateReferences(v.References) != nil {
 		return false
 	}
 	h, err := library.Digest(struct {

@@ -55,7 +55,7 @@ func validateDisk(space string, d disk) (disk, error) {
 		if _, e := library.Normalize(d.Assets[v.AssetID].Kind, v.Card); e != nil {
 			return disk{}, ErrStorage
 		}
-		if v.Number < 1 || library.ValidateReferences(v.References) != nil {
+		if v.Number < 1 || library.ValidateContent(v.Card, v.References) != nil || library.ValidateReferences(v.References) != nil {
 			return disk{}, ErrStorage
 		}
 		h, e := library.Digest(struct {

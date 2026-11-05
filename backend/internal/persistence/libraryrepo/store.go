@@ -17,7 +17,7 @@ var ErrKey = errors.New("library idempotency conflict")
 var ErrStorage = errors.New("library storage unavailable")
 
 const Schema = `CREATE TABLE IF NOT EXISTS studio_library_assets (
- space_id text NOT NULL, id text NOT NULL, kind text NOT NULL CHECK(kind IN ('character','product','scene')),
+ space_id text NOT NULL, id text NOT NULL, kind text NOT NULL CONSTRAINT studio_library_kind_v2 CHECK(kind IN ('character','product','scene','style','voice')),
  status text NOT NULL CHECK(status IN ('active','archived')), head_version_id text NOT NULL,
  payload jsonb NOT NULL CHECK((payload->>'space_id'=space_id AND payload->>'id'=id AND payload->>'head_version_id'=head_version_id AND payload->>'status'=status AND payload->>'kind'=kind) IS TRUE), PRIMARY KEY(space_id,id));
 CREATE TABLE IF NOT EXISTS studio_library_asset_versions (
@@ -28,7 +28,15 @@ CREATE TABLE IF NOT EXISTS studio_library_receipts (
  space_id text NOT NULL, receipt_key text NOT NULL, digest text NOT NULL, asset_id text NOT NULL,
  payload jsonb NOT NULL, PRIMARY KEY(space_id,receipt_key),
  FOREIGN KEY(space_id,asset_id) REFERENCES studio_library_assets(space_id,id));
-CREATE INDEX IF NOT EXISTS studio_library_assets_list ON studio_library_assets(space_id,kind,status,id);`
+CREATE INDEX IF NOT EXISTS studio_library_assets_list ON studio_library_assets(space_id,kind,status,id);
+-- Explicit initializer only: upgrade the known v1 constraint without rewriting
+-- content, versions or receipts. Runtime readiness requires the named v2 check.
+ALTER TABLE studio_library_assets DROP CONSTRAINT IF EXISTS studio_library_assets_kind_check;
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_library_kind_v2' AND conrelid='studio_library_assets'::regclass) THEN
+  ALTER TABLE studio_library_assets ADD CONSTRAINT studio_library_kind_v2 CHECK(kind IN ('character','product','scene','style','voice'));
+ END IF;
+END $$;`
 
 type Result struct {
 	Asset   library.Asset   `json:"asset"`
@@ -102,7 +110,7 @@ func validateQuery(q Query) error {
 	if q.Limit < 1 || q.Limit > 100 {
 		return library.ErrInput
 	}
-	if q.Kind != "" && q.Kind != "character" && q.Kind != "product" && q.Kind != "scene" {
+	if q.Kind != "" && q.Kind != "character" && q.Kind != "product" && q.Kind != "scene" && q.Kind != "style" && q.Kind != "voice" {
 		return library.ErrInput
 	}
 	if q.Status != "" && q.Status != "active" && q.Status != "archived" {
@@ -271,6 +279,9 @@ func validateMutation(old library.Asset, exists bool, expected string, r Result,
 	card, err := library.Normalize(r.Asset.Kind, r.Version.Card)
 	if err != nil {
 		return err
+	}
+	if e := library.ValidateContent(card, r.Version.References); e != nil {
+		return e
 	}
 	if library.ValidateReferences(r.Version.References) != nil || r.Version.AssetID != r.Asset.ID || r.Version.SpaceID != r.Asset.SpaceID || r.Version.ID != r.Asset.HeadVersionID || r.Asset.Status != "active" || !library.IDPattern.MatchString(r.Version.ID) {
 		return library.ErrInput

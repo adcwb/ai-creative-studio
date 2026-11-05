@@ -218,6 +218,24 @@ def main():
                 call("POST", bind_url, bind_route, binding, "library-contract-bind")
                 assert len(call("GET", bind_url, bind_route)["items"]) == 1
                 call("GET", route + q + "&status=archived", route)
+                for kind, fields in [("style",dict(palette="Blue and amber",linework="Open lines",composition="Keep negative space",lighting="Side light",texture="Paper")),("voice",dict(timbre="Clear",performance="Restrained",pace="Pause before answering",pronunciation="Keep names consistent"))]:
+                    intent=dict(kind=kind,card=dict(name=kind+" intent",description="Creative intent, not authorization or native model control.",prohibited_changes=["Keep choice "+str(i) for i in range(31)],**{kind:fields}),references=[])
+                    original_intent=call("POST",route+q,route,intent,"library-intent-"+kind,201)
+                    assert original_intent["version"]["card"][kind]==fields and len(original_intent["version"]["card"]["prohibited_changes"])==31
+                    typed=call("GET",route+q+"&kind="+kind,route)
+                    assert len(typed["items"])==1 and typed["items"][0]["id"]==original_intent["asset"]["id"]
+                    changed=copy.deepcopy(intent);changed["expected_asset_version_id"]=original_intent["version"]["id"];changed["card"]["description"]="A later authored revision."
+                    intent_root=route+"/"+original_intent["asset"]["id"]
+                    revised=call("POST",intent_root+"/versions"+q,detail_route+"/versions",changed,"library-intent-next-"+kind,201)
+                    assert revised["version"]["number"]==2
+                    mixed=copy.deepcopy(intent);mixed["card"]["character"]={}
+                    call("POST",route+q,route,mixed,"library-intent-mixed-"+kind,400)
+                    if kind=="voice":
+                        fake=copy.deepcopy(intent);fake["references"]=[dict(project_id=project["id"],asset_id="not-a-voice",role="reference",view_angle="")]
+                        call("POST",route+q,route,fake,"library-intent-image-not-voice",400)
+                    stop();start()
+                    assert call("POST",route+q,route,intent,"library-intent-"+kind)==original_intent
+                    assert call("GET",intent_root+"/versions/"+original_intent["version"]["id"]+q,detail_route+"/versions/{versionId}")==original_intent["version"]
 
             def check_structure():
                 p = project_call("POST", body={"title": "Stable source contract", "brief": "An original script keeps associations across edits."}, key="structure-contract-project", expected=201)
@@ -680,7 +698,7 @@ def main():
                 print("Verified: immutable script history restoration, monotonic versions, replay/conflict/cross-space/restart guards; asynchronous brief analysis, provider registry and creative job persistence.")
                 print("Verified: episode migration preview, metadata-only progress lists, hidden preparations, restart, local episode remapping, unchanged source, accepted receipt replay and cancellation.")
                 print("Verified: explicit stable identity upgrade, rename/reorder, old-client write refusal, scope isolation and original receipt replay after restart.")
-                print("Verified: library card versions, ordered history, cross-space isolation, pinned project bindings and original receipts across archive and restart.")
+                print("Verified: library card versions, style/voice intent and >20 constraints without quotas, distinct types and image-not-voice refusal, ordered history, cross-space isolation, pinned project bindings and original receipts across archive and restart.")
                 print("No real credential was read and no external provider was enabled; all runtime data and processes were temporary.")
             finally:
                 stop()

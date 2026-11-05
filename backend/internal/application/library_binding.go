@@ -1,6 +1,7 @@
 package application
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
@@ -111,21 +112,7 @@ func registerLibraryBindingRoutes(mux *http.ServeMux, s *FileStore) {
 			libraryError(w, library.ErrInput)
 			return
 		}
-		data := make([][]byte, len(v.References))
-		for i, ref := range v.References {
-			path, e := m.localBlob(space, "library", ref.ID)
-			if e != nil {
-				libraryError(w, e)
-				return
-			}
-			data[i], e = safeReadLocal(path, 4<<20)
-			h := sha256.Sum256(data[i])
-			if e != nil || hex.EncodeToString(h[:]) != ref.SHA256 {
-				libraryError(w, ErrBlobIntegrity)
-				return
-			}
-		}
-		result, err := m.bindLibrary(project, space, key, in, digest, v, data)
+		result, err := m.bindLibrary(r.Context(), project, space, key, in, digest, v)
 		if err != nil {
 			mediaError(w, err)
 			return
@@ -134,7 +121,7 @@ func registerLibraryBindingRoutes(mux *http.ServeMux, s *FileStore) {
 	})
 }
 
-func (m *MediaStore) bindLibrary(project, space, key string, in libraryBindingInput, digest string, v library.Version, files [][]byte) (MediaState, error) {
+func (m *MediaStore) bindLibrary(ctx context.Context, project, space, key string, in libraryBindingInput, digest string, v library.Version) (MediaState, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	d := m.clone()
@@ -147,16 +134,27 @@ func (m *MediaStore) bindLibrary(project, space, key string, in libraryBindingIn
 		return p, errMediaVersion
 	}
 	binding := media.LibraryBinding{ID: mediaID(), AssetID: in.AssetID, VersionID: in.VersionID, Name: v.Card.Name, Kind: in.Usage, Usage: in.Usage, ShotID: in.ShotID, MediaAssetIDs: []string{}, CreatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
-	for i, b := range files {
+	for _, ref := range v.References {
+		if err := ctx.Err(); err != nil {
+			return p, err
+		}
+		source, e := m.localBlob(space, "library", ref.ID)
+		if e != nil {
+			return p, e
+		}
+		b, e := safeReadLocal(source, 4<<20)
+		h := sha256.Sum256(b)
+		if e != nil || int64(len(b)) != ref.SizeBytes || hex.EncodeToString(h[:]) != ref.SHA256 {
+			return p, ErrBlobIntegrity
+		}
 		id := mediaID()
 		path := filepath.Join(m.dir, id)
 		if err := writePreparedLibraryCopy(path, b); err != nil {
 			return p, err
 		}
-		if err := m.storeBlob(space, project, id); err != nil {
+		if err := m.storeBlobContext(ctx, space, project, id); err != nil {
 			return p, err
 		}
-		ref := v.References[i]
 		character := ""
 		if in.Usage == "character" {
 			character = v.Card.Name
@@ -168,5 +166,8 @@ func (m *MediaStore) bindLibrary(project, space, key string, in libraryBindingIn
 	p.Version++
 	d.Projects[k] = p
 	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest}
+	if err := ctx.Err(); err != nil {
+		return p, err
+	}
 	return m.commitState(d, k)
 }

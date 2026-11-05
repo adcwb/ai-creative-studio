@@ -17,7 +17,12 @@ import (
 var ErrInput = errors.New("invalid library input")
 var ErrConflict = errors.New("asset version conflict")
 var ErrArchived = errors.New("asset archived")
+var ErrPayload = errors.New("library request working set exceeded")
 var IDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,80}$`)
+
+// A single version is a bounded metadata transaction, never a project quota or
+// a model's reference-count limit. Binary references are prepared one at a time.
+const ContentBytes = 1 << 20
 
 type Character struct {
 	Appearance string `json:"appearance"`
@@ -39,6 +44,22 @@ type Scene struct {
 	Lighting   string `json:"lighting"`
 	Viewpoints string `json:"viewpoints"`
 }
+type Style struct {
+	Palette     string `json:"palette"`
+	Linework    string `json:"linework"`
+	Composition string `json:"composition"`
+	Lighting    string `json:"lighting"`
+	Texture     string `json:"texture"`
+}
+
+// Voice is authored performance intent. It is neither a provider voice identity
+// nor consent to imitate a person or clone an audio reference.
+type Voice struct {
+	Timbre        string `json:"timbre"`
+	Performance   string `json:"performance"`
+	Pace          string `json:"pace"`
+	Pronunciation string `json:"pronunciation"`
+}
 type Reference struct {
 	ID              string `json:"id"`
 	Role            string `json:"role"`
@@ -58,6 +79,8 @@ type Card struct {
 	Character         *Character `json:"character,omitempty"`
 	Product           *Product   `json:"product,omitempty"`
 	Scene             *Scene     `json:"scene,omitempty"`
+	Style             *Style     `json:"style,omitempty"`
+	Voice             *Voice     `json:"voice,omitempty"`
 }
 type Version struct {
 	ID         string      `json:"id"`
@@ -116,9 +139,6 @@ func Normalize(kind string, in Card) (Card, error) {
 	if c.Description, err = text(c.Description, 2000, false); err != nil {
 		return Card{}, err
 	}
-	if len(c.ProhibitedChanges) > 20 {
-		return Card{}, ErrInput
-	}
 	if c.ProhibitedChanges == nil {
 		c.ProhibitedChanges = []string{}
 	}
@@ -132,6 +152,15 @@ func Normalize(kind string, in Card) (Card, error) {
 		c.ProhibitedChanges[i] = item
 	}
 	var fields []*string
+	count := 0
+	for _, present := range []bool{c.Character != nil, c.Product != nil, c.Scene != nil, c.Style != nil, c.Voice != nil} {
+		if present {
+			count++
+		}
+	}
+	if count != 1 {
+		return Card{}, ErrInput
+	}
 	switch kind {
 	case "character":
 		if c.Character == nil || c.Product != nil || c.Scene != nil {
@@ -148,6 +177,16 @@ func Normalize(kind string, in Card) (Card, error) {
 			return Card{}, ErrInput
 		}
 		fields = []*string{&c.Scene.Layout, &c.Scene.Objects, &c.Scene.Lighting, &c.Scene.Viewpoints}
+	case "style":
+		if c.Style == nil {
+			return Card{}, ErrInput
+		}
+		fields = []*string{&c.Style.Palette, &c.Style.Linework, &c.Style.Composition, &c.Style.Lighting, &c.Style.Texture}
+	case "voice":
+		if c.Voice == nil {
+			return Card{}, ErrInput
+		}
+		fields = []*string{&c.Voice.Timbre, &c.Voice.Performance, &c.Voice.Pace, &c.Voice.Pronunciation}
 	default:
 		return Card{}, ErrInput
 	}
@@ -157,6 +196,23 @@ func Normalize(kind string, in Card) (Card, error) {
 		}
 	}
 	return c, nil
+}
+
+func ValidateContent(card Card, refs []Reference) error {
+	if card.Voice != nil && len(refs) > 0 {
+		return ErrInput
+	}
+	data, e := json.Marshal(struct {
+		Card       Card
+		References []Reference
+	}{card, refs})
+	if e != nil {
+		return ErrInput
+	}
+	if len(data) > ContentBytes {
+		return ErrPayload
+	}
+	return nil
 }
 
 func Digest(v any) (string, error) {
@@ -169,9 +225,6 @@ func Digest(v any) (string, error) {
 }
 
 func ValidateReferences(refs []Reference) error {
-	if len(refs) > 12 {
-		return ErrInput
-	}
 	seen := map[string]bool{}
 	for _, r := range refs {
 		if !IDPattern.MatchString(r.ID) || seen[r.ID] || !IDPattern.MatchString(r.SourceProjectID) || !IDPattern.MatchString(r.SourceAssetID) {

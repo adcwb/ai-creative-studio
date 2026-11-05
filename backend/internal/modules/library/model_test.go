@@ -1,8 +1,11 @@
 package library_test
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/library"
+	"strings"
 	"testing"
 )
 
@@ -25,6 +28,58 @@ func TestTypedCardNormalizationAndIsolation(t *testing.T) {
 	in.ProhibitedChanges = []string{"发型", " 发型 "}
 	if _, err = library.Normalize("character", in); err == nil {
 		t.Fatal("duplicate constraints accepted")
+	}
+}
+
+func TestStyleAndVoiceAreDistinctIntentWithNoFixedListAllowances(t *testing.T) {
+	for kind, card := range map[string]library.Card{"style": {Name: "  墨色  ", Style: &library.Style{Palette: "  青灰  "}}, "voice": {Name: "  低声  ", Voice: &library.Voice{Performance: "  克制  "}}} {
+		for i := 0; i < 35; i++ {
+			card.ProhibitedChanges = append(card.ProhibitedChanges, fmt.Sprintf("限制内容 %d", i))
+		}
+		v, e := library.Normalize(kind, card)
+		if e != nil || v.Name != strings.TrimSpace(card.Name) || len(v.ProhibitedChanges) != 35 {
+			t.Fatal(kind, e)
+		}
+		if v.Style != nil {
+			v.Style.Palette = "changed"
+			if card.Style.Palette != "  青灰  " {
+				t.Fatal("style alias")
+			}
+		}
+		if v.Voice != nil {
+			v.Voice.Performance = "changed"
+			if card.Voice.Performance != "  克制  " {
+				t.Fatal("voice alias")
+			}
+		}
+		v.Character = &library.Character{}
+		if _, e = library.Normalize(kind, v); !errors.Is(e, library.ErrInput) {
+			t.Fatal("mixed card", kind, e)
+		}
+	}
+	old := library.Card{Name: "旧角色", Character: &library.Character{}, ProhibitedChanges: []string{}}
+	b, _ := json.Marshal(old)
+	if strings.Contains(string(b), `"style"`) || strings.Contains(string(b), `"voice"`) {
+		t.Fatal("old content digest shape changed")
+	}
+	refs := []library.Reference{}
+	for i := 0; i < 65; i++ {
+		refs = append(refs, library.Reference{ID: fmt.Sprintf("ref%d", i), Role: "reference", MIMEType: "image/png", Width: 1, Height: 1, SizeBytes: 70, SHA256: strings.Repeat("a", 64), SourceProjectID: "p", SourceAssetID: fmt.Sprintf("image%d", i)})
+	}
+	if e := library.ValidateReferences(refs); e != nil {
+		t.Fatal("fixed reference allowance survived", e)
+	}
+	if e := library.ValidateContent(old, refs); e != nil {
+		t.Fatal(e)
+	}
+	voice := library.Card{Name: "声音意图", Voice: &library.Voice{}}
+	if e := library.ValidateContent(voice, refs); !errors.Is(e, library.ErrInput) {
+		t.Fatal("image declared voice identity", e)
+	}
+	oversized := old
+	oversized.ProhibitedChanges = []string{strings.Repeat("x", library.ContentBytes)}
+	if e := library.ValidateContent(oversized, nil); !errors.Is(e, library.ErrPayload) {
+		t.Fatal("unbounded metadata transaction", e)
 	}
 }
 
