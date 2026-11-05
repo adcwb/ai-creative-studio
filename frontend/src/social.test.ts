@@ -6,6 +6,10 @@ describe('social delivery safety', () => {
   it('only offers images, videos and succeeded exports', () => {
     expect(socialSources({assets: [{id: 'i', kind: 'image', name: 'Picture', mime_type: 'image/png'}, {id: 'v', kind: 'video', name: 'Video', mime_type: 'video/mp4'}, {id: 'a', kind: 'audio', name: 'Audio', mime_type: 'audio/wav'}], exports: [{id: 'done', status: 'succeeded'}, {id: 'wait', status: 'running'}, {id: 'failed', status: 'failed'}]}).map(item => item.id)).toEqual(['i', 'v', 'done'])
   })
+  it('keeps the external season and episode captured by the completed export',()=>{
+    const [source]=socialSources({assets:[],exports:[{id:'series-export',status:'succeeded',episode_number:1,series_episode:{season_ordinal:3,ordinal:7}}]})
+    expect(source).toMatchObject({season_number:3,episode_number:7})
+  })
   it('rejects remote, scheme-relative, normalized traversal and malformed download paths', () => {
     for (const path of ['https://evil.invalid/file', '//evil.invalid/file', 'javascript:alert(1)', '/api/v1/projects/../../../evil', '/api/v1/projects/\\evil', '/api/v1/projects/x\nfile', '/api/v1/models']) expect(socialDownloadPath(path)).toBeNull()
     expect(socialDownloadPath('/api/v1/projects/p/media/assets/a/file?space_id=tenant')).toBe('/api/v1/projects/p/media/assets/a/file?space_id=tenant')

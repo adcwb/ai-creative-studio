@@ -127,6 +127,5 @@ func (m *MediaStore) addAssetFile(ctx context.Context, project, space, key, name
 	p.Version++
 	d.Projects[k] = p
 	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest, AssetID: id}
-	err = m.commit(d)
-	return p, err
+	return m.commitState(d, k)
 }

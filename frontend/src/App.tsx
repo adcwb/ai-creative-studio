@@ -23,6 +23,7 @@ const router = createBrowserRouter([
         ...['studio/workspaces', 'studio/workspaces/:workspaceId', 'digital-humans/:mode', 'digital-humans/:mode/:workspaceId', 'publish', 'publish/:workspaceId'].map(path => ({path, lazy: async () => ({Component: (await import('./pages/WorkspacesPage')).WorkspacesPage})})),
         {path: 'assets', lazy: async () => ({Component: (await import('./pages/AssetsPage')).AssetsPage})},
         {path: 'library', lazy: async () => ({Component: (await import('./pages/LibraryPage')).LibraryPage})},
+        {path: 'series/:seriesId', lazy: async () => ({Component: (await import('./pages/SeriesPage')).SeriesPage})},
         {path: 'projects', lazy: async () => ({Component: (await import('./pages/ProjectsPage')).ProjectsPage})},
         {path: 'projects/:projectId/:section', lazy: async () => ({Component: (await import('./pages/ProjectPage')).ProjectPage})},
         {path: 'settings/preferences', lazy: async () => ({Component: (await import('./pages/PreferencesPage')).PreferencesPage})},

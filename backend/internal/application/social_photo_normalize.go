@@ -116,7 +116,7 @@ func (m *MediaStore) normalizeSocialPhoto(project, space, key string, in photoNo
 	p.Version++
 	d.Projects[k] = p
 	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest, AssetID: id}
-	return p, m.commit(d)
+	return m.commitState(d, k)
 }
 func registerPhotoNormalize(mux *http.ServeMux, s *FileStore, scope func(http.ResponseWriter, *http.Request, bool) (string, string, bool)) {
 	mux.HandleFunc("POST /api/v1/projects/{id}/social/photos/normalize", func(w http.ResponseWriter, r *http.Request) {

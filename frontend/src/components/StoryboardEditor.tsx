@@ -38,6 +38,6 @@ export function StoryboardEditor({shots, sceneCount = 0, provider, editing, disa
         </>}
       </article>)}</div>
     </fieldset>
-    {editing && <div className="drama-script-actions">{validation && <p className="drama-validation" role="status">{validation}</p>}<p>{translate("支持1–120镜。独立镜头无需剧本；场景引用对应来源剧本。")}</p><div><button type="button" disabled={disabled || shots.length >= 120} onClick={() => onChange([...shots, {id: crypto.randomUUID(), scene_index: 0, description: translate("新镜头画面"), shot_size: 'medium', camera_movement: 'static', duration_seconds: 3, dialogue: ''}])}>{translate("添加镜头")}</button><button type="button" disabled={disabled} onClick={onCancel}>{translate("取消分镜编辑")}</button><button type="button" className="primary" disabled={disabled || !dirty || Boolean(validation)} onClick={onSave}>{translate("保存分镜")}</button></div></div>}
+    {editing && <div className="drama-script-actions">{validation && <p className="drama-validation" role="status">{validation}</p>}<p>{translate("按故事需要添加镜头。独立镜头无需剧本；场景引用对应来源剧本。")}</p><div><button type="button" disabled={disabled} onClick={() => onChange([...shots, {id: crypto.randomUUID(), scene_index: 0, description: translate("新镜头画面"), shot_size: 'medium', camera_movement: 'static', duration_seconds: 3, dialogue: ''}])}>{translate("添加镜头")}</button><button type="button" disabled={disabled} onClick={onCancel}>{translate("取消分镜编辑")}</button><button type="button" className="primary" disabled={disabled || !dirty || Boolean(validation)} onClick={onSave}>{translate("保存分镜")}</button></div></div>}
   </section>
 }

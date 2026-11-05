@@ -163,6 +163,9 @@ func apply(a series.Actor, c series.Command, r reader, preparing bool) (mutation
 		}
 		old.Status = c.Status
 	case "move":
+		if c.Mode != "" && c.Mode != "swap" && c.Mode != "insert" {
+			return mutation{}, series.ErrInput
+		}
 		if c.Kind == "series" || c.Ordinal < 1 || c.Ordinal >= series.MaxOrdinal {
 			return mutation{}, series.ErrInput
 		}
@@ -191,8 +194,24 @@ func apply(a series.Actor, c series.Command, r reader, preparing bool) (mutation
 			if n.State != "ready" {
 				return mutation{}, series.ErrConflict
 			}
-			if n.ID != old.ID && n.Ordinal == c.Ordinal {
+			if n.ID == old.ID {
+				continue
+			}
+			changed := false
+			if c.Mode == "insert" {
+				if c.Ordinal < old.Ordinal && n.Ordinal >= c.Ordinal && n.Ordinal < old.Ordinal {
+					n.Ordinal++
+					changed = true
+				}
+				if c.Ordinal > old.Ordinal && n.Ordinal > old.Ordinal && n.Ordinal <= c.Ordinal {
+					n.Ordinal--
+					changed = true
+				}
+			} else if n.Ordinal == c.Ordinal {
 				n.Ordinal = old.Ordinal
+				changed = true
+			}
+			if changed {
 				n.Version++
 				n.UpdatedAt = now
 				rows = append(rows, n)
@@ -211,7 +230,21 @@ func apply(a series.Actor, c series.Command, r reader, preparing bool) (mutation
 	if !series.Valid(old) {
 		return mutation{}, series.ErrInput
 	}
-	return mutation{[]series.Node{old}, old}, nil
+	rows := []series.Node{old}
+	if old.Kind != "series" {
+		parentKind := "series"
+		if old.Kind == "episode" {
+			parentKind = "season"
+		}
+		parent, err := r.get(parentKind, old.Parent)
+		if err != nil {
+			return mutation{}, err
+		}
+		parent.Version++
+		parent.UpdatedAt = now
+		rows = append(rows, parent)
+	}
+	return mutation{rows, old}, nil
 }
 func (s *Store) Get(ctx context.Context, space, kind, id string) (series.Node, error) {
 	if !series.ScopeID.MatchString(space) || !series.ID.MatchString(id) {

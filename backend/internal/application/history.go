@@ -119,6 +119,13 @@ func (s *FileStore) RestoreHistory(space, id, rid, key string, in ScriptGenerati
 		return Project{}, ErrNotFound
 	}
 	if revision.Kind == "script" {
+		if p.SeriesEpisodeID != "" && revision.Script != nil {
+			v := cloneScript(*revision.Script)
+			if err := singleEpisodeScript(&v); err != nil {
+				return Project{}, err
+			}
+			revision.Script = &v
+		}
 		p.Script = revision.Script
 		p.ScriptBrief = revision.ScriptBrief
 		p.ScriptProvider = revision.ScriptProvider

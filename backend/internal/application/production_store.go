@@ -83,5 +83,5 @@ func (m *MediaStore) SaveProductionDecision(project, space, key string, in Produ
 	p.Version++
 	d.Projects[k] = p
 	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest}
-	return p, m.commit(d)
+	return m.commitState(d, k)
 }

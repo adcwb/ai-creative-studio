@@ -141,7 +141,7 @@ func RunScriptWorker(ctx context.Context, repo ProjectRepository, pipeline *Scri
 					if e != nil {
 						return e
 					}
-					script, e = p.Invoke(ctx, ProjectInput{Title: generation.SourceTitle, Brief: generation.SourceBrief})
+					script, e = p.Invoke(ctx, generationProjectInput(generation))
 					if e == nil {
 						output, _ := json.Marshal(script)
 						e = store.execution.ReviewResult(ctx, ExecutionRequest{ID: "script:" + generation.ID, Selection: generation.RuntimeSelection, Tenant: generation.SpaceID, Provider: generation.Provider, Model: generation.Model, Capability: "text", Text: string(output)})
@@ -152,7 +152,7 @@ func RunScriptWorker(ctx context.Context, repo ProjectRepository, pipeline *Scri
 		} else if generation.Provider != pipeline.provider || (generation.Provider != "mock-script" && (generation.Model == "" || generation.Model != pipeline.model)) {
 			runErr = providerFailure("provider_unavailable")
 		} else {
-			script, runErr = pipeline.Invoke(ctx, ProjectInput{Title: generation.SourceTitle, Brief: generation.SourceBrief})
+			script, runErr = pipeline.Invoke(ctx, generationProjectInput(generation))
 		}
 		if ctx.Err() != nil {
 			return nil

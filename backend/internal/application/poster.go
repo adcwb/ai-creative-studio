@@ -33,7 +33,7 @@ func (m *MediaStore) SavePoster(project, space, key string, version int, v Poste
 	p.Version++
 	d.Projects[k] = p
 	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest}
-	return p, m.commit(d)
+	return m.commitState(d, k)
 }
 func posterRGBA(s string) color.RGBA {
 	var r, g, b uint8
@@ -138,5 +138,5 @@ func (m *MediaStore) ExportPoster(project, space, key string, version int) (Medi
 	p.Version++
 	d.Projects[k] = p
 	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest, AssetID: id}
-	return p, m.commit(d)
+	return m.commitState(d, k)
 }

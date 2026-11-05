@@ -15,7 +15,7 @@ export function StudioShell({spaces, space, capability, capabilityError, onSpace
 }) {
   const {t} = useI18n()
   const location = useLocation()
-  const gatewayPage = gatewayCreationRequired && (location.pathname.startsWith('/studio') || location.pathname.startsWith('/projects'))
+  const gatewayPage = gatewayCreationRequired && (location.pathname.startsWith('/studio') || location.pathname.startsWith('/projects') || location.pathname.startsWith('/series/'))
   const {navigation, setNavigation} = usePreferences()
   const collapsed = navigation.collapsed
   const toggleGroup = (key: string) => setNavigation({...navigation, groups: {...navigation.groups, [key]: navigation.groups[key] === false}})
@@ -43,7 +43,7 @@ export function StudioShell({spaces, space, capability, capabilityError, onSpace
     window.addEventListener('keydown', keydown)
     return () => {document.body.style.overflow = previousOverflow; window.removeEventListener('keydown', keydown)}
   }, [open])
-  const navItem = (to: string, label: string, icon: Parameters<typeof Icon>[0]['name']) => <NavLink to={to} title={t(label)} aria-label={t(label)} onClick={() => setOpen(false)}><Icon name={icon} /><span>{t(label)}</span></NavLink>
+  const navItem = (to: string, label: string, icon: Parameters<typeof Icon>[0]['name']) => <NavLink className={({isActive})=>isActive||(to==='/projects'&&location.pathname.startsWith('/series/'))?'active':undefined} to={to} title={t(label)} aria-label={t(label)} onClick={() => setOpen(false)}><Icon name={icon} /><span>{t(label)}</span></NavLink>
   const activeGroup = location.pathname.startsWith('/digital-humans') ? 'avatars' : ['/assets','/library'].includes(location.pathname) ? 'resources' : location.pathname.startsWith('/settings') ? 'organization' : 'creative'
   const group = (key: string, label: string, icon: Parameters<typeof Icon>[0]['name'], content: ReactNode) => <section className="navigation-group" data-group={key} data-active={activeGroup === key}><button type="button" className="nav-parent group-toggle" title={t(label)} aria-label={t(label)} aria-expanded={navigation.groups[key] !== false} aria-controls={`nav-group-${key}`} onClick={() => toggleGroup(key)}><Icon name={icon} /><span>{t(label)}</span><span className="group-chevron" aria-hidden="true">{navigation.groups[key] === false ? '›' : '⌄'}</span></button><div id={`nav-group-${key}`} className="nav-subgroup" hidden={navigation.groups[key] === false}>{content}</div></section>
   return <div className={`shell app-shell ${collapsed ? 'navigation-collapsed' : ''}`}>

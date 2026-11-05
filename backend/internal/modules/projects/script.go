@@ -34,22 +34,24 @@ type ScriptDialogue struct {
 }
 
 type ScriptGeneration struct {
-	TraceParent      string            `json:"trace_parent,omitempty"`
-	RuntimeSelection *RuntimeSelection `json:"runtime_selection,omitempty"`
-	Model            string            `json:"model,omitempty"`
-	ID               string            `json:"id"`
-	SpaceID          string            `json:"space_id"`
-	ProjectID        string            `json:"project_id"`
-	SourceTitle      string            `json:"source_title"`
-	SourceBrief      string            `json:"source_brief"`
-	BaseVersion      int               `json:"base_version"`
-	Provider         string            `json:"provider"`
-	Status           string            `json:"status"`
-	Progress         int               `json:"progress"`
-	CreatedAt        time.Time         `json:"created_at"`
-	UpdatedAt        time.Time         `json:"updated_at"`
-	Error            string            `json:"error,omitempty"`
-	ErrorCode        string            `json:"error_code,omitempty"`
+	SourceEpisodeID       string            `json:"source_episode_id,omitempty"`
+	TargetDurationSeconds int64             `json:"target_duration_seconds,omitempty"`
+	TraceParent           string            `json:"trace_parent,omitempty"`
+	RuntimeSelection      *RuntimeSelection `json:"runtime_selection,omitempty"`
+	Model                 string            `json:"model,omitempty"`
+	ID                    string            `json:"id"`
+	SpaceID               string            `json:"space_id"`
+	ProjectID             string            `json:"project_id"`
+	SourceTitle           string            `json:"source_title"`
+	SourceBrief           string            `json:"source_brief"`
+	BaseVersion           int               `json:"base_version"`
+	Provider              string            `json:"provider"`
+	Status                string            `json:"status"`
+	Progress              int               `json:"progress"`
+	CreatedAt             time.Time         `json:"created_at"`
+	UpdatedAt             time.Time         `json:"updated_at"`
+	Error                 string            `json:"error,omitempty"`
+	ErrorCode             string            `json:"error_code,omitempty"`
 }
 
 func CloneScript(script Script) Script {

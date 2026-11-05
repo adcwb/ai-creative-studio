@@ -80,20 +80,29 @@ type RenderProgress struct {
 	Total     int64  `json:"total"`
 	Phase     string `json:"phase"`
 }
+type SeriesEpisodeSnapshot struct {
+	SeriesID            string `json:"series_id"`
+	SeasonID            string `json:"season_id"`
+	EpisodeID           string `json:"episode_id"`
+	SeasonOrdinal       int64  `json:"season_ordinal"`
+	Ordinal             int64  `json:"ordinal"`
+	ProjectLocalEpisode int    `json:"project_local_episode"`
+}
 type MediaExport struct {
-	RenderProgress  *RenderProgress `json:"render_progress,omitempty"`
-	ResumeAvailable bool            `json:"resume_available,omitempty"`
-	RenderVersion   int             `json:"render_version,omitempty"`
-	EpisodeNumber   int             `json:"episode_number,omitempty"`
-	TraceParent     string          `json:"trace_parent,omitempty"`
-	SubtitleVTTURL  string          `json:"subtitle_vtt_url"`
-	ID              string          `json:"id"`
-	Status          string          `json:"status"`
-	FileURL         string          `json:"file_url"`
-	SubtitleURL     string          `json:"subtitle_url"`
-	Error           string          `json:"error"`
-	Duration        float64         `json:"duration"`
-	Timeline        MediaTimeline   `json:"timeline"`
+	SeriesEpisode   *SeriesEpisodeSnapshot `json:"series_episode,omitempty"`
+	RenderProgress  *RenderProgress        `json:"render_progress,omitempty"`
+	ResumeAvailable bool                   `json:"resume_available,omitempty"`
+	RenderVersion   int                    `json:"render_version,omitempty"`
+	EpisodeNumber   int                    `json:"episode_number,omitempty"`
+	TraceParent     string                 `json:"trace_parent,omitempty"`
+	SubtitleVTTURL  string                 `json:"subtitle_vtt_url"`
+	ID              string                 `json:"id"`
+	Status          string                 `json:"status"`
+	FileURL         string                 `json:"file_url"`
+	SubtitleURL     string                 `json:"subtitle_url"`
+	Error           string                 `json:"error"`
+	Duration        float64                `json:"duration"`
+	Timeline        MediaTimeline          `json:"timeline"`
 }
 
 type MediaState struct {

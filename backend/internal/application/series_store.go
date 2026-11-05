@@ -27,6 +27,7 @@ func (s *FileStore) openSeries(dir string) error {
 	if err = s.series.RecoverPreparing(context.Background(), func(n series.Node) error { return s.ensureEpisodeProjectLocked(n) }); err != nil {
 		return err
 	}
+	s.configureSeriesMedia()
 	for _, p := range s.data.Projects {
 		if err = s.readySeriesProject(p.SpaceID, p); err != nil {
 			return err
@@ -55,8 +56,7 @@ func (s *FileStore) ensureEpisodeProjectLocked(n series.Node) error {
 	return s.commit(d)
 }
 
-// CreateSeriesEpisode is deliberately not registered as an HTTP route until
-// local episode numbering, output snapshots and the C-end directory are ready.
+// CreateSeriesEpisode persists one independently managed episode and Project.
 // PostgreSQL publishes Project/node/counter/receipt in one core transaction;
 // files publish the node only after its stable Project is durable.
 func (s *FileStore) CreateSeriesEpisode(ctx context.Context, a series.Actor, key, parent string, in series.Input) (series.Node, Project, error) {
@@ -107,4 +107,17 @@ func (s *FileStore) readySeriesProject(space string, p Project) error {
 		return seriesrepo.ErrStorage
 	}
 	return nil
+}
+
+func singleEpisodeScript(script *Script) error {
+	for i := range script.Scenes {
+		if script.Scenes[i].EpisodeNumber > 1 {
+			return projectInputError("系列每集使用独立项目，请从系列目录打开其他剧集")
+		}
+		script.Scenes[i].EpisodeNumber = 1
+	}
+	return nil
+}
+func generationProjectInput(g ScriptGeneration) ProjectInput {
+	return ProjectInput{Title: g.SourceTitle, Brief: g.SourceBrief, SingleEpisode: g.SourceEpisodeID != "", TargetDurationSeconds: g.TargetDurationSeconds}
 }

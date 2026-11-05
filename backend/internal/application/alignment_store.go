@@ -207,6 +207,9 @@ func (m *MediaStore) CreateAlignment(project, space, key string, in AlignmentInp
 	if m.failure != nil {
 		return AlignmentTask{}, false, m.failure
 	}
+	if err := m.requireLocalEpisode(space, project, in.EpisodeNumber); err != nil {
+		return AlignmentTask{}, false, err
+	}
 	p := mediaState(m.data, mediaKey(space, project))
 	a := m.alignment
 	a.mu.Lock()

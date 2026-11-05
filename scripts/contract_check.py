@@ -427,6 +427,43 @@ def main():
                 assert crossed["error"]["code"] == "idempotency_conflict"
                 return {"id": project_id, "final": final_project, "initial": initial, "save": save_body, "attempt": attempt}
 
+            def check_series():
+                q = '?space_id=personal-demo'
+                profile = dict(duration_seconds=120, output_resolution='2160p', aspect_ratio='9:16')
+                initial = dict(title='合成系列合同', summary='逐集独立创作并保留过去的成片。', profile=profile)
+                root = call('POST', '/api/v1/series'+q, '/api/v1/series', initial, 'series-root-contract', 201)
+                season = call('POST', '/api/v1/series/'+root['id']+'/seasons'+q, '/api/v1/series/{id}/seasons', {}, 'series-season-contract', 201)
+                episodes=[]
+                for index in range(21):
+                    episodes.append(call('POST', '/api/v1/seasons/'+season['id']+'/episodes'+q, '/api/v1/seasons/{id}/episodes', dict(title='合成剧集'+str(index+1)), 'series-episode-'+str(index), 201))
+                episode=episodes[0]
+                directory='/api/v1/seasons/'+season['id']+'/episodes'
+                page=call('GET', directory+q, '/api/v1/seasons/{id}/episodes')
+                assert len(page['items'])==20 and page['next_cursor']
+                tail=call('GET', directory+q+'&cursor='+page['next_cursor'], '/api/v1/seasons/{id}/episodes')
+                assert len(tail['items'])==1 and tail['items'][0]['ordinal']==21 and not tail['next_cursor']
+                call('GET', directory+q+'&status=planned&cursor='+page['next_cursor'], '/api/v1/seasons/{id}/episodes', expected=400)
+                call('GET', '/api/v1/series'+q+'&cursor='+page['next_cursor'], '/api/v1/series', expected=400)
+                detail=call('GET', '/api/v1/episodes/'+episode['id']+q, '/api/v1/episodes/{id}')
+                assert detail['episode']['profile']==profile and detail['season']['id']==season['id']
+                call('GET', '/api/v1/episodes/'+episode['id']+'?space_id=team-demo', '/api/v1/episodes/{id}', expected=404)
+                project=call('GET','/api/v1/projects/'+episode['project_id']+q,'/api/v1/projects/{id}')
+                assert project['series_episode_id']==episode['id'] and not project.get('script')
+                media=call('GET','/api/v1/projects/'+project['id']+'/media'+q,'/api/v1/projects/{id}/media')
+                assert media['timeline']['output_resolution']=='2160p' and media['timeline']['aspect_ratio']=='9:16'
+                changed=call('PUT','/api/v1/projects/'+project['id']+q,'/api/v1/projects/{id}',dict(title='目录显示当前项目标题',brief='目录不能回写或展示过期创建种子。',expected_version=1),'series-project-title')
+                detail=call('GET','/api/v1/episodes/'+episode['id']+q,'/api/v1/episodes/{id}')
+                assert detail['episode']['title']==changed['title'] and detail['episode']['project_version']==2
+                parent=call('GET','/api/v1/seasons/'+season['id']+q,'/api/v1/seasons/{id}')
+                moved=call('POST','/api/v1/seasons/'+season['id']+'/episode-order'+q,'/api/v1/seasons/{id}/episode-order',dict(id=episode['id'],ordinal=7,expected_version=1,expected_parent_version=parent['row_version']),'series-move-seven')
+                assert moved['ordinal']==7
+                latest=call('GET','/api/v1/series/'+root['id']+q,'/api/v1/series/{id}')
+                call('PATCH','/api/v1/series/'+root['id']+q,'/api/v1/series/{id}',dict(**initial,expected_version=latest['row_version'],status='archived'),'series-archive-contract')
+                call('POST','/api/v1/seasons/'+season['id']+'/episodes'+q,'/api/v1/seasons/{id}/episodes',dict(title='归档后不能新增'),'series-after-archive',409)
+                stop(); start()
+                restored=call('GET','/api/v1/episodes/'+episode['id']+q,'/api/v1/episodes/{id}')
+                assert restored['episode']['ordinal']==7 and restored['episode']['title']==changed['title']
+
             try:
                 start()
                 call("GET", "/healthz", "/healthz")
@@ -512,6 +549,7 @@ def main():
                 check_history()
                 check_creative()
                 check_library()
+                check_series()
                 stop()
                 configurations = [
                     ("openai-images", "", "missing_api_key"),

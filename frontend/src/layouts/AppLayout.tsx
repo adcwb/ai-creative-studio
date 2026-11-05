@@ -84,6 +84,7 @@ export function AppLayout() {
     if (next === spaceID) return
     requestLeave(() => {
       setDirty(false); setImageDirty(false); setSpaceID(next)
+      if (location.pathname.startsWith('/series/')) setTimeout(() => {void navigate('/projects?view=series')}, 0)
       if (location.pathname.startsWith('/projects/')) setTimeout(() => {void navigate('/projects')}, 0)
     })
   }} onLogout={() => requestLeave(logout)} capability={provider.capability} capabilityError={provider.error}>

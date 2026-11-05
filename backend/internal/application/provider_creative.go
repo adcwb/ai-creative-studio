@@ -229,7 +229,7 @@ func (p *OpenAICreativeProvider) Script(ctx context.Context, in ProjectInput) (S
 		return Script{}, err
 	}
 	var s Script
-	err = p.json(ctx, in, `Schema: {"title":string<=80,"logline":string 3..300,"characters":[{"name":string 1..40,"description":string 1..200}],"scenes":[{"heading":string 1..100,"action":string 1..1000,"dialogue":[{"character":string,"text":string 1..300}]}]}. Exactly 2 distinct characters and exactly 3 scenes, 1..6 dialogue lines per scene. Dialogue character references one of the two names. Chinese prose.`, &s)
+	err = p.json(ctx, in, scriptGenerationInstructions(in), &s)
 	if err != nil {
 		return s, err
 	}
@@ -247,7 +247,7 @@ func (p *OpenAICreativeProvider) Storyboard(ctx context.Context, in Script) ([]S
 	var out struct {
 		Shots []StoryboardShot `json:"shots"`
 	}
-	err = p.json(ctx, in, `Return {"shots":[{"id":string,"scene_index":integer,"description":string,"shot_size":string,"camera_movement":string,"duration_seconds":integer,"dialogue":string}]}. 1..30 shots. Unique id ASCII letters/digits/-/_ <=40. scene_index 1..3. description 1..1000 characters. shot_size one of wide,medium,close_up. camera_movement one of static,pan,track. duration_seconds 1..30. dialogue <=2000 characters.`, &out)
+	err = p.json(ctx, in, storyboardGenerationInstructions, &out)
 	if err != nil {
 		return nil, err
 	}

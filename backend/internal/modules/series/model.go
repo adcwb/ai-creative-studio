@@ -76,6 +76,7 @@ type Command struct {
 	ExpectedParent              int64
 	Status                      string
 	Ordinal                     int64
+	Mode                        string `json:"mode,omitempty"`
 }
 
 func SHA(v string) string { h := sha256.Sum256([]byte(v)); return hex.EncodeToString(h[:]) }

@@ -1,6 +1,7 @@
 package application
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -248,7 +249,15 @@ func (s *FileStore) CreateScriptGeneration(space, id, key string, in ScriptGener
 		return ScriptGeneration{}, false, err
 	}
 	now := time.Now().UTC()
-	generation := ScriptGeneration{TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), ID: generationID, SpaceID: space, ProjectID: id, SourceTitle: project.Title, SourceBrief: project.Brief, BaseVersion: project.Version, Provider: s.creativeGenerationProvider("mock-script"), Model: s.creativeGenerationModel(), Status: "queued", CreatedAt: now, UpdatedAt: now}
+	var targetDuration int64
+	if project.SeriesEpisodeID != "" {
+		node, e := s.series.Get(context.Background(), space, "episode", project.SeriesEpisodeID)
+		if e != nil {
+			return ScriptGeneration{}, false, e
+		}
+		targetDuration = node.Profile.Duration
+	}
+	generation := ScriptGeneration{SourceEpisodeID: project.SeriesEpisodeID, TargetDurationSeconds: targetDuration, TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), ID: generationID, SpaceID: space, ProjectID: id, SourceTitle: project.Title, SourceBrief: project.Brief, BaseVersion: project.Version, Provider: s.creativeGenerationProvider("mock-script"), Model: s.creativeGenerationModel(), Status: "queued", CreatedAt: now, UpdatedAt: now}
 	if in.selection != nil {
 		generation.Provider, generation.Model = in.selectedCaps.Provider, in.selectedCaps.Model
 	}
@@ -313,6 +322,11 @@ func (s *FileStore) SaveProjectScript(space, id, key string, in ScriptSaveInput)
 	}
 	if s.generationActiveLocked(project) {
 		return Project{}, ErrGenerationActive
+	}
+	if project.SeriesEpisodeID != "" {
+		if err := singleEpisodeScript(&in.Script); err != nil {
+			return Project{}, err
+		}
 	}
 	// A handwritten script can be the first draft; generation is optional.
 	if project.Script == nil {
@@ -384,6 +398,11 @@ func (s *FileStore) finishScriptLocked(generation ScriptGeneration, script Scrip
 		script, err = NormalizeScript(script)
 		if err != nil {
 			runErr = &ScriptError{Code: "invalid_script_output"}
+		}
+	}
+	if runErr == nil && project.SeriesEpisodeID != "" {
+		if err := singleEpisodeScript(&script); err != nil {
+			runErr = providerFailure("invalid_provider_response")
 		}
 	}
 	current.Progress = 100

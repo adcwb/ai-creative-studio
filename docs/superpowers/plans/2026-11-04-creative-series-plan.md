@@ -1,6 +1,6 @@
 # 自定义提示词与长篇漫剧实施计划
 
-创建：2026-11-04；修订8：2026-11-05。状态：Implementing，**P0A首批实现已开始，任务未全部完成**。已fetch核对代码基线与origin/master均为`9e687c584632fdc98628c42592ff3df2ff0304cb`。用户已授权按阶段实施；按最新授权，全部规格实施且验证完成后推送GitHub并跟进CI；完成前只做本地阶段提交，不部署。
+创建：2026-11-04；修订9：2026-11-05。状态：Implementing，**P0A首批实现已开始，任务未全部完成**。已fetch核对代码基线与origin/master均为`9e687c584632fdc98628c42592ff3df2ff0304cb`。用户已授权按阶段实施；按最新授权，全部规格实施且验证完成后推送GitHub并跟进CI；完成前只做本地阶段提交，不部署。
 
 规格：[入口](../specs/2026-11-04-creative-series/README.md) · [需求](../specs/2026-11-04-creative-series/requirements.md) · [设计](../specs/2026-11-04-creative-series/design.md) · [验收](../specs/2026-11-04-creative-series/acceptance.md)。以下目标路径是拟定实施位置；已存在的文件按最小改动扩展，不要求一次重写所有模块。
 
@@ -49,7 +49,7 @@ flowchart LR
 
 ## P3：系列结构、独立剧集与编剧工作台
 
-- [ ] **T31** 实现series/season/episode实体、分页仓储、同事务创建每集Project及独立版本，UI集号/导出profile快照适配，不设200集产品上限。目标：`modules/series`、`persistence/seriesrepo`、`application/series_*`、`features/series`、`ProjectPage.tsx`。依赖：T01表现/迁移决策、T02、T07；验收AC-S01、AC-Q01、AC-R01。退出：200集及新增201集元数据可管理，不声称已通过完整生产容量。
+- [x] **T31** 实现series/season/episode实体、分页仓储、同事务创建每集Project及独立版本，UI集号/导出profile快照适配，不设200集产品上限。目标：`modules/series`、`persistence/seriesrepo`、`application/series_*`、`features/series`、`ProjectPage.tsx`。依赖：T01表现/迁移决策、T02、T07；验收AC-S01、AC-Q01、AC-R01。退出：200集及新增201集元数据可管理，不声称已通过完整生产容量。
 - [ ] **T32** 稳定character/scene ID和旧索引/名字映射；旧多集显式拆分预览/迁移、素材授权复制、幂等中断续跑与旧入口兼容。目标：`modules/projects/script.go`、`storyboard.go`、`media_episodes.go`、Project/Media仓储、离线迁移器。依赖：T31；验收 AC-S02、AC-S03、AC-O08。退出：对账与回退演练通过，不能猜测未知归属。
 - [ ] **T33** 正式圣经、角色弧线、事件/知识边界/伏笔版本、风格/声音卡的必要扩展；上下文编译与finding/decision分离。目标：series、library模块与仓储、`application/series_context_*`。依赖：T31–T32；验收 AC-S04–AC-S07。退出：AI建议不自动改正式事实，超长上下文可解释，声音授权合同明确。
 - [ ] **T34** 编剧工作台、季集节拍视图、证据跳转和text生成合同；新增功能绑定目录、OpenAPI、前端和后端负向用例同步。目标：`features/series`、`ProjectScript.tsx`、`gateway_models.go`与真实功能目录实际位置。依赖：T33、T23；验收 AC-S01、AC-S03–AC-S05、AC-O01。退出：单集候选—采纳闭环通过，未使用整季全文请求。
@@ -101,3 +101,7 @@ T06核心已实现：有理数全局时码、core/转场分段、PCM单次AAC、
 ## 第八阶段记录
 
 T31 的领域、独立文件/PG目录、CAS排序、原回执、每集Project原子保存与存储切换迁移已实现；201条目录、并发、SIGKILL交接恢复和应用离线往返通过，详见[系列存储基础记录](../specs/2026-11-04-creative-series/series-storage-implementation.md)。HTTP与C端目录、外部集号/实际输出快照未接入，因此T31保持未勾选；T32旧多集拆分、连续性、导演工作流、DAG和200集完整容量未完成，不提前推送。下一阶段先完成T31的可用前台与合同，再按依赖推进T32。
+
+## 第九阶段记录
+
+T31元数据工作区闭环已完成：系列/季/集HTTP与C端页面、当前项目标题、原请求恢复、过期游标拒绝、单集本地编号、输出默认值、真实text单集意图、PG队列传递和不可变导出编号；支持交换及插入顺移，两季200集与新增201集元数据验证通过。证据见[系列工作区记录](../specs/2026-11-04-creative-series/series-ui-implementation.md)。因此T31按其元数据退出条件勾选，不表示T07或AC-S01的后续正式事实串联已经完成，也不表示200集实际制作容量达标。下一阶段T32仍未勾选；旧多集拆分尚未实施，不能推送整套方案。

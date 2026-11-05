@@ -168,5 +168,5 @@ func (m *MediaStore) bindLibrary(project, space, key string, in libraryBindingIn
 	p.Version++
 	d.Projects[k] = p
 	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest}
-	return p, m.commit(d)
+	return m.commitState(d, k)
 }

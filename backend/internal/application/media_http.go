@@ -115,7 +115,12 @@ func registerMediaRoutes(mux *http.ServeMux, s *FileStore) {
 		if !ok {
 			return
 		}
-		respond(w, 200, m.Get(r.PathValue("id"), space))
+		state, err := m.GetChecked(r.PathValue("id"), space)
+		if err != nil {
+			mediaError(w, err)
+			return
+		}
+		respond(w, 200, state)
 	})
 	mux.HandleFunc("POST "+base+"/uploads", func(w http.ResponseWriter, r *http.Request) {
 		space, key, ok := scope(w, r, true)

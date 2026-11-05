@@ -343,3 +343,17 @@ func TestOutputIntentInheritanceDoesNotRewriteExistingEpisodes(t *testing.T) {
 		t.Fatal("existing episode rewritten", err)
 	}
 }
+
+func TestEpisodeContextMissingParentDoesNotBecomeLegacy(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := Open(dir, nil)
+	_, season := fixture(t, s)
+	episode := create(t, s, command("episode", season.ID, "context-integrity"), "context-integrity")
+	source := filepath.Join(dir, series.SHA(testActor.Space), "nodes", "season", season.ID)
+	if err := os.Rename(source, filepath.Join(t.TempDir(), "removed-season")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Context(ctx, testActor.Space, episode.ID); !errors.Is(err, ErrStorage) {
+		t.Fatal("missing series ancestry was treated as a legacy project", err)
+	}
+}

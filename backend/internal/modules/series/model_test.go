@@ -33,3 +33,11 @@ func TestInputRejectsAmbiguousOrMalformedMetadata(t *testing.T) {
 		t.Fatal("unknown format")
 	}
 }
+
+func TestOptionalReorderModePreservesPreviouslyAcceptedCommandDigests(t *testing.T) {
+	legacy := `{"Operation":"move","Kind":"episode","ID":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","Parent":"","Input":{"title":"","summary":"","profile":{"duration_seconds":0,"output_resolution":"","aspect_ratio":""}},"Expected":1,"ExpectedParent":2,"Status":"","Ordinal":7}`
+	command := Command{Operation: "move", Kind: "episode", ID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Expected: 1, ExpectedParent: 2, Ordinal: 7}
+	if Digest(command) != SHA(legacy) {
+		t.Fatal("adding optional insert mode invalidated pre-existing accepted request receipts")
+	}
+}

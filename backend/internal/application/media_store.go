@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/media"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 )
 
@@ -27,17 +28,19 @@ type mediaDisk struct {
 	Receipts map[string]mediaReceipt `json:"receipts"`
 }
 type MediaStore struct {
-	pg        *postgresScope
-	blobs     *managedBlobs
-	alignment *AlignmentStore
-	failure   error
-	mu        stateMutex
-	dir       string
-	data      mediaDisk
-	cancels   map[string]context.CancelFunc
-	attempts  map[string]string
-	jobs      *localJobs
-	closed    bool
+	seriesProfile  func(string, string) (initialMediaProfile, error)
+	seriesSnapshot func(string, string) (*media.SeriesEpisodeSnapshot, error)
+	pg             *postgresScope
+	blobs          *managedBlobs
+	alignment      *AlignmentStore
+	failure        error
+	mu             stateMutex
+	dir            string
+	data           mediaDisk
+	cancels        map[string]context.CancelFunc
+	attempts       map[string]string
+	jobs           *localJobs
+	closed         bool
 }
 
 func mediaID() string {
@@ -127,6 +130,17 @@ func (m *MediaStore) clone() mediaDisk {
 	return d
 }
 func (m *MediaStore) commit(d mediaDisk) (resultErr error) {
+	if m.failure != nil {
+		return m.failure
+	}
+	for k, p := range d.Projects {
+		if _, exists := m.data.Projects[k]; !exists {
+			if err := m.initializeSeriesProfile(k, &p); err != nil {
+				return err
+			}
+			d.Projects[k] = p
+		}
+	}
 	if m.pg != nil {
 		if err := m.pg.save(d); err != nil {
 			return err
@@ -166,6 +180,22 @@ func (m *MediaStore) commit(d mediaDisk) (resultErr error) {
 		m.data = committed
 	}
 	return err
+}
+
+// Return the normalized persisted view, detached from the PG/file cache.
+func (m *MediaStore) commitState(d mediaDisk, k string) (MediaState, error) {
+	if err := m.commit(d); err != nil {
+		return MediaState{}, err
+	}
+	b, err := json.Marshal(d.Projects[k])
+	if err != nil {
+		return MediaState{}, err
+	}
+	var p MediaState
+	if err = json.Unmarshal(b, &p); err != nil {
+		return MediaState{}, err
+	}
+	return p, nil
 }
 func mediaState(d mediaDisk, k string) MediaState {
 	p, ok := d.Projects[k]
@@ -246,6 +276,9 @@ func (m *MediaStore) SaveTimeline(project, space, key string, version int, t Med
 	if err := m.validateAlignmentSources(project, space, t); err != nil {
 		return p, err
 	}
+	if err := m.requireLocalEpisode(space, project, t.EpisodeNumber); err != nil {
+		return p, err
+	}
 	if t.EpisodeNumber <= 1 {
 		p.Timeline = t
 	} else {
@@ -257,7 +290,7 @@ func (m *MediaStore) SaveTimeline(project, space, key string, version int, t Med
 	p.Version++
 	d.Projects[k] = p
 	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest}
-	return p, m.commit(d)
+	return m.commitState(d, k)
 }
 func (m *MediaStore) file(project, space, id string, export, subtitles bool) (string, string, error) {
 	m.mu.Lock()

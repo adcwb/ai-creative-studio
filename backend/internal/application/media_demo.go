@@ -114,7 +114,7 @@ func (m *MediaStore) Demo(project, space, key string, version int, shots []Story
 	p.Version++
 	d.Projects[k] = p
 	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest}
-	err = m.commit(d)
+	result, err := m.commitState(d, k)
 	committed = err == nil
-	return p, err
+	return result, err
 }

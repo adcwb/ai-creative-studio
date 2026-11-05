@@ -12,9 +12,11 @@ import (
 type RuntimeSelection = governance.RuntimeSelection
 
 type ProjectInput struct {
-	Kind  string `json:"kind,omitempty"`
-	Title string `json:"title"`
-	Brief string `json:"brief"`
+	SingleEpisode         bool   `json:"-"`
+	TargetDurationSeconds int64  `json:"-"`
+	Kind                  string `json:"kind,omitempty"`
+	Title                 string `json:"title"`
+	Brief                 string `json:"brief"`
 }
 
 type ProjectUpdate struct {

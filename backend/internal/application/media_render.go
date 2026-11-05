@@ -159,6 +159,9 @@ func (m *MediaStore) StartEpisodeExport(project, space, key string, version, epi
 		}
 		return MediaExport{}, errors.New("导出回执损坏")
 	}
+	if err := m.requireLocalEpisode(space, project, episode); err != nil {
+		return MediaExport{}, err
+	}
 	if p.Version != version {
 		return MediaExport{}, errMediaVersion
 	}
@@ -195,7 +198,15 @@ func (m *MediaStore) StartEpisodeExport(project, space, key string, version, epi
 	if len(traceParents) == 1 && tracing.ValidParent(traceParents[0]) {
 		parent = traceParents[0]
 	}
-	e := MediaExport{RenderVersion: 1, EpisodeNumber: episode, TraceParent: parent, ID: mediaID(), Status: "queued", Timeline: selected}
+	var seriesSnapshot *media.SeriesEpisodeSnapshot
+	if m.seriesSnapshot != nil {
+		var err error
+		seriesSnapshot, err = m.seriesSnapshot(space, project)
+		if err != nil {
+			return MediaExport{}, err
+		}
+	}
+	e := MediaExport{SeriesEpisode: seriesSnapshot, RenderVersion: 1, EpisodeNumber: episode, TraceParent: parent, ID: mediaID(), Status: "queued", Timeline: selected}
 	plan, err := media.CompileRenderPlan(e.Timeline)
 	if err != nil {
 		return MediaExport{}, err

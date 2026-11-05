@@ -74,7 +74,7 @@ func RunQueuedScriptWorker(ctx context.Context, q jobqueue.Queue, repo QueuedScr
 					if e != nil {
 						return e
 					}
-					result, e = pipeline.Invoke(ctx, ProjectInput{Title: g.SourceTitle, Brief: g.SourceBrief})
+					result, e = pipeline.Invoke(ctx, generationProjectInput(*g))
 					if e == nil {
 						raw, _ := json.Marshal(result)
 						e = store.execution.ReviewResult(ctx, ExecutionRequest{ID: g.ID, Selection: g.RuntimeSelection, Tenant: g.SpaceID, Provider: g.Provider, Model: g.Model, Capability: "text", Text: string(raw)})
@@ -85,7 +85,7 @@ func RunQueuedScriptWorker(ctx context.Context, q jobqueue.Queue, repo QueuedScr
 		} else if p.provider != "mock-script" || g.Provider != p.provider {
 			runErr = providerFailure("provider_unavailable")
 		} else {
-			result, runErr = p.Invoke(ctx, ProjectInput{Title: g.SourceTitle, Brief: g.SourceBrief})
+			result, runErr = p.Invoke(ctx, generationProjectInput(*g))
 		}
 
 		if ctx.Err() != nil {
