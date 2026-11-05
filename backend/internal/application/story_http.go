@@ -53,6 +53,7 @@ func registerStoryRoutes(mux *http.ServeMux, s *FileStore) {
 	registerStoryEpisodeOptions(mux, s)
 	registerStorySnapshotRoutes(mux, s)
 	registerStoryCheckRoutes(mux, s)
+	registerStoryCastRoutes(mux, s)
 	scope := func(w http.ResponseWriter, r *http.Request, write bool) (story.Actor, string, bool) {
 		var space, key string
 		var ok bool
@@ -126,6 +127,9 @@ func registerStoryRoutes(mux *http.ServeMux, s *FileStore) {
 			root, id := r.PathValue("id"), r.PathValue("record_id")
 			if create {
 				id = story.NewID(a, root, key)
+				if in.Kind == "cast" && in.Body.Cast != nil {
+					id = story.CastID(root, in.Body.Cast.EpisodeID)
+				}
 				if in.Kind == "bible" {
 					id = storyrepo.BibleID(root)
 				}

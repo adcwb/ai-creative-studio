@@ -81,6 +81,7 @@ func (s *FileStore) CreateStoryContext(ctx context.Context, a story.Actor, episo
 		out.Context.Preview.Digest = ""
 		out.Context.Preview.Digest = story.Digest(out.Context.Preview)
 	}
+	checkCastScript(&out.Context.Preview, out.Script, out.ScriptVersion)
 	out.SHA256 = story.SnapshotDigest(out)
 	return s.story.SaveContext(ctx, a, key, out)
 }

@@ -44,8 +44,8 @@ func NormalizeDecision(in DecisionInput) (DecisionInput, error) {
 			return in, ErrInput
 		}
 		p, e := Normalize(*in.Proposal)
-		if e != nil {
-			return in, e
+		if e != nil || p.Kind == "cast" {
+			return in, ErrInput
 		}
 		in.Proposal = &p
 	case "reject", "intentional":

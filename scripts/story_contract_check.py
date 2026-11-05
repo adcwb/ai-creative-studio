@@ -104,11 +104,11 @@ def main():
                 members='/api/v1/organizations/'+space+'/members'
                 call(owner,'PUT',members,'/api/v1/organizations/{id}/members',dict(email=b['user']['email'],role='viewer'),aq)
                 story_path='/api/v1/series/'+root_series['id']+'/story-records';story_route='/api/v1/series/{id}/story-records'
-                bible=dict(expected_version=0,title='Canonical story bible',kind='bible',status='active',required=True,body=dict(evidence=[],bible=dict(theme='Uncertainty and trust',world_rules='Knowledge is not shared automatically.',story_arc='',visual_intent='',immutable_rules='',characters=[])))
+                bible=dict(expected_version=0,title='Canonical story bible',kind='bible',status='active',required=True,body=dict(evidence=[],bible=dict(theme='Uncertainty and trust',world_rules='Knowledge is not shared automatically.',story_arc='',visual_intent='',immutable_rules='',characters=[dict(id='9'*32,name='Canonical traveller',desire='',flaw='',arc='',relationships='',visual_intent='',voice_intent='')])) )
                 call(owner,'POST',story_path+query,story_route,bible,aq,status=201)
                 project_path='/api/v1/projects/'+episode['id'];project_route='/api/v1/projects/{id}'
                 project=call(owner,'GET',project_path+query,project_route)
-                script=dict(structure_version=2,title='Doorway',logline='A traveller hesitates.',characters=[],scenes=[dict(id='3'*32,episode_number=1,heading='The doorway',action='A traveller hesitates before opening the door.',dialogue=[])])
+                script=dict(structure_version=2,title='Doorway',logline='A traveller hesitates.',characters=[dict(id='4'*32,name='Traveller',description='A cautious traveller.')],scenes=[dict(id='3'*32,episode_number=1,heading='The doorway',action='A traveller hesitates before opening the door.',dialogue=[])])
                 project=call(owner,'PUT',project_path+'/script'+query,project_route+'/script',dict(expected_version=project['version'],script=script),aq)
                 report=call(owner,'POST','/api/v1/ai-gateways'+query,'/api/v1/ai-gateways',dict(expected_version=0,gateway=dict(name='Synthetic review gateway',base_url=f'http://127.0.0.1:{upstream.server_port}/v1',enabled=True,timeout_seconds=30),credential=dict(action='set',secret='synthetic-continuity-key')),aq)
                 model=call(owner,'POST','/api/v1/gateway-models'+query,'/api/v1/gateway-models',dict(expected_version=0,model=dict(gateway_id=report['gateways'][0]['id'],name='Synthetic review text',model='synthetic-continuity-text',capabilities=['text'],enabled=True,max_output_tokens=512,json_output=False)),aq)['models'][0]
@@ -157,11 +157,37 @@ def main():
                     data=dict(action=action,reason='The creator makes an explicit artistic decision.',review_sha256=current['review_sha256'],acknowledge_changed=False)
                     result=call(owner,'POST',path+'/decisions'+query,decision_route,data,aq,status=201)
                     assert result['action']==action and 'version_id' not in result
+                # A cast saves explicit identities and pinned assets, never a model call.
+                options_path='/api/v1/episodes/'+episode['id']+'/cast-options';options_route='/api/v1/episodes/{id}/cast-options'
+                options=call(viewer,'GET',options_path+query,options_route)
+                asset=call(owner,'POST','/api/v1/library/assets'+query,'/api/v1/library/assets',dict(kind='character',card=dict(name='Traveller asset',description='',prohibited_changes=[],character=dict(appearance='A traveller',hair='',costume='Raincoat',expression='',voice_notes='Not consent')),references=[]),aq,status=201)
+                cast_path='/api/v1/episodes/'+episode['id']+'/cast';cast_route='/api/v1/episodes/{id}/cast'
+                cast=dict(expected_version=0,title='Episode cast',kind='cast',status='active',required=True,body=dict(evidence=[],cast=dict(episode_id=episode['id'],script_version=options['script_version'],script_sha256=options['script_sha256'],bible_version_id=options['bible']['version_id'],characters=[dict(script_character_id='4'*32,script_character_name='Traveller',series_character_id='9'*32,series_character_name='Canonical traveller',library_asset_id=asset['asset']['id'],asset_version_id=asset['version']['id'],asset_name=asset['version']['card']['name'],notes='A cautious performance, not a voice authorization.')])) )
+                call(viewer,'PUT',cast_path+query,cast_route,cast,bq,status=403)
+                call(owner,'PUT',cast_path+query,cast_route,cast,status=403)
+                call(owner,'PUT',cast_path+query,cast_route,{**cast,'actor_id':'forged'},aq,status=400)
+                accepted_cast=call(owner,'PUT',cast_path+query,cast_route,cast,aq,key='story-http-cast-original')
+                assert accepted_cast['number']==1
+                assert call(owner,'PUT',cast_path+query,cast_route,cast,aq,key='story-http-cast-original')==accepted_cast
+                call(viewer,'GET',options_path+'?space_id='+b['spaces'][0]['id'],options_route,status=404)
+                project=call(owner,'GET',project_path+query,project_route)
+                script['characters'][0]['name']='A different display name'
+                project=call(owner,'PUT',project_path+'/script'+query,project_route+'/script',dict(expected_version=project['version'],script=script),aq)
+                stale_cast=json.loads(json.dumps(cast));stale_cast['expected_version']=1
+                call(owner,'PUT',cast_path+query,cast_route,stale_cast,aq,status=409)
+                assert call(owner,'PUT',cast_path+query,cast_route,cast,aq,key='story-http-cast-original')==accepted_cast
+                options=call(owner,'GET',options_path+query,options_route)
+                assert options['current']['body']['cast']['characters'][0]['script_character_name']=='Traveller'
+                stale_cast['body']['cast']['script_version']=options['script_version'];stale_cast['body']['cast']['script_sha256']=options['script_sha256'];stale_cast['body']['cast']['characters'][0]['script_character_name']=script['characters'][0]['name']
+                reconciled=call(owner,'PUT',cast_path+query,cast_route,stale_cast,aq)
+                assert reconciled['number']==2 and reconciled['body']['cast']['characters'][0]['asset_version_id']==asset['version']['id']
+                history=call(viewer,'GET',story_path+'/'+reconciled['id']+'/versions'+query,story_route+'/{record_id}/versions')
+                assert len(history['items'])==2
                 call(owner,'PUT',members,'/api/v1/organizations/{id}/members',dict(email=b['user']['email'],role='remove'),aq)
                 call(viewer,'GET',detail+query,detail_route,status=403)
                 call(viewer,'GET',first+'/review'+query,first_route+'/review',status=403)
                 assert len(calls)==1, 'local decisions resent a paid check'
-                print(json.dumps(dict(result='passed',contract_responses=count,synthetic_gateway_calls=len(calls),live_provider_calls=0,checks=['real guarded text protocol','no pricing configuration','strict schemas','CSRF and roles','pinned evidence','current script comparison','explicit source acknowledgement','adoption CAS','original decision replay preserves later edits','intentional misdirection and rejection','revoked access'])))
+                print(json.dumps(dict(result='passed',contract_responses=count,synthetic_gateway_calls=len(calls),live_provider_calls=0,checks=['real guarded text protocol','no pricing configuration','strict schemas','CSRF and roles','pinned evidence','current script comparison','explicit source acknowledgement','adoption CAS','original decision replay preserves later edits','intentional misdirection and rejection','explicit cast identities, asset pinning, CAS and original replay','revoked access'])))
             finally:
                 process.terminate()
                 try:

@@ -10,6 +10,11 @@ import (
 )
 
 func (s *FileStore) validateStory(ctx context.Context, space, root string, in story.Input) error {
+	if in.Body.Cast != nil {
+		if e := s.validateStoryCast(ctx, space, root, *in.Body.Cast); e != nil {
+			return e
+		}
+	}
 	if _, e := s.series.Get(ctx, space, "series", root); e != nil {
 		return e
 	}
@@ -177,6 +182,7 @@ func (s *FileStore) PreviewStoryContext(ctx context.Context, space, episode stri
 			out.ProjectVersion = p.Version
 			out.ScriptVersion = p.ScriptVersion
 			out.ScriptDigest = story.Digest(p.Script)
+			checkCastScript(&out.Preview, p.Script, p.ScriptVersion)
 		}
 	}
 	s.mu.Unlock()

@@ -1,6 +1,6 @@
 # 自定义图像提示词与长篇 AI 漫剧
 
-规格 ID：CS-20261104。创建：2026-11-04；修订16：2026-11-05。状态：**Implementing，P0A部分完成、P1/P2提示词配方、文件资产库分片、可恢复上传、S3原生分段恢复、持久渲染、T31系列工作区、T32稳定身份/旧多集显式复制及T33A正式故事资料/T33B1持久检索上下文/T33B2真实文本检查与T33B3显式采纳已实现，整体方案未完成**。
+规格 ID：CS-20261104。创建：2026-11-04；修订17：2026-11-05。状态：**Implementing，P0A部分完成、P1/P2提示词配方、文件资产库分片、可恢复上传、S3原生分段恢复、持久渲染、T31系列工作区、T32稳定身份/旧多集显式复制及T33A正式故事资料/T33B1持久检索上下文/T33B2真实文本检查与T33B3显式采纳、T33C1本集选角已实现，整体方案未完成**。
 
 代码基线：`9e687c584632fdc98628c42592ff3df2ff0304cb`，远端 `master` 已推送的成本限制移除版本。用户已批准按阶段实施并要求保持C端视觉一致；当前代码已开始修改，全部规格完成并验证后按最新授权推送GitHub并核验CI；此前仅本地提交，不部署、不执行生产迁移或真实收费调用。实际完成范围与结果见[实施记录](implementation.md)，不能把本包全部目标当成当前能力。
 
@@ -34,7 +34,7 @@
 
 ## 当前实施与核验
 
-修订3记录第一批实现、测试和剩余限制：[实施与验证记录](implementation.md)。核心交付为移除一批自设数量/小时门槛、有界队列和流式高清媒体；自定义提示词闭环已实现，见[提示词实施记录](prompts-implementation.md)与[变量及参考图配方记录](references-implementation.md)；文件库64MiB瓶颈已按[存储记录](storage-implementation.md)改为实体事务文件，可恢复上传见[上传记录](uploads-implementation.md)；S3原生分段与清理见[S3实施记录](s3-implementation.md)；持久渲染的实施与验证见[渲染记录](render-implementation.md)；系列存储基础见[存储记录](series-storage-implementation.md)，T31系列前台、季集号、插入和导出快照已按[系列工作区记录](series-ui-implementation.md)交付；T32A稳定身份与显式升级见[稳定关联记录](structure-implementation.md)，T32旧多集预览、授权素材复制、持久续跑与对账见[分集迁移记录](episode-migration-implementation.md)；故事资料、上下文与AI连续性建议/人工处理的阶段结果见下文；人物资产绑定、制作DAG与200集生产容量仍未交付。
+修订3记录第一批实现、测试和剩余限制：[实施与验证记录](implementation.md)。核心交付为移除一批自设数量/小时门槛、有界队列和流式高清媒体；自定义提示词闭环已实现，见[提示词实施记录](prompts-implementation.md)与[变量及参考图配方记录](references-implementation.md)；文件库64MiB瓶颈已按[存储记录](storage-implementation.md)改为实体事务文件，可恢复上传见[上传记录](uploads-implementation.md)；S3原生分段与清理见[S3实施记录](s3-implementation.md)；持久渲染的实施与验证见[渲染记录](render-implementation.md)；系列存储基础见[存储记录](series-storage-implementation.md)，T31系列前台、季集号、插入和导出快照已按[系列工作区记录](series-ui-implementation.md)交付；T32A稳定身份与显式升级见[稳定关联记录](structure-implementation.md)，T32旧多集预览、授权素材复制、持久续跑与对账见[分集迁移记录](episode-migration-implementation.md)；故事资料、上下文与AI连续性建议/人工处理的阶段结果见下文；人物资产的授权/实际生成适配、制作DAG与200集生产容量仍未交付。
 基线发布已独立确认：[成本管理移除版 CI](https://github.com/adcwb/ai-creative-studio/actions/runs/41858736674) 总状态 completed/success，五个作业成功，前后端镜像已发布。这个结果只验证上述基线，不能作为本规格实现完成的证据。本包随阶段代码本地提交，完整规格完成并验证前不推送。
 
 T33A的正式故事圣经、认知/事件/伏笔版本与C端预览见[故事资料基础记录](story-implementation.md)。该节保留T33A当时范围；随后实现的AI检查/显式采纳见T33B2/B3。T33整体、人物资产及导演编排仍未完成，完成整个Spec前不推送。
@@ -42,3 +42,5 @@ T33A的正式故事圣经、认知/事件/伏笔版本与C端预览见[故事资
 T33B1在[故事资料实施记录](story-implementation.md)补充逐条检索、不可变单集资料/剧本快照、原请求跨刷新恢复、来源变更核对与离线往返。真实text检查、finding/decision显式采纳随后在T33B2/B3实现；保存快照本身不调用模型，也不代表其余Spec完成。
 
 T33B2/B3的真实文本网关检查、问题原文与来源变更对照、创作者显式决定及原子采纳见[故事实施记录](story-implementation.md)。费用门槛未恢复；人物资产绑定、编剧导演工作流和完整制作编排仍为后续任务，不提前推送。
+
+T33C1本集选角已实现，最终验证见[故事实施记录](story-implementation.md)：按稳定角色ID显式对应和固定资产版本，不按同名猜测。只完成选角及真实文本上下文集成；风格/声音卡、当前授权与实际图像/视频输入适配、原生token窗口、编剧导演及200集生产验收仍继续实施，不推送。

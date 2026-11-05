@@ -80,6 +80,7 @@ type Evidence struct {
 	Quote         string `json:"quote"`
 }
 type Body struct {
+	Cast          *Cast       `json:"cast,omitempty"`
 	Bible         *Bible      `json:"bible,omitempty"`
 	Fact          *Fact       `json:"fact,omitempty"`
 	Event         *Event      `json:"event,omitempty"`
@@ -172,7 +173,7 @@ func Normalize(in Input) (Input, error) {
 		return Input{}, ErrInput
 	}
 	count := 0
-	for _, x := range []bool{v.Body.Bible != nil, v.Body.Fact != nil, v.Body.Event != nil, v.Body.Foreshadow != nil} {
+	for _, x := range []bool{v.Body.Bible != nil, v.Body.Fact != nil, v.Body.Event != nil, v.Body.Foreshadow != nil, v.Body.Cast != nil} {
 		if x {
 			count++
 		}
@@ -220,6 +221,11 @@ func Normalize(in Input) (Input, error) {
 			}
 		}
 		// VoiceIntent is prose. Saving it is never consent or an executable voice ID.
+		v.Required = true
+	case "cast":
+		if !normalizeCast(v.Body.Cast) || v.Body.FromEpisodeID != "" || v.Body.ToEpisodeID != "" || len(v.Body.Evidence) > 0 {
+			return Input{}, ErrInput
+		}
 		v.Required = true
 	case "fact":
 		f := v.Body.Fact

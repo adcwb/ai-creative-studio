@@ -48,6 +48,9 @@ func EpisodeRefs(b Body) []string {
 			out = append(out, id)
 		}
 	}
+	if b.Cast != nil {
+		add(b.Cast.EpisodeID)
+	}
 	add(b.FromEpisodeID)
 	add(b.ToEpisodeID)
 	if b.Fact != nil {
@@ -127,6 +130,7 @@ func Compile(seriesID, episodeID string, order []Episode, versions []Version, li
 		return a.ID < b.ID
 	})
 	chars := map[string]bool{}
+	bibleVersion := ""
 	bibles := 0
 	ids := map[string]bool{}
 	for _, v := range versions {
@@ -137,6 +141,7 @@ func Compile(seriesID, episodeID string, order []Episode, versions []Version, li
 		p.Sources = append(p.Sources, Summarize(v))
 		if v.Kind == "bible" && v.Status == "active" {
 			bibles++
+			bibleVersion = v.VersionID
 			if b := v.Body.Bible; b.Theme == "" && b.WorldRules == "" && b.StoryArc == "" && b.VisualIntent == "" && b.ImmutableRules == "" && len(b.Characters) == 0 {
 				p.Problems = append(p.Problems, Problem{"empty_bible", v.ID, "故事圣经尚未填写规则、主线或人物，请补充后再核对。"})
 			}
@@ -152,6 +157,24 @@ func Compile(seriesID, episodeID string, order []Episode, versions []Version, li
 		if v.Status != "active" {
 			p.Omitted = append(p.Omitted, Omission{v.ID, v.VersionID, "archived"})
 			continue
+		}
+		if c := v.Body.Cast; c != nil {
+			if c.EpisodeID != episodeID {
+				p.Omitted = append(p.Omitted, Omission{v.ID, v.VersionID, "other_episode_cast"})
+				continue
+			}
+			if c.BibleVersionID != bibleVersion {
+				p.Problems = append(p.Problems, Problem{"cast_bible_changed", v.ID, "系列人物资料已更新，请核对本集选角后保存新版本。"})
+				continue
+			}
+			missing := false
+			for _, x := range c.Characters {
+				missing = missing || !chars[x.SeriesID]
+			}
+			if missing {
+				p.Problems = append(p.Problems, Problem{"character_reference_missing", v.ID, "选角引用的系列人物已不可用，请明确重新选择。"})
+				continue
+			}
 		}
 		invalid := false
 		for _, id := range EpisodeRefs(v.Body) {

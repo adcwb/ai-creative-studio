@@ -92,7 +92,7 @@ func Open(dir string, db *sql.DB) (*Store, error) {
 	return &Store{dir, db}, nil
 }
 func validRecord(r record) bool {
-	return (r.Adoption == nil || (validDecision(*r.Adoption) && r.Adoption.Decision.Action == "adopt" && r.Adoption.Decision.TargetRecordID == r.Version.ID && r.Adoption.Decision.VersionID == r.Version.VersionID && r.Adoption.Decision.Actor == r.Version.Actor)) && r.Format == 1 && story.Hash.MatchString(r.Key) && story.Hash.MatchString(r.Digest) && story.Valid(r.Version) && ((r.Version.Kind == "bible") == (r.Version.ID == BibleID(r.Version.SeriesID)))
+	return (r.Adoption == nil || (validDecision(*r.Adoption) && r.Adoption.Decision.Action == "adopt" && r.Adoption.Decision.TargetRecordID == r.Version.ID && r.Adoption.Decision.VersionID == r.Version.VersionID && r.Adoption.Decision.Actor == r.Version.Actor)) && r.Format == 1 && story.Hash.MatchString(r.Key) && story.Hash.MatchString(r.Digest) && story.Valid(r.Version) && (r.Version.Kind != "cast" || r.Version.ID == story.CastID(r.Version.SeriesID, r.Version.Body.Cast.EpisodeID)) && ((r.Version.Kind == "bible") == (r.Version.ID == BibleID(r.Version.SeriesID)))
 }
 func decode(raw io.Reader) (record, error) {
 	var r record
@@ -291,7 +291,7 @@ func (s *Store) Save(ctx context.Context, a story.Actor, series, id, key string,
 	if e != nil {
 		return story.Version{}, e
 	}
-	if in.Kind == "bible" && id != BibleID(series) {
+	if in.Kind == "cast" && id != story.CastID(series, in.Body.Cast.EpisodeID) || in.Kind == "bible" && id != BibleID(series) {
 		return story.Version{}, story.ErrInput
 	}
 	if s.db != nil {
@@ -376,7 +376,7 @@ func (s *Store) Get(ctx context.Context, q Scope, id, version string) (story.Ver
 	return out, e
 }
 func validQuery(q Query) bool {
-	return q.Limit > 0 && q.Limit <= 100 && (q.After == "" || story.ID.MatchString(q.After)) && (q.Kind == "" || q.Kind == "bible" || q.Kind == "fact" || q.Kind == "event" || q.Kind == "foreshadow") && (q.Status == "" || q.Status == "active" || q.Status == "archived")
+	return q.Limit > 0 && q.Limit <= 100 && (q.After == "" || story.ID.MatchString(q.After)) && (q.Kind == "" || q.Kind == "bible" || q.Kind == "fact" || q.Kind == "event" || q.Kind == "foreshadow" || q.Kind == "cast") && (q.Status == "" || q.Status == "active" || q.Status == "archived")
 }
 func (s *Store) ids(q Scope) ([]string, error) {
 	p := filepath.Join(s.dir, story.TextHash(q.Space), q.Series)

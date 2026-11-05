@@ -229,6 +229,11 @@ func SummarizeContext(s ContextSnapshot) ContextSummary {
 // Search authored prose, not JSON field names, stable IDs or implicit prompts.
 func authoredTexts(v Version) []string {
 	texts := []string{v.Title}
+	if c := v.Body.Cast; c != nil {
+		for _, x := range c.Characters {
+			texts = append(texts, x.ScriptName, x.SeriesName, x.AssetName, x.Notes)
+		}
+	}
 	if b := v.Body.Bible; b != nil {
 		texts = append(texts, b.Theme, b.WorldRules, b.StoryArc, b.VisualIntent, b.ImmutableRules)
 		for _, c := range b.Characters {

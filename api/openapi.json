@@ -22618,7 +22618,8 @@
                 "bible",
                 "fact",
                 "event",
-                "foreshadow"
+                "foreshadow",
+                "cast"
               ]
             }
           },
@@ -24546,6 +24547,220 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/StoryDecisionInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/episodes/{id}/cast-options": {
+      "get": {
+        "operationId": "getEpisodeCastOptions",
+        "summary": "Read current script, canonical characters and saved cast without a model call",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Current scoped cast basis or accepted original version. No model call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryCastOptions"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/episodes/{id}/cast": {
+      "put": {
+        "operationId": "saveEpisodeCast",
+        "summary": "Explicitly save one version of episode cast; exact replay preserves later revisions",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "Preserve this key and normalized selection on uncertain outcomes. Replaying returns the originally saved snapshot even after sources change."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoryWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Invalid input, current authorization, version/idempotency conflict or storage unavailable. Preserve drafts and the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Current scoped cast basis or accepted original version. No model call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryVersion"
+                }
               }
             }
           }
@@ -33913,6 +34128,9 @@
             "items": {
               "$ref": "#/components/schemas/StoryEvidence"
             }
+          },
+          "cast": {
+            "$ref": "#/components/schemas/StoryCast"
           }
         },
         "required": [
@@ -33938,6 +34156,11 @@
             "required": [
               "foreshadow"
             ]
+          },
+          {
+            "required": [
+              "cast"
+            ]
           }
         ]
       },
@@ -33960,7 +34183,8 @@
               "bible",
               "fact",
               "event",
-              "foreshadow"
+              "foreshadow",
+              "cast"
             ]
           },
           "status": {
@@ -34027,7 +34251,8 @@
               "bible",
               "fact",
               "event",
-              "foreshadow"
+              "foreshadow",
+              "cast"
             ]
           },
           "status": {
@@ -34103,7 +34328,8 @@
               "bible",
               "fact",
               "event",
-              "foreshadow"
+              "foreshadow",
+              "cast"
             ]
           },
           "status": {
@@ -34202,7 +34428,8 @@
               "bible",
               "fact",
               "event",
-              "foreshadow"
+              "foreshadow",
+              "cast"
             ]
           },
           "status": {
@@ -34859,7 +35086,7 @@
             "pattern": "^[a-f0-9]{32}$"
           },
           "proposal": {
-            "$ref": "#/components/schemas/StoryWrite"
+            "$ref": "#/components/schemas/StorySuggestionWrite"
           }
         },
         "required": [
@@ -35052,7 +35279,7 @@
             "type": "boolean"
           },
           "proposal": {
-            "$ref": "#/components/schemas/StoryWrite"
+            "$ref": "#/components/schemas/StorySuggestionWrite"
           }
         },
         "required": [
@@ -35233,6 +35460,209 @@
             ]
           }
         ]
+      },
+      "StoryCastCharacter": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "script_character_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "series_character_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "script_character_name": {
+            "type": "string"
+          },
+          "series_character_name": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "asset_name": {
+            "type": "string"
+          },
+          "library_asset_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "asset_version_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          }
+        },
+        "required": [
+          "script_character_id",
+          "script_character_name",
+          "series_character_id",
+          "series_character_name",
+          "notes"
+        ]
+      },
+      "StoryCast": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "episode_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "script_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "script_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "bible_version_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "characters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoryCastCharacter"
+            }
+          }
+        },
+        "required": [
+          "episode_id",
+          "script_version",
+          "script_sha256",
+          "bible_version_id",
+          "characters"
+        ]
+      },
+      "StoryCastOptions": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "episode_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "series_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "script": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Script"
+              },
+              {
+                "type": "object",
+                "nullable": true,
+                "enum": [
+                  null
+                ]
+              }
+            ]
+          },
+          "script_version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "script_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "bible": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/StoryVersion"
+              },
+              {
+                "type": "object",
+                "nullable": true,
+                "enum": [
+                  null
+                ]
+              }
+            ]
+          },
+          "current": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/StoryVersion"
+              },
+              {
+                "type": "object",
+                "nullable": true,
+                "enum": [
+                  null
+                ]
+              }
+            ]
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoryProblem"
+            }
+          }
+        },
+        "required": [
+          "episode_id",
+          "series_id",
+          "script",
+          "script_version",
+          "script_sha256",
+          "bible",
+          "current",
+          "problems"
+        ]
+      },
+      "StorySuggestionWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740990
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "bible",
+              "fact",
+              "event",
+              "foreshadow"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "body": {
+            "$ref": "#/components/schemas/StoryBody"
+          }
+        },
+        "required": [
+          "expected_version",
+          "title",
+          "kind",
+          "status",
+          "required",
+          "body"
+        ],
+        "description": "Append an authored formal version. Never executes a model. Bible character voice_intent is descriptive prose and grants no voice or cloning authorization. Subjective facts require believer_id; other perspectives must omit it. Evidence must match the pinned stable scene and actual historical script digest. Creation expected_version=0; updates use the current number."
       }
     },
     "securitySchemes": {

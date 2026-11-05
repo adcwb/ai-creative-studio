@@ -168,7 +168,7 @@ func ValidateResult(job string, snapshot ContextSnapshot, in CheckResult) (Check
 		}
 		if f.Proposal != nil {
 			normalized, e := Normalize(*f.Proposal)
-			if e != nil || len(normalized.Body.Evidence) > 0 {
+			if e != nil || normalized.Kind == "cast" || len(normalized.Body.Evidence) > 0 {
 				return CheckResult{}, ErrInput
 			}
 			if f.TargetRecordID != "" {
