@@ -6,9 +6,9 @@ import { Icon } from './Icon'
 import { TaskMetadata } from './TaskList'
 import { ContinueImage } from '../features/images/ContinueImage'
 
-export function TaskDetail({id, space, catalog, saved, saving, busy, actionError, notice, onClose, onUpdate, onSave, onEdit, onResume}: {
+export function TaskDetail({id, space, catalog, saved, saving, busy, actionError, notice, onClose, onUpdate, onSave, onEdit, onResume, onSavePrompt}: {
   id: string; space: string; catalog: Catalog | null; saved: boolean; saving: string | null; busy: boolean; actionError: string; notice: string
-  onClose: () => void; onUpdate: (task: Task) => void; onSave: (task: Task) => void; onEdit: (task: Task) => void; onResume: (task: Task) => Promise<void>
+  onSavePrompt?: (task: Task) => void; onClose: () => void; onUpdate: (task: Task) => void; onSave: (task: Task) => void; onEdit: (task: Task) => void; onResume: (task: Task) => Promise<void>
 }) {
   const { t, formatDate } = useI18n()
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -52,6 +52,8 @@ export function TaskDetail({id, space, catalog, saved, saving, busy, actionError
       {task.status === 'succeeded' && task.result_mime !== 'image/svg+xml' && <ContinueImage task={task} space={space} onClose={onClose} />}
       <div className="detail-grid"><div className="detail-preview">{task.result_url ? <img src={`${baseURL}${task.result_url}`} alt={resultImageAlt(task)} /> : <div className="empty"><Icon name={task.status === 'failed' ? 'image' : 'spark'} /><p>{task.status === 'failed' ? t("本地暂无可用结果") : t("画面正在准备中")}</p></div>}<span>{task.result_url ? resultOriginLabel(task) : resultProviderLabel(task)}</span></div>
       <div className="detail-information" data-provider={task.provider}><span className={`status ${task.status}`}><span />{taskStatusLabel(task)}</span><h3>{t("画面描述")}</h3><p className="detail-prompt">{task.prompt}</p><TaskMetadata task={task} catalog={catalog} />
+ {task.prompt_source && <p className="prompt-source-note">{t("来源提示词版本")} <code>{task.prompt_source.version_id}</code> · {t(task.prompt_source.edited ? "已修改后生成" : "按保存版本生成")}</p>}
+ {task.status === "succeeded" && onSavePrompt && <button type="button" onClick={() => onSavePrompt(task)}>{t("将此描述存为提示词")}</button>}
         {(task.status === 'queued' || task.status === 'running') && <div className="progress-block"><progress aria-label={t("详情任务进度")} value={task.progress} max="100" /><span>{t("任务进度 {progress}% · 自动更新",{progress:task.progress})}</span></div>}
         {task.error && <p className="error task-error">{t(task.error)}</p>}
         <dl><div><dt>{t("任务编号")}</dt><dd><code>{task.id}</code></dd></div><div><dt>{t("创建时间")}</dt><dd>{formatDate(task.created_at)}</dd></div><div><dt>{t("图像提供方")}</dt><dd>{resultProviderLabel(task)}</dd></div>{task.model && <div><dt>{t("模型")}</dt><dd>{task.model}</dd></div>}{task.result_mime && <div><dt>{t("结果格式")}</dt><dd>{task.result_mime}</dd></div>}{task.result_width && task.result_height && <div><dt>{t("实际尺寸")}</dt><dd>{task.result_width} × {task.result_height} px</dd></div>}{task.error_code && <div><dt>{t("失败代码")}</dt><dd><code>{task.error_code}</code></dd></div>}{task.retry_of && <div><dt>{t("原任务编号")}</dt><dd><code>{task.retry_of}</code></dd></div>}</dl>

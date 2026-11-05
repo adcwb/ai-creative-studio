@@ -88,7 +88,7 @@ flowchart LR
 
 ### 3.2 拟定 API 合同
 
-沿用会话、空间解析、CSRF/写权限和 `Idempotency-Key`（现有格式）的模式。以下新路径尚不存在；所有路径包含当前授权空间的解析，不信任客户端 actor_id。
+沿用会话、空间解析、CSRF/写权限和 `Idempotency-Key`（现有格式）的模式。P1纯文本路径现已落地（含版本追加可原子更新metadata/expected_row_version）；变量和参考字段仍属后续阶段。所有路径包含当前授权空间的解析，不信任客户端 actor_id。
 
 | 方法与路径（前缀 `/api/v1`） | 输入/输出与行为 |
 | --- | --- |
@@ -130,7 +130,7 @@ flowchart LR
 
 配方的 defaults 只预填，用户最终参数与选择覆盖它；model ID 不写进配方的可执行默认值。参考绑定复制入当前项目时按现有库引用归属/类型规则处理，跨组织拒绝。首页暂不支持引用的配方显示“在项目制作中使用”，不能悄悄丢掉参考。
 
-错误沿用问题响应合同，拟定 code：400 `prompt_variable_missing/unknown`、`prompt_expanded_too_long`、`invalid_prompt_parameter`；403 当前写入无权；404 不可见或不存在；409 `prompt_version_conflict/idempotency_conflict/prompt_archived`；429 仅资源容量/忙碌；503 存储/审核/模型配置不可用。错误包含可定位字段，不回显私人正文或凭据。
+错误沿用问题响应合同，拟定 code：400 `prompt_variable_missing/unknown`、`prompt_expanded_too_long`、`invalid_prompt_parameter`；403 当前写入无权；404 不可见或不存在；409 `prompt_version_conflict/idempotency_conflict/prompt_archived`；资源忙等待调度，不用429作为累计配额；503 存储/审核/模型配置不可用。错误包含可定位字段，不回显私人正文或凭据。
 
 ## 4. 系列、剧作与资产数据
 

@@ -174,9 +174,40 @@ def main():
                     assert call(bob, 'GET', usage + query, usage)['total'] == 0
                 call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'remove'}, aq)
                 call(bob, 'GET', '/api/v1/model-usage' + query, '/api/v1/model-usage', status=403)
+                # Personal recipes use immutable revisions without generating tasks.
+                prompts = '/api/v1/prompt-templates'
+                metadata = dict(name='Garden %_', description='literal search', category='Garden', tags=['botanical'], visibility='private')
+                recipe = dict(syntax='plain', body='Literal {{braces}} in a soft garden 花朵', defaults=dict(kind='poster', ratio='4:5', style='natural'), notes='first')
+                draft = dict(**metadata, version=recipe)
+                call(alice, 'POST', prompts + query, prompts, draft, status=403)
+                saved = call(alice, 'POST', prompts + query, prompts, draft, aq, status=201)
+                target = prompts + '/' + saved['template']['id']
+                source_task = call(alice, 'POST', '/api/v1/tasks' + query, '/api/v1/tasks', dict(prompt=recipe['body'], kind='poster', ratio='4:5', style='natural', prompt_source=dict(template_id=saved['template']['id'], version_id=saved['version']['id'], edited=False)), aq, status=202)
+                assert source_task['prompt_source']['version_id'] == saved['version']['id'] and source_task['prompt_source']['edited'] is False
+                route = prompts + '/{templateId}'
+                assert call(alice, 'POST', prompts + query, prompts, draft, aq, status=201)['version']['id'] == saved['version']['id']
+                preview = call(alice, 'POST', target + '/preview' + query, route + '/preview', dict(version_id=saved['version']['id']), aq)
+                assert preview['prompt'] == recipe['body']
+                call(alice, 'GET', target + '/versions/' + saved['version']['id'] + query, route + '/versions/{versionId}')
+                call(alice, 'GET', target + '/versions' + query, route + '/versions')
+                call(alice, 'PUT', target + '/favorite' + query, route + '/favorite', dict(enabled=True), aq)
+                assert len(call(alice, 'GET', prompts + query + '&q=%25_&favorite=true', prompts)['items']) == 1
+                call(bob, 'GET', target + '?space_id=' + other, route, status=404)
+                call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'editor'}, aq)
+                call(bob, 'GET', target + query, route, status=404)
+                metadata['visibility'] = 'organization'
+                shared = call(alice, 'PATCH', target + query, route, dict(**metadata, expected_row_version=saved['template']['row_version'], status='active'), aq)
+                call(bob, 'GET', target + '/versions/' + saved['version']['id'] + query, route + '/versions/{versionId}')
+                recipe['body'] = 'Organization editor revision 花朵'
+                updated = call(bob, 'POST', target + '/versions' + query, route + '/versions', dict(expected_head_version_id=shared['version']['id'], version=recipe), bq, status=201)
+                # This is a different body under Bob's same operation key.
+                call(bob, 'POST', target + '/versions' + query, route + '/versions', dict(expected_head_version_id=updated['version']['id'], version=recipe), bq, status=409)
+                call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'remove'}, aq)
+                call(bob, 'GET', target + query, route, status=403)
+                call(bob, 'POST', target + '/versions' + query, route + '/versions', dict(expected_head_version_id=shared['version']['id'], version=recipe), bq, status=403)
                 call(alice, 'POST', '/api/v1/auth/logout', '/api/v1/auth/logout', {}, aq)
                 assert call(alice, 'GET', session_route, session_route)['authenticated'] is False
-                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation'], 'live_provider_calls': 0}))
+                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay'], 'live_provider_calls': 0}))
             finally:
                 process.terminate()
                 process.wait(timeout=15)

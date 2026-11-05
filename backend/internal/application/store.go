@@ -9,11 +9,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/promptrepo"
 )
 
 type snapshot struct {
@@ -44,6 +46,7 @@ type Repository interface {
 }
 type FileStore struct {
 	library      *libraryrepo.Store
+	prompts      *promptrepo.Store
 	pg           *postgresScope
 	blobs        *managedBlobs
 	execution    *ExecutionGovernor
@@ -290,6 +293,11 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 		s.Close()
 		return nil, err
 	}
+	s.prompts, err = promptrepo.Open(filepath.Join(dir, "prompts"), nil)
+	if err != nil {
+		s.Close()
+		return nil, err
+	}
 	s.library, err = libraryrepo.Open(filepath.Join(dir, "library"), nil)
 	if err != nil {
 		s.Close()
@@ -427,7 +435,7 @@ func (s *FileStore) createLocked(space, key string, in Input, retryOf string, ex
 	for _, t := range s.data.Tasks {
 		if t.SpaceID == space && t.Key == key {
 			storedInput, err := Normalize(t.Input)
-			if err != nil || storedInput != in || t.RetryOf != retryOf {
+			if err != nil || !reflect.DeepEqual(storedInput, in) || t.RetryOf != retryOf {
 				return Task{}, false, ErrConflict
 			}
 			return t, false, nil

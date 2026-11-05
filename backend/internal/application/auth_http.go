@@ -281,7 +281,7 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 			problem(w, 403, "tenant_denied", "没有此工作空间的访问权限")
 			return
 		}
-		if authWrite(r) && role == "viewer" {
+		if authWrite(r) && role == "viewer" && !promptReadAction(r) {
 			problem(w, 403, "role_denied", "只读成员不能修改内容")
 			return
 		}

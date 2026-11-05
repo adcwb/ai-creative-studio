@@ -9,7 +9,7 @@ import { runtimeFields, type RuntimeChoice } from '../../runtimeSelection'
 const blankDraft: TaskInput = {prompt: '', kind: 'poster', ratio: '4:5', style: 'natural'}
 
 export function useImageController() {
-  const {space: selectedSpace, capability, capabilityError, refreshCapability, setImageDirty} = useAppWorkspace()
+  const {space: selectedSpace, capability, capabilityError, refreshCapability, setImageDirty, session} = useAppWorkspace()
   const space = selectedSpace?.id ?? ''
   const navigate = useNavigate()
   const studio = useWorkspace(space)
@@ -26,6 +26,7 @@ export function useImageController() {
   useEffect(() => {setImageDirty(busy); return () => setImageDirty(false)}, [busy, setImageDirty])
 
   function focusPrompt() {requestAnimationFrame(() => promptRef.current?.focus())}
+  function chooseSavedTemplate(value: TaskInput) {studio.newAttempt(); setEditing(null); setDraft(value); focusPrompt()}
   function chooseTemplate(template: Template) {
     studio.newAttempt(); setEditing(null)
     setDraft({prompt: template.prompt, kind: template.kind, ratio: template.ratio, style: template.style})
@@ -34,7 +35,7 @@ export function useImageController() {
   function editTask(task: Task) {
     studio.newAttempt(); setDetailId(null)
     setEditing({task, previous: editing?.previous ?? draft})
-    setDraft({prompt: task.prompt, kind: task.kind, ratio: task.ratio, style: task.style})
+    setDraft({prompt: task.prompt, kind: task.kind, ratio: task.ratio, style: task.style, ...(task.prompt_source ? {prompt_source: {template_id: task.prompt_source.template_id, version_id: task.prompt_source.version_id, edited: true}} : {})})
     void navigate('/studio'); focusPrompt()
   }
   function cancelEdit() {
@@ -49,7 +50,7 @@ export function useImageController() {
     if (outcome === 'provider_changed') refreshCapability()
     if (outcome === 'created' && editing) {setEditing(null); setDraft(blankDraft)}
   }
-  return {space, capability, capabilityError, refreshCapability, studio, runtimeChoice, setRuntimeChoice, draft, setDraft, editing, detailId, setDetailId, promptRef, preview, effectiveCapability, savedIds, running, chooseTemplate, editTask, cancelEdit, startNew, openDetail, submitDraft}
+  return {space, actor: session.user?.id ?? "demo-user", readOnly: selectedSpace?.role === "viewer", chooseSavedTemplate, capability, capabilityError, refreshCapability, studio, runtimeChoice, setRuntimeChoice, draft, setDraft, editing, detailId, setDetailId, promptRef, preview, effectiveCapability, savedIds, running, chooseTemplate, editTask, cancelEdit, startNew, openDetail, submitDraft}
 }
 
 export function useImageWorkspace() {return useOutletContext<{image: ReturnType<typeof useImageController>}>().image}

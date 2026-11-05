@@ -69,7 +69,8 @@ export function useWorkspace(space: string) {
   }, [])
 
   function submission(input: TaskInput, retryOf?: string) {
-    const body = JSON.stringify({...input, prompt: input.prompt.trim()})
+    const source = input.prompt_source
+    const body = JSON.stringify({...input, prompt: input.prompt.trim(), ...(source ? {prompt_source: {template_id: source.template_id, version_id: source.version_id, edited: source.edited}} : {})})
     const path = creationPath(retryOf ? `/tasks/${encodeURIComponent(retryOf)}/retry${query}` : `/tasks${query}`)
     const fingerprint = `${path}:${body}`
     return {body, path, fingerprint}

@@ -1,6 +1,6 @@
 # 自定义提示词与长篇漫剧实施计划
 
-创建：2026-11-04；修订3：2026-11-05。状态：Implementing，**P0A首批实现已开始，任务未全部完成**。已fetch核对代码基线与origin/master均为`9e687c584632fdc98628c42592ff3df2ff0304cb`。用户已授权按阶段实施；本轮代码和Spec做本地提交，不推送或部署。
+创建：2026-11-04；修订4：2026-11-05。状态：Implementing，**P0A首批实现已开始，任务未全部完成**。已fetch核对代码基线与origin/master均为`9e687c584632fdc98628c42592ff3df2ff0304cb`。用户已授权按阶段实施；按最新授权，全部规格实施且验证完成后推送GitHub并跟进CI；完成前只做本地阶段提交，不部署。
 
 规格：[入口](../specs/2026-11-04-creative-series/README.md) · [需求](../specs/2026-11-04-creative-series/requirements.md) · [设计](../specs/2026-11-04-creative-series/design.md) · [验收](../specs/2026-11-04-creative-series/acceptance.md)。以下目标路径是拟定实施位置；已存在的文件按最小改动扩展，不要求一次重写所有模块。
 
@@ -32,14 +32,14 @@ flowchart LR
 - [ ] **T06** 实现RenderManifest/Segment/Artifact、全局帧/采样时码、有handle的跨段转场、字幕/叠层/混音和检查点；移除完整时间轴的30镜/8轨/4层及分辨率时长耦合，删除-fs截断，采用每段资源调度/心跳。目标：`media_render.go`、`media_composite.go`、`queued_export_worker.go`、worker、`MediaStudio.tsx`/`mediaTimeline.ts`与i18n。依赖：T04–T05；验收AC-R01、AC-R03–AC-R05、AC-Q02–AC-Q03；退出：4K120秒可完整计划和执行，取消/资源不足不发布残片，用户不遇到15秒/128MiB或2个queued就拒绝。
 - [ ] **T07** 完整P0A回归：旧额度边界、真实FFmpeg60/90/120秒及1K–4K、竖屏2160×3840、有效大文件/Range、本地/S3/PG/文件存储、备份恢复与故障注入；桌面手机说明native/升采样/等待状态。依赖：T04–T06；验收全部AC-Q/AC-R及当前图像/短剧权限与无mock回退。退出：精确列出通过/失败/未执行，不用短样本替代完整4K验收；不调用付费模型。
 
-当前执行状态：T03–T07均为部分推进；已移除数量/小时门槛并落地流式高清后期，但实体化/文件快照、原生能力协商、可恢复渲染检查点等尚未完成。T11以后的提示词和长剧阶段未启动，下一批先解决这些基础依赖。
+当前执行状态：T03–T07均为部分推进；已移除数量/小时门槛并落地流式高清后期，但实体化/文件快照、原生能力协商、可恢复渲染检查点等尚未完成。T11–T14的纯文本闭环已推进，见提示词实施记录；变量/参考与长剧尚未完成。用户明确要求优先交付自定义提示词，独立实体仓库不依赖旧scope重构，因此P1与剩余P0A并行推进，不把T07未完成误报为依赖已通过。
 
 ## P1：自定义纯文本提示词
 
-- [ ] **T11** 实现prompts纯领域、plain配方版本和可见性/归档/复制规则，不引入模板总数配额。目标：`backend/internal/modules/prompts`。依赖：T01、T07；验收AC-P01–AC-P03、AC-Q01。退出：不可变版本、private/organization权限规则、内置只读合同确定。
-- [ ] **T12** 实现按空间/用户查询的promptrepo、PG/文件存储、迁移与HTTP接口；元数据/版本/回执事务原子。扩展现有tasks的可选来源快照，不修改旧templates响应。目标：`persistence/promptrepo`、`application/prompt_*`、实际OpenAPI文件、离线迁移/备份注册。依赖：T11；验收 AC-P02、AC-P03、AC-P05、AC-P07；退出：双API并发与角色矩阵通过，无新整体scope。
-- [ ] **T13** 模板区域“内置/我的/组织”、保存抽屉、搜索标签收藏、版本/归档、草稿保护与共享提示；纯文本选用只预填。目标：`TemplateGallery.tsx`、`Composer.tsx`、`hooks/useWorkspace.ts`、`features/prompts`、API与中英文本。依赖：T12合同；验收 AC-P01、AC-P02、AC-P07、AC-P08。退出：桌面/手机/键盘可用，用户正文不走翻译key，零隐式模型调用。
-- [ ] **T14** 汇总P1迁移/文档与回归。依赖：T12–T13；验收 AC-P01–AC-P03、AC-P05、AC-P07–AC-P08。退出：后端race/file/PG、前端检查、HTTP/OpenAPI/安全合同与相关浏览器测试通过；旧图像入口无回退/成本门槛回归通过，记录未测项。
+- [x] **T11** 实现prompts纯领域、plain配方版本和可见性/归档/复制规则，不引入模板总数配额。目标：`backend/internal/modules/prompts`。依赖：T01对应P1字段及已验证的生成入口；不等待与提示词无关的P0A渲染检查点；验收AC-P01–AC-P03、AC-Q01。退出：不可变版本、private/organization权限规则、内置只读合同确定。
+- [x] **T12** 实现按空间/用户查询的promptrepo、PG/文件存储、迁移与HTTP接口；元数据/版本/回执事务原子。扩展现有tasks的可选来源快照，不修改旧templates响应。目标：`persistence/promptrepo`、`application/prompt_*`、实际OpenAPI文件、离线迁移/备份注册。依赖：T11；验收 AC-P02、AC-P03、AC-P05、AC-P07；退出：双API并发与角色矩阵通过，无新整体scope。
+- [x] **T13** 模板区域“内置/我的/组织”、保存抽屉、搜索标签收藏、版本/归档、草稿保护与共享提示；纯文本选用只预填。目标：`TemplateGallery.tsx`、`Composer.tsx`、`hooks/useWorkspace.ts`、`features/prompts`、API与中英文本。依赖：T12合同；验收 AC-P01、AC-P02、AC-P07、AC-P08。退出：桌面/手机/键盘可用，用户正文不走翻译key，零隐式模型调用。
+- [x] **T14** 汇总P1迁移/文档与回归。依赖：T12–T13；验收 AC-P01–AC-P03、AC-P05、AC-P07–AC-P08。退出：后端race/file/PG、前端检查、HTTP/OpenAPI/安全合同与相关浏览器测试通过；旧图像入口无回退/成本门槛回归通过，记录未测项。
 
 ## P2：变量、来源与参考配方
 
@@ -73,3 +73,7 @@ flowchart LR
 每阶段记录代码SHA、迁移版本、已通过/失败/未执行的检查与样片边界。涉及供应商请求的测试使用本地合成上游；不创建真实凭据，不收费，不部署，不执行生产数据库迁移，除非后续用户另行授权。后续推送和镜像发布按当时授权单独处理。
 
 2026-11-05用户已明确授权开始实施并要求保持C端视觉一致。本批完成范围及剩余限制见[实施记录](../specs/2026-11-04-creative-series/implementation.md)；未达到完整退出条件的任务保留未勾选，不能把首批交付当成整个P0A或长期项目完成。没有预估强行承诺的日程，实际工期需在对应阶段的接口/迁移与样片范围确定后评估。
+
+## 第二阶段记录
+
+P1实际实现与验证边界见[提示词实施记录](../specs/2026-11-04-creative-series/prompts-implementation.md)。T14相关回归通过，完整网关浏览器18项、HTTP合同447+76、前端51项单测及PG/文件/race验证已记录；后续P2/P3不能仅凭此标记完成。

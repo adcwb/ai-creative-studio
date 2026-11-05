@@ -35,6 +35,7 @@ func Handler(repo Repository, origin string) http.Handler {
 	registerStoryboardRoutes(mux, repo)
 	if store, ok := repo.(*FileStore); ok {
 		registerLibraryRoutes(mux, store)
+		registerPromptRoutes(mux, store)
 		registerGovernanceRoutes(mux, store)
 		registerRuntimeCatalog(mux, store)
 		registerRuntimeQuote(mux, store)
@@ -158,12 +159,13 @@ func createTask(w http.ResponseWriter, r *http.Request, repo Repository, parentI
 	}
 	var body struct {
 		ModelRequest
-		Prompt           string          `json:"prompt"`
-		Kind             string          `json:"kind"`
-		Ratio            json.RawMessage `json:"ratio"`
-		Style            json.RawMessage `json:"style"`
-		ExpectedProvider json.RawMessage `json:"expected_provider"`
-		ExpectedModel    json.RawMessage `json:"expected_model"`
+		PromptSource     *promptSourceInput `json:"prompt_source,omitempty"`
+		Prompt           string             `json:"prompt"`
+		Kind             string             `json:"kind"`
+		Ratio            json.RawMessage    `json:"ratio"`
+		Style            json.RawMessage    `json:"style"`
+		ExpectedProvider json.RawMessage    `json:"expected_provider"`
+		ExpectedModel    json.RawMessage    `json:"expected_model"`
 	}
 	if !decode(w, r, &body) {
 		return
@@ -191,6 +193,9 @@ func createTask(w http.ResponseWriter, r *http.Request, repo Repository, parentI
 	in, err := Normalize(in)
 	if err != nil {
 		problem(w, 400, "invalid_input", err.Error())
+		return
+	}
+	if !resolvePromptSource(w, r, repo, space, key, parentID, &in, body.PromptSource) {
 		return
 	}
 	if !resolveModelRequest(w, r, repo, &in.ModelRequest, "image", "image_generation") {

@@ -3,7 +3,7 @@
   "info": {
     "title": "映创 · Iteration 7 Creative Studio API",
     "version": "0.7.0",
-    "description": "Local creative studio. Default secure mode requires authenticated organization membership, CSRF and a non-empty Origin for writes. CORS accepts all origins and echoes the request Origin with credentials enabled. FRONTEND_ORIGIN is only the SSO return destination. Explicit AUTH_MODE=demo is local-only and provides no tenant security. Real model runtime remains fail-closed pending end-to-end cost governance. Local protocol tests are not live quality verification."
+    "description": "Local creative studio. Default secure mode requires authenticated organization membership, CSRF and a non-empty Origin for writes. CORS accepts all origins and echoes the request Origin with credentials enabled. FRONTEND_ORIGIN is only the SSO return destination. Explicit AUTH_MODE=demo is local-only and provides no tenant security. Real model runtime requires current authorization, configured capabilities and content safety; local costs and quotas do not gate execution. Local protocol tests are not live quality verification."
   },
   "servers": [
     {
@@ -16990,6 +16990,1473 @@
         },
         "description": "Requires an authenticated organization creator, an enabled gateway model supporting this operation, the current model configuration version and applicable feature authorization. No prices, quotes, cost confirmation, reservations or budgets are required. Content moderation, credentials, authorization and duplicate-dispatch safeguards remain mandatory. Never falls back to local or mock results."
       }
+    },
+    "/api/v1/prompt-templates": {
+      "get": {
+        "operationId": "listPromptTemplates",
+        "summary": "listPromptTemplates",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "description": "Opaque cursor bound to authenticated actor, space and filters."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 80
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 40
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "mine",
+                "organization"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "archived"
+              ]
+            }
+          },
+          {
+            "name": "favorite",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt operation completed without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Unconfirmed save; replay the original path, body and key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPromptTemplate",
+        "summary": "createPromptTemplate",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "Scoped to actor, target template and operation; same input replays its original result."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Prompt operation completed without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Unconfirmed save; replay the original path, body and key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/prompt-templates/{templateId}": {
+      "get": {
+        "operationId": "getPromptTemplate",
+        "summary": "getPromptTemplate",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt operation completed without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Unconfirmed save; replay the original path, body and key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updatePromptMetadata",
+        "summary": "updatePromptMetadata",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "Scoped to actor, target template and operation; same input replays its original result."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt operation completed without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Unconfirmed save; replay the original path, body and key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptMetadataWrite"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/prompt-templates/{templateId}/versions": {
+      "get": {
+        "operationId": "listPromptVersions",
+        "summary": "listPromptVersions",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "description": "Opaque cursor bound to authenticated actor, space and filters."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt operation completed without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptVersionPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Unconfirmed save; replay the original path, body and key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "appendPromptVersion",
+        "summary": "appendPromptVersion",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "Scoped to actor, target template and operation; same input replays its original result."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Prompt operation completed without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Unconfirmed save; replay the original path, body and key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptVersionWrite"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/prompt-templates/{templateId}/versions/{versionId}": {
+      "get": {
+        "operationId": "getPromptVersion",
+        "summary": "getPromptVersion",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "versionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt operation completed without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptVersion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Unconfirmed save; replay the original path, body and key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/prompt-templates/{templateId}/copies": {
+      "post": {
+        "operationId": "copyPromptTemplate",
+        "summary": "copyPromptTemplate",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "Scoped to actor, target template and operation; same input replays its original result."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Prompt operation completed without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Unconfirmed save; replay the original path, body and key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptCopy"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/prompt-templates/{templateId}/favorite": {
+      "put": {
+        "operationId": "setPromptFavorite",
+        "summary": "setPromptFavorite",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "Scoped to actor, target template and operation; same input replays its original result."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt operation completed without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "enabled"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Unconfirmed save; replay the original path, body and key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/prompt-templates/{templateId}/preview": {
+      "post": {
+        "operationId": "previewPromptVersion",
+        "summary": "previewPromptVersion",
+        "description": "Current space membership required. Private bodies and every historical version are owner-only; organization recipes follow current membership. Recipe mutations require editor role; preview and personal favorites also permit viewers. All POST/PUT/PATCH requests require CSRF. Plain syntax is literal. Saving, previewing and selection never dispatch models. Version append can atomically update metadata with both expected versions. No cumulative template quota.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt operation completed without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Unconfirmed save; replay the original path, body and key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "version_id": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{32}$"
+                  }
+                },
+                "required": [
+                  "version_id"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/prompt-templates/{templateId}/admin-archive": {
+      "post": {
+        "operationId": "adminArchivePromptTemplate",
+        "summary": "Archive without granting private-body access",
+        "description": "Organization owner/admin only, audited by the normal secure-write middleware. Expected row version required. Response never contains recipe text or private metadata. No read bypass on other prompt routes.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "Scoped to actor, target template and operation; same input replays its original result."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt operation completed without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "status",
+                    "row_version"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{32}$"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "archived"
+                      ]
+                    },
+                    "row_version": {
+                      "type": "integer",
+                      "format": "int64",
+                      "minimum": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected without model dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Unconfirmed save; replay the original path, body and key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "expected_row_version"
+                ],
+                "properties": {
+                  "expected_row_version": {
+                    "type": "integer",
+                    "format": "int64",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -17015,10 +18482,7 @@
           },
           "space_id": {
             "type": "string",
-            "enum": [
-              "personal-demo",
-              "team-demo"
-            ]
+            "minLength": 1
           },
           "prompt": {
             "type": "string"
@@ -17167,6 +18631,9 @@
             "readOnly": true,
             "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$",
             "description": "Optional server-captured correlation context; never authorization."
+          },
+          "prompt_source": {
+            "$ref": "#/components/schemas/PromptSource"
           }
         },
         "additionalProperties": false,
@@ -17205,10 +18672,7 @@
           },
           "space_id": {
             "type": "string",
-            "enum": [
-              "personal-demo",
-              "team-demo"
-            ]
+            "minLength": 1
           },
           "prompt": {
             "type": "string"
@@ -17375,6 +18839,9 @@
             "type": "string",
             "description": "Legacy cost field accepted for compatibility and ignored for model execution. No quote, cost confirmation or budget is required.",
             "deprecated": true
+          },
+          "prompt_source": {
+            "$ref": "#/components/schemas/PromptSourceInput"
           }
         },
         "description": "创建和失败重试共用输入。prompt/kind/ratio/style 为业务输入；expected_provider/expected_model 是成对可选的 HTTP 提交前置条件，不进入持久化 Input 或幂等比较。浏览器必须提供；旧 API 客户端两项都省略时兼容原行为。后端绑定实际当前配置，不接受 endpoint、凭据或直接选择 provider/model。",
@@ -17882,10 +19349,7 @@
           },
           "space_id": {
             "type": "string",
-            "enum": [
-              "personal-demo",
-              "team-demo"
-            ]
+            "minLength": 1
           },
           "project_id": {
             "type": "string",
@@ -17997,10 +19461,7 @@
           },
           "space_id": {
             "type": "string",
-            "enum": [
-              "personal-demo",
-              "team-demo"
-            ]
+            "minLength": 1
           },
           "title": {
             "type": "string",
@@ -18388,10 +19849,7 @@
           },
           "space_id": {
             "type": "string",
-            "enum": [
-              "personal-demo",
-              "team-demo"
-            ]
+            "minLength": 1
           },
           "project_id": {
             "type": "string",
@@ -23571,6 +25029,607 @@
               "model_config_version"
             ]
           }
+        ]
+      },
+      "PromptMetadata": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "category": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "organization"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "category",
+          "tags",
+          "visibility"
+        ]
+      },
+      "PromptRecipe": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "syntax": {
+            "type": "string",
+            "enum": [
+              "plain"
+            ]
+          },
+          "body": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 1000
+          },
+          "defaults": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "poster",
+                  "portrait",
+                  "general"
+                ]
+              },
+              "ratio": {
+                "type": "string",
+                "enum": [
+                  "1:1",
+                  "4:5",
+                  "16:9"
+                ]
+              },
+              "style": {
+                "type": "string",
+                "enum": [
+                  "natural",
+                  "studio",
+                  "illustration"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "ratio",
+              "style"
+            ]
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "syntax",
+          "body",
+          "defaults"
+        ]
+      },
+      "PromptTemplate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "category": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "organization"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "space_id": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ]
+          },
+          "head_version_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "row_version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "category",
+          "tags",
+          "visibility",
+          "id",
+          "space_id",
+          "owner_id",
+          "status",
+          "head_version_id",
+          "row_version",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "PromptVersion": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "syntax": {
+            "type": "string",
+            "enum": [
+              "plain"
+            ]
+          },
+          "body": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 1000
+          },
+          "defaults": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "poster",
+                  "portrait",
+                  "general"
+                ]
+              },
+              "ratio": {
+                "type": "string",
+                "enum": [
+                  "1:1",
+                  "4:5",
+                  "16:9"
+                ]
+              },
+              "style": {
+                "type": "string",
+                "enum": [
+                  "natural",
+                  "studio",
+                  "illustration"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "ratio",
+              "style"
+            ]
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "space_id": {
+            "type": "string"
+          },
+          "template_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "syntax",
+          "body",
+          "defaults",
+          "notes",
+          "id",
+          "space_id",
+          "template_id",
+          "number",
+          "sha256",
+          "created_by",
+          "created_at"
+        ]
+      },
+      "PromptResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "template": {
+            "$ref": "#/components/schemas/PromptTemplate"
+          },
+          "version": {
+            "$ref": "#/components/schemas/PromptVersion"
+          },
+          "favorite": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "template",
+          "version",
+          "favorite"
+        ]
+      },
+      "PromptPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PromptResult"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "PromptVersionPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PromptVersion"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "PromptCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "category": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "organization"
+            ]
+          },
+          "version": {
+            "$ref": "#/components/schemas/PromptRecipe"
+          }
+        },
+        "required": [
+          "name",
+          "visibility",
+          "version"
+        ]
+      },
+      "PromptMetadataWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "category": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "organization"
+            ]
+          },
+          "expected_row_version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "visibility",
+          "expected_row_version",
+          "status"
+        ]
+      },
+      "PromptVersionWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_head_version_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "version": {
+            "$ref": "#/components/schemas/PromptRecipe"
+          },
+          "expected_row_version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/PromptMetadata"
+          }
+        },
+        "required": [
+          "expected_head_version_id",
+          "version"
+        ]
+      },
+      "PromptCopy": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "version_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "organization"
+            ]
+          }
+        },
+        "required": [
+          "version_id",
+          "name",
+          "visibility"
+        ]
+      },
+      "PromptSourceInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "template_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "version_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "edited": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "template_id",
+          "version_id",
+          "edited"
+        ]
+      },
+      "PromptSource": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "template_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "version_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "edited": {
+            "type": "boolean"
+          },
+          "compiled_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "effective_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "template_id",
+          "version_id",
+          "edited",
+          "compiled_sha256",
+          "effective_sha256"
+        ]
+      },
+      "PromptPreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "characters": {
+            "type": "integer",
+            "minimum": 3,
+            "maximum": 1000
+          },
+          "compiled_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "defaults": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "poster",
+                  "portrait",
+                  "general"
+                ]
+              },
+              "ratio": {
+                "type": "string",
+                "enum": [
+                  "1:1",
+                  "4:5",
+                  "16:9"
+                ]
+              },
+              "style": {
+                "type": "string",
+                "enum": [
+                  "natural",
+                  "studio",
+                  "illustration"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "ratio",
+              "style"
+            ]
+          }
+        },
+        "required": [
+          "prompt",
+          "characters",
+          "compiled_sha256",
+          "defaults"
         ]
       }
     },

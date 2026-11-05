@@ -23,6 +23,10 @@ func CheckPostgres(ctx context.Context, db *sql.DB) error {
 // Identifiers come only from this package's fixed schema definitions.
 var postgresReadinessSQL = func() string {
 	queries := []string{
+		"SELECT space_id,id,owner_id,visibility,status,row_version,head_version_id,payload FROM studio_prompt_templates WHERE false",
+		"SELECT space_id,template_id,id,number,payload FROM studio_prompt_versions WHERE false",
+		"SELECT space_id,template_id,key_hash,digest,payload FROM studio_prompt_receipts WHERE false",
+		"SELECT space_id,actor_id,template_id,enabled FROM studio_prompt_favorites WHERE false",
 		"SELECT space_id,id,kind,status,head_version_id,payload FROM studio_library_assets WHERE false",
 		"SELECT space_id,asset_id,id,number,payload FROM studio_library_asset_versions WHERE false",
 		"SELECT space_id,receipt_key,digest,asset_id,payload FROM studio_library_receipts WHERE false",

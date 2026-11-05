@@ -102,3 +102,7 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e
 [当前交接](docs/next-iteration.md) · [路线图](docs/roadmap.md) · [贡献指南](CONTRIBUTING.md) · [国际化](docs/internationalization.md)
 
 [中英文桌面／手机合成截图](docs/screenshots/iteration-10/README.md)（仅测试数据，不代表真实平台发布）。
+
+### 自定义图像提示词（本地开发阶段）
+
+图像页可将当前描述或成功任务保存为私人提示词，管理分类、标签、收藏和历史版本，并明确共享至当前组织。选用只预填；点击创建后仍走当前组织绑定的真实网关。保存、预览和选用不调用模型。修改保留新版本，冲突保留草稿，未确认保存可跨刷新恢复原请求。当前只支持纯文本，花括号按字面保存；变量、参考配方和长剧仍在后续阶段。详见[实施记录](docs/superpowers/specs/2026-11-04-creative-series/prompts-implementation.md)。

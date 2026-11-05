@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/prompts"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,6 +24,11 @@ func TestPostgresNativeBackupRestore(t *testing.T) {
 	}
 	db := postgresTestDB(t)
 	store := postgresTestStore(t, db)
+	actor := prompts.Actor{Space: "synthetic-backup", User: "owner", Writable: true}
+	recipe, err := store.prompts.Mutate(context.Background(), actor, "44444444444444444444444444444444", "backup-prompt-key", promptCommand())
+	if err != nil {
+		t.Fatal(err)
+	}
 	task, _, err := store.Create("synthetic-backup", "backup-key", Input{Prompt: "synthetic backup image", Kind: "poster"})
 	if err != nil {
 		t.Fatal(err)
@@ -68,6 +74,9 @@ func TestPostgresNativeBackupRestore(t *testing.T) {
 	restoredDB := stdlib.OpenDB(*cfg)
 	defer restoredDB.Close()
 	restored := postgresTestStore(t, restoredDB)
+	if got, e := restored.prompts.Version(context.Background(), actor, recipe.Template.ID, recipe.Version.ID); e != nil || got.SHA256 != recipe.Version.SHA256 {
+		t.Fatal("native restore prompt mismatch", e)
+	}
 	if got, err := restored.Get("synthetic-backup", task.ID); err != nil || got.Key != "backup-key" {
 		t.Fatal("restored task/idempotency mismatch", err)
 	}

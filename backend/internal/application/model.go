@@ -1,15 +1,17 @@
 package application
 
 import (
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/prompts"
 	"time"
 )
 
 type Input struct {
 	ModelRequest
-	Prompt string `json:"prompt"`
-	Kind   string `json:"kind"`
-	Ratio  string `json:"ratio"`
-	Style  string `json:"style"`
+	PromptSource *prompts.Source `json:"prompt_source,omitempty"`
+	Prompt       string          `json:"prompt"`
+	Kind         string          `json:"kind"`
+	Ratio        string          `json:"ratio"`
+	Style        string          `json:"style"`
 }
 
 type Task struct {

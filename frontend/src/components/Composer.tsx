@@ -19,6 +19,7 @@ export function Composer({catalog, capability, draft, busy, retryTask, promptRef
   return <section className="panel composer" aria-labelledby="composer-title">
     <div className="section-heading"><div><span className="eyebrow">MAKE IT YOURS</span><h2 id="composer-title">{t("创作设定")}</h2></div><span className="step-number">01</span></div>
     {retryTask && <div className="editing-note"><strong>{t("正在编辑失败任务")}</strong><p>{t("原描述和参数已保留。调整后提交，将关联创建新的重试任务。")}</p>{retryNotice && <p className="retry-cost-notice">{retryNotice}</p>}<code>{retryTask.id}</code><button type="button" onClick={onCancelEdit} disabled={busy}>{t("取消编辑")}</button></div>}
+    {draft.prompt_source && <p className="prompt-source-note">{t('已选用保存的提示词版本，可继续修改。生成后的最终描述会进入当前空间的任务历史。')} <button className="text-button" onClick={() => {const next = {...draft}; delete next.prompt_source; onChange(next)}}>{t('解除来源关联')}</button></p>}
     <form onSubmit={event => {event.preventDefault(); if (!invalid && catalog && !busy && ready) onSubmit()}}>
       <fieldset disabled={busy || !catalog}>
         <legend className="sr-only">{t("图像创作参数")}</legend>

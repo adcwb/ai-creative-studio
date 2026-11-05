@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/promptrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -151,6 +152,9 @@ func InitPostgres(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, jobqueue.Schema); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, promptrepo.Schema); err != nil {
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, libraryrepo.Schema); err != nil {
@@ -493,6 +497,11 @@ func OpenPostgresStore(dir string, db *sql.DB, options ...Capabilities) (*FileSt
 	if err == nil {
 		s.budget.pg, err = attachPostgres(db, "budget", &s.budget.data, &s.budget.mu)
 	}
+	if err != nil {
+		s.Close()
+		return nil, err
+	}
+	s.prompts, err = promptrepo.Open(filepath.Join(dir, "prompts"), db)
 	if err != nil {
 		s.Close()
 		return nil, err
