@@ -191,6 +191,9 @@ func apply(a series.Actor, c series.Command, r reader, preparing bool) (mutation
 		parent.UpdatedAt = now
 		rows := []series.Node{parent}
 		for _, n := range siblings {
+			if n.State == "cancelled" {
+				continue
+			}
 			if n.State != "ready" {
 				return mutation{}, series.ErrConflict
 			}

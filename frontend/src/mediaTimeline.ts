@@ -89,7 +89,7 @@ export function overlayAt(layer: VideoOverlay, localTime: number): {x: number; y
 export interface EditableClip extends ClipTiming {
   id: string; asset_id: string; trim_start: number; audio_asset_id: string; source_audio_asset_id?: string; source_audio_trim_start?: number
   subtitle_cues?: {start: number; end: number; text: string}[]
-  subtitle_source?: 'manual' | 'estimated' | 'asr' | 'forced'; subtitle_alignment_id?: string
+  subtitle_source?: 'manual' | 'estimated' | 'asr' | 'forced' | 'imported'; subtitle_alignment_id?: string
 }
 
 // An equal-duration visual replacement leaves dialogue, captions and other clips

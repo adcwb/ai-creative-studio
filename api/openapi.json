@@ -21682,6 +21682,893 @@
           }
         }
       }
+    },
+    "/api/v1/projects/{id}/migration-source": {
+      "get": {
+        "operationId": "getEpisodeMigrationSource",
+        "summary": "核对旧项目可迁移集号与未知归属镜头",
+        "description": "",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "核对旧项目可迁移集号与未知归属镜头",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpisodeMigrationSource"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/episode-migration-preview": {
+      "post": {
+        "operationId": "previewEpisodeMigration",
+        "summary": "只读预览本集复制内容",
+        "description": "不写源项目、不分配可见目标、不调用模型。校验目标季、源并发版本、稳定/旧来源、镜头和素材引用、字幕及输出选择；问题以issues返回，不能猜测未知归属。",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "分集迁移使用独立协议：创建键绑定当前空间、会话用户及完整预览选择；步骤幂等由任务expected_version与检查点保证，旧版本重发只返回当前进度。此键仍按通用写入格式校验，不使用项目编辑回执命名空间。预览不保存回执。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "只读预览本集复制内容",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpisodeMigrationPlan"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EpisodeMigrationInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/episode-migrations": {
+      "post": {
+        "operationId": "createEpisodeMigration",
+        "summary": "保存已确认的分集迁移计划",
+        "description": "以当前会话组织/用户和幂等键生成稳定任务及目标身份。同键相同原请求在来源后来变化后仍返回原任务；同键不同内容冲突。新请求必须重算预览摘要且没有issues。此响应不代表目标已发布。",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "分集迁移使用独立协议：创建键绑定当前空间、会话用户及完整预览选择；步骤幂等由任务expected_version与检查点保证，旧版本重发只返回当前进度。此键仍按通用写入格式校验，不使用项目编辑回执命名空间。预览不保存回执。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "保存已确认的分集迁移计划",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpisodeMigrationJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EpisodeMigrationCreate"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listEpisodeMigrations",
+        "summary": "分页读取本项目迁移进度",
+        "description": "",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "分页读取本项目迁移进度",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpisodeMigrationPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/episode-migrations/{migration_id}": {
+      "get": {
+        "operationId": "getEpisodeMigration",
+        "summary": "查询原迁移计划与检查点",
+        "description": "",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "migration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询原迁移计划与检查点",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpisodeMigrationJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/episode-migrations/{migration_id}/continue": {
+      "post": {
+        "operationId": "continueEpisodeMigration",
+        "summary": "执行下一步或核对已接受的迁移",
+        "description": "当前权限重查；每次继续只执行准备、单个素材流式复制或最终核对/发布。目标准备期不可从项目、目录或文件接口读取；发布前逐项校验源/目标字节摘要与来源版本。进程中断可查询原任务继续。已完成状态优先核对，不覆盖用户后来编辑；停止不能删除已发布目标。源项目、旧成片、发布连接与运行任务不修改，不调用模型。",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "分集迁移使用独立协议：创建键绑定当前空间、会话用户及完整预览选择；步骤幂等由任务expected_version与检查点保证，旧版本重发只返回当前进度。此键仍按通用写入格式校验，不使用项目编辑回执命名空间。预览不保存回执。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          },
+          {
+            "name": "migration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "执行下一步或核对已接受的迁移",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpisodeMigrationJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EpisodeMigrationContinue"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/episode-migrations/{migration_id}/cancel": {
+      "post": {
+        "operationId": "cancelEpisodeMigration",
+        "summary": "停止并移除未完成目标",
+        "description": "当前权限重查；每次继续只执行准备、单个素材流式复制或最终核对/发布。目标准备期不可从项目、目录或文件接口读取；发布前逐项校验源/目标字节摘要与来源版本。进程中断可查询原任务继续。已完成状态优先核对，不覆盖用户后来编辑；停止不能删除已发布目标。源项目、旧成片、发布连接与运行任务不修改，不调用模型。",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "分集迁移使用独立协议：创建键绑定当前空间、会话用户及完整预览选择；步骤幂等由任务expected_version与检查点保证，旧版本重发只返回当前进度。此键仍按通用写入格式校验，不使用项目编辑回执命名空间。预览不保存回执。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          },
+          {
+            "name": "migration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "停止并移除未完成目标",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpisodeMigrationJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "参数、当前权限、来源/目标版本或存储失败；源项目保留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EpisodeMigrationContinue"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -22878,6 +23765,14 @@
             ],
             "readOnly": true,
             "description": "省略/0为旧结构，2启用稳定角色/场次关联。"
+          },
+          "migration_source": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MigrationSource"
+              }
+            ],
+            "readOnly": true
           }
         },
         "description": "单项目只有一份当前剧本。无稿时省略 script/script_brief，无尝试时省略 latest_generation，不返回 null。生成活动期间拒绝内容修改和新生成，精确幂等重放仍返回当前投影。项目没有独立的伪状态字段。 第五轮每项目另有一份当前分镜；两种生成均锁定项目写操作。source_script_version 不随分镜编辑改变。",
@@ -23126,7 +24021,8 @@
         "properties": {
           "source_script_version": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 0,
+            "description": "来源剧本版本；0仅允许无剧本的独立镜头。版本2的来源场次顺序固定在source_scene_ids。"
           },
           "shots": {
             "type": "array",
@@ -23399,13 +24295,20 @@
             "type": "string"
           },
           "source": {
-            "type": "string"
+            "type": "string",
+            "description": "包含migrated：授权字节复制后的目标项目拥有该素材，file_url指向目标项目而非源URL别名。"
           },
           "file_url": {
             "type": "string"
           },
           "duration": {
             "type": "number"
+          },
+          "character_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "readOnly": true,
+            "description": "已明确关联的稳定角色ID；旧素材可能只有名字。迁移不会猜测歧义角色。"
           }
         },
         "required": [
@@ -23473,9 +24376,10 @@
               "manual",
               "estimated",
               "asr",
-              "forced"
+              "forced",
+              "imported"
             ],
-            "description": "manual人工时间；estimated仅文字分句/时长比例估算非语音识别；asr为真实协议任务产物但模型效果仍未验证。"
+            "description": "imported为迁移保留的原字幕，不表示重新识别；不得引用源项目的alignment任务，原引用封存在迁移计划subtitle_origins。"
           },
           "subtitle_alignment_id": {
             "type": "string",
@@ -29636,6 +30540,11 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "migration_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$",
+            "readOnly": true
           }
         },
         "required": [
@@ -29975,6 +30884,791 @@
             "minimum": 1
           }
         }
+      },
+      "MigrationSource": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "migration_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "project_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "episode_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "project_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "script_version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "media_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "migration_id",
+          "project_id",
+          "episode_number",
+          "project_version",
+          "script_version",
+          "media_version",
+          "sha256"
+        ],
+        "description": "只读来源记录，不授予读取源项目的权限。原项目与旧导出保留。"
+      },
+      "EpisodeMigrationInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source_episode_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "target_season_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "target_ordinal": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740990
+          },
+          "expected_project_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "expected_media_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "expected_season_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "output_mode": {
+            "type": "string",
+            "enum": [
+              "series",
+              "preserve"
+            ]
+          },
+          "storyboard_policy": {
+            "type": "string",
+            "enum": [
+              "include",
+              "omit"
+            ]
+          },
+          "shot_assignments": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "未知归属镜头必须显式选0留原件，或本次来源集号；不会按邻近场次猜测。"
+          },
+          "character_assignments": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^$|^[A-Za-z0-9_-]{1,64}$"
+            },
+            "description": "素材id到角色稳定id；空串明确解除标签关联，不删除素材。"
+          }
+        },
+        "required": [
+          "source_episode_number",
+          "target_season_id",
+          "target_ordinal",
+          "expected_project_version",
+          "expected_media_version",
+          "expected_season_version",
+          "output_mode",
+          "storyboard_policy",
+          "shot_assignments"
+        ],
+        "description": "每次显式复制一集。1/7/120等旧集号映射到目标项目本地1；目标显示编号单独指定，不能覆盖已有或正在准备的集。"
+      },
+      "MigrationIssue": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      },
+      "MigrationCharacterIdentity": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "name": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "name",
+          "id"
+        ]
+      },
+      "MigrationSceneIdentity": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "id"
+        ]
+      },
+      "MigrationStructureMapping": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "compiler_version": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "source_script_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "source_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "characters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationCharacterIdentity"
+            }
+          },
+          "scenes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationSceneIdentity"
+            }
+          }
+        },
+        "required": [
+          "compiler_version",
+          "source_script_version",
+          "source_sha256",
+          "characters",
+          "scenes"
+        ]
+      },
+      "MigrationSourceRef": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "episode_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "project_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "script_version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "media_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "project_id",
+          "episode_number",
+          "project_version",
+          "script_version",
+          "media_version",
+          "sha256"
+        ]
+      },
+      "MigrationAssetCopy": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/MediaAsset"
+          },
+          "character_id": {
+            "type": "string"
+          },
+          "character": {
+            "type": "string"
+          },
+          "shot_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "character",
+          "shot_id"
+        ]
+      },
+      "MigrationSubtitleOrigin": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "clip_id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "alignment_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "clip_id",
+          "source"
+        ]
+      },
+      "EpisodeMigrationPlan": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "input": {
+            "$ref": "#/components/schemas/EpisodeMigrationInput"
+          },
+          "source": {
+            "$ref": "#/components/schemas/MigrationSourceRef"
+          },
+          "title": {
+            "type": "string"
+          },
+          "brief": {
+            "type": "string"
+          },
+          "script_provider": {
+            "type": "string"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/SeriesOutputProfile"
+          },
+          "script": {
+            "$ref": "#/components/schemas/Script"
+          },
+          "storyboard": {
+            "$ref": "#/components/schemas/Storyboard"
+          },
+          "source_mappings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationStructureMapping"
+            }
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationAssetCopy"
+            }
+          },
+          "timeline": {
+            "$ref": "#/components/schemas/MediaTimeline"
+          },
+          "selections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductionSelection"
+            }
+          },
+          "reviews": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductionReview"
+            }
+          },
+          "library_bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryBinding"
+            }
+          },
+          "retained_source_exports": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationIssue"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationIssue"
+            }
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "subtitle_origins": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationSubtitleOrigin"
+            }
+          }
+        },
+        "required": [
+          "format",
+          "input",
+          "source",
+          "title",
+          "brief",
+          "profile",
+          "source_mappings",
+          "assets",
+          "timeline",
+          "selections",
+          "reviews",
+          "library_bindings",
+          "retained_source_exports",
+          "issues",
+          "warnings",
+          "digest",
+          "subtitle_origins"
+        ],
+        "description": "只读预览；源记录不改动，digest绑定完整选择和来源快照。实际字节摘要由复制检查点封存并在发布前再次核对。issues非空不能创建任务。省略旧分镜时解除目标剪辑的旧镜头标签，原分镜留在源项目。"
+      },
+      "MigrationCopyProof": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "target_asset_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "target_asset_id",
+          "sha256",
+          "size"
+        ]
+      },
+      "EpisodeMigrationSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "space_id": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "source_project_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "target_project_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "row_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "preparing",
+              "copying",
+              "validating",
+              "paused",
+              "completed",
+              "cancelling",
+              "cancelled"
+            ]
+          },
+          "phase": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "source_episode_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "target_ordinal": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "copied_assets": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_assets": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reserved": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "format",
+          "id",
+          "space_id",
+          "created_by",
+          "source_project_id",
+          "target_project_id",
+          "row_version",
+          "state",
+          "phase",
+          "source_episode_number",
+          "target_ordinal",
+          "copied_assets",
+          "total_assets",
+          "reserved",
+          "created_at",
+          "updated_at"
+        ],
+        "description": "分页列表仅返回进度，不返回全部剧本、素材正文或检查点摘要。completed才表示目标可从目录访问；保存计划和copies完成不是发布成功。"
+      },
+      "EpisodeMigrationJob": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "space_id": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "source_project_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "target_project_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "row_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "preparing",
+              "copying",
+              "validating",
+              "paused",
+              "completed",
+              "cancelling",
+              "cancelled"
+            ]
+          },
+          "phase": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "source_episode_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "target_ordinal": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "copied_assets": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_assets": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reserved": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/EpisodeMigrationPlan"
+          },
+          "copies": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MigrationCopyProof"
+            }
+          }
+        },
+        "required": [
+          "format",
+          "id",
+          "space_id",
+          "created_by",
+          "source_project_id",
+          "target_project_id",
+          "row_version",
+          "state",
+          "phase",
+          "source_episode_number",
+          "target_ordinal",
+          "copied_assets",
+          "total_assets",
+          "reserved",
+          "created_at",
+          "updated_at",
+          "plan"
+        ],
+        "description": "只读任务与原始计划；同键重放返回当前任务，不覆盖已完成项目的后续编辑。停止只移除尚未发布的目标，保留任务对账记录及安全的不可变Blob孤儿；不删除源记录或已发布集。"
+      },
+      "EpisodeMigrationPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EpisodeMigrationSummary"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "MigrationUnassignedShot": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "description": "截取的显示摘要，不是待保存的镜头正文。"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ]
+      },
+      "EpisodeMigrationSource": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "project_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "script_version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "media_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "episodes": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          "characters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScriptCharacter"
+            }
+          },
+          "unassigned_shots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationUnassignedShot"
+            }
+          },
+          "historical_exports": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "project_version",
+          "script_version",
+          "media_version",
+          "episodes",
+          "characters",
+          "unassigned_shots",
+          "historical_exports"
+        ],
+        "description": "来源核对视图；规划角色ID为确定性的只读投影，不升级源项目。活动生成时要求等待，不复制运行任务。"
+      },
+      "EpisodeMigrationCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "input": {
+            "$ref": "#/components/schemas/EpisodeMigrationInput"
+          },
+          "preview_digest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "input",
+          "preview_digest"
+        ]
+      },
+      "EpisodeMigrationContinue": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "description": "一个可恢复工作单元。旧expected_version只返回当前进度，不再多执行一个步骤；响应丢失后先查询原任务。"
       }
     },
     "securitySchemes": {

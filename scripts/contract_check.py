@@ -247,6 +247,57 @@ def main():
                 stop(); start()
                 assert project_call("POST", suffix + "/structure-upgrades", body, "structure-contract-upgrade") == changed
 
+            def check_episode_migrations():
+                source = project_call("POST", body={"title": "Migration source", "brief": "Three independent original episodes remain unchanged."}, key="migration-contract-project", expected=201)
+                suffix = "/" + source["id"]
+                project_call("POST", suffix + "/generations", {"expected_version": 1}, "migration-contract-script", 202)
+                source = wait_script(source["id"])
+                script = copy.deepcopy(source["script"])
+                for scene, ep in zip(script["scenes"], [1, 7, 120]):
+                    scene["episode_number"] = ep
+                source = project_call("PUT", suffix + "/script", {"expected_version": source["version"], "script": script}, "migration-contract-scenes")
+                q = "?space_id=personal-demo"
+                root = call("POST", "/api/v1/series" + q, "/api/v1/series", {"title": "Migration destination", "summary": "An explicit copy into independent projects."}, "migration-contract-series", 201)
+                season = call("POST", "/api/v1/series/" + root["id"] + "/seasons" + q, "/api/v1/series/{id}/seasons", {}, "migration-contract-season", 201)
+                path = "/api/v1/projects/" + source["id"]
+                route = "/api/v1/projects/{id}"
+                summary = call("GET", path + "/migration-source" + q, route + "/migration-source")
+                assert summary["episodes"] == [1, 7, 120]
+                data = {"source_episode_number": 7, "target_season_id": season["id"], "target_ordinal": 7, "expected_project_version": source["version"], "expected_media_version": summary["media_version"], "expected_season_version": season["row_version"], "output_mode": "series", "storyboard_policy": "include", "shot_assignments": {}, "character_assignments": {}}
+                preview = call("POST", path + "/episode-migration-preview" + q, route + "/episode-migration-preview", data, "migration-contract-preview")
+                assert preview["issues"] == [] and preview["script"]["scenes"][0]["episode_number"] == 1
+                create = {"input": data, "preview_digest": preview["digest"]}
+                job = call("POST", path + "/episode-migrations" + q, route + "/episode-migrations", create, "migration-contract-create", 201)
+                assert job["state"] == "accepted"
+                page = call("GET", path + "/episode-migrations" + q, route + "/episode-migrations")
+                assert "plan" not in page["items"][0] and "copies" not in page["items"][0]
+                project_call("GET", "/" + job["target_project_id"], expected=404)
+                step = path + "/episode-migrations/" + job["id"]
+                step_route = route + "/episode-migrations/{migration_id}"
+                job = call("POST", step + "/continue" + q, step_route + "/continue", {"expected_version": job["row_version"]}, "migration-contract-reserve")
+                assert job["state"] == "copying"
+                assert call("POST", step + "/continue" + q, step_route + "/continue", {"expected_version": 1}, "migration-contract-reserve-replay")["row_version"] == job["row_version"]
+                stop(); start()
+                job = call("GET", step + q, step_route)
+                job = call("POST", step + "/continue" + q, step_route + "/continue", {"expected_version": job["row_version"]}, "migration-contract-publish")
+                assert job["state"] == "completed"
+                target = project_call("GET", "/" + job["target_project_id"])
+                assert target["migration_source"]["episode_number"] == 7 and len(target["script"]["scenes"]) == 1
+                assert project_call("GET", suffix) == source
+                target = project_call("PUT", "/" + target["id"], {"title": "Edited target", "brief": "A completed migration must not overwrite this edit.", "expected_version": target["version"]}, "migration-contract-edit-target")
+                replay = call("POST", path + "/episode-migrations" + q, route + "/episode-migrations", create, "migration-contract-create", 201)
+                assert replay["id"] == job["id"] and project_call("GET", "/" + target["id"]) == target
+                call("GET", step + "?space_id=team-demo", step_route, expected=404)
+                season = call("GET", "/api/v1/seasons/" + season["id"] + q, "/api/v1/seasons/{id}")
+                data = dict(data, source_episode_number=120, target_ordinal=120, expected_season_version=season["row_version"])
+                preview = call("POST", path + "/episode-migration-preview" + q, route + "/episode-migration-preview", data, "migration-contract-preview-stop")
+                job = call("POST", path + "/episode-migrations" + q, route + "/episode-migrations", {"input": data, "preview_digest": preview["digest"]}, "migration-contract-create-stop", 201)
+                step = path + "/episode-migrations/" + job["id"]
+                job = call("POST", step + "/continue" + q, step_route + "/continue", {"expected_version": job["row_version"]}, "migration-contract-reserve-stop")
+                job = call("POST", step + "/cancel" + q, step_route + "/cancel", {"expected_version": job["row_version"]}, "migration-contract-stop")
+                assert job["state"] == "cancelled"
+                project_call("GET", "/" + job["target_project_id"], expected=404)
+
             def check_history():
                 project = project_call("POST", body={"title": "历史合同", "brief": "两位旧友在车站相遇并交换一本书。"}, key="history-create", expected=201)
                 pid = project["id"]
@@ -581,6 +632,7 @@ def main():
                 check_creative()
                 check_library()
                 check_series()
+                check_episode_migrations()
                 stop()
                 configurations = [
                     ("openai-images", "", "missing_api_key"),
@@ -626,6 +678,7 @@ def main():
                 print("Verified: real project create/detail/edit, Eino structured mock script, 400/404/409 paths, version/source preservation, failed generation keeps draft, all-write accepted-key replay across restarts, and script execution independent of unavailable image configuration.")
                 print("Verified: storyboard mock generation/editing, 400/404/409 guards, source script revision/staleness, failed generation keeps old plan, persisted receipts across restart and successful regeneration clears staleness.")
                 print("Verified: immutable script history restoration, monotonic versions, replay/conflict/cross-space/restart guards; asynchronous brief analysis, provider registry and creative job persistence.")
+                print("Verified: episode migration preview, metadata-only progress lists, hidden preparations, restart, local episode remapping, unchanged source, accepted receipt replay and cancellation.")
                 print("Verified: explicit stable identity upgrade, rename/reorder, old-client write refusal, scope isolation and original receipt replay after restart.")
                 print("Verified: library card versions, ordered history, cross-space isolation, pinned project bindings and original receipts across archive and restart.")
                 print("No real credential was read and no external provider was enabled; all runtime data and processes were temporary.")

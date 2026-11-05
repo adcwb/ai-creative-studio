@@ -16,14 +16,14 @@ function readPending(key:string,path:string,method:string):Pending|null{
  }catch{/* Session storage may be unavailable; mounted-page recovery still works. */}
  const p=memoryPending.get(key);return p&&p.path===path&&p.method===method?p:null
 }
-export function useSeriesWrite(identity:string,path:string,method:string,onSaved:(n:SeriesEntry)=>void){
+export function useSeriesWrite<T extends {id:string}=SeriesEntry>(identity:string,path:string,method:string,onSaved:(n:T)=>void){
  const {space,session}=useAppWorkspace()
  const storageKey=`studio.series.pending:${session.user?.id??'demo-user'}:${space!.id}:${identity}`
  const [recovery]=useState(()=>readPending(storageKey,path,method))
  const pending=useRef<Pending|null>(recovery)
  const [busy,setBusy]=useState(false),[uncertain,setUncertain]=useState(Boolean(recovery)),[dirty,setDirty]=useState(Boolean(recovery)),[error,setError]=useState('')
  const [storageNotice,setStorageNotice]=useState('')
- const [saved,setSaved]=useState<SeriesEntry|null>(null)
+ const [saved,setSaved]=useState<T|null>(null)
  const alive=useRef(true),flight=useRef(false)
  useNavigationTask(dirty||busy||uncertain)
  useEffect(()=>{alive.current=true;return()=>{alive.current=false}},[])
@@ -36,7 +36,7 @@ export function useSeriesWrite(identity:string,path:string,method:string,onSaved
   try{sessionStorage.setItem(storageKey,JSON.stringify(pending.current))}catch{setStorageNotice(translate('浏览器无法保留恢复记录，请在离开前确认保存结果。'))}
   const attempt=pending.current
   try{
-   const n=await request<SeriesEntry>(directoryURL(attempt.path,space!.id),{method:attempt.method,headers:{'Content-Type':'application/json','Idempotency-Key':attempt.key},body:attempt.body})
+   const n=await request<T>(directoryURL(attempt.path,space!.id),{method:attempt.method,headers:{'Content-Type':'application/json','Idempotency-Key':attempt.key},body:attempt.body})
    try{sessionStorage.removeItem(storageKey)}catch{/* In-memory state is authoritative for this mounted form. */}
    memoryPending.delete(storageKey);pending.current=null
    if(alive.current){setDirty(false);setUncertain(false);setSaved(n)}

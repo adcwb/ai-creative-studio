@@ -5,3 +5,9 @@
 @media(max-width:600px){.series-profile{grid-template-columns:1fr;gap:0}.series-heading{align-items:flex-start}.series-heading>button{width:100%}.series-season-actions{align-items:stretch}.series-season-actions>label{flex-basis:100%;min-width:0}.series-season-actions select{min-width:0;width:100%}.series-form .drama-brief-actions>*{flex:1}.series-card-actions>*{flex:1;text-align:center}.series-overview{align-items:flex-start}}
 .projects-page .project-steps>button{display:flex;align-items:center;white-space:nowrap;padding:12px 2px 16px;text-decoration:none;color:var(--ink-muted);border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;font-size:14px}.projects-page .project-steps>button[aria-pressed=true]{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
 .series-context,.series-page .page-heading h1,.series-overview>span{overflow-wrap:anywhere;min-width:0}.series-page .page-heading>div{min-width:0;flex:1}
+.migration-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+.episode-migration{min-width:0;overflow-wrap:anywhere}
+.episode-migration>fieldset{border:0;padding:0;min-width:0}
+.migration-job{padding:1rem 0;border-top:1px solid var(--border);margin-top:1rem}
+.migration-job progress{max-width:100%;margin-right:.6rem}
+@media(max-width:700px){.migration-grid{grid-template-columns:minmax(0,1fr)}}

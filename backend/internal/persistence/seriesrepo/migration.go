@@ -60,7 +60,10 @@ func ImportFiles(ctx context.Context, tx *sql.Tx, dir string) (int, error) {
 				return 0, err
 			}
 			for _, n := range list {
-				if n.State != "ready" {
+				if n.State == "cancelled" {
+					continue
+				}
+				if n.State != "ready" && n.MigrationID == "" {
 					return 0, errors.New("recover preparing series episodes in file mode before migration")
 				}
 				if kind != "series" {
@@ -140,7 +143,7 @@ func ExportFiles(ctx context.Context, tx *sql.Tx, dir string) (int, error) {
 			rows.Close()
 			return 0, err
 		}
-		if n.State != "ready" {
+		if n.State != "ready" && n.MigrationID == "" {
 			rows.Close()
 			return 0, ErrStorage
 		}

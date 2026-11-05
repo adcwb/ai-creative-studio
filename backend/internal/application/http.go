@@ -36,6 +36,7 @@ func Handler(repo Repository, origin string) http.Handler {
 	if store, ok := repo.(*FileStore); ok {
 		store.media.resumePendingExports()
 		registerSeriesRoutes(mux, store)
+		registerEpisodeMigrationRoutes(mux, store)
 		registerLibraryRoutes(mux, store)
 		registerPromptRoutes(mux, store)
 		registerPromptApplicationRoutes(mux, store)

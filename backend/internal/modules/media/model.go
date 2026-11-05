@@ -12,16 +12,17 @@ type SocialState = publishing.SocialState
 var shotIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,40}$`)
 
 type MediaAsset struct {
-	ID        string  `json:"id"`
-	Kind      string  `json:"kind"`
-	MIMEType  string  `json:"mime_type"`
-	Name      string  `json:"name"`
-	Role      string  `json:"role"`
-	Character string  `json:"character"`
-	ShotID    string  `json:"shot_id"`
-	Duration  float64 `json:"duration"`
-	Source    string  `json:"source"`
-	FileURL   string  `json:"file_url"`
+	CharacterID string  `json:"character_id,omitempty"`
+	ID          string  `json:"id"`
+	Kind        string  `json:"kind"`
+	MIMEType    string  `json:"mime_type"`
+	Name        string  `json:"name"`
+	Role        string  `json:"role"`
+	Character   string  `json:"character"`
+	ShotID      string  `json:"shot_id"`
+	Duration    float64 `json:"duration"`
+	Source      string  `json:"source"`
+	FileURL     string  `json:"file_url"`
 }
 
 type MediaClip struct {

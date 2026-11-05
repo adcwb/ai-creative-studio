@@ -37,6 +37,7 @@ func (p Profile) Valid() bool {
 }
 
 type Node struct {
+	MigrationID string    `json:"migration_id,omitempty"`
 	ID          string    `json:"id"`
 	Space       string    `json:"space_id"`
 	Kind        string    `json:"kind"`
@@ -130,6 +131,9 @@ func Normalize(in Input, kind string) (Input, error) {
 	return in, nil
 }
 func Valid(n Node) bool {
+	if n.Kind != "episode" && n.MigrationID != "" {
+		return false
+	}
 	if !ID.MatchString(n.ID) || !ScopeID.MatchString(n.Space) || !ScopeID.MatchString(n.CreatedBy) || !ID.MatchString(n.SeriesID) || n.Version < 1 || n.Version > MaxOrdinal || n.NextOrdinal < 1 || n.NextOrdinal > MaxOrdinal || n.CreatedAt.IsZero() || n.UpdatedAt.IsZero() {
 		return false
 	}
@@ -146,7 +150,7 @@ func Valid(n Node) bool {
 	if n.Kind == "season" {
 		return n.Parent == n.SeriesID && n.ProjectID == "" && (n.Status == "active" || n.Status == "archived") && n.State == "ready"
 	}
-	if n.Kind != "episode" || n.ProjectID != n.ID || (n.State != "ready" && n.State != "preparing") {
+	if n.Kind != "episode" || n.ProjectID != n.ID || (n.State != "ready" && n.State != "preparing" && n.State != "cancelled") || n.MigrationID != "" && !ID.MatchString(n.MigrationID) || n.State == "cancelled" && n.MigrationID == "" {
 		return false
 	}
 	switch n.Status {

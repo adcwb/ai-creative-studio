@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/migrationrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/promptrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/seriesrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
@@ -47,6 +48,7 @@ type Repository interface {
 	Finish(Task, GenerationResult, error) error
 }
 type FileStore struct {
+	migrations   *migrationrepo.Store
 	series       *seriesrepo.Store
 	uploads      *uploadrepo.Store
 	library      *libraryrepo.Store

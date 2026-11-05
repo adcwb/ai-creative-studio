@@ -27,6 +27,7 @@ type ProjectUpdate struct {
 }
 
 type Project struct {
+	MigrationSource              *MigrationSource      `json:"migration_source,omitempty"`
 	StructureVersion             int                   `json:"structure_version,omitempty"`
 	StructureMappings            []StructureMapping    `json:"structure_mappings,omitempty"`
 	SeriesEpisodeID              string                `json:"series_episode_id,omitempty"`
@@ -77,6 +78,10 @@ func NormalizeProjectInput(in ProjectInput) (ProjectInput, error) {
 }
 
 func CloneProject(project Project) Project {
+	if project.MigrationSource != nil {
+		v := *project.MigrationSource
+		project.MigrationSource = &v
+	}
 	project.StructureMappings = CloneStructureMappings(project.StructureMappings)
 	if project.Storyboard != nil {
 		plan := *project.Storyboard

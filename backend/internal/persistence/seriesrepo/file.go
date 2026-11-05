@@ -409,7 +409,7 @@ func (s *Store) mutateFile(ctx context.Context, a series.Actor, key string, c se
 			}
 			result = m.Result
 		}
-		if result.Kind == "episode" && result.State == "preparing" {
+		if result.Kind == "episode" && result.State == "preparing" && result.MigrationID == "" {
 			if project == nil {
 				return ErrStorage
 			}
@@ -464,7 +464,7 @@ func (s *Store) RecoverPreparing(ctx context.Context, project func(series.Node) 
 				return e
 			}
 			for _, n := range nodes {
-				if n.State == "preparing" {
+				if n.State == "preparing" && n.MigrationID == "" {
 					if e = project(n); e != nil {
 						return e
 					}

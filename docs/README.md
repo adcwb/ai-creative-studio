@@ -16,7 +16,7 @@
 ## 需求设计与实施规范
 
 - [Spec Coding 文档约定与历史设计索引](superpowers/README.md)
-- [自定义图像提示词与长篇 AI 漫剧规格包](superpowers/specs/2026-11-04-creative-series/README.md)（2026-11-05修订12：每集1–2分钟、1K–4K、项目去配额；实施中，第一批结果与剩余工作见包内实施记录）
+- [自定义图像提示词与长篇 AI 漫剧规格包](superpowers/specs/2026-11-04-creative-series/README.md)（2026-11-05修订13：每集1–2分钟、1K–4K、项目去配额；实施中，第一批结果与剩余工作见包内实施记录）
 
 其他 `iteration-*`、`design/*` 和日期设计文档保留对应轮次的背景与验证记录；阅读时应核对基线、状态和后续专题文档。
 
@@ -31,3 +31,5 @@
 [T31系列工作区实施记录](superpowers/specs/2026-11-04-creative-series/series-ui-implementation.md)：面向C端的季集目录、插入重排、单集真实网关输入与导出编号快照已交付；T32旧多集拆分及连续性、导演编排和完整生产容量仍在后续计划中，完整Spec完成前不推送。
 
 [T32A稳定角色与场次关联](superpowers/specs/2026-11-04-creative-series/structure-implementation.md)：新版稿内身份、旧项目显式升级、分镜来源、幂等恢复与存储往返已实现；实际旧多集迁移、授权素材复制和迁移任务续跑尚未完成，不提前推送。
+
+[T32旧多集分集复制](superpowers/specs/2026-11-04-creative-series/episode-migration-implementation.md)：显式预览、归属选择、目标独立素材、持久检查点、停止与崩溃对账已实现；原稿与旧成片保留。连续性与导演编排仍待实施，完整Spec完成前不推送。

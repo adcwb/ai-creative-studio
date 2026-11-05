@@ -6,7 +6,7 @@ export interface AlignmentTask { episode_number?: number;
   clip_id: string; audio_asset_id: string; duration: number; transcript?: string; cues: SubtitleCue[]; warnings: string[]; error?: string
 }
 export interface AlignmentCapability { provider: string; model?: string; mode: string; ready: boolean; message: string }
-export interface SubtitleFields { subtitle_cues?: SubtitleCue[]; subtitle_source?: 'manual' | 'estimated' | 'asr' | 'forced'; subtitle_alignment_id?: string }
+export interface SubtitleFields { subtitle_cues?: SubtitleCue[]; subtitle_source?: 'manual' | 'estimated' | 'asr' | 'forced' | 'imported'; subtitle_alignment_id?: string }
 export function SubtitleAlignment({index, clip, tasks, capabilities, locked, dirty, version, onChange, onCreate, onCancel, onApply}: {
   index: number; clip: SubtitleFields & {id: string; duration: number; subtitle: string; audio_asset_id: string}; tasks: AlignmentTask[]
   capabilities: Partial<Record<'estimate' | 'asr' | 'forced' | 'transcription', AlignmentCapability>>; locked: boolean; dirty: boolean; version: number
@@ -21,7 +21,7 @@ export function SubtitleAlignment({index, clip, tasks, capabilities, locked, dir
   return <section className="subtitle-alignment" aria-label={translate("片段 {p0} 逐句字幕", {p0: index + 1})}>
     <h4>{translate("逐句字幕与对白对齐")}</h4>
     <p className="drama-help">{translate("时间相对本片段起点，以秒为单位；逐句字幕存在时优先于整镜字幕；清空逐句后恢复使用整镜字幕。修改配音或片段时长后，请重新检查时间。")}</p>
-    <p className="drama-source">{translate("字幕来源：")}{clip.subtitle_source === 'forced' ? translate("强制对齐候选（需人工校正）") : clip.subtitle_source === 'asr' ? translate("语音识别结果（需人工校正）") : clip.subtitle_source === 'estimated' ? translate("按文本估算 · 未识别音频") : translate("人工编辑")}{clip.subtitle_alignment_id && translate(" · 来源任务 {p0}", {p0: clip.subtitle_alignment_id})}</p>
+    <p className="drama-source">{translate("字幕来源：")}{clip.subtitle_source === 'imported' ? translate('从旧项目保留 · 未重新识别') : clip.subtitle_source === 'forced' ? translate("强制对齐候选（需人工校正）") : clip.subtitle_source === 'asr' ? translate("语音识别结果（需人工校正）") : clip.subtitle_source === 'estimated' ? translate("按文本估算 · 未识别音频") : translate("人工编辑")}{clip.subtitle_alignment_id && translate(" · 来源任务 {p0}", {p0: clip.subtitle_alignment_id})}</p>
     <div className="subtitle-cues">{cues.map((cue, cueIndex) => <div className="subtitle-cue" key={cueIndex}>
       <div className="storyboard-fields"><label>{translate("第 {p0} 句开始（秒）", {p0: cueIndex + 1})}<input aria-label={translate("片段 {p0} 第 {p1} 句开始", {p0: index + 1, p1: cueIndex + 1})} type="number" min="0" max={clip.duration} step="0.01" value={cue.start} onChange={event => edit(cueIndex, {start: Number(event.target.value)})} /></label><label>{translate("结束（秒）")}<input aria-label={translate("片段 {p0} 第 {p1} 句结束", {p0: index + 1, p1: cueIndex + 1})} type="number" min="0" max={clip.duration} step="0.01" value={cue.end} onChange={event => edit(cueIndex, {end: Number(event.target.value)})} /></label></div>
       <label>{translate("第 {p0} 句文本", {p0: cueIndex + 1})}<textarea aria-label={translate("片段 {p0} 第 {p1} 句文本", {p0: index + 1, p1: cueIndex + 1})} maxLength={300} value={cue.text} onChange={event => edit(cueIndex, {text: event.target.value})} /></label><button type="button" disabled={locked} onClick={() => change(cues.filter((_, i) => i !== cueIndex))}>{translate("删除片段 {p0} 第 {p1} 句", {p0: index + 1, p1: cueIndex + 1})}</button>

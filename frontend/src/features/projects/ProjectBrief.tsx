@@ -1,5 +1,6 @@
 import { translate } from '../../i18n'
 import type { ProjectEditorState } from './useProjectEditor'
+import {EpisodeMigrationPanel} from './EpisodeMigrationPanel'
 
 export function ProjectBrief({state}: {state: ProjectEditorState}) {
   const {id, editor, validation} = state
@@ -13,6 +14,7 @@ export function ProjectBrief({state}: {state: ProjectEditorState}) {
           <div className="drama-brief-actions"><span>{editor.briefDirty ? translate("有未保存的简报修改") : id ? translate("简报已保存") : translate("建立你的第一个故事起点")}</span><div>{id && editor.briefDirty && <button type="button" disabled={editor.locked || editor.editingScript || editor.editingStoryboard} onClick={editor.cancelBrief}>{translate("取消简报修改")}</button>}<button className="primary" type="submit" disabled={editor.locked || editor.editingScript || editor.editingStoryboard || Boolean(validation) || (Boolean(id) && !editor.briefDirty)}>{editor.busy === 'create' || editor.busy === 'brief' ? translate("正在保存…") : id ? translate("保存项目简报") : translate("创建项目")}</button></div></div>
         </form>
       </section>
+	  {id&&editor.project&&<EpisodeMigrationPanel space={state.space} project={editor.project} disabled={editor.locked||editor.dirty}/>}
 
   </>
 }

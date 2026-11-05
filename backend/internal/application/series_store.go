@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/series"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/migrationrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/seriesrepo"
 )
 
@@ -17,6 +18,10 @@ func (s *FileStore) openSeries(dir string) error {
 		db = s.pg.db
 	}
 	s.series, err = seriesrepo.Open(filepath.Join(dir, "series"), db)
+	if err != nil {
+		return err
+	}
+	s.migrations, err = migrationrepo.Open(filepath.Join(dir, "episode-migrations"), db)
 	if err != nil {
 		return err
 	}
@@ -36,6 +41,9 @@ func (s *FileStore) openSeries(dir string) error {
 	s.configureSeriesMedia()
 	for _, p := range s.data.Projects {
 		if err = s.readySeriesProject(p.SpaceID, p); err != nil {
+			if errors.Is(err, ErrNotFound) && s.validPendingMigration(context.Background(), p) {
+				continue
+			}
 			return err
 		}
 	}

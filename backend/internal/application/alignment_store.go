@@ -524,7 +524,7 @@ func (m *MediaStore) validateAlignmentSources(project, space string, t MediaTime
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for _, clip := range t.Clips {
-		if clip.SubtitleSource != "" && clip.SubtitleSource != "manual" && clip.SubtitleSource != "estimated" && clip.SubtitleSource != "asr" && clip.SubtitleSource != "forced" {
+		if clip.SubtitleSource != "" && clip.SubtitleSource != "manual" && clip.SubtitleSource != "imported" && clip.SubtitleSource != "estimated" && clip.SubtitleSource != "asr" && clip.SubtitleSource != "forced" {
 			return mediaInvalid("字幕来源无效")
 		}
 		if clip.SubtitleAlignmentID == "" {
@@ -532,6 +532,9 @@ func (m *MediaStore) validateAlignmentSources(project, space string, t MediaTime
 				return mediaInvalid("估算或ASR来源必须引用成功对齐任务")
 			}
 			continue
+		}
+		if clip.SubtitleSource == "imported" {
+			return mediaInvalid("迁移字幕不能冒用其他项目的对齐任务")
 		}
 		task, ok := a.data.Tasks[clip.SubtitleAlignmentID]
 		if !ok || task.ProjectID != project || task.SpaceID != space || task.Status != "succeeded" || task.Mode == "transcription" || task.ClipID != clip.ID || !sameEpisode(task.EpisodeNumber, t.EpisodeNumber) {

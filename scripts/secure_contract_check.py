@@ -125,8 +125,35 @@ def main():
                 call(bob, 'POST', structure_path + query, structure_route, structure_body, bq, status=403, key='secure-structure-viewer')
                 upgraded = call(alice, 'POST', structure_path + query, structure_route, structure_body, aq, key='secure-structure-upgrade')
                 assert upgraded['structure_version'] == 2 and 'structure_mappings' not in upgraded
+                migration_source = call(alice, 'POST', '/api/v1/projects' + query, '/api/v1/projects', {'title': 'Migration access scope', 'brief': 'A source episode retained after an explicit owned copy.'}, aq, status=201, key='migration-secure-source')
+                source_path = '/api/v1/projects/' + migration_source['id']
+                project_route = '/api/v1/projects/{id}'
+                migration_source = call(alice, 'PUT', source_path + '/script' + query, project_route + '/script', {'expected_version': migration_source['version'], 'script': {'title': 'Original episode', 'logline': 'A traveller reaches the river.', 'characters': [], 'scenes': [{'episode_number': 7, 'heading': 'River', 'action': 'A traveller arrives.', 'dialogue': []}]}}, aq, key='migration-secure-script')
+                root_series = call(alice, 'POST', '/api/v1/series' + query, '/api/v1/series', {'title': 'Migration destination', 'summary': 'Independent episodes retain their owned source.'}, aq, status=201, key='migration-secure-series')
+                season = call(alice, 'POST', '/api/v1/series/' + root_series['id'] + '/seasons' + query, '/api/v1/series/{id}/seasons', {}, aq, status=201, key='migration-secure-season')
+                summary = call(alice, 'GET', source_path + '/migration-source' + query, project_route + '/migration-source')
+                migration_input = {'source_episode_number': 7, 'target_season_id': season['id'], 'target_ordinal': 7, 'expected_project_version': migration_source['version'], 'expected_media_version': summary['media_version'], 'expected_season_version': season['row_version'], 'output_mode': 'series', 'storyboard_policy': 'include', 'shot_assignments': {}, 'character_assignments': {}}
+                preview_path, preview_route = source_path + '/episode-migration-preview', project_route + '/episode-migration-preview'
+                call(anonymous, 'GET', source_path + '/migration-source' + query, project_route + '/migration-source', status=401)
+                call(alice, 'POST', preview_path + query, preview_route, migration_input, status=403, key='migration-secure-no-csrf')
+                call(bob, 'POST', preview_path + query, preview_route, migration_input, bq, status=403, key='migration-secure-viewer')
+                preview = call(alice, 'POST', preview_path + query, preview_route, migration_input, aq, key='migration-secure-preview')
+                jobs_path, jobs_route = source_path + '/episode-migrations', project_route + '/episode-migrations'
+                create_migration = {'input': migration_input, 'preview_digest': preview['digest']}
+                call(bob, 'POST', jobs_path + query, jobs_route, create_migration, bq, status=403, key='migration-secure-viewer-create')
+                migration = call(alice, 'POST', jobs_path + query, jobs_route, create_migration, aq, status=201, key='migration-secure-create')
+                task_path, task_route = jobs_path + '/' + migration['id'], jobs_route + '/{migration_id}'
+                call(bob, 'POST', task_path + '/continue' + query, task_route + '/continue', {'expected_version': migration['row_version']}, bq, status=403, key='migration-secure-viewer-step')
+                migration = call(alice, 'POST', task_path + '/continue' + query, task_route + '/continue', {'expected_version': migration['row_version']}, aq, key='migration-secure-reserve')
+                call(bob, 'GET', '/api/v1/projects/' + migration['target_project_id'] + query, project_route, status=404)
+                migration = call(alice, 'POST', task_path + '/continue' + query, task_route + '/continue', {'expected_version': migration['row_version']}, aq, key='migration-secure-complete')
+                assert migration['state'] == 'completed'
+                copied = call(bob, 'GET', '/api/v1/projects/' + migration['target_project_id'] + query, project_route)
+                assert copied['migration_source']['episode_number'] == 7
+                assert call(alice, 'GET', source_path + query, project_route) == migration_source
                 call(bob, 'PUT', budget + query, budget, {'currency': 'USD', 'limit_minor': 301, 'expected_limit_minor': 300}, bq, status=403)
                 call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'remove'}, aq)
+                call(bob, 'GET', task_path + query, task_route, status=403)
                 call(bob, 'GET', governance + query, governance, status=403)
                 assert call(bob, 'GET', governance + '?space_id=' + other, governance)['limit_minor'] == 0
                 exchange = governance + '/exchange'
@@ -262,7 +289,7 @@ def main():
                 call(alice, 'POST', variable_target + '/copies' + query, route + '/copies', dict(version_id=variable_saved['version']['id'], name='Copied recipe', visibility='private'), aq, status=201)
                 call(alice, 'POST', '/api/v1/auth/logout', '/api/v1/auth/logout', {}, aq)
                 assert call(alice, 'GET', session_route, session_route)['authenticated'] is False
-                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'explicit stable structure upgrade, CSRF and viewer refusal'], 'live_provider_calls': 0}))
+                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'explicit stable structure upgrade, CSRF and viewer refusal', 'episode copy preview, hidden target, viewer/CSRF refusal and revoked progress access'], 'live_provider_calls': 0}))
             finally:
                 process.terminate()
                 process.wait(timeout=15)

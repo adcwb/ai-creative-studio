@@ -11,10 +11,17 @@ import (
 )
 
 // Business modules may use standard-library contracts and the explicitly listed
-// cross-module value types. They must never depend on execution or persistence.
+// cross-module pure contracts. They must never depend on execution or persistence.
 func TestBusinessModuleDependencies(t *testing.T) {
 	root := filepath.Join("..", "modules")
-	allowed := map[string]map[string]bool{"projects": {"governance": true}, "media": {"publishing": true, "prompts": true}}
+	allowed := map[string]map[string]bool{
+		"projects": {"governance": true},
+		"media":    {"publishing": true, "prompts": true},
+		// Migration compiles source value snapshots with the same pure script,
+		// timeline and directory validation as normal editing. I/O and task
+		// recovery remain in application and persistence, under the rules below.
+		"seriesmigration": {"projects": true, "media": true, "series": true},
+	}
 	const prefix = "github.com/adcwb/ai-creative-studio/backend/internal/modules/"
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {

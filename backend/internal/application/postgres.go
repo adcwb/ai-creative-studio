@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/migrationrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/promptrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/seriesrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
@@ -179,6 +180,9 @@ func InitPostgres(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, uploadrepo.Schema); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, migrationrepo.Schema); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -474,6 +478,9 @@ func OpenPostgresStore(dir string, db *sql.DB, options ...Capabilities) (*FileSt
 	}
 	if entries, err := os.ReadDir(filepath.Join(dir, "series")); err == nil && len(entries) > 0 || err != nil && !os.IsNotExist(err) {
 		return nil, errors.New("postgres cache contains local series data; use explicit offline migration and a fresh cache directory")
+	}
+	if entries, err := os.ReadDir(filepath.Join(dir, "episode-migrations")); err == nil && len(entries) > 0 || err != nil && !os.IsNotExist(err) {
+		return nil, errors.New("postgres cache contains local episode migrations; use explicit offline migration and a fresh cache directory")
 	}
 	if entries, err := os.ReadDir(filepath.Join(dir, "uploads")); err == nil && len(entries) > 0 || err != nil && !os.IsNotExist(err) {
 		return nil, errors.New("postgres cache contains local upload sessions; use explicit offline migration and a fresh cache directory")
