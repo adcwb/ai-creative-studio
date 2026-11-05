@@ -122,6 +122,38 @@ func TestPromptReferenceApplicationAtomicReplayIsolationAndSource(t *testing.T) 
 	if s.resolveCreativePrompt(writer, request, space, target.ID, "changed-reference-key", &creative) {
 		t.Fatal("silently dropped recipe reference")
 	}
+
+	referenceInput := CreativeJobInput{Kind: "image", ReferenceAssetIDs: applied.ReferenceAssetIDs}
+	if _, e = s.pinCreativeLibraryMedia(context.Background(), target.ID, space, referenceInput); e == nil {
+		t.Fatal("recipe copied media bypassed missing authorization")
+	}
+	setLibraryDispatchAuthorization(t, s, card, 0, "grant-recipe-use", "granted")
+	pins, e := s.pinCreativeLibraryMedia(context.Background(), target.ID, space, referenceInput)
+	if e != nil || len(pins) != 2 {
+		t.Fatal("recipe lineage missing", e)
+	}
+	// Simulate pre-lineage metadata. Trusted application/version/reference
+	// mappings, rather than its display Source, reconstruct exact ancestry.
+	s.media.mu.Lock()
+	legacy := s.media.clone()
+	legacyState := mediaState(legacy, mediaKey(space, target.ID))
+	for i := range legacyState.Assets {
+		legacyState.Assets[i].LibrarySources = nil
+		legacyState.Assets[i].ContentSHA256 = ""
+	}
+	legacy.Projects[mediaKey(space, target.ID)] = legacyState
+	e = s.media.commit(legacy)
+	s.media.mu.Unlock()
+	if e != nil {
+		t.Fatal(e)
+	}
+	if pins, e = s.pinCreativeLibraryMedia(context.Background(), target.ID, space, referenceInput); e != nil || len(pins) != 2 {
+		t.Fatal("legacy recipe resolution", e)
+	}
+	setLibraryDispatchAuthorization(t, s, card, 1, "revoke-recipe-use", "revoked")
+	if _, e = s.pinCreativeLibraryMedia(context.Background(), target.ID, space, referenceInput); e == nil {
+		t.Fatal("recipe bypassed revocation")
+	}
 	home := map[string]any{"prompt": recipe.Version.Body, "kind": "poster", "prompt_source": map[string]any{"template_id": recipe.Template.ID, "version_id": recipe.Version.ID, "edited": false}}
 	w = call("POST", "/api/v1/tasks?space_id="+space, "reference-home-reject", home)
 	if w.Code != 400 || len(s.List(space)) != 0 {

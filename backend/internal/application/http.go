@@ -284,6 +284,11 @@ func problem(w http.ResponseWriter, status int, code, message string) {
 	respond(w, status, map[string]any{"error": map[string]string{"code": code, "message": message}})
 }
 func storeError(w http.ResponseWriter, err error) {
+	var failure *ProviderError
+	if errors.As(err, &failure) && failure.Code == "library_use_denied" {
+		problem(w, 409, failure.Code, providerMessage(failure.Code))
+		return
+	}
 	switch {
 	case errors.Is(err, ErrInvalidProjectInput):
 		problem(w, 400, "invalid_input", err.Error())

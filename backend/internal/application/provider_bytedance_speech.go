@@ -47,7 +47,7 @@ func (p *ByteDanceSpeechProvider) Speech(ctx context.Context, text string) ([]by
 	req.Header.Set("X-Api-Key", p.key)
 	req.Header.Set("X-Api-Resource-Id", p.resource)
 	req.Header.Set("X-Api-Request-Id", uuid)
-	res, err := p.client.Do(req)
+	res, err := libraryGuardedRequest(p.client, req)
 	if err != nil {
 		return nil, providerFailure("provider_error")
 	}

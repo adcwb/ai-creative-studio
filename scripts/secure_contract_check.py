@@ -117,6 +117,26 @@ def main():
                 call(alice, 'GET', member, member_route)
                 call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'viewer'}, aq)
                 call(bob, 'GET', governance + query, governance)
+                library_route = '/api/v1/library/assets'
+                asset = call(alice, 'POST', library_route + query, library_route, dict(kind='style',card=dict(name='Synthetic style',description='',prohibited_changes=[],style={}),references=[]), aq, status=201, key='secure-library-authorization-card')
+                use_path = library_route + '/' + asset['asset']['id'] + '/use-authorization'
+                use_route = library_route + '/{assetId}/use-authorization'
+                assert call(alice,'GET',use_path+query,use_route)['authorization'] is None
+                declaration = dict(expected_revision=0,status='granted',version_ids=[asset['version']['id']],purposes=['image_reference'],rights_holder='Synthetic creator',basis='own_work',evidence='Local original fixture',attested=True)
+                call(anonymous,'GET',use_path+query,use_route,status=401)
+                call(bob,'GET',use_path+'?space_id='+other,use_route,status=404)
+                call(alice,'POST',use_path+query,use_route,declaration,status=403,key='secure-authorization-csrf')
+                call(bob,'POST',use_path+query,use_route,declaration,bq,status=403,key='secure-authorization-viewer')
+                forged={**declaration,'updated_by':'forged'}
+                call(alice,'POST',use_path+query,use_route,forged,aq,status=400,key='secure-authorization-forgery')
+                accepted=call(alice,'POST',use_path+query,use_route,declaration,aq,key='secure-authorization-grant')
+                assert accepted['authorization']['updated_by']==a['user']['id'] and accepted['authorization']['declared_by']==a['user']['id']
+                call(bob,'GET',use_path+query,use_route)
+                revoked=call(alice,'POST',use_path+query,use_route,dict(expected_revision=1,status='revoked',reason='Synthetic withdrawal'),aq,key='secure-authorization-revoke')
+                assert revoked['authorization']['revision']==2
+                assert call(alice,'POST',use_path+query,use_route,declaration,aq,key='secure-authorization-grant')==accepted
+                assert call(alice,'GET',use_path+query,use_route)['authorization']['status']=='revoked'
+
                 structure_project = call(alice, 'POST', '/api/v1/projects' + query, '/api/v1/projects', {'title': 'Stable identity scope', 'brief': 'An explicit metadata-only identity upgrade.'}, aq, status=201, key='secure-structure-project')
                 structure_path = '/api/v1/projects/' + structure_project['id'] + '/structure-upgrades'
                 structure_route = '/api/v1/projects/{id}/structure-upgrades'
@@ -344,7 +364,7 @@ def main():
                 call(alice, 'POST', variable_target + '/copies' + query, route + '/copies', dict(version_id=variable_saved['version']['id'], name='Copied recipe', visibility='private'), aq, status=201)
                 call(alice, 'POST', '/api/v1/auth/logout', '/api/v1/auth/logout', {}, aq)
                 assert call(alice, 'GET', session_route, session_route)['authenticated'] is False
-                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'explicit stable structure upgrade, CSRF and viewer refusal', 'episode copy preview, hidden target, viewer/CSRF refusal and revoked progress access', 'canonical story versions, immutable retrieval snapshots, current-source comparisons, original receipts, null-script safeguards and revoked access'], 'live_provider_calls': 0}))
+                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'library use declarations: CSRF, viewer, forged actor, original grant receipt and current revocation', 'explicit stable structure upgrade, CSRF and viewer refusal', 'episode copy preview, hidden target, viewer/CSRF refusal and revoked progress access', 'canonical story versions, immutable retrieval snapshots, current-source comparisons, original receipts, null-script safeguards and revoked access'], 'live_provider_calls': 0}))
             finally:
                 process.terminate()
                 process.wait(timeout=15)

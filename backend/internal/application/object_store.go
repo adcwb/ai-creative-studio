@@ -111,7 +111,7 @@ func (b *S3ReferenceBridge) ReferenceURL(ctx context.Context, data []byte, mime 
 	}
 	request.GetBody = nil
 	request.Header.Set("Content-Type", "image/png")
-	response, err := client.Do(request)
+	response, err := libraryGuardedRequest(client, request)
 	if err != nil {
 		return "", providerFailure("reference_bridge_failed")
 	}

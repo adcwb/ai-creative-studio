@@ -133,6 +133,10 @@ func TestGuardedReferenceBridgeDenyBeforeStorageAndCancel(t *testing.T) {
 		t.Fatal("unauthorized storage", err)
 	}
 	b.guard = func(context.Context) error { return nil }
+	revoked := context.WithValue(context.Background(), libraryDispatchKey{}, func(context.Context) error { return providerFailure("library_use_denied") })
+	if _, err := b.ReferenceURL(revoked, nil, ""); err == nil || calls != 0 || attempts != 0 {
+		t.Fatal("asset revoked before reference storage", err, calls, attempts)
+	}
 	if _, err := b.ReferenceURL(runtimeRecoveryContext("job"), nil, ""); err == nil || calls != 0 {
 		t.Fatal("recovery upload")
 	}

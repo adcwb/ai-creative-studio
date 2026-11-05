@@ -90,6 +90,9 @@ func (b guardedReferenceBridge) ReferenceURL(ctx context.Context, data []byte, m
 	defer cancel()
 	stop := context.AfterFunc(b.lifetime, cancel)
 	defer stop()
+	if err := checkLibraryDispatch(ctx); err != nil {
+		return "", err
+	}
 	// Storage may have accepted a request even if its result is unknown. Never
 	// mark the enclosing operation as safely unattempted after this point.
 	b.attempted()

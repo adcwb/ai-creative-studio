@@ -120,7 +120,7 @@ func (p *OpenAIProvider) generateEdit(ctx context.Context, in Input, reference [
 	req.GetBody = nil
 	req.Header.Set("Authorization", "Bearer "+p.key)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-	response, err := p.client.Do(req)
+	response, err := libraryGuardedRequest(p.client, req)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return GenerationResult{}, providerFailure("provider_timeout")

@@ -93,7 +93,7 @@ func (p *JimengImageProvider) request(ctx context.Context, action string, body a
 	}
 	req.GetBody = nil
 	signJimeng(req, data, p.accessKey, p.secretKey, p.now())
-	resp, err := p.client.Do(req)
+	resp, err := libraryGuardedRequest(p.client, req)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return out, providerFailure("provider_timeout")
@@ -150,6 +150,9 @@ func (p *JimengImageProvider) SubmitImageWithReference(ctx context.Context, in I
 	}
 	if len([]rune("Create one image. Style: "+in.Style+". Aspect ratio: "+in.Ratio+". Brief: "+in.Prompt)) > 800 {
 		return AsyncImageJob{}, providerFailure("provider_rejected")
+	}
+	if e := checkLibraryDispatch(ctx); e != nil {
+		return AsyncImageJob{}, e
 	}
 	url, err := p.bridge.ReferenceURL(ctx, reference, mime)
 	if err != nil {

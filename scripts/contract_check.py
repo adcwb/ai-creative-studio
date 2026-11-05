@@ -211,12 +211,28 @@ def main():
                 call("POST", bind_url, bind_route, binding, "library-contract-bind", 201)
                 view = call("GET", bind_url, bind_route)
                 assert view["items"][0]["asset_version_id"] == old["id"]
+                use_path, use_route = root + "/use-authorization", detail_route + "/use-authorization"
+                grant = dict(expected_revision=0, status="granted", version_ids=[old["id"]], purposes=["image_reference"], rights_holder="Synthetic creator", basis="own_work", evidence="Synthetic original fixture", attested=True)
+                missing = copy.deepcopy(grant); del missing["expected_revision"]
+                call("POST", use_path + q, use_route, missing, "library-grant-missing-revision", 400)
+                missing["expected_revision"] = None
+                call("POST", use_path + q, use_route, missing, "library-grant-null-revision", 400)
+                accepted = call("POST", use_path + q, use_route, grant, "library-grant-original")
+                assert accepted["authorization"]["revision"] == 1 and accepted["authorization"]["version_ids"] == [old["id"]]
+                call("POST", use_path + q, use_route, grant, "library-grant-stale", 409)
+                changed = copy.deepcopy(grant); changed["expected_revision"] = 1; changed["version_ids"] = ["foreign-version"]
+                call("POST", use_path + q, use_route, changed, "library-grant-foreign-version", 404)
+                call("POST", use_path + q, use_route, dict(expected_revision=1,status="revoked",reason="Synthetic withdrawal"), "library-revoke-original")
+                assert call("POST", use_path + q, use_route, grant, "library-grant-original") == accepted
+                assert call("GET", use_path + q, use_route)["authorization"]["status"] == "revoked"
                 archive = {"expected_asset_version_id": newer["version"]["id"]}
                 call("POST", root + "/archive" + q, detail_route + "/archive", archive, "library-contract-archive")
                 stop(); start()
                 assert call("POST", route + q, route, body, "library-contract-create") == original
                 call("POST", bind_url, bind_route, binding, "library-contract-bind")
                 assert len(call("GET", bind_url, bind_route)["items"]) == 1
+                assert call("GET", use_path + q, use_route)["authorization"]["status"] == "revoked"
+                assert call("POST", use_path + q, use_route, grant, "library-grant-original") == accepted
                 call("GET", route + q + "&status=archived", route)
                 for kind, fields in [("style",dict(palette="Blue and amber",linework="Open lines",composition="Keep negative space",lighting="Side light",texture="Paper")),("voice",dict(timbre="Clear",performance="Restrained",pace="Pause before answering",pronunciation="Keep names consistent"))]:
                     intent=dict(kind=kind,card=dict(name=kind+" intent",description="Creative intent, not authorization or native model control.",prohibited_changes=["Keep choice "+str(i) for i in range(31)],**{kind:fields}),references=[])
@@ -698,7 +714,7 @@ def main():
                 print("Verified: immutable script history restoration, monotonic versions, replay/conflict/cross-space/restart guards; asynchronous brief analysis, provider registry and creative job persistence.")
                 print("Verified: episode migration preview, metadata-only progress lists, hidden preparations, restart, local episode remapping, unchanged source, accepted receipt replay and cancellation.")
                 print("Verified: explicit stable identity upgrade, rename/reorder, old-client write refusal, scope isolation and original receipt replay after restart.")
-                print("Verified: library card versions, style/voice intent and >20 constraints without quotas, distinct types and image-not-voice refusal, ordered history, cross-space isolation, pinned project bindings and original receipts across archive and restart.")
+                print("Verified: library card versions, style/voice intent and >20 constraints without quotas, distinct types and image-not-voice refusal, ordered history, cross-space isolation, pinned project bindings, explicit required authorization revision/CAS/current revocation and original receipts across archive and restart.")
                 print("No real credential was read and no external provider was enabled; all runtime data and processes were temporary.")
             finally:
                 stop()

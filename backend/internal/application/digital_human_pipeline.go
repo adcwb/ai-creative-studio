@@ -207,7 +207,7 @@ func (s *FileStore) executeDigitalHuman(ctx context.Context, job *CreativeJob) e
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	_, err = s.media.AddAsset(job.ProjectID, job.SpaceID, "creative-"+job.ID, "AI生成 · 数字人口播", "shot", job.Character, job.ShotID, job.Provider, work.video, "video/mp4", job.lease)
+	_, err = s.media.addAssetContext(ctx, job.ProjectID, job.SpaceID, "creative-"+job.ID, "AI生成 · 数字人口播", "shot", job.Character, job.ShotID, job.Provider, work.video, "video/mp4", job.lease)
 	if err != nil {
 		return err
 	}

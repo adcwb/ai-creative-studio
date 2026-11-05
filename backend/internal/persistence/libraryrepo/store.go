@@ -141,6 +141,7 @@ func (s *Store) List(ctx context.Context, space string, q Query) ([]library.Asse
 			if rows.Scan(&b) != nil || json.Unmarshal(b, &a) != nil || a.SpaceID != space {
 				return nil, ErrStorage
 			}
+			a.UseAuthorization = nil
 			out = append(out, a)
 		}
 		return out, rows.Err()
@@ -164,6 +165,9 @@ func (s *Store) Get(ctx context.Context, space, id string) (Result, error) {
 		}
 		var r Result
 		if err != nil || json.Unmarshal(a, &r.Asset) != nil || json.Unmarshal(b, &r.Version) != nil {
+			return Result{}, ErrStorage
+		}
+		if !library.ValidAuthorization(r.Asset.UseAuthorization) {
 			return Result{}, ErrStorage
 		}
 		return r, nil
@@ -247,12 +251,12 @@ func (s *Store) Mutate(ctx context.Context, space, key, digest, expected string,
 		return Result{}, library.ErrInput
 	}
 	if s.db != nil {
-		return s.mutateSQL(ctx, space, key, digest, expected, result, archive)
+		return s.mutateSQL(ctx, space, key, digest, expected, result, archive, nil)
 	}
 	var out Result
 	err := s.withFileLock(ctx, space, func() error {
 		var err error
-		out, err = s.fileMutate(ctx, space, key, digest, expected, result, archive)
+		out, err = s.fileMutate(ctx, space, key, digest, expected, result, archive, nil)
 		return err
 	})
 	return out, err
@@ -263,6 +267,9 @@ func validateMutation(old library.Asset, exists bool, expected string, r Result,
 	}
 	if exists && (old.HeadVersionID != expected || old.Kind != r.Asset.Kind) {
 		return library.ErrConflict
+	}
+	if !library.ValidAuthorization(r.Asset.UseAuthorization) {
+		return library.ErrInput
 	}
 	if exists && old.Status == "archived" {
 		return library.ErrArchived

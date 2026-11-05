@@ -71,7 +71,7 @@ func (p *GoogleMediaProvider) requestLimit(ctx context.Context, method, path str
 	req.Header.Set("x-goog-api-key", p.key)
 	req.Header.Set("Content-Type", "application/json")
 	req.GetBody = nil
-	res, err := p.client.Do(req)
+	res, err := libraryGuardedRequest(p.client, req)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, providerFailure("provider_timeout")

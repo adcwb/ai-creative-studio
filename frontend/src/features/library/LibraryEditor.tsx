@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import {LibraryAuthorization} from './LibraryAuthorization'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, baseURL, errorMessage, request } from '../../api'
 import { useNavigationTask } from '../../app/navigationGuard'
 import { useI18n } from '../../i18n'
@@ -23,6 +24,8 @@ export function LibraryEditor({space, initial, kind, readOnly, onSaved, onClose}
   const [versionNext, setVersionNext] = useState('')
   const [historyVersion, setHistoryVersion] = useState<LibraryVersion | null>(null)
   const [busy, setBusy] = useState(false)
+ const [authorizationPending,setAuthorizationPending]=useState(false)
+ const authorizationChanged=useCallback((v:boolean)=>setAuthorizationPending(v),[])
   const [error, setError] = useState('')
   const [uncertain, setUncertain] = useState(false)
   const [dirty, setDirty] = useState(false)
@@ -30,8 +33,8 @@ export function LibraryEditor({space, initial, kind, readOnly, onSaved, onClose}
   const pending = useRef<{path: string; body: string; key: string} | null>(null)
   const mounted = useRef(true)
   useEffect(() => {mounted.current = true; return () => {mounted.current = false}}, [])
-  useNavigationTask(dirty || busy || uncertain)
-  const locked = readOnly || initial?.asset.status === 'archived' || busy || uncertain
+  useNavigationTask(dirty || busy || uncertain || authorizationPending)
+  const locked = readOnly || initial?.asset.status === 'archived' || busy || uncertain || authorizationPending
   const q = new URLSearchParams({space_id: space}).toString()
   useEffect(() => {
     const abort = new AbortController()
@@ -49,7 +52,7 @@ export function LibraryEditor({space, initial, kind, readOnly, onSaved, onClose}
   }, [project, q])
   const changeCard = (patch: Partial<LibraryCard>) => {setCard(value => ({...value, ...patch})); setDirty(true)}
   async function submit(archive = false) {
-    if (busy || readOnly) return
+    if (busy || readOnly || authorizationPending) return
     if (!pending.current) {
       const body: LibraryWrite = {kind, card: {...card, prohibited_changes: constraints.split('\n').map(value => value.trim()).filter(Boolean)}, references, ...(initial ? {expected_asset_version_id: initial.asset.head_version_id} : {})}
       pending.current = {path: initial ? `/library/assets/${initial.asset.id}/${archive ? 'archive' : 'versions'}` : '/library/assets', body: JSON.stringify(archive ? {expected_asset_version_id: initial!.asset.head_version_id} : body), key: crypto.randomUUID()}
@@ -69,7 +72,7 @@ export function LibraryEditor({space, initial, kind, readOnly, onSaved, onClose}
     } finally {if (mounted.current) setBusy(false)}
   }
   return <section className="panel library-editor" aria-labelledby="library-editor-title">
-    <header className="section-heading"><h2 id="library-editor-title">{t(initial ? '编辑资产卡' : '建立资产卡')} · {t(kindLabels[kind])}</h2><button type="button" disabled={busy || uncertain} onClick={onClose}>{t('返回资产列表')}</button></header>
+    <header className="section-heading"><h2 id="library-editor-title">{t(initial ? '编辑资产卡' : '建立资产卡')} · {t(kindLabels[kind])}</h2><button type="button" disabled={busy || uncertain || authorizationPending} onClick={onClose}>{t('返回资产列表')}</button></header>
     <p className="drama-help">{t(kind==='style'||kind==='voice'?'版本固定保存创作意图；新版本不会自动改变已有作品。使用时请明确选择版本。':'版本固定引用；新版本不会自动改变已有镜头。参考图改善一致性，不保证锁脸或商品细节完全一致。')}</p>{kind==='voice'&&<p className="editing-note">{t('声音卡目前保存表演意图，不代表声音身份或克隆授权；保存不会调用模型。')}</p>}{kind==='style'&&<p className="drama-help">{t('记录色彩、线条、构图与质感。保存参考不会自动获得使用许可，也不会改变已有作品。')}</p>}
     {initial?.asset.status === 'archived' && <p role="status">{t('已归档，历史版本仍可查看。')}</p>}
     {error && <p className="error" role="alert">{error}</p>}
@@ -83,8 +86,9 @@ export function LibraryEditor({space, initial, kind, readOnly, onSaved, onClose}
       <ul className="library-reference-list">{references.map((ref, index) => <li key={`${ref.project_id}:${ref.asset_id}:${index}`}><span>{t('参考图 {p0}',{p0:index+1})} · {ref.view_angle || t('参考图片')}</span><button type="button" disabled={locked} onClick={() => {setReferences(items => items.filter((_, i) => i !== index)); setDirty(true)}}>{t('移除')}</button></li>)}</ul>
       <div className="media-actions"><button type="submit" disabled={locked || !card.name.trim()}>{t(initial ? '保存为新版本' : '创建资产卡')}</button>{initial && <button type="button" disabled={locked} onClick={() => setConfirmArchive(true)}>{t('归档资产')}</button>}</div>
     </form>
-    {confirmArchive && <div className="editing-note"><p>{t('归档后不能新增版本，已有历史引用保留。')}</p><button disabled={busy || uncertain} onClick={() => void submit(true)}>{t('确认归档')}</button><button onClick={() => setConfirmArchive(false)}>{t('取消')}</button></div>}
+    {confirmArchive && <div className="editing-note"><p>{t('归档后不能新增版本，已有历史引用保留。')}</p><button disabled={busy || uncertain || authorizationPending} onClick={() => void submit(true)}>{t('确认归档')}</button><button onClick={() => setConfirmArchive(false)}>{t('取消')}</button></div>}
     {versionNext && <button onClick={() => setVersionCursor(versionNext)} disabled={versionCursor === versionNext}>{t('加载更多历史版本')}</button>}
+    {initial && <LibraryAuthorization space={space} asset={initial.asset.id} version={(historyVersion??initial.version).id} number={(historyVersion??initial.version).number} versions={versions} kind={kind} archived={initial.asset.status==='archived'} readOnly={readOnly} onPending={authorizationChanged}/>}
     {initial && <><h3>{t(kind==='voice'?'声音意图版本':'参考版本')}</h3><div className="library-version-list">{versions.map(v => <button type="button" key={v.id} aria-pressed={historyVersion?.id === v.id} onClick={() => setHistoryVersion(v)}>{t('版本')} {v.number} · {formatDate(v.created_at)}</button>)}</div>{(() => {const v = historyVersion ?? initial.version; return <section aria-label={t('历史版本预览')}><h4>{v.card.name} · {t('版本')} {v.number}</h4><p>{v.card.description}</p><dl className="library-details">{cardFields[kind].map(([field, label]) => <div key={field}><dt>{t(label)}</dt><dd>{(v.card[kind] as Record<string, string> | undefined)?.[field] || '—'}</dd></div>)}</dl><ul>{v.card.prohibited_changes.map(item => <li key={item}>{item}</li>)}</ul><div className="library-reference-grid">{v.references.map(ref => <figure key={ref.id}><img loading="lazy" decoding="async" src={`${baseURL}/api/v1/library/assets/${initial.asset.id}/versions/${v.id}/references/${ref.id}/file?${q}`} alt={ref.view_angle || v.card.name} /><figcaption>{ref.view_angle || t('参考图片')} · {ref.width} × {ref.height}</figcaption></figure>)}</div></section>})()}</>}
   </section>
 }

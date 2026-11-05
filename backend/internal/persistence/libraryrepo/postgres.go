@@ -8,7 +8,7 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/library"
 )
 
-func (s *Store) mutateSQL(ctx context.Context, space, key, digest, expected string, r Result, archive bool) (Result, error) {
+func (s *Store) mutateSQL(ctx context.Context, space, key, digest, expected string, r Result, archive bool, authorization *authorizationMutation) (Result, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Result{}, ErrStorage
@@ -49,10 +49,38 @@ func (s *Store) mutateSQL(ctx context.Context, space, key, digest, expected stri
 	if exists && json.Unmarshal(raw, &old) != nil {
 		return Result{}, ErrStorage
 	}
-	if err = validateMutation(old, exists, expected, r, archive); err != nil {
-		return Result{}, err
+	metadata := archive || authorization != nil
+	if authorization != nil {
+		if !exists {
+			return Result{}, ErrNotFound
+		}
+		var current library.Version
+		if tx.QueryRowContext(ctx, `SELECT payload FROM studio_library_asset_versions WHERE space_id=$1 AND asset_id=$2 AND id=$3`, space, old.ID, old.HeadVersionID).Scan(&raw) != nil || json.Unmarshal(raw, &current) != nil {
+			return Result{}, ErrStorage
+		}
+		r, err = s.authorizationResult(ctx, Result{old, current}, *authorization, func(id string) error {
+			var count int
+			e := tx.QueryRowContext(ctx, `SELECT count(*) FROM studio_library_asset_versions WHERE space_id=$1 AND asset_id=$2 AND id=$3`, space, old.ID, id).Scan(&count)
+			if e != nil {
+				return ErrStorage
+			}
+			if count != 1 {
+				return ErrNotFound
+			}
+			return nil
+		})
+		if err != nil {
+			return Result{}, err
+		}
+	} else if exists {
+		r.Asset.UseAuthorization = old.UseAuthorization
 	}
-	if !archive {
+	if authorization == nil {
+		if err = validateMutation(old, exists, expected, r, archive); err != nil {
+			return Result{}, err
+		}
+	}
+	if !metadata {
 		n := 1
 		if exists {
 			if tx.QueryRowContext(ctx, `SELECT number+1 FROM studio_library_asset_versions WHERE space_id=$1 AND asset_id=$2 AND id=$3`, space, old.ID, old.HeadVersionID).Scan(&n) != nil {
@@ -70,7 +98,7 @@ func (s *Store) mutateSQL(ctx context.Context, space, key, digest, expected stri
 	if err != nil {
 		return Result{}, ErrStorage
 	}
-	if !archive {
+	if !metadata {
 		_, err = tx.ExecContext(ctx, `INSERT INTO studio_library_asset_versions(space_id,asset_id,id,number,payload) VALUES($1,$2,$3,$4,$5)`, space, r.Asset.ID, r.Version.ID, r.Version.Number, v)
 		if err != nil {
 			return Result{}, ErrStorage

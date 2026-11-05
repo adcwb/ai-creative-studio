@@ -25027,6 +25027,270 @@
           }
         }
       }
+    },
+    "/api/v1/library/assets/{assetId}/use-authorization": {
+      "get": {
+        "operationId": "getLibraryUseAuthorization",
+        "summary": "getLibraryUseAuthorization",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "assetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,80}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Version-pinned library result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryAuthorizationView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "asset_version_conflict, asset_archived or idempotency_conflict; retain draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Outcome may be unknown; replay the original body and key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Current use permission only comes from GET. POST atomically records a CAS update with its receipt; accepted-key replay returns the original historical receipt and MUST NOT be treated as current authority. No model call. Existing history remains readable after revoke; new mutating provider dispatch requires current same-revision authorization, purpose/version scope and unexpired declaration. Revocation cannot undo an already sent request. Known upstream read-only reconciliation remains available; uncertain generations are never automatically resubmitted."
+      },
+      "post": {
+        "operationId": "setLibraryUseAuthorization",
+        "summary": "setLibraryUseAuthorization",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          },
+          {
+            "name": "assetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,80}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Version-pinned library result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryAuthorizationView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "asset_version_conflict, asset_archived or idempotency_conflict; retain draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Outcome may be unknown; replay the original body and key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Single normalized authorization metadata working set exceeds 256 KiB.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryAuthorizationInput"
+              }
+            }
+          }
+        },
+        "description": "Current use permission only comes from GET. POST atomically records a CAS update with its receipt; accepted-key replay returns the original historical receipt and MUST NOT be treated as current authority. No model call. Existing history remains readable after revoke; new mutating provider dispatch requires current same-revision authorization, purpose/version scope and unexpired declaration. Revocation cannot undo an already sent request. Known upstream read-only reconciliation remains available; uncertain generations are never automatically resubmitted."
+      }
     }
   },
   "components": {
@@ -26767,6 +27031,31 @@
             "pattern": "^[A-Za-z0-9_-]{1,64}$",
             "readOnly": true,
             "description": "已明确关联的稳定角色ID；旧素材可能只有名字。迁移不会猜测歧义角色。"
+          },
+          "library_sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibrarySource"
+            },
+            "uniqueItems": true,
+            "readOnly": true,
+            "description": "Server-written ancestry, not a grant. Reused for each future generation; copying or deriving does not remove ancestor revocations."
+          },
+          "content_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "readOnly": true,
+            "description": "Raw bytes digest for trusted library lineage, including derived results."
+          },
+          "parent_asset_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,80}$"
+            },
+            "uniqueItems": true,
+            "readOnly": true,
+            "description": "Server-written local edit ancestry. Normalizing or composing an image does not erase its library use scope; episode migration flattens ancestry to independent pinned sources."
           }
         },
         "required": [
@@ -27521,6 +27810,14 @@
           },
           "image_parameters": {
             "$ref": "#/components/schemas/PromptImageParameters"
+          },
+          "library_media_pins": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryMediaPin"
+            },
+            "readOnly": true,
+            "description": "Trusted persisted version, bytes, purpose and accepted authorization revision. New dispatch rechecks current authority and byte identity. An old receipt never authorizes new work."
           }
         },
         "required": [
@@ -30393,6 +30690,15 @@
           "source_asset_id": {
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "library_sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibrarySource"
+            },
+            "uniqueItems": true,
+            "readOnly": true,
+            "description": "Server-written ancestry, not a grant. Reused for each future generation; copying or deriving does not remove ancestor revocations."
           }
         },
         "required": [
@@ -30452,6 +30758,9 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "use_authorization": {
+            "$ref": "#/components/schemas/LibraryUseAuthorization"
           }
         },
         "required": [
@@ -36262,6 +36571,414 @@
         ],
         "additionalProperties": false,
         "description": "One explicitly selected immutable stable script. The server computes the digest. Reading does not restore, generate, or change the current script. Formal saves verify each quote against this exact version and scene again."
+      },
+      "LibraryUseAuthorization": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "granted",
+              "revoked"
+            ]
+          },
+          "version_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,80}$"
+            },
+            "uniqueItems": true
+          },
+          "purposes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "prompt_context",
+                "image_reference",
+                "video_reference",
+                "voice_reference",
+                "speech_preset"
+              ]
+            },
+            "uniqueItems": true
+          },
+          "rights_holder": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "",
+              "own_work",
+              "licensed",
+              "consent"
+            ]
+          },
+          "evidence": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "attested": {
+            "type": "boolean"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "declared_by": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "declared_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "revision",
+          "status",
+          "version_ids",
+          "purposes",
+          "rights_holder",
+          "basis",
+          "evidence",
+          "attested",
+          "reason",
+          "updated_by",
+          "updated_at"
+        ],
+        "description": "Current creator-attested use declaration, independent of immutable content versions. Not verified legal rights or a capability. Regrant replaces scope and increments revision; pending jobs require the same revision. Revocation does not rewrite old receipts or content."
+      },
+      "LibraryAuthorizationView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "head_version_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "authorization": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "granted",
+                  "revoked"
+                ]
+              },
+              "version_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{1,80}$"
+                },
+                "uniqueItems": true
+              },
+              "purposes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "prompt_context",
+                    "image_reference",
+                    "video_reference",
+                    "voice_reference",
+                    "speech_preset"
+                  ]
+                },
+                "uniqueItems": true
+              },
+              "rights_holder": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "basis": {
+                "type": "string",
+                "enum": [
+                  "",
+                  "own_work",
+                  "licensed",
+                  "consent"
+                ]
+              },
+              "evidence": {
+                "type": "string",
+                "maxLength": 4000
+              },
+              "attested": {
+                "type": "boolean"
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "reason": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "declared_by": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,80}$"
+              },
+              "declared_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updated_by": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,80}$"
+              },
+              "updated_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "revision",
+              "status",
+              "version_ids",
+              "purposes",
+              "rights_holder",
+              "basis",
+              "evidence",
+              "attested",
+              "reason",
+              "updated_by",
+              "updated_at"
+            ],
+            "description": "Current creator-attested use declaration, independent of immutable content versions. Not verified legal rights or a capability. Regrant replaces scope and increments revision; pending jobs require the same revision. Revocation does not rewrite old receipts or content.",
+            "nullable": true
+          }
+        },
+        "required": [
+          "asset_id",
+          "head_version_id",
+          "authorization"
+        ]
+      },
+      "LibraryAuthorizationInput": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740990
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "granted"
+                ]
+              },
+              "version_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{1,80}$"
+                },
+                "uniqueItems": true,
+                "minItems": 1
+              },
+              "purposes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "prompt_context",
+                    "image_reference",
+                    "video_reference",
+                    "voice_reference",
+                    "speech_preset"
+                  ]
+                },
+                "uniqueItems": true,
+                "minItems": 1
+              },
+              "rights_holder": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "basis": {
+                "type": "string",
+                "enum": [
+                  "own_work",
+                  "licensed",
+                  "consent"
+                ]
+              },
+              "evidence": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "attested": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "reason": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "expected_revision",
+              "status",
+              "version_ids",
+              "purposes",
+              "rights_holder",
+              "basis",
+              "evidence",
+              "attested"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740990
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "revoked"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "expected_revision",
+              "status",
+              "reason"
+            ]
+          }
+        ],
+        "description": "At most 256 KiB normalized metadata per operation (working-set boundary, not an asset/project quota). Version scope must be explicit existing versions of this asset. No automatic future-version authorization. Revoke omits all grant fields. Actor and timestamps are server-owned."
+      },
+      "LibrarySource": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "version_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          }
+        },
+        "required": [
+          "asset_id",
+          "version_id"
+        ]
+      },
+      "LibraryMediaUsePin": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/LibrarySource"
+          },
+          "authorization_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "prompt_context",
+              "image_reference",
+              "video_reference",
+              "voice_reference",
+              "speech_preset"
+            ]
+          }
+        },
+        "required": [
+          "source",
+          "authorization_revision",
+          "purpose"
+        ]
+      },
+      "LibraryMediaPin": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "media_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "content_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "mime_type": {
+            "type": "string"
+          },
+          "uses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryMediaUsePin"
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "media_id",
+          "content_sha256",
+          "mime_type",
+          "uses"
+        ]
       }
     },
     "securitySchemes": {

@@ -176,6 +176,9 @@ func (s *Store) fileEntries(space, asset string) ([]string, error) {
 
 func validFileResult(space, id string, r Result) bool {
 	a, v := r.Asset, r.Version
+	if !library.ValidAuthorization(a.UseAuthorization) {
+		return false
+	}
 	if a.ID != id || a.SpaceID != space || v.AssetID != id || v.SpaceID != space || a.HeadVersionID != v.ID || !library.IDPattern.MatchString(v.ID) || v.Number < 1 || (a.Status != "active" && a.Status != "archived") {
 		return false
 	}
@@ -317,6 +320,7 @@ func (s *Store) fileList(ctx context.Context, space string, q Query) ([]library.
 			return nil, err
 		}
 		a := r.Asset
+		a.UseAuthorization = nil
 		if (q.Kind == "" || a.Kind == q.Kind) && (q.Status == "" || a.Status == q.Status) {
 			out = append(out, a)
 		}
@@ -327,7 +331,7 @@ func (s *Store) fileList(ctx context.Context, space string, q Query) ([]library.
 	return out, nil
 }
 
-func (s *Store) fileMutate(ctx context.Context, space, key, digest, expected string, result Result, archive bool) (Result, error) {
+func (s *Store) fileMutate(ctx context.Context, space, key, digest, expected string, result Result, archive bool, authorization *authorizationMutation) (Result, error) {
 	if key == "" || len(key) > 1024 {
 		return Result{}, library.ErrInput
 	}
@@ -344,10 +348,24 @@ func (s *Store) fileMutate(ctx context.Context, space, key, digest, expected str
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		return Result{}, err
 	}
-	if err = validateMutation(old.Asset, exists, expected, result, archive); err != nil {
-		return Result{}, err
+	metadata := archive || authorization != nil
+	if authorization != nil {
+		if !exists {
+			return Result{}, ErrNotFound
+		}
+		result, err = s.authorizationResult(ctx, old, *authorization, func(id string) error { _, e := s.fileVersion(space, old.Asset.ID, id); return e })
+		if err != nil {
+			return Result{}, err
+		}
+	} else if exists {
+		result.Asset.UseAuthorization = old.Asset.UseAuthorization
 	}
-	if !archive {
+	if authorization == nil {
+		if err = validateMutation(old.Asset, exists, expected, result, archive); err != nil {
+			return Result{}, err
+		}
+	}
+	if !metadata {
 		// Preserve the legacy file format's globally unique version identities,
 		// including the identity expected by offline round-trip inventories.
 		ids, e := s.fileEntities(space)
@@ -387,7 +405,7 @@ func (s *Store) fileMutate(ctx context.Context, space, key, digest, expected str
 	if seq < 1 {
 		return Result{}, ErrStorage
 	}
-	r := fileRecord{Format: 2, Sequence: seq, NewVersion: !archive, Key: key, Digest: digest, Result: result}
+	r := fileRecord{Format: 2, Sequence: seq, NewVersion: !metadata, Key: key, Digest: digest, Result: result}
 	if !validFileResult(space, result.Asset.ID, result) {
 		return Result{}, library.ErrInput
 	}

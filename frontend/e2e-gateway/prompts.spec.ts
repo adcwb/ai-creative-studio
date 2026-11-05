@@ -246,6 +246,9 @@ test('reference recipes preserve ordered versions and actual project gateway par
   const library = await page.request.post(api + '/library/assets' + query, {headers: {...headers, 'Idempotency-Key': crypto.randomUUID()}, data: {kind: 'character', card: {name: '配方角色参考卡', description: '', prohibited_changes: [], character: {}}, references: ids.map((asset_id, i) => ({project_id: projects[0].id, asset_id, role: 'reference', view_angle: i ? 'side' : 'front'}))}})
   expect(library.status()).toBe(201)
   const card = await library.json()
+  const rights = await page.request.post(api+`/library/assets/${card.asset.id}/use-authorization`+query,{headers:{...headers,'Idempotency-Key':crypto.randomUUID()},data:{expected_revision:0,status:'granted',version_ids:[card.version.id],purposes:['image_reference'],rights_holder:'Synthetic original creator',basis:'own_work',evidence:'Local generated test fixtures only',attested:true}})
+  expect(rights.status()).toBe(200)
+
   await page.getByLabel('描述你的画面', {exact: true}).fill('根据两幅参考创作，保留轮廓与色调，柔和侧光')
   await page.getByRole('combobox', {name: '视觉风格', exact: true}).selectOption('illustration')
   await page.getByRole('button', {name: '保存当前描述', exact: true}).click()

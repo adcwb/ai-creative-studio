@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/library"
@@ -194,6 +195,21 @@ func TestLibrarySecureRolesAndSpaceIsolation(t *testing.T) {
 	authRequest(t, h, "GET", base+"/"+created.Asset.ID+"?space_id="+space, "", viewerToken, "", 200)
 	authRequest(t, h, "POST", base+"?space_id="+space, body, viewerToken, viewerSession.CSRF, 403)
 	authRequest(t, h, "POST", base+"/"+created.Asset.ID+"/archive?space_id="+space, `{"expected_asset_version_id":"`+created.Version.ID+`"}`, viewerToken, viewerSession.CSRF, 403)
+
+	authorizationPath := base + "/" + created.Asset.ID + "/use-authorization?space_id=" + space
+	declaration := projectJSON(t, library.AuthorizationInput{Status: "granted", VersionIDs: []string{created.Version.ID}, Purposes: []string{"image_reference"}, Holder: "Synthetic owner", Basis: "own_work", Evidence: "Synthetic original fixture", Attested: true})
+	authRequest(t, h, "GET", authorizationPath, "", "", "", 401)
+	authRequest(t, h, "POST", authorizationPath, declaration, ownerToken, "", 403)
+	authRequest(t, h, "POST", authorizationPath, declaration, viewerToken, viewerSession.CSRF, 403)
+	authRequest(t, h, "GET", base+"/"+created.Asset.ID+"/use-authorization?space_id="+other, "", viewerToken, "", 404)
+	authRequest(t, h, "POST", authorizationPath, strings.TrimSuffix(declaration, "}")+`,"updated_by":"forged"}`, ownerToken, ownerSession.CSRF, 400)
+	authorized := authRequest(t, h, "POST", authorizationPath, declaration, ownerToken, ownerSession.CSRF, 200)
+	var authority LibraryAuthorizationView
+	_ = json.Unmarshal(authorized.Body.Bytes(), &authority)
+	if authority.Authorization == nil || authority.Authorization.UpdatedBy != owner.ID || authority.Authorization.DeclaredBy != owner.ID {
+		t.Fatal("untrusted declaration identity", authorized.Body.String())
+	}
+	authRequest(t, h, "GET", authorizationPath, "", viewerToken, "", 200)
 	for kind, input := range intentCards() {
 		body := projectJSON(t, input)
 		authRequest(t, h, "POST", base+"?space_id="+space, body, ownerToken, "", 403)
@@ -218,5 +234,7 @@ func TestLibrarySecureRolesAndSpaceIsolation(t *testing.T) {
 	}
 	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"library-viewer@example.test","role":"remove"}`, ownerToken, ownerSession.CSRF, 200)
 	authRequest(t, h, "GET", base+"?space_id="+space+"&kind=voice", "", viewerToken, "", 403)
+	authRequest(t, h, "GET", authorizationPath, "", viewerToken, "", 403)
+	authRequest(t, h, "POST", authorizationPath, declaration, viewerToken, viewerSession.CSRF, 403)
 
 }

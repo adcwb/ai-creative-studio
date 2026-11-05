@@ -78,6 +78,9 @@ func validModelSecret(provider, secret string) bool {
 // Its documented query uses POST; no caller flag can make an arbitrary POST
 // read-only. Exact action, version, origin and the entire bounded body are checked.
 func jimengReadOnlyRequest(reqKey string) func(*http.Request) bool {
+	return jimengReadOnlyRequestFor(reqKey, executionRecoveryUpstream)
+}
+func jimengReadOnlyRequestFor(reqKey string, upstream func(context.Context) string) func(*http.Request) bool {
 	return func(req *http.Request) bool {
 		if req.Method != http.MethodPost || req.URL.Scheme != "https" || req.URL.Host != "visual.volcengineapi.com" || req.URL.User != nil || req.URL.Path != "/" || req.URL.RawPath != "" || req.URL.Fragment != "" {
 			return false
@@ -99,7 +102,7 @@ func jimengReadOnlyRequest(reqKey string) func(*http.Request) bool {
 		}
 		d := json.NewDecoder(bytes.NewReader(raw))
 		d.DisallowUnknownFields()
-		if d.Decode(&body) != nil || body.ReqKey != reqKey || !jimengTaskPattern.MatchString(body.TaskID) || body.TaskID != executionRecoveryUpstream(req.Context()) || body.ReqJSON != `{"return_url":false,"logo_info":{"add_logo":true}}` {
+		if d.Decode(&body) != nil || body.ReqKey != reqKey || !jimengTaskPattern.MatchString(body.TaskID) || body.TaskID != upstream(req.Context()) || body.ReqJSON != `{"return_url":false,"logo_info":{"add_logo":true}}` {
 			return false
 		}
 		// Match the exact envelope produced by the trusted adapter, excluding

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/media"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 )
 
@@ -42,6 +43,24 @@ func (m *MediaStore) addAssetFile(ctx context.Context, project, space, key, name
 		return MediaState{}, err
 	}
 	digest := mediaDigest([]string{"upload", name, role, character, shotID, source, mime, content})
+	sources, _ := ctx.Value(libraryOutputSourcesKey{}).([]media.LibrarySource)
+	rawSHA := ""
+	if len(sources) > 0 {
+		f, e := openLocalBlob(path)
+		if e != nil {
+			return MediaState{}, e
+		}
+		info, e := hashBlobStream(ctx, "", f)
+		f.Close()
+		if e != nil {
+			return MediaState{}, e
+		}
+		rawSHA = info.SHA256
+		digest = mediaDigest(struct {
+			Legacy  string
+			Sources []media.LibrarySource
+		}{digest, sources})
+	}
 	k := mediaKey(space, project)
 	m.mu.Lock()
 	p := mediaState(m.data, k)
@@ -122,7 +141,7 @@ func (m *MediaStore) addAssetFile(ctx context.Context, project, space, key, name
 		m.pg.beforeCommit = func(ctx context.Context, tx *sql.Tx) error { return jobqueue.CheckLeaseTx(ctx, tx, j) }
 		defer func() { m.pg.beforeCommit = nil }()
 	}
-	a := MediaAsset{ID: id, Kind: kind, MIMEType: mime, Name: name, Role: role, Character: character, ShotID: shotID, Duration: duration, Source: source, FileURL: mediaURL(space, project, "assets/"+id+"/file")}
+	a := MediaAsset{LibrarySources: sources, ContentSHA256: rawSHA, ID: id, Kind: kind, MIMEType: mime, Name: name, Role: role, Character: character, ShotID: shotID, Duration: duration, Source: source, FileURL: mediaURL(space, project, "assets/"+id+"/file")}
 	p.Assets = append(p.Assets, a)
 	p.Version++
 	d.Projects[k] = p

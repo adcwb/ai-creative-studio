@@ -40,7 +40,7 @@ func validateDisk(space string, d disk) (disk, error) {
 		return disk{}, ErrStorage
 	}
 	for id, a := range d.Assets {
-		if a.ID != id || a.SpaceID != space || (a.Status != "active" && a.Status != "archived") {
+		if a.ID != id || a.SpaceID != space || !library.ValidAuthorization(a.UseAuthorization) || (a.Status != "active" && a.Status != "archived") {
 			return disk{}, ErrStorage
 		}
 		v, ok := d.Versions[a.HeadVersionID]

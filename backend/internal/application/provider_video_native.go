@@ -246,7 +246,7 @@ func safeMediaDownload(ctx context.Context, raw string) ([]byte, error) {
 	if err != nil {
 		return nil, providerFailure("unsafe_media_url")
 	}
-	response, err := client.Do(req)
+	response, err := libraryGuardedRequest(client, req)
 	if err != nil {
 		return nil, providerFailure("media_download_failed")
 	}

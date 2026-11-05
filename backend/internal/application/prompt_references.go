@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/library"
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/media"
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/prompts"
 	"net/http"
 	"os"
@@ -186,7 +187,11 @@ func registerPromptApplicationRoutes(mux *http.ServeMux, s *FileStore) {
 				return
 			}
 			application.ReferenceAssetIDs = append(application.ReferenceAssetIDs, assetID)
-			assets = append(assets, MediaAsset{ID: assetID, Kind: "image", MIMEType: ref.MIMEType, Name: fmt.Sprintf("Recipe reference %d", i+1), Role: "reference", Source: "library:" + version.ReferenceBindings[i].AssetID + ":" + version.ReferenceBindings[i].VersionID, FileURL: mediaURL(space, project, "assets/"+assetID+"/file")})
+			sources := []media.LibrarySource{{AssetID: version.ReferenceBindings[i].AssetID, VersionID: version.ReferenceBindings[i].VersionID}}
+			for _, source := range ref.LibrarySources {
+				sources = append(sources, media.LibrarySource{AssetID: source.AssetID, VersionID: source.VersionID})
+			}
+			assets = append(assets, MediaAsset{LibrarySources: uniqueLibrarySources(sources), ContentSHA256: ref.SHA256, ID: assetID, Kind: "image", MIMEType: ref.MIMEType, Name: fmt.Sprintf("Recipe reference %d", i+1), Role: "reference", Source: "library:" + version.ReferenceBindings[i].AssetID + ":" + version.ReferenceBindings[i].VersionID, FileURL: mediaURL(space, project, "assets/"+assetID+"/file")})
 		}
 		if scope, ok := r.Context().Value(authScopeKey{}).(authScope); ok && scope.recheckWrite != nil && !scope.recheckWrite() {
 			promptError(w, prompts.ErrDenied)

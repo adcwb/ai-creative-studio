@@ -2,6 +2,8 @@ package application
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"image"
 	"image/color"
@@ -134,7 +136,16 @@ func (m *MediaStore) ExportPoster(project, space, key string, version int) (Medi
 		os.Remove(path)
 		return p, err
 	}
-	p.Assets = append(p.Assets, MediaAsset{ID: id, Kind: "image", MIMEType: "image/png", Name: "poster.png", Role: "poster", Source: "poster-composite", FileURL: mediaURL(space, project, "assets/"+id+"/file")})
+	parents := []string{}
+	seen := map[string]bool{}
+	for _, layer := range p.Poster.Layers {
+		if layer.Kind == "logo" && !seen[layer.AssetID] {
+			parents = append(parents, layer.AssetID)
+			seen[layer.AssetID] = true
+		}
+	}
+	hash := sha256.Sum256(data)
+	p.Assets = append(p.Assets, MediaAsset{ParentAssetIDs: parents, ContentSHA256: hex.EncodeToString(hash[:]), ID: id, Kind: "image", MIMEType: "image/png", Name: "poster.png", Role: "poster", Source: "poster-composite", FileURL: mediaURL(space, project, "assets/"+id+"/file")})
 	p.Version++
 	d.Projects[k] = p
 	d.Receipts[k+":"+key] = mediaReceipt{Digest: digest, AssetID: id}

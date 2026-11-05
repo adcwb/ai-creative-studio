@@ -11,18 +11,26 @@ type SocialState = publishing.SocialState
 
 var shotIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,40}$`)
 
+// LibrarySource is trusted server-written lineage; no grant is embedded here.
+type LibrarySource struct {
+	AssetID   string `json:"asset_id"`
+	VersionID string `json:"version_id"`
+}
 type MediaAsset struct {
-	CharacterID string  `json:"character_id,omitempty"`
-	ID          string  `json:"id"`
-	Kind        string  `json:"kind"`
-	MIMEType    string  `json:"mime_type"`
-	Name        string  `json:"name"`
-	Role        string  `json:"role"`
-	Character   string  `json:"character"`
-	ShotID      string  `json:"shot_id"`
-	Duration    float64 `json:"duration"`
-	Source      string  `json:"source"`
-	FileURL     string  `json:"file_url"`
+	ParentAssetIDs []string        `json:"parent_asset_ids,omitempty"`
+	LibrarySources []LibrarySource `json:"library_sources,omitempty"`
+	ContentSHA256  string          `json:"content_sha256,omitempty"`
+	CharacterID    string          `json:"character_id,omitempty"`
+	ID             string          `json:"id"`
+	Kind           string          `json:"kind"`
+	MIMEType       string          `json:"mime_type"`
+	Name           string          `json:"name"`
+	Role           string          `json:"role"`
+	Character      string          `json:"character"`
+	ShotID         string          `json:"shot_id"`
+	Duration       float64         `json:"duration"`
+	Source         string          `json:"source"`
+	FileURL        string          `json:"file_url"`
 }
 
 type MediaClip struct {

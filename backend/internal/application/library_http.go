@@ -95,6 +95,7 @@ func registerLibraryRoutes(mux *http.ServeMux, s *FileStore) {
 		return
 	}
 	registerLibraryBindingRoutes(mux, s)
+	registerLibraryAuthorizationRoutes(mux, s)
 	base := "/api/v1/library/assets"
 	mux.HandleFunc("GET "+base, func(w http.ResponseWriter, r *http.Request) {
 		space, ok := spaceID(w, r)
@@ -334,7 +335,16 @@ func registerLibraryRoutes(mux *http.ServeMux, s *FileStore) {
 				return
 			}
 			h := sha256.Sum256(data)
-			ref := library.Reference{ID: libraryStableID(space, key, assetID+":"+digest+":"+strconv.Itoa(i)), Role: source.Role, ViewAngle: source.ViewAngle, MIMEType: mime, Width: cfg.Width, Height: cfg.Height, SizeBytes: int64(len(data)), SHA256: hex.EncodeToString(h[:]), SourceProjectID: source.ProjectID, SourceAssetID: source.AssetID}
+			sources, _, _, e := s.libraryMediaSources(r.Context(), source.ProjectID, space, source.AssetID)
+			if e != nil {
+				libraryError(w, e)
+				return
+			}
+			inherited := []library.Source{}
+			for _, source := range sources {
+				inherited = append(inherited, library.Source{AssetID: source.AssetID, VersionID: source.VersionID})
+			}
+			ref := library.Reference{LibrarySources: inherited, ID: libraryStableID(space, key, assetID+":"+digest+":"+strconv.Itoa(i)), Role: source.Role, ViewAngle: source.ViewAngle, MIMEType: mime, Width: cfg.Width, Height: cfg.Height, SizeBytes: int64(len(data)), SHA256: hex.EncodeToString(h[:]), SourceProjectID: source.ProjectID, SourceAssetID: source.AssetID}
 			if e := appendReference(ref); e != nil {
 				libraryError(w, e)
 				return

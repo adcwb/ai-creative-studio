@@ -234,6 +234,9 @@ func (m *MediaStore) check(d mediaDisk, k, key, digest string) (bool, error) {
 }
 
 func (m *MediaStore) AddAsset(project, space, key, name, role, character, shotID, source string, data []byte, mime string, leases ...*jobqueue.Job) (MediaState, error) {
+	return m.addAssetContext(context.Background(), project, space, key, name, role, character, shotID, source, data, mime, leases...)
+}
+func (m *MediaStore) addAssetContext(ctx context.Context, project, space, key, name, role, character, shotID, source string, data []byte, mime string, leases ...*jobqueue.Job) (MediaState, error) {
 	if len(data) > 32<<20 {
 		return MediaState{}, errMediaLimit
 	}
@@ -250,7 +253,7 @@ func (m *MediaStore) AddAsset(project, space, key, name, role, character, shotID
 	if err != nil {
 		return MediaState{}, err
 	}
-	return m.addAssetFile(context.Background(), project, space, key, name, role, character, shotID, source, f.Name(), mime, nil, leases...)
+	return m.addAssetFile(ctx, project, space, key, name, role, character, shotID, source, f.Name(), mime, nil, leases...)
 }
 
 func (m *MediaStore) SaveTimeline(project, space, key string, version int, t MediaTimeline) (MediaState, error) {

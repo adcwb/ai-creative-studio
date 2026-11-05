@@ -290,6 +290,11 @@ func (t runtimeTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err := t.guard(req.Context()); err != nil {
 		return nil, err
 	}
+	if !libraryReadOnlyRequest(req) {
+		if err := checkLibraryDispatch(req.Context()); err != nil {
+			return nil, err
+		}
+	}
 	ctx, cancel := context.WithCancel(req.Context())
 	stop := context.AfterFunc(t.lifetime, cancel)
 	if t.onDispatch != nil {

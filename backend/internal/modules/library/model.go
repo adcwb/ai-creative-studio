@@ -60,17 +60,22 @@ type Voice struct {
 	Pace          string `json:"pace"`
 	Pronunciation string `json:"pronunciation"`
 }
+type Source struct {
+	AssetID   string `json:"asset_id"`
+	VersionID string `json:"version_id"`
+}
 type Reference struct {
-	ID              string `json:"id"`
-	Role            string `json:"role"`
-	ViewAngle       string `json:"view_angle"`
-	MIMEType        string `json:"mime_type"`
-	Width           int    `json:"width"`
-	Height          int    `json:"height"`
-	SizeBytes       int64  `json:"size_bytes"`
-	SHA256          string `json:"content_sha256"`
-	SourceProjectID string `json:"source_project_id"`
-	SourceAssetID   string `json:"source_asset_id"`
+	LibrarySources  []Source `json:"library_sources,omitempty"`
+	ID              string   `json:"id"`
+	Role            string   `json:"role"`
+	ViewAngle       string   `json:"view_angle"`
+	MIMEType        string   `json:"mime_type"`
+	Width           int      `json:"width"`
+	Height          int      `json:"height"`
+	SizeBytes       int64    `json:"size_bytes"`
+	SHA256          string   `json:"content_sha256"`
+	SourceProjectID string   `json:"source_project_id"`
+	SourceAssetID   string   `json:"source_asset_id"`
 }
 type Card struct {
 	Name              string     `json:"name"`
@@ -94,14 +99,15 @@ type Version struct {
 	CreatedBy  string      `json:"created_by"`
 }
 type Asset struct {
-	ID            string    `json:"id"`
-	SpaceID       string    `json:"space_id"`
-	Kind          string    `json:"kind"`
-	Name          string    `json:"name"`
-	HeadVersionID string    `json:"head_version_id"`
-	Status        string    `json:"status"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	UseAuthorization *UseAuthorization `json:"use_authorization,omitempty"`
+	ID               string            `json:"id"`
+	SpaceID          string            `json:"space_id"`
+	Kind             string            `json:"kind"`
+	Name             string            `json:"name"`
+	HeadVersionID    string            `json:"head_version_id"`
+	Status           string            `json:"status"`
+	CreatedAt        time.Time         `json:"created_at"`
+	UpdatedAt        time.Time         `json:"updated_at"`
 }
 type Binding struct {
 	AssetID   string `json:"library_asset_id"`
@@ -227,6 +233,13 @@ func Digest(v any) (string, error) {
 func ValidateReferences(refs []Reference) error {
 	seen := map[string]bool{}
 	for _, r := range refs {
+		sources := map[Source]bool{}
+		for _, source := range r.LibrarySources {
+			if !IDPattern.MatchString(source.AssetID) || !IDPattern.MatchString(source.VersionID) || sources[source] {
+				return ErrInput
+			}
+			sources[source] = true
+		}
 		if !IDPattern.MatchString(r.ID) || seen[r.ID] || !IDPattern.MatchString(r.SourceProjectID) || !IDPattern.MatchString(r.SourceAssetID) {
 			return ErrInput
 		}

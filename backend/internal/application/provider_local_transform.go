@@ -71,6 +71,9 @@ func (t *LocalTransform) run(ctx context.Context, input any, maxOutput int) ([]b
 	if err != nil {
 		return nil, err
 	}
+	if err = checkLibraryDispatch(ctx); err != nil {
+		return nil, err
+	}
 	if err = cmd.Start(); err != nil {
 		return nil, providerFailure("local_transform_failed")
 	}

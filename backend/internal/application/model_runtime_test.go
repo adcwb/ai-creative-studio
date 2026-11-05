@@ -344,6 +344,9 @@ func TestModelRuntimeRecoveryTransportRejectsCreation(t *testing.T) {
 
 func TestModelRuntimeJimengReadOnlyRecoveryIsStrict(t *testing.T) {
 	ctx := runtimeRecoveryContext("synthetic-job")
+	// A later asset revocation must not block this exact acknowledged query.
+	ctx = context.WithValue(ctx, libraryDispatchKey{}, func(context.Context) error { return providerFailure("library_use_denied") })
+	ctx = context.WithValue(ctx, libraryRecoveryIdentityKey{}, libraryRecoveryIdentity{Provider: "jimeng-images", Model: "jimeng_seedream46_cvtob", Upstream: func() string { return "synthetic-job" }})
 	providers, err := buildRuntimeProviders(ctx, ModelConfigEntry{Provider: "jimeng-images", Model: "jimeng_seedream46_cvtob", Capability: "image"}, `{"access_key":"synthetic-ak","secret_key":"synthetic-sk"}`, "", func(context.Context) error { return nil }, nil)
 	if err != nil {
 		t.Fatal(err)

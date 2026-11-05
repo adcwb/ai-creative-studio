@@ -243,7 +243,7 @@ func gatewayMultipart(ctx context.Context, p *OpenAICreativeProvider, path, cont
 	req.GetBody = nil
 	req.Header.Set("Authorization", "Bearer "+p.key)
 	req.Header.Set("Content-Type", contentType)
-	res, e := p.client.Do(req)
+	res, e := libraryGuardedRequest(p.client,req)
 	if e != nil {
 		return nil, providerFailure("provider_error")
 	}

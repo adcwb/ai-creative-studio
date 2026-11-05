@@ -101,7 +101,7 @@ func (p *NativeTextProvider) json(ctx context.Context, in any, instruction strin
 	} else {
 		req.Header.Set("Authorization", "Bearer "+p.key)
 	}
-	resp, err := p.client.Do(req)
+	resp, err := libraryGuardedRequest(p.client, req)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return providerFailure("provider_timeout")

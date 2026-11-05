@@ -46,6 +46,7 @@ type CreativeJobInput struct {
 	Character             string `json:"character,omitempty"`
 }
 type CreativeJob struct {
+	LibraryMediaPins       []libraryMediaPin `json:"library_media_pins,omitempty"`
 	PromptSource           *prompts.Source   `json:"prompt_source,omitempty"`
 	ImageParameters        *prompts.Defaults `json:"image_parameters,omitempty"`
 	ReferenceAssetIDs      []string          `json:"reference_asset_ids,omitempty"`
@@ -483,7 +484,11 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		return CreativeJob{}, false, err
 	}
 	now := time.Now().UTC()
-	job := CreativeJob{PromptSource: in.promptSnapshot, ImageParameters: in.ImageParameters, ReferenceAssetIDs: append([]string(nil), in.ReferenceAssetIDs...), FirstFrameAssetID: in.FirstFrameAssetID, LastFrameAssetID: in.LastFrameAssetID, MotionReferenceAssetID: in.MotionReferenceAssetID, TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), AudioAssetID: in.AudioAssetID, ComparisonAssetID: in.ComparisonAssetID, MaskAssetID: in.MaskAssetID, ReferenceAssetID: in.ReferenceAssetID, ID: jid, SpaceID: space, ProjectID: id, Kind: in.Kind, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Prompt: in.Prompt, ShotID: in.ShotID, Character: in.Character, Source: ProjectInput{Title: p.Title, Brief: p.Brief}, CreatedAt: now, UpdatedAt: now}
+	pins, err := s.pinCreativeLibraryMedia(context.Background(), id, space, in)
+	if err != nil {
+		return CreativeJob{}, false, err
+	}
+	job := CreativeJob{LibraryMediaPins: pins, PromptSource: in.promptSnapshot, ImageParameters: in.ImageParameters, ReferenceAssetIDs: append([]string(nil), in.ReferenceAssetIDs...), FirstFrameAssetID: in.FirstFrameAssetID, LastFrameAssetID: in.LastFrameAssetID, MotionReferenceAssetID: in.MotionReferenceAssetID, TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), AudioAssetID: in.AudioAssetID, ComparisonAssetID: in.ComparisonAssetID, MaskAssetID: in.MaskAssetID, ReferenceAssetID: in.ReferenceAssetID, ID: jid, SpaceID: space, ProjectID: id, Kind: in.Kind, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Prompt: in.Prompt, ShotID: in.ShotID, Character: in.Character, Source: ProjectInput{Title: p.Title, Brief: p.Brief}, CreatedAt: now, UpdatedAt: now}
 	job.AvatarID, job.VoiceConsentReference, job.VoiceConfirmed, job.AIGenerated = in.AvatarID, in.VoiceConsentReference, in.VoiceConfirmed, in.Kind == "digital_human"
 	if in.Kind == "digital_human" {
 		job.VoiceConsentBy = in.consentActor
@@ -702,6 +707,12 @@ func RunCreativeWorker(ctx context.Context, s *FileStore) error {
 	}
 }
 func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) error {
+	ctx = s.withLibraryDispatchGuard(ctx, job)
+	if job.UpstreamID == "" {
+		if err := checkLibraryDispatch(ctx); err != nil {
+			return err
+		}
+	}
 	if job.RuntimeSelection != nil {
 		request, err := s.creativeExecutionRequest(*job)
 		if err != nil {
@@ -712,6 +723,12 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 	return s.executeCreativeJobWith(ctx, job, nil)
 }
 func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob, managed *RuntimeProviders) error {
+	ctx = s.withLibraryDispatchGuard(ctx, job)
+	if job.UpstreamID == "" {
+		if err := checkLibraryDispatch(ctx); err != nil {
+			return err
+		}
+	}
 	if job.Kind == "digital_human" {
 		return s.executeDigitalHuman(ctx, job)
 	}
@@ -1003,9 +1020,13 @@ func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob
 			return err
 		}
 	}
+	ctx, err = s.libraryResultContext(ctx, job)
+	if err != nil {
+		return err
+	}
 	// Asset ingest has its own persistent idempotency receipt. Restart cannot
 	// publish duplicate assets even if ingestion succeeded before job completion.
-	_, err = s.media.AddAsset(job.ProjectID, job.SpaceID, "creative-"+job.ID, "创作素材 · "+job.Kind, role, job.Character, job.ShotID, job.Provider, data, mime, job.lease)
+	_, err = s.media.addAssetContext(ctx, job.ProjectID, job.SpaceID, "creative-"+job.ID, "创作素材 · "+job.Kind, role, job.Character, job.ShotID, job.Provider, data, mime, job.lease)
 	if err != nil {
 		return err
 	}
@@ -1115,5 +1136,6 @@ type asyncReferenceImageProvider interface {
 
 func cloneCreativeJob(job CreativeJob) CreativeJob {
 	job.ReferenceAssetIDs = append([]string(nil), job.ReferenceAssetIDs...)
+	job.LibraryMediaPins = cloneLibraryPins(job.LibraryMediaPins)
 	return job
 }

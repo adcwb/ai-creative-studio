@@ -103,7 +103,7 @@ func (p *NativeImageProvider) GenerateWithReference(ctx context.Context, in Inpu
 		req.Header.Set("Authorization", "Bearer "+p.key)
 	}
 	req.GetBody = nil
-	res, err := p.client.Do(req)
+	res, err := libraryGuardedRequest(p.client, req)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return GenerationResult{}, providerFailure("provider_timeout")

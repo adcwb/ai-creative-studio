@@ -71,7 +71,7 @@ func creativeFailure(err error) (string, string) {
 	if errors.As(err, &e) {
 		code = e.Code
 	}
-	if code == "provider_input_capacity" || code == "provider_input_count_unavailable" {
+	if code == "library_use_denied" || code == "provider_input_capacity" || code == "provider_input_count_unavailable" {
 		return code, providerMessage(code)
 	}
 	return code, "创作服务执行未完成（" + code + "）；旧稿保留，远端结果或费用可能不确定，未自动重试。"
@@ -110,7 +110,7 @@ func (p *OpenAICreativeProvider) request(ctx context.Context, method, path strin
 	req.Header.Set("Authorization", "Bearer "+p.key)
 	req.Header.Set("Content-Type", "application/json")
 	req.GetBody = nil
-	response, err := p.client.Do(req)
+	response, err := libraryGuardedRequest(p.client, req)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return nil, providerFailure("provider_timeout")

@@ -246,6 +246,10 @@ func (s *FileStore) copyMigrationAsset(ctx context.Context, j m.Job, copy m.Asse
 	if preflight != nil {
 		return m.Proof{}, preflight
 	}
+	sources, expectedSHA, _, e := s.libraryMediaSources(ctx, j.ProjectID, j.Space, copy.Source.ID)
+	if e != nil {
+		return m.Proof{}, e
+	}
 	// This is an actual byte copy, not a source URL or hard-link alias. A target
 	// keeps working when the source cache is absent and owns its own blob key.
 	path, e := s.media.localBlob(j.Space, j.ProjectID, copy.Source.ID)
@@ -280,6 +284,9 @@ func (s *FileStore) copyMigrationAsset(ctx context.Context, j m.Job, copy m.Asse
 	}
 	id := m.AssetID(j.ID, copy.Source.ID)
 	proof := m.Proof{TargetID: id, SHA256: hex.EncodeToString(h.Sum(nil)), Size: size}
+	if len(sources) > 0 && proof.SHA256 != expectedSHA {
+		return proof, ErrBlobIntegrity
+	}
 	destination := filepath.Join(s.media.dir, id)
 	if e = os.Link(temp.Name(), destination); e != nil {
 		if !errors.Is(e, os.ErrExist) {
@@ -317,6 +324,11 @@ func (s *FileStore) copyMigrationAsset(ctx context.Context, j m.Job, copy m.Asse
 		return proof, m.ErrConflict
 	}
 	a := copy.Source
+	a.ParentAssetIDs = nil // copied targets use flattened trusted ancestry, not source-project aliases
+	if len(sources) > 0 {
+		a.LibrarySources = sources
+		a.ContentSHA256 = proof.SHA256
+	}
 	a.ID = id
 	a.Source = "migrated"
 	a.CharacterID = copy.CharacterID

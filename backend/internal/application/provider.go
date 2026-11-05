@@ -67,6 +67,8 @@ func providerFailure(code string) error { return &ProviderError{Code: code} }
 
 func providerMessage(code string) string {
 	switch code {
+	case "library_use_denied":
+		return "参考资产的使用授权未确认、已变更或已失效；请核对授权后重新确认本次创作。已保存的历史作品保留。"
 	case "mock_failed":
 		return "模拟流程失败；请移除 [mock-fail] 后编辑重试。"
 	case "provider_auth_failed":
@@ -166,7 +168,7 @@ func (p *OpenAIProvider) Generate(ctx context.Context, in Input) (GenerationResu
 	// A generation POST is a one-shot operation, including at the transport
 	// layer; do not make its request body replayable after a connection error.
 	req.GetBody = nil
-	response, err := p.client.Do(req)
+	response, err := libraryGuardedRequest(p.client, req)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return GenerationResult{}, providerFailure("provider_timeout")
