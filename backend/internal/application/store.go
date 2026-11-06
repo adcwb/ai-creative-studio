@@ -625,7 +625,7 @@ func (s *FileStore) finishLocked(t Task, result GenerationResult, runErr error) 
 			}
 			if s.blobs != nil {
 				ctx, cancel := blobContext()
-				err := s.blobs.put(ctx, blobKey(t.SpaceID, "results", name), result.Data)
+				err := s.blobs.putFile(ctx, blobKey(t.SpaceID, "results", name), filepath.Join(filepath.Dir(s.path), "results", name))
 				cancel()
 				if err != nil {
 					return err
@@ -715,12 +715,18 @@ func (s *FileStore) ReadResult(space, id string) (GenerationResult, error) {
 	}
 	defer f.Close()
 	info, err := f.Stat()
-	if err != nil || !info.Mode().IsRegular() || info.Size() > maxPNGBytes {
+	if err != nil || !info.Mode().IsRegular() || info.Size() > int64(t.ResultWidth)*int64(t.ResultHeight)*9+(1<<20) || t.ResultWidth < 1 || t.ResultHeight < 1 || t.ResultWidth > 8192 || t.ResultHeight > 8192 || t.ResultWidth > 20_000_000/t.ResultHeight {
 		return GenerationResult{}, errors.New("invalid stored result file")
 	}
-	data, err := io.ReadAll(io.LimitReader(f, maxPNGBytes+1))
+	// A canonical PNG cannot require more than RGBA16 pixels plus encoding
+	// overhead. Bound reads even if the private file changes after Stat.
+	budget := int64(t.ResultWidth)*int64(t.ResultHeight)*9 + (1 << 20)
+	data, err := io.ReadAll(io.LimitReader(f, budget+1))
 	if err != nil {
 		return GenerationResult{}, err
+	}
+	if int64(len(data)) > budget {
+		return GenerationResult{}, errors.New("invalid stored result file")
 	}
 	width, height := t.ResultWidth, t.ResultHeight
 	validation := validateLargePNG(data, width, height)

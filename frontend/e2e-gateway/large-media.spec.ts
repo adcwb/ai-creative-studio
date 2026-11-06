@@ -22,8 +22,11 @@ test('continue editing a large original recovers a lost completion without dupli
  await expect.poll(async()=>(await(await page.request.get(api+'/tasks/'+task.id+query)).json()).status).toBe('succeeded')
  const before=(await(await request.get('http://127.0.0.1:5193/__state')).json()).requests.length
  await page.route(`**/tasks/${task.id}/result*`,route=>route.fulfill({contentType:'image/png',body:png}))
- let lost=false;await page.route('**/media/upload-sessions/*/complete?*',async route=>{if(!lost){lost=true;await route.fetch();await route.abort('failed')}else await route.continue()})
- await page.reload();await page.locator('.result-preview').first().click();await page.getByRole('button',{name:'继续编辑',exact:true}).click();await expect(page.locator('.detail-dialog').getByRole('alert')).toBeVisible()
+ // Wait for the actual completion response to be discarded. Hashing and
+ // sending a real 36MiB source may take longer than an assertion's 5s window.
+ let discarded!:()=>void;const completionDiscarded=new Promise<void>(resolve=>{discarded=resolve})
+ let lost=false;await page.route('**/media/upload-sessions/*/complete?*',async route=>{if(!lost){lost=true;const response=await route.fetch();expect(response.status()).toBe(200);await route.abort('failed');discarded()}else await route.continue()})
+ await page.reload();await page.locator('.result-preview').first().click();await page.getByRole('button',{name:'继续编辑',exact:true}).click();await completionDiscarded;await expect(page.locator('.detail-dialog').getByRole('alert')).toBeVisible()
  await page.getByRole('button',{name:'继续编辑',exact:true}).click();await expect(page).toHaveURL(/\/studio\/workspaces\//)
  const project=page.url().split('/').pop()!
  const media=await(await page.request.get(api+'/projects/'+project+'/media'+query)).json();expect(media.assets).toHaveLength(1);expect(media.assets[0]).toMatchObject({content_sha256:createHash('sha256').update(png).digest('hex'),name:`source-${task.id}.png`})

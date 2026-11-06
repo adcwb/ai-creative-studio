@@ -7,7 +7,6 @@ package application
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -89,7 +88,7 @@ func googleMediaStatus(code int) error {
 		return providerFailure("provider_auth_failed")
 	case 429:
 		return providerFailure("provider_rate_limited")
-	case 400, 404, 422:
+	case 400, 404, 413, 422:
 		return providerFailure("provider_rejected")
 	default:
 		return providerFailure("provider_error")
@@ -150,70 +149,90 @@ func googleOutput(b []byte, kind string) (googleMediaBlock, error) {
 	return *found, nil
 }
 func (p *GoogleMediaProvider) Speech(ctx context.Context, text string) ([]byte, error) {
+	var b bytes.Buffer
+	if e := p.SpeechTo(ctx, text, &b); e != nil {
+		return nil, e
+	}
+	return b.Bytes(), nil
+}
+func (p *GoogleMediaProvider) SpeechTo(ctx context.Context, text string, dst io.Writer) error {
 	if p.kind != "gemini-speech" {
-		return nil, providerFailure("unsupported_capability")
+		return providerFailure("unsupported_capability")
 	}
 	if !nativeModelPattern.MatchString(p.voice) {
-		return nil, providerFailure("provider_unavailable")
+		return providerFailure("provider_unavailable")
 	}
 	text, err := normalizeProjectText(text, "speech", 1, 2000)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	body := map[string]any{"model": p.model, "input": []map[string]any{{"type": "user_input", "content": []map[string]string{{"type": "text", "text": text}}}}, "response_format": map[string]any{"type": "audio", "mime_type": "audio/wav", "sample_rate": 24000}, "generation_config": map[string]any{"speech_config": []map[string]string{{"voice": p.voice}}}}
 	res, err := p.request(ctx, "POST", "/v1beta/interactions", body)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	b, err := googleMediaRead(res, 16<<20)
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		return googleMediaStatus(res.StatusCode)
+	}
+	media, err := newNativeJSONParser(ctx, res.Body, "base64", func(path []string) bool { return mediaPath(path, "steps", "*", "content", "*", "data") }).next(true)
 	if err != nil {
-		return nil, err
+		return nativeResponseError(err)
 	}
-	block, err := googleOutput(b, "audio")
+	defer media.close()
+	block, err := googleOutput(media.metadata, "audio")
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if block.MIME != "audio/wav" || block.URI != "" || len(block.Data) > base64.StdEncoding.EncodedLen(10<<20) {
-		return nil, providerFailure("invalid_provider_response")
+	part, ok := media.parts[block.Data]
+	if !ok || block.MIME != "audio/wav" || block.URI != "" || !googleWAVReader(io.NewSectionReader(media.file, part[0], part[1]), part[1]) {
+		return providerFailure("invalid_provider_response")
 	}
-	audio, err := base64.StdEncoding.Strict().DecodeString(block.Data)
-	if err != nil || !googleWAV(audio) {
-		return nil, providerFailure("invalid_provider_response")
-	}
-	return audio, nil
+	return media.copy(ctx, block.Data, dst)
 }
 
-// Require the requested unary 24 kHz mono PCM16 WAV, never wrap unknown PCM as WAV.
-func googleWAV(b []byte) bool {
-	if len(b) < 44 || len(b) > 10<<20 || string(b[:4]) != "RIFF" || string(b[8:12]) != "WAVE" || uint64(binary.LittleEndian.Uint32(b[4:8]))+8 != uint64(len(b)) {
+// Validate the requested unary 24 kHz mono PCM16 format without allocating chunks.
+func googleWAV(b []byte) bool { return googleWAVReader(bytes.NewReader(b), int64(len(b))) }
+func googleWAVReader(r io.ReaderAt, size int64) bool {
+	var header [12]byte
+	if size < 44 {
+		return false
+	}
+	if _, e := r.ReadAt(header[:], 0); e != nil || string(header[:4]) != "RIFF" || string(header[8:12]) != "WAVE" || int64(binary.LittleEndian.Uint32(header[4:8]))+8 != size {
 		return false
 	}
 	format, data := false, false
-	for at := 12; at < len(b); {
-		if len(b)-at < 8 {
+	for at := int64(12); at < size; {
+		var h [8]byte
+		if _, e := r.ReadAt(h[:], at); e != nil {
 			return false
 		}
-		name := string(b[at : at+4])
-		n := uint64(binary.LittleEndian.Uint32(b[at+4 : at+8]))
+		n := int64(binary.LittleEndian.Uint32(h[4:]))
 		start := at + 8
-		if n > uint64(len(b)-start) {
+		if n > size-start {
 			return false
 		}
-		chunk := b[start : start+int(n)]
-		if name == "fmt " {
-			if format || len(chunk) < 16 || binary.LittleEndian.Uint16(chunk[:2]) != 1 || binary.LittleEndian.Uint16(chunk[2:4]) != 1 || binary.LittleEndian.Uint32(chunk[4:8]) != 24000 || binary.LittleEndian.Uint32(chunk[8:12]) != 48000 || binary.LittleEndian.Uint16(chunk[12:14]) != 2 || binary.LittleEndian.Uint16(chunk[14:16]) != 16 {
+		switch string(h[:4]) {
+		case "fmt ":
+			var chunk [16]byte
+			if format || n < 16 {
+				return false
+			}
+			if _, e := r.ReadAt(chunk[:], start); e != nil {
+				return false
+			}
+			if binary.LittleEndian.Uint16(chunk[:2]) != 1 || binary.LittleEndian.Uint16(chunk[2:4]) != 1 || binary.LittleEndian.Uint32(chunk[4:8]) != 24000 || binary.LittleEndian.Uint32(chunk[8:12]) != 48000 || binary.LittleEndian.Uint16(chunk[12:14]) != 2 || binary.LittleEndian.Uint16(chunk[14:16]) != 16 {
 				return false
 			}
 			format = true
-		}
-		if name == "data" {
-			if data || n == 0 || n%2 != 0 || n > 180*48000 {
+		case "data":
+			if data || n == 0 || n%2 != 0 {
 				return false
 			}
 			data = true
 		}
-		at = start + int(n) + int(n%2)
-		if at > len(b) {
+		at = start + n + n%2
+		if at > size {
 			return false
 		}
 	}
@@ -257,7 +276,7 @@ func (p *GoogleMediaProvider) SubmitVideo(ctx context.Context, prompt string) (V
 
 // SubmitVideoWithImage uses the documented first-frame control, not a claim of identity preservation.
 func (p *GoogleMediaProvider) SubmitVideoWithImage(ctx context.Context, prompt string, data []byte, mime string) (VideoJob, error) {
-	if len(data) > 10<<20 || (mime != "image/png" && mime != "image/jpeg") {
+	if mime != "image/png" && mime != "image/jpeg" {
 		return VideoJob{}, providerFailure("provider_rejected")
 	}
 	if _, err := nativeImage(data, mime); err != nil {
@@ -268,7 +287,7 @@ func (p *GoogleMediaProvider) SubmitVideoWithImage(ctx context.Context, prompt s
 
 // SubmitVideoWithVideo edits an already validated local MP4. No caller-controlled remote URI is accepted.
 func (p *GoogleMediaProvider) SubmitVideoWithVideo(ctx context.Context, prompt string, data []byte, mime string) (VideoJob, error) {
-	if mime != "video/mp4" || len(data) < 12 || len(data) > 10<<20 || string(data[4:8]) != "ftyp" {
+	if mime != "video/mp4" || len(data) < 12 || string(data[4:8]) != "ftyp" {
 		return VideoJob{}, providerFailure("provider_rejected")
 	}
 	return p.submitVideoReference(ctx, "[# Sources <VIDEO_0>@Video1] "+prompt, data, mime, "video")
@@ -278,7 +297,7 @@ func (p *GoogleMediaProvider) submitVideoReference(ctx context.Context, prompt s
 	if err != nil {
 		return VideoJob{}, err
 	}
-	input := []map[string]any{{"type": "user_input", "content": []map[string]string{{"type": kind, "mime_type": mime, "data": base64.StdEncoding.EncodeToString(data)}, {"type": "text", "text": appendLibraryInputContext(ctx, prompt)}}}}
+	input := []map[string]any{{"type": "user_input", "content": []map[string]any{{"type": kind, "mime_type": mime, "data": inlineMedia{reference: referenceMedia{Data: data, MIME: mime}}}, {"type": "text", "text": appendLibraryInputContext(ctx, prompt)}}}}
 	return p.submitVideoInput(ctx, input)
 }
 func (p *GoogleMediaProvider) submitVideoInput(ctx context.Context, input any) (VideoJob, error) {
@@ -286,7 +305,7 @@ func (p *GoogleMediaProvider) submitVideoInput(ctx context.Context, input any) (
 		return VideoJob{}, providerFailure("unsupported_capability")
 	}
 	body := map[string]any{"model": p.model, "input": input, "response_format": map[string]string{"type": "video", "delivery": "uri", "resolution": "720p", "aspect_ratio": "16:9"}, "background": false, "store": false, "stream": false}
-	res, err := p.requestLimit(ctx, "POST", "/v1beta/interactions", body, 15<<20)
+	res, err := p.requestMediaJSON(ctx, body)
 	if err != nil {
 		return VideoJob{}, err
 	}
@@ -348,4 +367,25 @@ func (p *GoogleMediaProvider) DownloadVideo(ctx context.Context, id string) ([]b
 		return nil, e
 	}
 	return out.Bytes(), nil
+}
+
+func (p *GoogleMediaProvider) SubmitVideoWithFile(ctx context.Context, prompt, path, mime string) (VideoJob, error) {
+	ref := referenceMedia{Path: path, MIME: mime}
+	if e := validateReference(ctx, ref); e != nil {
+		return VideoJob{}, e
+	}
+	kind := "image"
+	tag := "[# Sources <FIRST_FRAME>@Image1] "
+	if mime == "video/mp4" {
+		kind = "video"
+		tag = "[# Sources <VIDEO_0>@Video1] "
+	} else if mime != "image/png" && mime != "image/jpeg" {
+		return VideoJob{}, providerFailure("provider_rejected")
+	}
+	prompt, e := normalizeProjectText(tag+prompt, "video", 3, 2200)
+	if e != nil {
+		return VideoJob{}, e
+	}
+	content := []map[string]any{{"type": kind, "mime_type": mime, "data": inlineMedia{reference: ref}}, {"type": "text", "text": appendLibraryInputContext(ctx, prompt)}}
+	return p.submitVideoInput(ctx, []map[string]any{{"type": "user_input", "content": content}})
 }

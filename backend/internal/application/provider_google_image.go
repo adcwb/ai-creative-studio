@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"encoding/base64"
 )
 
 // Separate identity from gemini-images (generateContent), so protocol changes
@@ -37,40 +36,46 @@ func (p *GoogleInteractionsImageProvider) generateReferences(ctx context.Context
 	if err != nil {
 		return GenerationResult{}, providerFailure("provider_rejected")
 	}
-	total := 0
 	for _, r := range refs {
-		total += len(r.Data)
-		if total > 10<<20 || (r.MIME != "image/png" && r.MIME != "image/jpeg") {
+		if r.MIME != "image/png" && r.MIME != "image/jpeg" {
 			return GenerationResult{}, providerFailure("provider_rejected")
 		}
-		if _, err = nativeImage(r.Data, r.MIME); err != nil {
+		if err = validateReference(ctx, r); err != nil {
 			return GenerationResult{}, err
 		}
 	}
 	prompt := appendLibraryInputContext(ctx, "Create one image. Template: "+in.Kind+". Style: "+in.Style+". Brief: "+in.Prompt)
-	input := []map[string]string{{"type": "text", "text": prompt}}
+	input := []map[string]any{{"type": "text", "text": prompt}}
 	for _, r := range refs {
-		input = append(input, map[string]string{"type": "image", "mime_type": r.MIME, "data": base64.StdEncoding.EncodeToString(r.Data)})
+		input = append(input, map[string]any{"type": "image", "mime_type": r.MIME, "data": inlineMedia{reference: r}})
 	}
 	body := map[string]any{"model": p.api.model, "input": input, "response_format": map[string]string{"type": "image", "mime_type": "image/png", "aspect_ratio": in.Ratio, "image_size": "1K"}, "background": false, "store": false, "stream": false}
-	res, err := p.api.requestLimit(ctx, "POST", "/v1beta/interactions", body, 24<<20)
+	res, err := p.api.requestMediaJSON(ctx, body)
 	if err != nil {
 		return GenerationResult{}, err
 	}
-	data, err := googleMediaRead(res, maxProviderResponseBytes)
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		return GenerationResult{}, googleMediaStatus(res.StatusCode)
+	}
+	media, err := newNativeJSONParser(ctx, res.Body, "base64", func(path []string) bool { return mediaPath(path, "steps", "*", "content", "*", "data") }).next(true)
+	if err != nil {
+		return GenerationResult{}, nativeResponseError(err)
+	}
+	defer media.close()
+	block, err := googleOutput(media.metadata, "image")
 	if err != nil {
 		return GenerationResult{}, err
 	}
-	block, err := googleOutput(data, "image")
-	if err != nil {
-		return GenerationResult{}, err
-	}
-	if (block.MIME != "image/png" && block.MIME != "image/jpeg") || block.URI != "" || len(block.Data) > base64.StdEncoding.EncodedLen(maxPNGBytes) {
+	if (block.MIME != "image/png" && block.MIME != "image/jpeg") || block.URI != "" {
 		return GenerationResult{}, providerFailure("invalid_provider_response")
 	}
-	raw, err := base64.StdEncoding.Strict().DecodeString(block.Data)
-	if err != nil {
-		return GenerationResult{}, providerFailure("invalid_provider_response")
+	return media.image(ctx, block.Data, block.MIME)
+}
+
+func (p *GoogleInteractionsImageProvider) GenerateWithReferenceFiles(ctx context.Context, in Input, path, mime, mask string) (GenerationResult, error) {
+	if mask != "" {
+		return GenerationResult{}, providerFailure("unsupported_capability")
 	}
-	return nativeImage(raw, block.MIME)
+	return p.generateReferences(ctx, in, []referenceMedia{{Path: path, MIME: mime, Role: "reference"}})
 }

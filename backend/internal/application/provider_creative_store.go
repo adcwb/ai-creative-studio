@@ -982,7 +982,14 @@ func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob
 		if musicProvider == nil {
 			return providerFailure("unsupported_capability")
 		}
-		data, err = musicProvider.Music(ctx, job.Prompt)
+		if stream, ok := musicProvider.(streamingMusicProvider); ok {
+			resultFile, err = newProviderMediaFile(s.media.dir)
+			if err == nil {
+				err = stream.MusicTo(ctx, job.Prompt, resultFile)
+			}
+		} else {
+			data, err = musicProvider.Music(ctx, job.Prompt)
+		}
 	case "speech":
 		mime = "audio/wav"
 		role = "voice"
@@ -1018,18 +1025,22 @@ func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob
 				if e != nil {
 					return e
 				}
-				ref, e := os.ReadFile(path)
-				if e != nil || len(ref) > 10<<20 {
-					return providerFailure("invalid_provider_response")
-				}
-				if refMIME == "video/mp4" {
-					editor, ok := videoProvider.(editVideoProvider)
-					if !ok {
-						return providerFailure("unsupported_capability")
-					}
-					v, err = editor.SubmitVideoWithVideo(ctx, job.Prompt, ref, refMIME)
+				if supportsVideoFiles(videoProvider) {
+					v, err = videoProvider.(fileReferenceVideoProvider).SubmitVideoWithFile(ctx, job.Prompt, path, refMIME)
 				} else {
-					v, err = adapter.SubmitVideoWithImage(ctx, job.Prompt, ref, refMIME)
+					ref, e := os.ReadFile(path)
+					if e != nil || len(ref) > 10<<20 {
+						return providerFailure("invalid_provider_response")
+					}
+					if refMIME == "video/mp4" {
+						editor, ok := videoProvider.(editVideoProvider)
+						if !ok {
+							return providerFailure("unsupported_capability")
+						}
+						v, err = editor.SubmitVideoWithVideo(ctx, job.Prompt, ref, refMIME)
+					} else {
+						v, err = adapter.SubmitVideoWithImage(ctx, job.Prompt, ref, refMIME)
+					}
 				}
 			} else {
 				v, err = videoProvider.SubmitVideo(ctx, job.Prompt)

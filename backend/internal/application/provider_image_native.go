@@ -7,9 +7,7 @@ package application
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"image"
 	_ "image/jpeg"
 	"image/png"
@@ -46,6 +44,17 @@ func (p *NativeImageProvider) Generate(ctx context.Context, in Input) (Generatio
 	return p.GenerateWithReference(ctx, in, nil, "")
 }
 func (p *NativeImageProvider) GenerateWithReference(ctx context.Context, in Input, reference []byte, mime string) (GenerationResult, error) {
+	return p.generateReferenceMedia(ctx, in, referenceMedia{Data: reference, MIME: mime})
+}
+func (p *NativeImageProvider) GenerateWithReferenceFiles(ctx context.Context, in Input, path, mime, mask string) (GenerationResult, error) {
+	if mask != "" {
+		return GenerationResult{}, providerFailure("unsupported_capability")
+	}
+	return p.generateReferenceMedia(ctx, in, referenceMedia{Path: path, MIME: mime})
+}
+func (p *NativeImageProvider) generateReferenceMedia(ctx context.Context, in Input, reference referenceMedia) (GenerationResult, error) {
+	mime := reference.MIME
+
 	if !validCredential(p.key) || !nativeModelPattern.MatchString(p.model) {
 		return GenerationResult{}, providerFailure("provider_unavailable")
 	}
@@ -53,11 +62,11 @@ func (p *NativeImageProvider) GenerateWithReference(ctx context.Context, in Inpu
 	if err != nil {
 		return GenerationResult{}, providerFailure("provider_rejected")
 	}
-	if len(reference) > 0 {
+	if reference.Path != "" || len(reference.Data) > 0 {
 		if mime != "image/png" && mime != "image/jpeg" {
 			return GenerationResult{}, providerFailure("provider_rejected")
 		}
-		if _, err := nativeImage(reference, mime); err != nil {
+		if err := validateReference(ctx, reference); err != nil {
 			return GenerationResult{}, providerFailure("provider_rejected")
 		}
 	} else if mime != "" {
@@ -69,8 +78,8 @@ func (p *NativeImageProvider) GenerateWithReference(ctx context.Context, in Inpu
 	switch p.kind {
 	case "gemini-images":
 		parts := []map[string]any{{"text": prompt}}
-		if len(reference) > 0 {
-			parts = append(parts, map[string]any{"inlineData": map[string]string{"mimeType": mime, "data": base64.StdEncoding.EncodeToString(reference)}})
+		if reference.Path != "" || len(reference.Data) > 0 {
+			parts = append(parts, map[string]any{"inlineData": map[string]any{"mimeType": mime, "data": inlineMedia{reference: reference}}})
 		}
 		body = map[string]any{"contents": []map[string]any{{"role": "user", "parts": parts}}, "generationConfig": map[string]any{"candidateCount": 1, "responseModalities": []string{"TEXT", "IMAGE"}, "imageConfig": map[string]string{"aspectRatio": in.Ratio}}}
 		path = "/v1beta/models/" + p.model + ":generateContent"
@@ -80,35 +89,21 @@ func (p *NativeImageProvider) GenerateWithReference(ctx context.Context, in Inpu
 			b["size"], b["response_format"] = spec.Size, spec.ResponseFormat
 			b["output_format"], b["sequential_image_generation"] = spec.OutputFormat, spec.SequentialImageGeneration
 		}
-		if len(reference) > 0 {
-			b["image"] = "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(reference)
+		if reference.Path != "" || len(reference.Data) > 0 {
+			b["image"] = inlineMedia{reference: reference, prefix: "data:" + mime + ";base64,"}
 		}
 		body = b
 		path = "/api/v3/images/generations"
 	default:
 		return GenerationResult{}, providerFailure("provider_unavailable")
 	}
-	encoded, err := json.Marshal(body)
-	if err != nil || len(encoded) > 24<<20 {
-		return GenerationResult{}, providerFailure("provider_rejected")
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.endpoint+path, bytes.NewReader(encoded))
-	if err != nil {
-		return GenerationResult{}, providerFailure("provider_error")
-	}
-	req.Header.Set("Content-Type", "application/json")
+	header, secret := "Authorization", "Bearer "+p.key
 	if p.kind == "gemini-images" {
-		req.Header.Set("x-goog-api-key", p.key)
-	} else {
-		req.Header.Set("Authorization", "Bearer "+p.key)
+		header, secret = "x-goog-api-key", p.key
 	}
-	req.GetBody = nil
-	res, err := libraryGuardedRequest(p.client, req)
+	res, err := requestNativeJSON(ctx, p.client, p.endpoint+path, header, secret, body, 0)
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return GenerationResult{}, providerFailure("provider_timeout")
-		}
-		return GenerationResult{}, providerFailure("provider_error")
+		return GenerationResult{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
@@ -122,10 +117,14 @@ func (p *NativeImageProvider) GenerateWithReference(ctx context.Context, in Inpu
 		}
 		return GenerationResult{}, providerFailure(code)
 	}
-	data, err := io.ReadAll(io.LimitReader(res.Body, maxProviderResponseBytes+1))
-	if err != nil || len(data) > maxProviderResponseBytes {
-		return GenerationResult{}, providerFailure("invalid_provider_response")
+	media, err := newNativeJSONParser(ctx, res.Body, "base64", func(path []string) bool {
+		return mediaPath(path, "candidates", "*", "content", "parts", "*", "inlinedata", "data") || mediaPath(path, "data", "*", "b64_json")
+	}).next(true)
+	if err != nil {
+		return GenerationResult{}, nativeResponseError(err)
 	}
+	defer media.close()
+	data := media.metadata
 	var b64, outMIME string
 	if p.kind == "gemini-images" {
 		var out struct {
@@ -171,26 +170,19 @@ func (p *NativeImageProvider) GenerateWithReference(ctx context.Context, in Inpu
 	if p.kind == "gemini-images" && outMIME != "image/png" && outMIME != "image/jpeg" {
 		return GenerationResult{}, providerFailure("invalid_provider_response")
 	}
-	if b64 == "" || len(b64) > base64.StdEncoding.EncodedLen(maxPNGBytes) {
-		return GenerationResult{}, providerFailure("invalid_provider_response")
-	}
-	raw, err := base64.StdEncoding.Strict().DecodeString(b64)
-	if err != nil {
-		return GenerationResult{}, providerFailure("invalid_provider_response")
-	}
-	return nativeImage(raw, outMIME)
+	return media.image(ctx, b64, outMIME)
 }
 
 // Decode before allocation, bound pixels and normalize JPEG/PNG to PNG. Model
 // sizes differ from the legacy OpenAI task contract; use actual output metadata.
 func nativeImage(data []byte, mime string) (GenerationResult, error) {
+	return nativeImageReader(bytes.NewReader(data), mime)
+}
+func nativeImageReader(reader io.ReadSeeker, mime string) (GenerationResult, error) {
 	fail := func() (GenerationResult, error) {
 		return GenerationResult{}, providerFailure("invalid_provider_response")
 	}
-	if len(data) == 0 || len(data) > maxPNGBytes {
-		return fail()
-	}
-	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
+	cfg, format, err := image.DecodeConfig(reader)
 	if err != nil || cfg.Width < 1 || cfg.Height < 1 || cfg.Width > 8192 || cfg.Height > 8192 || cfg.Width > 20_000_000/cfg.Height {
 		return fail()
 	}
@@ -200,12 +192,18 @@ func nativeImage(data []byte, mime string) (GenerationResult, error) {
 	if mime != "" && mime != "image/"+format {
 		return fail()
 	}
-	img, _, err := image.Decode(bytes.NewReader(data))
+	if _, err = reader.Seek(0, 0); err != nil {
+		return fail()
+	}
+	img, _, err := image.Decode(reader)
 	if err != nil {
 		return fail()
 	}
 	var b bytes.Buffer
-	if png.Encode(&b, img) != nil || b.Len() > maxPNGBytes {
+	// Prefer fast lossless normalization for large decoded results.
+	// Pixel and decode guards remain unchanged.
+	encoder := png.Encoder{CompressionLevel: png.BestSpeed}
+	if encoder.Encode(&b, img) != nil {
 		return fail()
 	}
 	return GenerationResult{Data: b.Bytes(), MIMEType: "image/png", Width: cfg.Width, Height: cfg.Height}, nil

@@ -65,3 +65,21 @@ func (p runtimeCreative) SubmitVideoWithVideo(ctx context.Context, prompt string
 	}
 	return VideoJob{}, errRuntimeDenied
 }
+
+func (p runtimeCreative) SubmitVideoWithFile(ctx context.Context, prompt, path, mime string) (VideoJob, error) {
+	if p.capability != "video" {
+		return VideoJob{}, errRuntimeDenied
+	}
+	if v, ok := p.p.(fileReferenceVideoProvider); ok {
+		return v.SubmitVideoWithFile(ctx, prompt, path, mime)
+	}
+	return VideoJob{}, providerFailure("unsupported_capability")
+}
+func supportsVideoFiles(p CreativeProvider) bool {
+	if r, ok := p.(runtimeCreative); ok {
+		_, supported := r.p.(fileReferenceVideoProvider)
+		return r.capability == "video" && supported
+	}
+	_, ok := p.(fileReferenceVideoProvider)
+	return ok
+}

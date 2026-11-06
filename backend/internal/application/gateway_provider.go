@@ -5,11 +5,9 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
-	"net/textproto"
 	"regexp"
 	"strconv"
 )
@@ -144,11 +142,8 @@ func (p *gatewayImageProvider) editReferences(ctx context.Context, in Input, ref
 		return GenerationResult{}, providerFailure("unsupported_capability")
 	}
 	for _, ref := range refs {
-		if ref.Role != "reference" {
+		if ref.Role != "reference" || (ref.MIME != "image/png" && ref.MIME != "image/jpeg") {
 			return GenerationResult{}, providerFailure("unsupported_capability")
-		}
-		if _, e := nativeImage(ref.Data, ref.MIME); e != nil {
-			return GenerationResult{}, e
 		}
 	}
 	if !modelHasCapability(p.model, "image_edit") {
@@ -159,37 +154,8 @@ func (p *gatewayImageProvider) editReferences(ctx context.Context, in Input, ref
 		return GenerationResult{}, e
 	}
 
-	var body bytes.Buffer
-	form := multipart.NewWriter(&body)
 	size, _, _ := imageSize(in.Ratio)
-	for k, v := range map[string]string{"model": p.model.Model, "prompt": appendLibraryInputContext(ctx, "Style: "+in.Style+". Aspect ratio: "+in.Ratio+". "+in.Prompt), "size": size, "n": "1"} {
-		if form.WriteField(k, v) != nil {
-			return GenerationResult{}, providerFailure("provider_error")
-		}
-	}
-	add := func(field, filename, mime string, data []byte) error {
-		header := textproto.MIMEHeader{}
-		header.Set("Content-Disposition", `form-data; name="`+field+`"; filename="`+filename+`"`)
-		header.Set("Content-Type", mime)
-		part, e := form.CreatePart(header)
-		if e != nil {
-			return e
-		}
-		_, e = part.Write(data)
-		return e
-	}
-	for i, ref := range refs {
-		if add("image[]", fmt.Sprintf("reference-%d.png", i+1), ref.MIME, ref.Data) != nil {
-			return GenerationResult{}, providerFailure("provider_error")
-		}
-	}
-	if mask != nil && add("mask", "mask.png", "image/png", mask) != nil {
-		return GenerationResult{}, providerFailure("provider_error")
-	}
-	if form.Close() != nil {
-		return GenerationResult{}, providerFailure("provider_error")
-	}
-	raw, e := gatewayMultipart(ctx, p.api, "/images/edits", form.FormDataContentType(), body.Bytes(), maxProviderResponseBytes)
+	raw, e := multipartImageReferences(ctx, p.api, map[string]string{"model": p.model.Model, "prompt": appendLibraryInputContext(ctx, "Style: "+in.Style+". Aspect ratio: "+in.Ratio+". "+in.Prompt), "size": size, "n": "1"}, refs, "", mask)
 	if e != nil {
 		return GenerationResult{}, e
 	}

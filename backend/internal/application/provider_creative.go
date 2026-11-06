@@ -71,7 +71,7 @@ func creativeFailure(err error) (string, string) {
 	if errors.As(err, &e) {
 		code = e.Code
 	}
-	if code == "writing_context_changed" || code == "library_use_denied" || code == "provider_input_capacity" || code == "provider_input_count_unavailable" || code == "alignment_source_unpinned" || code == "alignment_source_changed" {
+	if code == "provider_inline_capacity" || code == "writing_context_changed" || code == "library_use_denied" || code == "provider_input_capacity" || code == "provider_input_count_unavailable" || code == "alignment_source_unpinned" || code == "alignment_source_changed" {
 		return code, providerMessage(code)
 	}
 	return code, "创作服务执行未完成（" + code + "）；旧稿保留，远端结果或费用可能不确定，未自动重试。"

@@ -27881,13 +27881,14 @@
               "provider_auth_failed",
               "provider_rate_limited",
               "provider_rejected",
+              "provider_inline_capacity",
               "provider_error",
               "provider_timeout",
               "invalid_provider_response",
               "execution_interrupted",
               "provider_unavailable"
             ],
-            "description": "失败分类。execution_interrupted 表示真实 provider 执行中断、远端结果可能不确定；provider_unavailable 表示已绑定 provider/model 当前不可执行而未发起上游请求。旧失败记录可省略。"
+            "description": "失败分类。provider_inline_capacity 表示参考文件或完整内联请求超过当前上游接口协议容量，未发起生成请求；不表示项目额度。execution_interrupted 表示真实 provider 执行中断、远端结果可能不确定；provider_unavailable 表示已绑定 provider/model 当前不可执行而未发起上游请求。旧失败记录可省略。"
           },
           "upstream_id": {
             "type": "string",

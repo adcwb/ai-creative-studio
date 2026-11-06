@@ -39,7 +39,11 @@ func (s *FileStore) creativeExecutionRequest(job CreativeJob) (ExecutionRequest,
 		}
 		for _, ref := range refs {
 			request.HasMedia = true
-			request.Media = append(request.Media, ExecutionMedia{Data: ref.Data, MIME: ref.MIME})
+			media, e := referenceExecutionMedia(context.Background(), ref)
+			if e != nil {
+				return ExecutionRequest{}, e
+			}
+			request.Media = append(request.Media, media)
 			roles = append(roles, ref.Role)
 		}
 	}

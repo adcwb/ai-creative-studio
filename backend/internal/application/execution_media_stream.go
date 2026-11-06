@@ -1,6 +1,7 @@
 package application
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -113,15 +114,32 @@ func writeExecutionJSON(ctx context.Context, w io.Writer, fields map[string]json
 			}
 		}
 		if m.Stream == nil {
-			raw, e := json.Marshal(m)
+			if m.Data == nil {
+				raw, e := json.Marshal(m)
+				if e != nil {
+					return e
+				}
+				if _, e = w.Write(raw); e != nil {
+					return e
+				}
+				continue
+			}
+			if e := put(`{"Data":"`); e != nil {
+				return e
+			}
+			encoder := base64.NewEncoder(base64.StdEncoding, w)
+			_, e := io.CopyBuffer(encoder, contextBlobReader{ctx, bytes.NewReader(m.Data)}, make([]byte, 64<<10))
+			e = errors.Join(e, encoder.Close())
 			if e != nil {
 				return e
 			}
-			if _, e = w.Write(raw); e != nil {
+			mime, _ := json.Marshal(m.MIME)
+			if e = put(`","MIME":` + string(mime) + `}`); e != nil {
 				return e
 			}
 			continue
 		}
+
 		if m.Data != nil || m.Stream.Open == nil {
 			return ErrExecutionGovernance
 		}

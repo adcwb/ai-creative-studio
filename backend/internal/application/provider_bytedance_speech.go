@@ -5,10 +5,10 @@ package application
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -25,22 +25,29 @@ func NewByteDanceSpeechProvider(key, resource, voice string) *ByteDanceSpeechPro
 }
 func (p *ByteDanceSpeechProvider) ProviderName() string { return "bytedance-speech" }
 func (p *ByteDanceSpeechProvider) Speech(ctx context.Context, text string) ([]byte, error) {
+	var out bytes.Buffer
+	if e := p.SpeechTo(ctx, text, &out); e != nil {
+		return nil, e
+	}
+	return out.Bytes(), nil
+}
+func (p *ByteDanceSpeechProvider) SpeechTo(ctx context.Context, text string, dst io.Writer) error {
 	if !validCredential(p.key) || !configToken.MatchString(p.resource) || !configToken.MatchString(p.voice) {
-		return nil, providerFailure("invalid_configuration")
+		return providerFailure("invalid_configuration")
 	}
 	text, err := normalizeProjectText(text, "配音文本", 1, 2000)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	id, err := newProjectID()
 	if err != nil {
-		return nil, providerFailure("provider_error")
+		return providerFailure("provider_error")
 	}
 	uuid := id[:8] + "-" + id[8:12] + "-" + id[12:16] + "-" + id[16:20] + "-" + id[20:]
 	body, _ := json.Marshal(map[string]any{"req_params": map[string]any{"text": text, "speaker": p.voice, "audio_params": map[string]any{"format": "wav", "sample_rate": 24000}}})
 	req, err := http.NewRequestWithContext(ctx, "POST", p.endpoint, bytes.NewReader(body))
 	if err != nil {
-		return nil, providerFailure("provider_error")
+		return providerFailure("provider_error")
 	}
 	req.GetBody = nil
 	req.Header.Set("Content-Type", "application/json")
@@ -49,48 +56,50 @@ func (p *ByteDanceSpeechProvider) Speech(ctx context.Context, text string) ([]by
 	req.Header.Set("X-Api-Request-Id", uuid)
 	res, err := libraryGuardedRequest(p.client, req)
 	if err != nil {
-		return nil, providerFailure("provider_error")
+		return providerFailure("provider_error")
 	}
 	defer res.Body.Close()
 	if res.StatusCode != 200 {
 		if res.StatusCode == 429 {
-			return nil, providerFailure("provider_rate_limited")
+			return providerFailure("provider_rate_limited")
 		}
-		return nil, providerFailure("provider_rejected")
+		return providerFailure("provider_rejected")
 	}
-	raw, err := io.ReadAll(io.LimitReader(res.Body, 24<<20+1))
-	if err != nil || len(raw) > 24<<20 {
-		return nil, providerFailure("invalid_provider_response")
+	parser := newNativeJSONParser(ctx, res.Body, "base64", func(path []string) bool { return mediaPath(path, "data") })
+	// Keep all chunks private until the final frame validates, including late errors.
+	file, err := os.CreateTemp("", "studio-native-audio-*")
+	if err != nil {
+		return err
 	}
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	audio := []byte{}
-	chunks := 0
+	defer func() { name := file.Name(); file.Close(); os.Remove(name) }()
 	for {
+		media, e := parser.next(false)
+		if e == io.EOF {
+			break
+		}
+		if e != nil {
+			return nativeResponseError(e)
+		}
 		var chunk struct {
 			Code *int   `json:"code"`
 			Data string `json:"data"`
 		}
-		err = decoder.Decode(&chunk)
-		if err == io.EOF {
-			break
+		if json.Unmarshal(media.metadata, &chunk) != nil || chunk.Code == nil || *chunk.Code != 0 {
+			media.close()
+			return providerFailure("invalid_provider_response")
 		}
-		if err != nil || chunk.Code == nil || *chunk.Code != 0 {
-			return nil, providerFailure("invalid_provider_response")
+		if part, ok := media.parts[chunk.Data]; ok && part[1] > 0 {
+			e = media.copy(ctx, chunk.Data, file)
 		}
-		chunks++
-		if chunks > 4096 {
-			return nil, providerFailure("invalid_provider_response")
-		}
-		if chunk.Data != "" {
-			data, e := base64.StdEncoding.DecodeString(chunk.Data)
-			if e != nil || len(audio)+len(data) > 16<<20 {
-				return nil, providerFailure("invalid_provider_response")
-			}
-			audio = append(audio, data...)
+		media.close()
+		if e != nil {
+			return e
 		}
 	}
-	if len(audio) < 44 || string(audio[:4]) != "RIFF" || string(audio[8:12]) != "WAVE" {
-		return nil, providerFailure("invalid_provider_response")
+	info, err := file.Stat()
+	if err != nil {
+		return err
 	}
-	return audio, nil
+	media := nativeJSONMedia{file: file, parts: map[string][2]int64{"audio": {0, info.Size()}}}
+	return media.copyAudio(ctx, "audio", dst, "wav")
 }

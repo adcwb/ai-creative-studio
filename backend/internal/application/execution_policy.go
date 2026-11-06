@@ -85,7 +85,7 @@ func (b *limitedCommandBuffer) Write(p []byte) (int, error) {
 	return b.Buffer.Write(p)
 }
 func policyCommand(ctx context.Context, path string, in, out any) error {
-	if request, ok := in.(ExecutionRequest); ok && hasStreamMedia(request) {
+	if request, ok := in.(ExecutionRequest); ok && len(request.Media) > 0 {
 		reader, done, e := executionJSONStream(ctx, request)
 		if e != nil {
 			return ErrExecutionGovernance

@@ -5,9 +5,7 @@ package application
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
-	"image"
 	"io"
 	"net/http"
 	"regexp"
@@ -50,6 +48,17 @@ func (p *MiniMaxImageProvider) Generate(ctx context.Context, in Input) (Generati
 	return p.GenerateWithReference(ctx, in, nil, "")
 }
 func (p *MiniMaxImageProvider) GenerateWithReference(ctx context.Context, in Input, reference []byte, mime string) (GenerationResult, error) {
+	return p.generateReferenceMedia(ctx, in, referenceMedia{Data: reference, MIME: mime})
+}
+func (p *MiniMaxImageProvider) GenerateWithReferenceFiles(ctx context.Context, in Input, path, mime, mask string) (GenerationResult, error) {
+	if mask != "" {
+		return GenerationResult{}, providerFailure("unsupported_capability")
+	}
+	return p.generateReferenceMedia(ctx, in, referenceMedia{Path: path, MIME: mime})
+}
+func (p *MiniMaxImageProvider) generateReferenceMedia(ctx context.Context, in Input, reference referenceMedia) (GenerationResult, error) {
+	mime := reference.MIME
+
 	if !validCredential(p.api.key) || !nativeModelPattern.MatchString(p.model) {
 		return GenerationResult{}, providerFailure("provider_unavailable")
 	}
@@ -73,21 +82,28 @@ func (p *MiniMaxImageProvider) GenerateWithReference(ctx context.Context, in Inp
 	} else {
 		body["aspect_ratio"] = in.Ratio
 	}
-	if len(reference) > 0 {
-		if len(reference) > 10<<20 {
+	if reference.Path != "" || len(reference.Data) > 0 {
+		if mime != "image/png" && mime != "image/jpeg" {
 			return GenerationResult{}, providerFailure("provider_rejected")
 		}
-		if _, err = nativeImage(reference, mime); err != nil || mime == "" {
+		if err = validateReference(ctx, reference); err != nil || mime == "" {
 			return GenerationResult{}, providerFailure("provider_rejected")
 		}
-		body["subject_reference"] = []map[string]string{{"type": "character", "image_file": "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(reference)}}
+		body["subject_reference"] = []map[string]any{{"type": "character", "image_file": inlineMedia{reference: reference, prefix: "data:" + mime + ";base64,"}}}
 	} else if mime != "" {
 		return GenerationResult{}, providerFailure("provider_rejected")
 	}
-	raw, err := p.api.request(ctx, "POST", "/v1/image_generation", body, maxProviderResponseBytes)
+	res, err := p.api.requestNativeResponse(ctx, "/v1/image_generation", body)
 	if err != nil {
 		return GenerationResult{}, err
 	}
+	defer res.Body.Close()
+	media, err := newNativeJSONParser(ctx, res.Body, "base64", func(path []string) bool { return mediaPath(path, "data", "image_base64", "*") }).next(true)
+	if err != nil {
+		return GenerationResult{}, nativeResponseError(err)
+	}
+	defer media.close()
+	raw := media.metadata
 	var out struct {
 		Base *struct {
 			Code *int `json:"status_code"`
@@ -96,14 +112,10 @@ func (p *MiniMaxImageProvider) GenerateWithReference(ctx context.Context, in Inp
 			Images []string `json:"image_base64"`
 		} `json:"data"`
 	}
-	if json.Unmarshal(raw, &out) != nil || out.Base == nil || out.Base.Code == nil || *out.Base.Code != 0 || out.Data == nil || len(out.Data.Images) != 1 || out.Data.Images[0] == "" || len(out.Data.Images[0]) > base64.StdEncoding.EncodedLen(maxPNGBytes) {
+	if json.Unmarshal(raw, &out) != nil || out.Base == nil || out.Base.Code == nil || *out.Base.Code != 0 || out.Data == nil || len(out.Data.Images) != 1 || out.Data.Images[0] == "" {
 		return GenerationResult{}, providerFailure("invalid_provider_response")
 	}
-	data, err := base64.StdEncoding.Strict().DecodeString(out.Data.Images[0])
-	if err != nil {
-		return GenerationResult{}, providerFailure("invalid_provider_response")
-	}
-	return nativeImage(data, "")
+	return media.image(ctx, out.Data.Images[0], "")
 }
 
 var miniMaxVideoIDPattern = regexp.MustCompile(`^[0-9]{1,64}$`)
@@ -112,17 +124,34 @@ func (p *MiniMaxVideoProvider) SubmitVideo(ctx context.Context, prompt string) (
 	return p.submit(ctx, prompt, nil)
 }
 func (p *MiniMaxVideoProvider) SubmitVideoWithImage(ctx context.Context, prompt string, data []byte, mime string) (VideoJob, error) {
-	if len(data) > 10<<20 || (mime != "image/png" && mime != "image/jpeg") {
+	return p.submitReferenceMedia(ctx, prompt, referenceMedia{Data: data, MIME: mime})
+}
+func (p *MiniMaxVideoProvider) SubmitVideoWithFile(ctx context.Context, prompt, path, mime string) (VideoJob, error) {
+	return p.submitReferenceMedia(ctx, prompt, referenceMedia{Path: path, MIME: mime})
+}
+func (p *MiniMaxVideoProvider) submitReferenceMedia(ctx context.Context, prompt string, reference referenceMedia) (VideoJob, error) {
+	// Native V2 contract: each image <=30 MB, total body <=64 MB. No per-project quota.
+	f, size, e := referenceOpen(ctx, reference)
+	if e != nil {
+		return VideoJob{}, e
+	}
+	f.Close()
+	if size > 30_000_000 {
+		return VideoJob{}, providerFailure("provider_inline_capacity")
+	}
+	mime := reference.MIME
+
+	if mime != "image/png" && mime != "image/jpeg" {
 		return VideoJob{}, providerFailure("provider_rejected")
 	}
-	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
+	cfg, format, err := referenceConfig(ctx, reference)
 	if err != nil || cfg.Width < 256 || cfg.Height < 256 || cfg.Width > 5760 || cfg.Height > 5760 || float64(cfg.Width)/float64(cfg.Height) < 0.4 || float64(cfg.Width)/float64(cfg.Height) > 2.5 || "image/"+format != mime {
 		return VideoJob{}, providerFailure("provider_rejected")
 	}
-	if _, err := nativeImage(data, mime); err != nil {
+	if err := validateReference(ctx, reference); err != nil {
 		return VideoJob{}, providerFailure("provider_rejected")
 	}
-	ref := map[string]any{"type": "image_url", "role": "first_frame", "image_url": map[string]string{"url": "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)}}
+	ref := map[string]any{"type": "image_url", "role": "first_frame", "image_url": map[string]any{"url": inlineMedia{reference: reference, prefix: "data:" + mime + ";base64,"}}}
 	return p.submit(ctx, prompt, ref)
 }
 func (p *MiniMaxVideoProvider) submit(ctx context.Context, prompt string, reference map[string]any) (VideoJob, error) {
@@ -147,7 +176,7 @@ func (p *MiniMaxVideoProvider) submit(ctx context.Context, prompt string, refere
 	if spec := videoCandidateSpecification("minimax-video", p.model, reference != nil); spec != nil {
 		seconds, resolution, ratio = spec.Seconds, spec.Resolution, spec.Ratio
 	}
-	raw, err := p.api.request(ctx, "POST", "/v2/video_generation", map[string]any{"model": p.model, "content": content, "duration": seconds, "resolution": resolution, "ratio": ratio}, 64<<10)
+	raw, err := p.api.requestNativeMetadata(ctx, "/v2/video_generation", map[string]any{"model": p.model, "content": content, "duration": seconds, "resolution": resolution, "ratio": ratio}, 64<<10)
 	if err != nil {
 		return VideoJob{}, err
 	}

@@ -37,7 +37,10 @@ jobs:
         run: |
           test -z "$(gofmt -l cmd internal)"
           go vet ./...
-          go test -race ./...
+          # Complementary groups: every test still runs, with native/large-media
+          # protocol acceptance isolated from the already long database suite.
+          go test -race ./... -skip '^TestNative'
+          go test -race ./... -run '^TestNative'
           go build -o bin/server ./cmd/server
       - name: Process crash and recovery smoke test
         run: python3 scripts/smoke.py
@@ -181,7 +184,10 @@ jobs:
           export STUDIO_BACKUP_TARGET_DSN="postgresql://$(id -un)@/studio_backup_target?host=/tmp/studio-ci-pg-socket&port=55439&sslmode=disable"
           export STUDIO_TEST_PG_DUMP=/usr/lib/postgresql/16/bin/pg_dump
           export STUDIO_TEST_PG_RESTORE=/usr/lib/postgresql/16/bin/pg_restore
-          go test -race ./...
+          # Complementary groups: every test still runs, with native/large-media
+          # protocol acceptance isolated from the already long database suite.
+          go test -race ./... -skip '^TestNative'
+          go test -race ./... -run '^TestNative'
           go build ./cmd/...
           python3 ../scripts/test_scheduled_backup.py
       - name: Two APIs, two workers and actual media

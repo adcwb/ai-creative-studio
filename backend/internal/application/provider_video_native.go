@@ -6,9 +6,7 @@ package application
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
-	"image"
 	"io"
 	"net"
 	"net/http"
@@ -78,14 +76,25 @@ func (p *ArkVideoProvider) SubmitVideo(ctx context.Context, prompt string) (Vide
 
 // A first frame is actual image conditioning, not a guarantee of identity or motion.
 func (p *ArkVideoProvider) SubmitVideoWithImage(ctx context.Context, prompt string, data []byte, mime string) (VideoJob, error) {
-	if len(data) > 10<<20 || (mime != "image/png" && mime != "image/jpeg") {
+	return p.submitReferenceMedia(ctx, prompt, referenceMedia{Data: data, MIME: mime})
+}
+func (p *ArkVideoProvider) SubmitVideoWithFile(ctx context.Context, prompt, path, mime string) (VideoJob, error) {
+	return p.submitReferenceMedia(ctx, prompt, referenceMedia{Path: path, MIME: mime})
+}
+func (p *ArkVideoProvider) submitReferenceMedia(ctx context.Context, prompt string, reference referenceMedia) (VideoJob, error) {
+	mime := reference.MIME
+
+	if mime != "image/png" && mime != "image/jpeg" {
 		return VideoJob{}, providerFailure("provider_rejected")
 	}
-	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
-	if err != nil || cfg.Width < 300 || cfg.Height < 300 || cfg.Width > 6000 || cfg.Height > 6000 || float64(cfg.Width)/float64(cfg.Height) < 0.4 || float64(cfg.Width)/float64(cfg.Height) > 2.5 || (format == "png" && mime != "image/png") || (format == "jpeg" && mime != "image/jpeg") {
+	cfg, format, err := referenceConfig(ctx, reference)
+	if err != nil || cfg.Width < 300 || cfg.Height < 300 || cfg.Width > 6000 || cfg.Height > 6000 || float64(cfg.Width)/float64(cfg.Height) < 0.4 || float64(cfg.Width)/float64(cfg.Height) > 2.5 || "image/"+format != mime {
 		return VideoJob{}, providerFailure("provider_rejected")
 	}
-	ref := map[string]any{"type": "image_url", "image_url": map[string]string{"url": "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)}, "role": "first_frame"}
+	if e := validateReference(ctx, reference); e != nil {
+		return VideoJob{}, e
+	}
+	ref := map[string]any{"type": "image_url", "image_url": map[string]any{"url": inlineMedia{reference: reference, prefix: "data:" + mime + ";base64,"}}, "role": "first_frame"}
 	return p.submit(ctx, prompt, ref)
 }
 func (p *ArkVideoProvider) submit(ctx context.Context, prompt string, reference map[string]any) (VideoJob, error) {
@@ -107,7 +116,7 @@ func (p *ArkVideoProvider) submit(ctx context.Context, prompt string, reference 
 		seconds, resolution, ratio = spec.Seconds, spec.Resolution, spec.Ratio
 	}
 	body := map[string]any{"model": p.model, "content": content, "duration": seconds, "resolution": resolution, "ratio": ratio, "watermark": true}
-	b, err := p.api.request(ctx, "POST", "/contents/generations/tasks", body, 64<<10)
+	b, err := p.api.requestNativeMetadata(ctx, "/contents/generations/tasks", body, 64<<10)
 	if err != nil {
 		return VideoJob{}, err
 	}

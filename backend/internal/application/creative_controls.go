@@ -2,10 +2,8 @@ package application
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 )
@@ -30,6 +28,7 @@ func creativeControls(provider, model, kind string) CreativeControls {
 type referenceMedia struct {
 	Data       []byte
 	MIME, Role string
+	Path       string
 }
 type multiReferenceImageProvider interface {
 	GenerateWithReferences(context.Context, Input, []referenceMedia) (GenerationResult, error)
@@ -56,23 +55,13 @@ func (m *MediaStore) loadCreativeReferences(project, space string, in CreativeJo
 	if in.MotionReferenceAssetID != "" {
 		items = append(items, item{in.MotionReferenceAssetID, "motion"})
 	}
-	total := 0
 	result := []referenceMedia{}
 	for _, entry := range items {
 		path, mime, err := m.file(project, space, entry.id, false, false)
 		if err != nil || (entry.role == "motion" && mime != "video/mp4") || (entry.role != "motion" && mime != "image/png" && mime != "image/jpeg") {
 			return nil, projectInputError("参考素材必须属于当前项目且类型匹配")
 		}
-		st, err := os.Stat(path)
-		if err != nil || st.Size() > 10<<20 {
-			return nil, projectInputError("参考素材总量不得超过10MiB")
-		}
-		data, err := os.ReadFile(path)
-		total += len(data)
-		if err != nil || total > 10<<20 {
-			return nil, projectInputError("参考素材总量不得超过10MiB")
-		}
-		result = append(result, referenceMedia{data, mime, entry.role})
+		result = append(result, referenceMedia{Path: path, MIME: mime, Role: entry.role})
 	}
 	return result, nil
 }
@@ -178,25 +167,24 @@ func (p *GoogleMediaProvider) SubmitControlledVideo(ctx context.Context, prompt 
 	if !support.Frames {
 		return VideoJob{}, providerFailure("unsupported_capability")
 	}
-	content := []map[string]string{}
+	content := []map[string]any{}
 	tags := []string{}
-	images, referenceIndex, total := 0, 0, 0
+	images, referenceIndex := 0, 0
 	first, last, motion := false, false, false
 	for _, r := range refs {
-		total += len(r.Data)
-		if total > 10<<20 {
-			return VideoJob{}, providerFailure("provider_rejected")
-		}
 		kind := "image"
 		if r.Role == "motion" {
 			kind = "video"
-			if motion || r.MIME != "video/mp4" || len(r.Data) < 12 || string(r.Data[4:8]) != "ftyp" {
+			if motion || r.MIME != "video/mp4" || validateReference(ctx, r) != nil {
 				return VideoJob{}, providerFailure("provider_rejected")
 			}
 			motion = true
 			tags = append(tags, "[# References <VIDEO_REF_0>@Video1] Use Video1 as motion and appearance guidance, not as a source to edit.")
 		} else {
-			if _, err := nativeImage(r.Data, r.MIME); err != nil {
+			if r.MIME != "image/png" && r.MIME != "image/jpeg" {
+				return VideoJob{}, providerFailure("provider_rejected")
+			}
+			if err := validateReference(ctx, r); err != nil {
 				return VideoJob{}, err
 			}
 			images++
@@ -220,7 +208,7 @@ func (p *GoogleMediaProvider) SubmitControlledVideo(ctx context.Context, prompt 
 				return VideoJob{}, providerFailure("provider_rejected")
 			}
 		}
-		content = append(content, map[string]string{"type": kind, "mime_type": r.MIME, "data": base64.StdEncoding.EncodeToString(r.Data)})
+		content = append(content, map[string]any{"type": kind, "mime_type": r.MIME, "data": inlineMedia{reference: r}})
 	}
 	if len(refs) == 0 || referenceIndex > 4 || (last && !first) {
 		return VideoJob{}, providerFailure("provider_rejected")
@@ -229,6 +217,6 @@ func (p *GoogleMediaProvider) SubmitControlledVideo(ctx context.Context, prompt 
 	if err != nil {
 		return VideoJob{}, err
 	}
-	content = append(content, map[string]string{"type": "text", "text": appendLibraryInputContext(ctx, strings.Join(tags, " ")+" "+prompt)})
+	content = append(content, map[string]any{"type": "text", "text": appendLibraryInputContext(ctx, strings.Join(tags, " ")+" "+prompt)})
 	return p.submitVideoInput(ctx, []map[string]any{{"type": "user_input", "content": content}})
 }

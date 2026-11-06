@@ -62,11 +62,19 @@ func validateEditMaskFiles(reference, mime, mask string) error {
 	return providerFailure("provider_rejected")
 }
 func multipartImageFiles(ctx context.Context, p *OpenAICreativeProvider, fields map[string]string, reference, mime, mask string) ([]byte, error) {
-	if _, _, e := validateMedia(reference, mime); e != nil {
-		return nil, e
+	return multipartImageReferences(ctx, p, fields, []referenceMedia{{Path: reference, MIME: mime}}, mask, nil)
+}
+func multipartImageReferences(ctx context.Context, p *OpenAICreativeProvider, fields map[string]string, refs []referenceMedia, maskPath string, maskData []byte) ([]byte, error) {
+	for _, ref := range refs {
+		if e := validateReference(ctx, ref); e != nil {
+			return nil, e
+		}
 	}
-	if mask != "" {
-		if e := validateEditMaskFiles(reference, mime, mask); e != nil {
+	if maskPath != "" {
+		if len(refs) != 1 || refs[0].Path == "" {
+			return nil, providerFailure("provider_rejected")
+		}
+		if e := validateEditMaskFiles(refs[0].Path, refs[0].MIME, maskPath); e != nil {
 			return nil, e
 		}
 	}
@@ -80,26 +88,27 @@ func multipartImageFiles(ctx context.Context, p *OpenAICreativeProvider, fields 
 					return e
 				}
 			}
-			for i, path := range []string{reference, mask} {
-				if path == "" {
-					continue
-				}
-				name, kind := "image[]", mime
-				if i == 1 {
-					name, kind = "mask", "image/png"
+			items := append([]referenceMedia(nil), refs...)
+			if maskPath != "" || maskData != nil {
+				items = append(items, referenceMedia{Path: maskPath, Data: maskData, MIME: "image/png"})
+			}
+			for i, ref := range items {
+				name := "image[]"
+				if i >= len(refs) {
+					name = "mask"
 				}
 				header := textproto.MIMEHeader{}
 				ext := "png"
-				if kind == "image/jpeg" {
+				if ref.MIME == "image/jpeg" {
 					ext = "jpg"
 				}
 				header.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%d.%s"`, name, i, ext))
-				header.Set("Content-Type", kind)
+				header.Set("Content-Type", ref.MIME)
 				part, e := form.CreatePart(header)
 				if e != nil {
 					return e
 				}
-				f, e := openLocalBlob(path)
+				f, _, e := referenceOpen(ctx, ref)
 				if e != nil {
 					return e
 				}
@@ -109,6 +118,7 @@ func multipartImageFiles(ctx context.Context, p *OpenAICreativeProvider, fields 
 					return e
 				}
 			}
+
 			return form.Close()
 		}()
 		_ = writer.CloseWithError(e)
@@ -128,7 +138,7 @@ func multipartImageFiles(ctx context.Context, p *OpenAICreativeProvider, fields 
 	// consumption. A partial send never becomes an accepted reviewed request.
 	_ = reader.Close()
 	writeErr := <-done
-	if e != nil || writeErr != nil {
+	if e != nil || (writeErr != nil && res.StatusCode >= 200 && res.StatusCode < 300) {
 		if res != nil {
 			res.Body.Close()
 		}

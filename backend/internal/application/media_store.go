@@ -237,9 +237,6 @@ func (m *MediaStore) AddAsset(project, space, key, name, role, character, shotID
 	return m.addAssetContext(context.Background(), project, space, key, name, role, character, shotID, source, data, mime, leases...)
 }
 func (m *MediaStore) addAssetContext(ctx context.Context, project, space, key, name, role, character, shotID, source string, data []byte, mime string, leases ...*jobqueue.Job) (MediaState, error) {
-	if len(data) > 32<<20 {
-		return MediaState{}, errMediaLimit
-	}
 	f, err := os.CreateTemp(m.dir, ".asset-input-")
 	if err != nil {
 		return MediaState{}, err

@@ -100,7 +100,7 @@ func TestProductionReferenceProtocols(t *testing.T) {
 	}))
 	defer server.Close()
 	image := &GoogleInteractionsImageProvider{api: newGoogleMediaProvider("gemini-interactions-images", "synthetic", "gemini-3.1-flash-image", "", server.URL, server.Client(), nil)}
-	_, err := image.GenerateWithReferences(context.Background(), Input{Prompt: "keep both references", Kind: "portrait"}, []referenceMedia{{a, "image/png", "reference"}, {b, "image/jpeg", "reference"}})
+	_, err := image.GenerateWithReferences(context.Background(), Input{Prompt: "keep both references", Kind: "portrait"}, []referenceMedia{{Data: a, MIME: "image/png", Role: "reference"}, {Data: b, MIME: "image/jpeg", Role: "reference"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestProductionReferenceProtocols(t *testing.T) {
 		t.Fatal("ordered image references lost", input)
 	}
 	p := newGoogleMediaProvider("gemini-video", "synthetic", "gemini-omni-1.1-flash", "", server.URL, server.Client(), nil)
-	refs := []referenceMedia{{a, "image/png", "first"}, {b, "image/jpeg", "last"}, {a, "image/png", "reference"}, {video, "video/mp4", "motion"}}
+	refs := []referenceMedia{{Data: a, MIME: "image/png", Role: "first"}, {Data: b, MIME: "image/jpeg", Role: "last"}, {Data: a, MIME: "image/png", Role: "reference"}, {Data: video, MIME: "video/mp4", Role: "motion"}}
 	job, err := p.SubmitControlledVideo(context.Background(), "walk into the scene", refs)
 	if err != nil || job.ID != "ref-123" {
 		t.Fatal(job, err)
@@ -124,7 +124,7 @@ func TestProductionReferenceProtocols(t *testing.T) {
 			t.Fatal("missing role", tag, text)
 		}
 	}
-	if _, err = p.SubmitControlledVideo(context.Background(), "invalid last frame", []referenceMedia{{a, "image/png", "last"}}); err == nil {
+	if _, err = p.SubmitControlledVideo(context.Background(), "invalid last frame", []referenceMedia{{Data: a, MIME: "image/png", Role: "last"}}); err == nil {
 		t.Fatal("last without first accepted")
 	}
 	p.model = "unknown-model"
