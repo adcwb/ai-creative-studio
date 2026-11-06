@@ -40,6 +40,12 @@ func NormalizeStoryboardShots(shots []StoryboardShot) ([]StoryboardShot, error) 
 }
 func cloneScript(script Script) Script     { return projects.CloneScript(script) }
 func cloneProject(project Project) Project { return projects.CloneProject(project) }
+func cloneScriptGeneration(g ScriptGeneration) ScriptGeneration {
+	return projects.CloneScriptGeneration(g)
+}
+func scriptGenerationSummary(g ScriptGeneration) ScriptGeneration {
+	return projects.ScriptGenerationSummary(g)
+}
 func cloneStoryboardGeneration(g StoryboardGeneration) StoryboardGeneration {
 	return projects.CloneStoryboardGeneration(g)
 }

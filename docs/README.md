@@ -16,7 +16,7 @@
 ## 需求设计与实施规范
 
 - [Spec Coding 文档约定与历史设计索引](superpowers/README.md)
-- [自定义图像提示词与长篇 AI 漫剧规格包](superpowers/specs/2026-11-04-creative-series/README.md)（2026-11-06修订26：每集1–2分钟、1K–4K、项目去配额；实施中，第一批结果与剩余工作见包内实施记录）
+- [自定义图像提示词与长篇 AI 漫剧规格包](superpowers/specs/2026-11-04-creative-series/README.md)（2026-11-06修订27：每集1–2分钟、1K–4K、项目去配额；实施中，第一批结果与剩余工作见包内实施记录）
 
 其他 `iteration-*`、`design/*` 和日期设计文档保留对应轮次的背景与验证记录；阅读时应核对基线、状态和后续专题文档。
 
@@ -43,3 +43,5 @@
 [T33C2D1配音消费来源固定](superpowers/specs/2026-11-04-creative-series/alignment-source-implementation.md)：独立识别/转写/强制对齐固定音频和使用修订、派发前复核，保持旧字幕与原回执；原生人物/风格/声音和完整制作编排仍在实施。
 
 [T33C2C2人物、风格与原生音色实际输入](superpowers/specs/2026-11-04-creative-series/creative-inputs-implementation.md)：明确模式、固定版本/授权、真实协议及配音消费链；不承诺原生身份锁定或克隆，完整Go竞态、58项桌面手机网关浏览器、前端及HTTP合同通过；T33按当前支持矩阵完成，后续编剧导演编排仍未实现。
+
+[T34A编剧候选与明确采纳](superpowers/specs/2026-11-04-creative-series/writer-candidates-implementation.md)：生成保留正式稿，比较/编辑后明确采纳，原请求恢复和当前版本CAS；季集节拍、固定故事上下文及后续导演编排仍待实施。

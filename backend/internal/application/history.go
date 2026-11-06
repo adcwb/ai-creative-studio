@@ -86,6 +86,9 @@ func (s *FileStore) ProjectHistory(space, id string) ([]ProjectRevision, error) 
 	return out, nil
 }
 func (s *FileStore) RestoreHistory(space, id, rid, key string, in ScriptGenerationInput) (Project, error) {
+	if in.CandidateOnly {
+		return Project{}, projectInputError("candidate_only 仅适用于剧本候选")
+	}
 	if in.ExpectedVersion < 1 {
 		return Project{}, projectInputError("expected_version 必须为正整数")
 	}

@@ -3,7 +3,9 @@ export interface ScriptCharacter { id?: string; name: string; description: strin
 export interface ScriptDialogue { character_id?: string; character: string; text: string }
 export interface ScriptScene { id?: string; episode_number?: number; heading: string; action: string; dialogue: ScriptDialogue[] }
 export interface DramaScript { structure_version?: 2; title: string; logline: string; characters: ScriptCharacter[]; scenes: ScriptScene[] }
+export interface ScriptAdoption {actor:string;generation_id:string;project_version:number;script_version:number;sha256:string;edited:boolean;reason:string;created_at:string}
 export interface ScriptGeneration {
+  candidate_only?: boolean; candidate?: DramaScript; source_script?: DramaScript; source_script_version?: number; adoption?: ScriptAdoption
   id: string; space_id: string; project_id: string; source_title: string; source_brief: string; base_version: number
   provider: string; status: 'queued' | 'running' | 'succeeded' | 'failed'; progress: number
   created_at: string; updated_at: string; error?: string; error_code?: string

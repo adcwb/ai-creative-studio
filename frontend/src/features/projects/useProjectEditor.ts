@@ -23,12 +23,11 @@ export function useProjectEditor({space, id, onDirtyChange, requestLeave}: {
   useEffect(() => {const controller = new AbortController(); void request<{provider: string; model?: string; mode: string; ready: boolean; message: string}>('/creative-capabilities', {signal: controller.signal}).then(setCreative).catch(() => {if (!controller.signal.aborted) setCreative({provider: 'unavailable', mode: 'unavailable', ready: false, message: translate("无法读取创作配置，请刷新页面后重试。")})}); return () => controller.abort()}, [])
 
   const editor = useDramaProject(space, id, ignoreProjectUpdate, creative?.provider, creative?.model, runtimeChoice, storyboardChoice)
-  const scriptPreview = {operation: 'script' as const, project_id: id ?? '', input: {expected_version: editor.baseline?.version}}
+  const scriptPreview = {operation: 'script' as const, project_id: id ?? '', input: {expected_version: editor.baseline?.version, candidate_only: true}}
   const storyboardPreview = {operation: 'storyboard' as const, project_id: id ?? '', input: {expected_version: editor.baseline?.version}}
   const effectiveCreative = runtimeChoice ? {provider: runtimeChoice.model.provider, model: runtimeChoice.model.model, mode: 'real', ready: creationReady(runtimeChoice, scriptPreview)} : gatewayCreationRequired ? {provider: 'unavailable', mode: 'real', ready: false} : creative
   const effectiveStoryboard = storyboardChoice ? {mode: 'real', ready: creationReady(storyboardChoice, storyboardPreview)} : gatewayCreationRequired ? {provider: 'unavailable', mode: 'real', ready: false} : creative
   const allDirty = editor.dirty || mediaDirty || toolsDirty
-  const [confirmGenerate, setConfirmGenerate] = useState(false)
   const [confirmStoryboard, setConfirmStoryboard] = useState(false)
   const active = editor.project?.latest_generation?.status === 'queued' || editor.project?.latest_generation?.status === 'running'
   const storyboardGeneration = editor.project?.latest_storyboard_generation
@@ -36,17 +35,13 @@ export function useProjectEditor({space, id, onDirtyChange, requestLeave}: {
   const generation = editor.project?.latest_generation
   const validation = projectDraftError(editor.draft)
   useEffect(() => {onDirtyChange(allDirty); return () => onDirtyChange(false)}, [allDirty, onDirtyChange])
-  function generate() {
-    if (editor.project?.script) setConfirmGenerate(true)
-    else editor.submit('generate')
-  }
   useEffect(() => {
     if (id || !editor.project || editor.dirty) return
     const projectId = editor.project.id
     const timer = setTimeout(() => {void navigate('/projects/' + encodeURIComponent(projectId) + '/brief', {replace: true})}, 0)
     return () => clearTimeout(timer)
   }, [id, editor.project, editor.dirty, navigate])
-  return {space, id, editor, creative, effectiveCreative, effectiveStoryboard, scriptPreview, storyboardPreview, runtimeChoice, setRuntimeChoice, storyboardChoice, setStoryboardChoice, mediaDirty, setMediaDirty, setToolsDirty, active, storyboardGeneration, storyboardActive, generation, validation, confirmGenerate, setConfirmGenerate, confirmStoryboard, setConfirmStoryboard, generate, requestLeave}
+  return {space, id, editor, creative, effectiveCreative, effectiveStoryboard, scriptPreview, storyboardPreview, runtimeChoice, setRuntimeChoice, storyboardChoice, setStoryboardChoice, mediaDirty, setMediaDirty, toolsDirty, setToolsDirty, active, storyboardGeneration, storyboardActive, generation, validation, confirmStoryboard, setConfirmStoryboard, requestLeave}
 }
 
 export type ProjectEditorState = ReturnType<typeof useProjectEditor>

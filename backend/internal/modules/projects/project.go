@@ -98,7 +98,7 @@ func CloneProject(project Project) Project {
 		project.Script = &script
 	}
 	if project.LatestGeneration != nil {
-		generation := *project.LatestGeneration
+		generation := CloneScriptGeneration(*project.LatestGeneration)
 		project.LatestGeneration = &generation
 	}
 	return project

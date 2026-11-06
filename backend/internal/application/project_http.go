@@ -52,6 +52,7 @@ func registerProjectRoutes(mux *http.ServeMux, repo ProjectRepository) {
 	if store, ok := repo.(*FileStore); ok {
 		registerHistoryRoutes(mux, store)
 		registerStructureRoutes(mux, store)
+		registerScriptCandidateRoutes(mux, store)
 	}
 	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, r *http.Request) {
 		space, ok := spaceID(w, r)
@@ -134,6 +135,19 @@ func registerProjectRoutes(mux *http.ServeMux, repo ProjectRepository) {
 		if !decodeProject(w, r, &in) {
 			return
 		}
+		if in.CandidateOnly {
+			if s, ok := repo.(*FileStore); ok {
+				g, found, e := s.replayScriptCandidate(space, r.PathValue("id"), key, in)
+				if e != nil {
+					storeError(w, e)
+					return
+				}
+				if found {
+					respond(w, 200, g)
+					return
+				}
+			}
+		}
 		if !resolveModelRequest(w, r, repo, &in.ModelRequest, "text", "script_generation") {
 			return
 		}
@@ -145,6 +159,9 @@ func registerProjectRoutes(mux *http.ServeMux, repo ProjectRepository) {
 		status := 200
 		if created {
 			status = 202
+		}
+		if in.CandidateOnly {
+			generation = scriptGenerationSummary(generation)
 		}
 		respond(w, status, generation)
 	})

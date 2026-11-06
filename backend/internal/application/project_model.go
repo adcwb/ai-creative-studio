@@ -5,6 +5,7 @@ type ScriptGenerationInput struct {
 	ExpectedModel    string `json:"expected_model,omitempty"`
 	ExpectedProvider string `json:"expected_provider,omitempty"`
 	ExpectedVersion  int    `json:"expected_version"`
+	CandidateOnly    bool   `json:"candidate_only,omitempty"`
 }
 
 type projectReceipt struct {

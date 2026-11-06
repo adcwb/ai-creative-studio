@@ -129,7 +129,11 @@ def main():
                 route = "/api/v1/projects"
                 if suffix:
                     route += "/{id}"
-                    if suffix.endswith("/storyboard-generations"):
+                    if "/generations/" in suffix:
+                        route += "/generations/{generation}"
+                        if suffix.endswith("/adoptions"):
+                            route += "/adoptions"
+                    elif suffix.endswith("/storyboard-generations"):
                         route += "/storyboard-generations"
                     elif suffix.endswith("/storyboard"):
                         route += "/storyboard"
@@ -331,6 +335,40 @@ def main():
                 job = call("POST", step + "/cancel" + q, step_route + "/cancel", {"expected_version": job["row_version"]}, "migration-contract-stop")
                 assert job["state"] == "cancelled"
                 project_call("GET", "/" + job["target_project_id"], expected=404)
+
+            def check_script_candidates():
+                project = project_call("POST", body={"title":"Writer candidate contract","brief":"The writer retains the current draft until explicit adoption."}, key="candidate-contract-project", expected=201)
+                suffix = "/" + project["id"]
+                project_call("POST", suffix + "/generations", {"expected_version":1}, "candidate-contract-original", 202)
+                original = wait_script(project["id"])
+                request = {"expected_version":original["version"],"candidate_only":True}
+                candidate = project_call("POST", suffix + "/generations", request, "candidate-contract-generate", 202)
+                finished = wait_script(project["id"])
+                assert finished["version"] == original["version"] and finished["script"] == original["script"]
+                detail_path = suffix + "/generations/" + candidate["id"]
+                detail = project_call("GET", detail_path)
+                assert detail["candidate"] and detail["source_script"] == original["script"]
+                assert all("candidate" not in row and "source_script" not in row for row in project_call("GET", suffix + "/generations"))
+                assert "candidate" not in finished["latest_generation"]
+                project_call("GET", detail_path, space="team-demo", expected=404)
+                later = project_call("PUT", suffix, {"title":original["title"],"brief":"A later brief must be explicitly compared before adoption.","expected_version":original["version"]}, "candidate-contract-later")
+                project_call("POST", detail_path + "/adoptions", {"expected_version":later["version"]}, "candidate-contract-unreviewed", 409)
+                edited = copy.deepcopy(detail["candidate"])
+                edited["logline"] = "The writer explicitly chooses a different closing beat."
+                decision = {"expected_version":later["version"],"reviewed_changes":True,"script":edited,"reason":"Preserve the pause before the revelation."}
+                adopted = project_call("POST", detail_path + "/adoptions", decision, "candidate-contract-adopt")
+                assert adopted["script"] == edited and adopted["version"] == later["version"] + 1
+                project_call("POST", detail_path + "/adoptions", decision, "candidate-contract-second", 409)
+                adopted["script"]["title"] = "A later handwritten draft"
+                latest = project_call("PUT", suffix + "/script", {"expected_version":adopted["version"],"script":adopted["script"]}, "candidate-contract-newest")
+                stop()
+                start()
+                replay = project_call("POST", detail_path + "/adoptions", decision, "candidate-contract-adopt")
+                assert replay["version"] == latest["version"] and replay["script"] == latest["script"]
+                restored = project_call("GET", detail_path)
+                assert restored["candidate"] == detail["candidate"] and restored["source_script"] == original["script"]
+                assert restored["adoption"]["reason"] == decision["reason"] and restored["adoption"]["edited"] and restored["adoption"]["actor"] == "demo-user"
+                assert project_call("POST", suffix + "/generations", request, "candidate-contract-generate")["id"] == candidate["id"]
 
             def check_history():
                 project = project_call("POST", body={"title": "历史合同", "brief": "两位旧友在车站相遇并交换一本书。"}, key="history-create", expected=201)
@@ -662,6 +700,7 @@ def main():
                 project_case = check_projects()
                 check_storyboards()
                 check_history()
+                check_script_candidates()
                 check_structure()
                 check_creative()
                 check_library()

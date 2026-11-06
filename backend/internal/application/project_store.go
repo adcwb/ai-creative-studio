@@ -79,7 +79,8 @@ func (s *FileStore) projectViewLocked(project Project) Project {
 	project.StructureMappings = nil
 	project.LatestGeneration = nil
 	if generation, ok := s.data.ScriptGenerations[project.LatestGenerationID]; ok && generation.ProjectID == project.ID && generation.SpaceID == project.SpaceID {
-		project.LatestGeneration = &generation
+		v := scriptGenerationSummary(generation)
+		project.LatestGeneration = &v
 	}
 	project.LatestGenerationID = ""
 	project.LatestStoryboardGeneration = nil
@@ -236,7 +237,7 @@ func (s *FileStore) CreateScriptGeneration(space, id, key string, in ScriptGener
 		if !ok || generation.SpaceID != space || generation.ProjectID != id {
 			return ScriptGeneration{}, false, ErrNotFound
 		}
-		return generation, false, nil
+		return cloneScriptGeneration(generation), false, nil
 	}
 	if project.Version != in.ExpectedVersion {
 		return ScriptGeneration{}, false, ErrVersionConflict
@@ -261,6 +262,14 @@ func (s *FileStore) CreateScriptGeneration(space, id, key string, in ScriptGener
 		targetDuration = node.Profile.Duration
 	}
 	generation := ScriptGeneration{SourceEpisodeID: project.SeriesEpisodeID, TargetDurationSeconds: targetDuration, TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), ID: generationID, SpaceID: space, ProjectID: id, SourceTitle: project.Title, SourceBrief: project.Brief, BaseVersion: project.Version, Provider: s.creativeGenerationProvider("mock-script"), Model: s.creativeGenerationModel(), Status: "queued", CreatedAt: now, UpdatedAt: now}
+	generation.CandidateOnly = in.CandidateOnly
+	if in.CandidateOnly {
+		generation.SourceScriptVersion = project.ScriptVersion
+		if project.Script != nil {
+			v := cloneScript(*project.Script)
+			generation.SourceScript = &v
+		}
+	}
 	if in.selection != nil {
 		generation.Provider, generation.Model = in.selectedCaps.Provider, in.selectedCaps.Model
 	}
@@ -274,7 +283,7 @@ func (s *FileStore) CreateScriptGeneration(space, id, key string, in ScriptGener
 	if err := s.commit(d); err != nil {
 		return ScriptGeneration{}, false, err
 	}
-	return generation, true, nil
+	return cloneScriptGeneration(generation), true, nil
 }
 
 func (s *FileStore) ListScriptGenerations(space, id string) ([]ScriptGeneration, error) {
@@ -286,7 +295,7 @@ func (s *FileStore) ListScriptGenerations(space, id string) ([]ScriptGeneration,
 	generations := []ScriptGeneration{}
 	for _, generation := range s.data.ScriptGenerations {
 		if generation.SpaceID == space && generation.ProjectID == id {
-			generations = append(generations, generation)
+			generations = append(generations, scriptGenerationSummary(generation))
 		}
 	}
 	sort.Slice(generations, func(i, j int) bool {
@@ -389,7 +398,7 @@ func (s *FileStore) NextScriptGeneration() (ScriptGeneration, bool, error) {
 	if err := s.commit(d); err != nil {
 		return ScriptGeneration{}, false, err
 	}
-	return next, true, nil
+	return cloneScriptGeneration(next), true, nil
 }
 
 func (s *FileStore) FinishScriptGeneration(generation ScriptGeneration, script Script, runErr error) error {
@@ -440,11 +449,16 @@ func (s *FileStore) finishScriptLocked(generation ScriptGeneration, script Scrip
 		}
 	} else {
 		current.Status = "succeeded"
-		project.Script = &script
-		project.ScriptProvider = current.Provider
-		project.ScriptVersion++
-		project.ScriptBrief = current.SourceBrief
-		project.Version++
+		if current.CandidateOnly {
+			v := cloneScript(script)
+			current.Candidate = &v
+		} else {
+			project.Script = &script
+			project.ScriptProvider = current.Provider
+			project.ScriptVersion++
+			project.ScriptBrief = current.SourceBrief
+			project.Version++
+		}
 	}
 	d := s.clone()
 	d.ScriptGenerations[current.ID] = current

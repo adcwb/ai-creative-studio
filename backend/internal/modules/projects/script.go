@@ -38,6 +38,11 @@ type ScriptDialogue struct {
 }
 
 type ScriptGeneration struct {
+	CandidateOnly         bool              `json:"candidate_only,omitempty"`
+	Candidate             *Script           `json:"candidate,omitempty"`
+	SourceScript          *Script           `json:"source_script,omitempty"`
+	SourceScriptVersion   int               `json:"source_script_version,omitempty"`
+	Adoption              *ScriptAdoption   `json:"adoption,omitempty"`
 	SourceEpisodeID       string            `json:"source_episode_id,omitempty"`
 	TargetDurationSeconds int64             `json:"target_duration_seconds,omitempty"`
 	TraceParent           string            `json:"trace_parent,omitempty"`
@@ -56,6 +61,44 @@ type ScriptGeneration struct {
 	UpdatedAt             time.Time         `json:"updated_at"`
 	Error                 string            `json:"error,omitempty"`
 	ErrorCode             string            `json:"error_code,omitempty"`
+}
+
+// A candidate remains immutable after adoption. This receipt describes the
+// creator's explicit decision; it never grants permission to execute a model.
+type ScriptAdoption struct {
+	Actor          string    `json:"actor"`
+	GenerationID   string    `json:"generation_id"`
+	ProjectVersion int       `json:"project_version"`
+	ScriptVersion  int       `json:"script_version"`
+	SHA256         string    `json:"sha256"`
+	Edited         bool      `json:"edited"`
+	Reason         string    `json:"reason"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+func CloneScriptGeneration(g ScriptGeneration) ScriptGeneration {
+	if g.Candidate != nil {
+		v := CloneScript(*g.Candidate)
+		g.Candidate = &v
+	}
+	if g.SourceScript != nil {
+		v := CloneScript(*g.SourceScript)
+		g.SourceScript = &v
+	}
+	if g.Adoption != nil {
+		v := *g.Adoption
+		g.Adoption = &v
+	}
+	if g.RuntimeSelection != nil {
+		v := *g.RuntimeSelection
+		g.RuntimeSelection = &v
+	}
+	return g
+}
+
+func ScriptGenerationSummary(g ScriptGeneration) ScriptGeneration {
+	g.Candidate, g.SourceScript = nil, nil
+	return CloneScriptGeneration(g)
 }
 
 func CloneScript(script Script) Script {

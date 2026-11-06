@@ -16,3 +16,8 @@
 .story-field textarea{margin-top:8px}
 
 .story-snapshots{margin-top:32px;padding-top:24px;border-top:1px solid var(--border)}.story-snapshots>h3{margin-top:0}.story-snapshots details{margin-top:16px}.story-snapshots form>button{margin-top:12px}.story-snapshots .story-card h4{margin:0 0 8px}.story-snapshots .editing-note p{white-space:pre-wrap;overflow-wrap:anywhere}
+
+.script-candidates .script-candidate { display:block; min-width:0; overflow-wrap:anywhere; }
+.script-candidate .drama-script { margin-block:1rem; }
+.script-candidate .checkbox-label { display:flex; gap:.5rem; align-items:flex-start; }
+.script-candidate .checkbox-label input { width:16px; height:16px; flex:0 0 16px; margin-top:.2rem; }

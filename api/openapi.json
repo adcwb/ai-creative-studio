@@ -25435,6 +25435,265 @@
         },
         "description": "Read-only, explicit per-asset inspection. Recover only from trusted bindings/applications, creative job + ingestion receipt, or sealed episode copy proofs. Never infer sources from names or the current poster document. Recovered sources remain subject to current authorization at each new dispatch. Unverifiable history remains viewable/editable but cannot be used as a new model input or a new library authorization root. Does not write old media/receipts or call models."
       }
+    },
+    "/api/v1/projects/{id}/generations/{generation}": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "getScriptGeneration",
+        "summary": "Read a fixed candidate and its original source on demand.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "in": "path",
+            "name": "generation",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Generation ID in this project and authorized organization."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Immutable candidate, source and optional explicit adoption receipt. Internal runtime selection remains private.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScriptGeneration"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected; preserve the candidate and current draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected; preserve the candidate and current draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected; preserve the candidate and current draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected; preserve the candidate and current draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/generations/{generation}/adoptions": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "adoptScriptCandidate",
+        "summary": "Explicitly adopt a validated candidate or creator-edited copy as a new official script version.",
+        "description": "No model call or cost gate. Checks current membership, project ownership, version and active generation. A candidate can be adopted once; original key replay does not overwrite later edits. Original candidate and source remain unchanged. Existing official script enters version history; storyboard becomes stale.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "所有项目写操作在同一空间共享项目域命名空间，与图像任务键独立。指纹含操作、目标项目和规范化完整请求（含 expected_version）。同一提交网络重试必须保留键和 body；同键不同操作/目标/body 返回 idempotency_conflict。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          },
+          {
+            "in": "path",
+            "name": "generation",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Generation ID in this project and authorized organization."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScriptAdoptionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Current project with the adopted version, or current project on exact original decision replay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected; preserve the candidate and current draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected; preserve the candidate and current draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected; preserve the candidate and current draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected; preserve the candidate and current draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected; preserve the candidate and current draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request rejected; preserve the candidate and current draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected; preserve the candidate and current draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected; preserve the candidate and current draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -26512,6 +26771,25 @@
             "minimum": 1,
             "maximum": 9007199254740991,
             "readOnly": true
+          },
+          "candidate_only": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "candidate": {
+            "$ref": "#/components/schemas/Script",
+            "description": "On-demand generation detail only; omitted from project polling and generation lists."
+          },
+          "source_script": {
+            "$ref": "#/components/schemas/Script",
+            "description": "On-demand generation detail only; omitted from project polling and generation lists."
+          },
+          "source_script_version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "adoption": {
+            "$ref": "#/components/schemas/ScriptAdoption"
           }
         },
         "description": "持久化执行尝试及不可变需求快照。只保留尝试状态和来源，不提供历史剧本版本恢复。mock 执行中重启重新排队，不创建新 attempt；失败保留项目既有稿件。",
@@ -26772,6 +27050,11 @@
             "type": "string",
             "description": "Legacy cost field accepted for compatibility and ignored for model execution. No quote, cost confirmation or budget is required.",
             "deprecated": true
+          },
+          "candidate_only": {
+            "type": "boolean",
+            "default": false,
+            "description": "Current UI sends true: persist an independent validated candidate without changing the official script. Omission preserves the legacy API auto-apply contract. Explicit adoption is a separate version-checked action."
           }
         }
       },
@@ -37360,6 +37643,79 @@
         ],
         "readOnly": true,
         "description": "Server-fixed version, applied mode, exact authorization revisions and explicitly omitted intent fields. Authorization is rechecked before every new dispatch. Output lineage includes these roots, including native speech and text-only direction."
+      },
+      "ScriptAdoption": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "generation_id",
+          "project_version",
+          "script_version",
+          "sha256",
+          "edited",
+          "reason",
+          "created_at",
+          "actor"
+        ],
+        "properties": {
+          "generation_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$"
+          },
+          "project_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "script_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "edited": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actor": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Server-authenticated creator who made this decision; not accepted from the request."
+          }
+        }
+      },
+      "ScriptAdoptionInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_version"
+        ],
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reviewed_changes": {
+            "type": "boolean",
+            "description": "Required true if project version has changed since this candidate was generated. expected_version still must equal the current project version."
+          },
+          "script": {
+            "$ref": "#/components/schemas/Script",
+            "description": "Optional creator-edited candidate. Omit to adopt the original. Stable project identity schema must be retained."
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
       }
     },
     "securitySchemes": {

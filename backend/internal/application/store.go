@@ -380,7 +380,7 @@ func (s *FileStore) clone() snapshot {
 		d.Projects[k] = cloneProject(v)
 	}
 	for k, v := range s.data.ScriptGenerations {
-		d.ScriptGenerations[k] = v
+		d.ScriptGenerations[k] = cloneScriptGeneration(v)
 	}
 	for k, v := range s.data.ProjectReceipts {
 		d.ProjectReceipts[k] = v
