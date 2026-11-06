@@ -77,7 +77,12 @@ func (p *OpenAIProvider) generateEdit(ctx context.Context, in Input, reference [
 	size, width, height := imageSize(in.Ratio)
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
-	fields := map[string]string{"model": p.model, "prompt": "Use this reference for character appearance while following the scene. Identity consistency is a creative goal, not guaranteed. Visual style: " + in.Style + ". Scene: " + in.Prompt, "size": size, "n": "1", "quality": "low", "output_format": "png", "background": "opaque"}
+	direction := "Use this reference for character appearance while following the scene. Identity consistency is a creative goal, not guaranteed."
+	if value, _ := ctx.Value(libraryInputContextKey{}).(string); value != "" {
+		direction = "Use each reference according to its assigned creative role. Character identity and style consistency are creative goals, not guarantees."
+	}
+	prompt := appendLibraryInputContext(ctx, direction+" Visual style: "+in.Style+". Scene: "+in.Prompt)
+	fields := map[string]string{"model": p.model, "prompt": prompt, "size": size, "n": "1", "quality": "low", "output_format": "png", "background": "opaque"}
 	for name, value := range fields {
 		if err = writer.WriteField(name, value); err != nil {
 			return GenerationResult{}, providerFailure("provider_error")

@@ -8,8 +8,8 @@ import { previewFeature, readinessNames } from '../gatewayModels'
 
 import { initialRuntimeChoice, type RuntimeChoice, type RuntimeModelOption, type RuntimePreview } from '../runtimeSelection'
 
-export function RuntimeModelPicker({space, capability, value, onChange, preview, disabled = false, gatewayOnly = false}: {
-  space: string; capability: string; value: RuntimeChoice | null; onChange: (value: RuntimeChoice | null) => void; disabled?: boolean; preview?: RuntimePreview; gatewayOnly?: boolean
+export function RuntimeModelPicker({space, capability, value, onChange, preview, disabled = false, gatewayOnly = false, fixedVoice = false}: {
+  space: string; capability: string; value: RuntimeChoice | null; onChange: (value: RuntimeChoice | null) => void; disabled?: boolean; preview?: RuntimePreview; gatewayOnly?: boolean; fixedVoice?: boolean
 }) {
   const {t} = useI18n()
   const requireGateway = gatewayOnly && gatewayCreationRequired
@@ -47,7 +47,7 @@ export function RuntimeModelPicker({space, capability, value, onChange, preview,
     {requireGateway && !binding && <p role="alert">{t('此功能尚未绑定网关模型，请联系组织管理员配置。')} <Link to="/settings/models">{t('模型管理')}</Link></p>}
     {binding && <p>{t('已使用此功能的默认绑定，切换仅影响本次生成。')}</p>}
     <label>{t('AI 网关')}<select value={value?.model.gateway_id ?? ''} disabled={!!binding && !binding.allow_override} onChange={event => {const model = options.find(item => item.gateway_id === event.target.value); onChange(model ? initialRuntimeChoice(model) : null)}}><option value="">{t('选择网关')}</option>{[...new Map(options.filter(item => item.gateway_id).map(item => [item.gateway_id!, item.gateway_name!])).entries()].map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
-    <label>{t('模型选择')}<select value={value?.model.id ?? ''} disabled={!!binding && !binding.allow_override} onChange={event => {const model = options.find(item => item.id === event.target.value); onChange(model ? initialRuntimeChoice(model) : null)}}>
+    <label>{t('模型选择')}<select aria-label={t('模型选择')} value={value?.model.id ?? ''} disabled={!!binding && !binding.allow_override} onChange={event => {const model = options.find(item => item.id === event.target.value); onChange(model ? initialRuntimeChoice(model) : null)}}>
       <option value="" disabled={!!binding}>{t(binding || requireGateway ? '请选择此功能的模型' : '保留当前本地或演示模式')}</option>
       {options.filter(model => !value?.model.gateway_id || model.gateway_id === value.model.gateway_id).map(model => <option key={model.id} value={model.id}>{model.name ?? model.provider} / {model.model}{model.is_default ? ` · ${t('组织默认')}` : ''}{!model.available ? ` · ${t('暂不可执行')}` : ''}</option>)}
     </select></label>
@@ -56,7 +56,7 @@ export function RuntimeModelPicker({space, capability, value, onChange, preview,
     {value?.model.reason_code && <p role="status">{t(readinessNames[value.model.reason_code] ?? value.model.reason_code)}</p>}
     {(error || stale) && <p role="alert">{t('模型目录已失效，请刷新并重新确认。')}</p>}
     {value && <><p>{t('配置版本：{version}', {version: value.model.version})}</p>
-      {capability === 'speech' && <label>{t('声音标识')}<input value={value.voice} maxLength={128} autoComplete="off" onChange={event => onChange({...value, voice: event.target.value})} /></label>}
+      {capability === 'speech' && <label>{t('声音标识')}<input readOnly={fixedVoice} value={value.voice} maxLength={128} autoComplete="off" onChange={event => onChange({...value, voice: event.target.value})} /></label>}
       {!catalog.governance_ready && <p role="status">{t('内容审核尚未就绪，请联系部署管理员。')}</p>}
     </>}
   </fieldset>

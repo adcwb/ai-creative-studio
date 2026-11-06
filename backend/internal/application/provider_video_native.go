@@ -93,7 +93,7 @@ func (p *ArkVideoProvider) submit(ctx context.Context, prompt string, reference 
 	if err != nil {
 		return VideoJob{}, err
 	}
-	content := []map[string]any{{"type": "text", "text": prompt}}
+	content := []map[string]any{{"type": "text", "text": appendLibraryInputContext(ctx, prompt)}}
 	if reference != nil {
 		content = append(content, reference)
 	}

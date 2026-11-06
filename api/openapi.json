@@ -27820,6 +27820,12 @@
           },
           "image_parameters": {
             "$ref": "#/components/schemas/PromptImageParameters"
+          },
+          "library_inputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryInputChoice"
+            }
           }
         },
         "required": [
@@ -27975,6 +27981,18 @@
             },
             "readOnly": true,
             "description": "Trusted persisted version, bytes, purpose and accepted authorization revision. New dispatch rechecks current authority and byte identity. An old receipt never authorizes new work."
+          },
+          "library_inputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryInputPin"
+            },
+            "readOnly": true
+          },
+          "library_input_context": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Complete server-compiled authored visual context. Sent in addition to the original brief, reviewed before dispatch, and never silently truncated or appended to speech dialogue. Omitted from GET history/polling summaries; exact original POST receipts and server-side execution snapshots retain it."
           }
         },
         "required": [
@@ -30570,6 +30588,9 @@
               "pronunciation": {
                 "type": "string",
                 "maxLength": 2000
+              },
+              "native_preset": {
+                "$ref": "#/components/schemas/NativeVoicePreset"
               }
             },
             "required": [
@@ -31207,7 +31228,9 @@
             "enum": [
               "character",
               "product",
-              "scene"
+              "scene",
+              "style",
+              "voice"
             ]
           },
           "shot_id": {
@@ -31247,11 +31270,20 @@
             "enum": [
               "character",
               "product",
-              "scene"
+              "scene",
+              "style",
+              "voice"
             ]
           },
           "usage": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "character",
+              "product",
+              "scene",
+              "style",
+              "voice"
+            ]
           },
           "shot_id": {
             "type": "string"
@@ -31520,13 +31552,32 @@
           "max_references": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 4
+            "maximum": 9007199254740991
           },
           "frames": {
             "type": "boolean"
           },
           "motion_reference": {
             "type": "boolean"
+          },
+          "library_inputs": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "prompt_only",
+                  "reference",
+                  "native_preset"
+                ]
+              }
+            }
+          },
+          "library_reference_limit": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Actual single/multiple reference adapter capacity. Not a project asset quota."
           }
         }
       },
@@ -37196,6 +37247,119 @@
             "pattern": "^[a-f0-9]{64}$"
           }
         }
+      },
+      "NativeVoicePreset": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "model_config_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$"
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Exact public model alias, same grammar as the configured gateway model. Never a URL or credential."
+          },
+          "voice": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$"
+          }
+        },
+        "required": [
+          "model_config_id",
+          "provider",
+          "model",
+          "voice"
+        ],
+        "description": "Public model-specific native voice token. No credential, audio identity or cloning claim. The executing model ID/provider/model and token must exactly match."
+      },
+      "LibraryInputChoice": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "binding_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "prompt_only",
+              "reference",
+              "native_preset"
+            ]
+          },
+          "media_asset_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,80}$"
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "binding_id",
+          "mode"
+        ],
+        "description": "An explicit mode on an immutable project library binding. reference selects exact copied images and includes visual card text. prompt_only carries no images. native_preset is one model-specific speech voice, never cloning or reading intent notes aloud."
+      },
+      "LibraryInputPin": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "choice": {
+            "$ref": "#/components/schemas/LibraryInputChoice"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "character",
+              "style",
+              "voice"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "version_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "content_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "uses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryMediaUsePin"
+            }
+          },
+          "omitted_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "choice",
+          "kind",
+          "name",
+          "version_number",
+          "content_sha256",
+          "uses",
+          "omitted_fields"
+        ],
+        "readOnly": true,
+        "description": "Server-fixed version, applied mode, exact authorization revisions and explicitly omitted intent fields. Authorization is rechecked before every new dispatch. Output lineage includes these roots, including native speech and text-only direction."
       }
     },
     "securitySchemes": {

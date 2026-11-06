@@ -68,7 +68,7 @@ func (p *gatewayCreativeProvider) SubmitVideo(ctx context.Context, prompt string
 	}
 	var body bytes.Buffer
 	form := multipart.NewWriter(&body)
-	for k, v := range map[string]string{"model": p.model.Model, "prompt": prompt, "seconds": strconv.Itoa(p.model.VideoSeconds), "size": p.model.VideoSize} {
+	for k, v := range map[string]string{"model": p.model.Model, "prompt": appendLibraryInputContext(ctx, prompt), "seconds": strconv.Itoa(p.model.VideoSeconds), "size": p.model.VideoSize} {
 		if e = form.WriteField(k, v); e != nil {
 			return VideoJob{}, providerFailure("provider_error")
 		}
@@ -125,7 +125,7 @@ func (p *gatewayImageProvider) Generate(ctx context.Context, in Input) (Generati
 		return GenerationResult{}, e
 	}
 	size, _, _ := imageSize(in.Ratio)
-	raw, e := p.api.request(ctx, "POST", "/images/generations", map[string]any{"model": p.model.Model, "prompt": "Style: " + in.Style + ". Aspect ratio: " + in.Ratio + ". " + in.Prompt, "size": size, "n": 1}, maxProviderResponseBytes)
+	raw, e := p.api.request(ctx, "POST", "/images/generations", map[string]any{"model": p.model.Model, "prompt": appendLibraryInputContext(ctx, "Style: "+in.Style+". Aspect ratio: "+in.Ratio+". "+in.Prompt), "size": size, "n": 1}, maxProviderResponseBytes)
 	if e != nil {
 		return GenerationResult{}, e
 	}
@@ -178,7 +178,7 @@ func (p *gatewayImageProvider) editReferences(ctx context.Context, in Input, ref
 	var body bytes.Buffer
 	form := multipart.NewWriter(&body)
 	size, _, _ := imageSize(in.Ratio)
-	for k, v := range map[string]string{"model": p.model.Model, "prompt": "Style: " + in.Style + ". Aspect ratio: " + in.Ratio + ". " + in.Prompt, "size": size, "n": "1"} {
+	for k, v := range map[string]string{"model": p.model.Model, "prompt": appendLibraryInputContext(ctx, "Style: "+in.Style+". Aspect ratio: "+in.Ratio+". "+in.Prompt), "size": size, "n": "1"} {
 		if form.WriteField(k, v) != nil {
 			return GenerationResult{}, providerFailure("provider_error")
 		}
@@ -243,7 +243,7 @@ func gatewayMultipart(ctx context.Context, p *OpenAICreativeProvider, path, cont
 	req.GetBody = nil
 	req.Header.Set("Authorization", "Bearer "+p.key)
 	req.Header.Set("Content-Type", contentType)
-	res, e := libraryGuardedRequest(p.client,req)
+	res, e := libraryGuardedRequest(p.client, req)
 	if e != nil {
 		return nil, providerFailure("provider_error")
 	}

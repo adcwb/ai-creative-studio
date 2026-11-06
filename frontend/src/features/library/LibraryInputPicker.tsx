@@ -1,0 +1,38 @@
+import './library.css'
+import {useEffect,useState} from 'react'
+import {Link} from 'react-router-dom'
+import {request,errorMessage} from '../../api'
+import {useI18n} from '../../i18n'
+import type {RuntimeModelOption} from '../../runtimeSelection'
+import {kindLabels,type LibraryKind,type LibraryVersion} from './types'
+import type {LibraryInputSelection} from './inputSelection'
+
+interface Binding {id:string;library_asset_id:string;asset_version_id:string;name:string;kind:LibraryKind;shot_id?:string;media_asset_ids:string[]}
+const emptyBindings:Binding[]=[]
+const emptyVersions:Record<string,LibraryVersion>={}
+const modeNames:Record<string,string>={prompt_only:'只传入文字意图',reference:'参考图与文字意图',native_preset:'原生音色（仅音色标识）'}
+export function LibraryInputPicker({space,projectId,shot,value,onChange,onValid,onRefreshCapabilities,model,modes,referenceLimit,manualReferences,conflictingReference,assets,disabled}:{space:string;projectId:string;shot:string;value:LibraryInputSelection[];onChange:(value:LibraryInputSelection[])=>void;onValid:(valid:boolean)=>void;onRefreshCapabilities:()=>void;model?:RuntimeModelOption;modes?:Record<string,string[]>;referenceLimit:number;manualReferences:number;conflictingReference:boolean;assets:{id:string;name:string}[];disabled:boolean}) {
+ const {t}=useI18n()
+ const [loaded,setLoaded]=useState<{scope:string;items:Binding[]}|null>(null),[versionView,setVersionView]=useState<{scope:string;items:Record<string,LibraryVersion>}|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(true),[revision,setRevision]=useState(0),[add,setAdd]=useState('')
+ const q=new URLSearchParams({space_id:space}).toString(),selected=value.map(v=>v.binding_id).join(',')
+ const scope=`${projectId}?${q}`,bindings=loaded?.scope===scope?loaded.items:emptyBindings,isLoading=loading||loaded?.scope!==scope,versions=versionView?.scope===scope?versionView.items:emptyVersions
+ useEffect(()=>{const abort=new AbortController();void request<{items:Binding[]}>(`/projects/${projectId}/library-bindings?${q}`,{signal:abort.signal}).then(v=>{if(!abort.signal.aborted){setLoaded({scope,items:v.items.filter(b=>['character','style','voice'].includes(b.kind))});setError('');setLoading(false)}}).catch(e=>{if(!abort.signal.aborted){setError(errorMessage(e,t('创作资产读取失败')));setLoaded({scope,items:[]});setLoading(false)}});return()=>abort.abort()},[projectId,q,revision,t,scope])
+ useEffect(()=>{const abort=new AbortController();const chosen=bindings.filter(b=>selected.split(',').includes(b.id));if(chosen.length)void Promise.all(chosen.map(async b=>[b.id,await request<LibraryVersion>(`/library/assets/${b.library_asset_id}/versions/${b.asset_version_id}?${q}`,{signal:abort.signal})] as const)).then(entries=>{if(!abort.signal.aborted)setVersionView({scope,items:Object.fromEntries(entries)})}).catch(e=>{if(!abort.signal.aborted)setError(errorMessage(e,t('创作资产读取失败')))});return()=>abort.abort()},[bindings,selected,q,t,scope])
+ useEffect(()=>{let changed=false;const next=value.map(v=>{const preset=versions[v.binding_id]?.card.voice?.native_preset;if(v.mode==='native_preset'&&!v.nativePreset&&preset){changed=true;return {...v,nativePreset:preset}}return v});if(changed)onChange(next)},[versions,value,onChange])
+ const referenceCount=manualReferences+value.reduce((n,v)=>n+(v.mode==='reference'?(v.media_asset_ids?.length??0):0),0)
+ const hasReference=value.some(v=>v.mode==='reference')
+ const valid=value.every(v=>{const b=bindings.find(b=>b.id===v.binding_id),version=versions[v.binding_id];if(!b||!version||version.asset_id!==b.library_asset_id||version.id!==b.asset_version_id||b.shot_id&&b.shot_id!==shot||!modes?.[b.kind]?.includes(v.mode))return false;if(v.mode==='reference')return !!v.media_asset_ids?.length&&v.media_asset_ids.every(id=>b.media_asset_ids.includes(id)&&assets.some(a=>a.id===id));if(v.mode==='native_preset'){const p=version.card.voice?.native_preset;return !!p&&!!v.nativePreset&&!!model&&p.voice===v.nativePreset.voice&&p.model_config_id===model?.id&&p.provider===model.provider&&p.model===model.model}return !v.media_asset_ids?.length})&&(!hasReference||(!conflictingReference&&referenceCount<=referenceLimit))&&value.filter(v=>v.mode==='native_preset').length<=1
+ useEffect(()=>onValid(valid),[valid,onValid])
+ const change=(id:string,patch:Partial<LibraryInputSelection>)=>onChange(value.map(v=>v.binding_id===id?{...v,...patch}:v))
+ return <details className="reference-controls library-input-picker" open={value.length?true:undefined}><summary>{t('人物、风格与声音')}</summary><p className="drama-help">{t('使用项目中已固定的资产版本，明确选择本次传入方式。参考图不能保证锁脸，文字意图不是原生身份参数。')}</p><Link to={`/projects/${projectId}/references`}>{t('管理项目创作资产')}</Link>{error&&<p role="alert" className="error">{error}</p>}{isLoading&&<p role="status">{t('正在读取创作资产…')}</p>}{!isLoading&&!bindings.length&&<p>{t('先在角色与美术中绑定人物、风格或声音卡；也可以继续自由创作。')}</p>}<button type="button" disabled={disabled} onClick={()=>{setLoading(true);setRevision(v=>v+1);onRefreshCapabilities()}}>{t('刷新创作资产')}</button>
+ {model&&!modes&&<p role="status">{t('正在读取当前模型的资产输入能力；如未恢复，请刷新创作资产。')}</p>}{!model&&<p className="drama-help">{t('先选择生成模型，再确认资产的传入方式。')}</p>}
+ <fieldset disabled={disabled}><label>{t('添加创作资产')}<select aria-label={t('添加创作资产')} value={add} onChange={e=>setAdd(e.target.value)}><option value="">{t('选择固定版本资产')}</option>{bindings.filter(b=>!value.some(v=>v.binding_id===b.id)&&(!b.shot_id||b.shot_id===shot)).map(b=><option key={b.id} value={b.id}>{t(kindLabels[b.kind])} · {b.name}</option>)}</select></label><button type="button" disabled={!add} onClick={()=>{onChange([...value,{binding_id:add,mode:''}]);setAdd('')}}>{t('添加至本次创作')}</button>
+ {value.map(v=>{const b=bindings.find(b=>b.id===v.binding_id),version=versions[v.binding_id],allowed=b?modes?.[b.kind]??[]:[];return <div className="editing-note" key={v.binding_id}><strong>{b?.name??t('固定资产')} · {t('版本')} {version?.number??'…'}</strong><label>{t('传入方式')}<select disabled={!version} aria-label={t('资产 {p0} 传入方式',{p0:b?.name??t('固定资产')})} value={v.mode} onChange={e=>change(v.binding_id,{mode:e.target.value,media_asset_ids:[],nativePreset:e.target.value==='native_preset'?version?.card.voice?.native_preset:undefined})}><option value="">{t('明确选择传入方式')}</option>{v.mode&&!allowed.includes(v.mode)&&<option value={v.mode}>{t('当前模型不支持此传入方式')}</option>}{allowed.map(mode=><option key={mode} value={mode} disabled={mode==='native_preset'&&!version?.card.voice?.native_preset}>{t(modeNames[mode])}</option>)}</select></label>
+ {v.mode==='reference'&&<><p>{t('勾选需要传入的参考图，并同时发送该卡的外观或风格文字；需要对应的文字及参考用途声明。')}</p>{b?.media_asset_ids.map(id=><label className="reference-choice" key={id}><input type="checkbox" checked={v.media_asset_ids?.includes(id)??false} disabled={!assets.some(a=>a.id===id)} onChange={e=>change(v.binding_id,{media_asset_ids:e.target.checked?[...(v.media_asset_ids??[]),id]:(v.media_asset_ids??[]).filter(x=>x!==id)})}/>{assets.find(a=>a.id===id)?.name??t('参考图片暂不可用')}</label>)}</>}
+ {v.mode==='prompt_only'&&<p>{t('仅发送外观或风格文字与禁止变化项，不发送卡片图片，也不传入人物的声音描述。')}</p>}
+ {b?.kind==='voice'&&<p>{t('仅使用匹配模型的原生音色标识。表演、语速、发音等备注不会作为对白或参数发送；不支持录音克隆。')}{version?.card.voice?.native_preset&&` ${version.card.voice.native_preset.model} · ${version.card.voice.native_preset.voice}`}</p>}
+ {b?.kind==='voice'&&!version?.card.voice?.native_preset&&<p role="status">{t('此声音卡尚未保存原生音色，请在资产库建立明确配置后再绑定新版本。')}</p>}
+ <button type="button" onClick={()=>onChange(value.filter(x=>x.binding_id!==v.binding_id))}>{t('从本次创作移除')}</button></div>})}
+ </fieldset>{value.length>0&&!valid&&<p role="status" className="drama-validation">{t('请核对传入方式、匹配模型、参考图片及镜头范围；不兼容的组合不会提交。')}{hasReference&&t('当前模型本次最多接收 {p0} 张参考图，请同时核对手动参考和帧控制。',{p0:referenceLimit})}</p>}
+ </details>
+}

@@ -53,7 +53,7 @@ func (p *MiniMaxImageProvider) GenerateWithReference(ctx context.Context, in Inp
 	if err != nil {
 		return GenerationResult{}, providerFailure("provider_rejected")
 	}
-	prompt := "Create one image. Style: " + in.Style + ". Brief: " + in.Prompt
+	prompt := appendLibraryInputContext(ctx, "Create one image. Style: "+in.Style+". Brief: "+in.Prompt)
 	if len([]rune(prompt)) > 1500 {
 		return GenerationResult{}, providerFailure("provider_rejected")
 	}
@@ -129,7 +129,7 @@ func (p *MiniMaxVideoProvider) submit(ctx context.Context, prompt string, refere
 	if err != nil {
 		return VideoJob{}, err
 	}
-	content := []map[string]any{{"type": "text", "text": prompt}}
+	content := []map[string]any{{"type": "text", "text": appendLibraryInputContext(ctx, prompt)}}
 	ratio := "16:9"
 	if reference != nil {
 		content = append(content, reference)

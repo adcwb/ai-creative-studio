@@ -1,6 +1,7 @@
 package application
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/prompts"
 	"io"
@@ -11,7 +12,8 @@ func (s *FileStore) creativeExecutionRequest(job CreativeJob) (ExecutionRequest,
 	if job.RuntimeSelection == nil {
 		return ExecutionRequest{}, ErrExecutionGovernance
 	}
-	request := ExecutionRequest{ID: "creative:" + job.ID, Tenant: job.SpaceID, Provider: job.Provider, Model: job.Model, Capability: job.RuntimeSelection.Capability, Text: job.Prompt + "\n" + job.Source.Title + "\n" + job.Source.Brief, Selection: job.RuntimeSelection}
+	prompt := appendLibraryInputContext(context.WithValue(context.Background(), libraryInputContextKey{}, job.LibraryInputContext), job.Prompt)
+	request := ExecutionRequest{ID: "creative:" + job.ID, Tenant: job.SpaceID, Provider: job.Provider, Model: job.Model, Capability: job.RuntimeSelection.Capability, Text: prompt + "\n" + job.Source.Title + "\n" + job.Source.Brief, Selection: job.RuntimeSelection}
 	for _, id := range []string{job.ReferenceAssetID, job.ComparisonAssetID, job.MaskAssetID, job.AudioAssetID} {
 		if id == "" {
 			continue

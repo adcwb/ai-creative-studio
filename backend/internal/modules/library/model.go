@@ -55,11 +55,36 @@ type Style struct {
 // Voice is authored performance intent. It is neither a provider voice identity
 // nor consent to imitate a person or clone an audio reference.
 type Voice struct {
-	Timbre        string `json:"timbre"`
-	Performance   string `json:"performance"`
-	Pace          string `json:"pace"`
-	Pronunciation string `json:"pronunciation"`
+	NativePreset  *NativeVoicePreset `json:"native_preset,omitempty"`
+	Timbre        string             `json:"timbre"`
+	Performance   string             `json:"performance"`
+	Pace          string             `json:"pace"`
+	Pronunciation string             `json:"pronunciation"`
 }
+
+// A public model-specific voice token, never a credential, recorded identity or
+// permission to clone a person. Authored performance intent stays separate.
+type NativeVoicePreset struct {
+	ModelConfigID string `json:"model_config_id"`
+	Provider      string `json:"provider"`
+	Model         string `json:"model"`
+	Voice         string `json:"voice"`
+}
+
+var presetToken = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$`)
+
+func validPresetModel(value string) bool {
+	if len(value) < 1 || len(value) > 200 {
+		return false
+	}
+	for _, c := range value {
+		if c < 33 || c > 126 || strings.ContainsRune("\\\"?#", c) {
+			return false
+		}
+	}
+	return true
+}
+
 type Source struct {
 	AssetID   string `json:"asset_id"`
 	VersionID string `json:"version_id"`
@@ -194,6 +219,11 @@ func Normalize(kind string, in Card) (Card, error) {
 			return Card{}, ErrInput
 		}
 		fields = []*string{&c.Voice.Timbre, &c.Voice.Performance, &c.Voice.Pace, &c.Voice.Pronunciation}
+		if p := c.Voice.NativePreset; p != nil {
+			if !IDPattern.MatchString(p.ModelConfigID) || !presetToken.MatchString(p.Provider) || !validPresetModel(p.Model) || !presetToken.MatchString(p.Voice) {
+				return Card{}, ErrInput
+			}
+		}
 	default:
 		return Card{}, ErrInput
 	}

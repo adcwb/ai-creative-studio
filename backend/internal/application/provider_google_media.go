@@ -249,7 +249,7 @@ func (p *GoogleMediaProvider) SubmitVideo(ctx context.Context, prompt string) (V
 	if err != nil {
 		return VideoJob{}, err
 	}
-	return p.submitVideoInput(ctx, prompt)
+	return p.submitVideoInput(ctx, appendLibraryInputContext(ctx, prompt))
 }
 
 // SubmitVideoWithImage uses the documented first-frame control, not a claim of identity preservation.
@@ -275,7 +275,7 @@ func (p *GoogleMediaProvider) submitVideoReference(ctx context.Context, prompt s
 	if err != nil {
 		return VideoJob{}, err
 	}
-	input := []map[string]any{{"type": "user_input", "content": []map[string]string{{"type": kind, "mime_type": mime, "data": base64.StdEncoding.EncodeToString(data)}, {"type": "text", "text": prompt}}}}
+	input := []map[string]any{{"type": "user_input", "content": []map[string]string{{"type": kind, "mime_type": mime, "data": base64.StdEncoding.EncodeToString(data)}, {"type": "text", "text": appendLibraryInputContext(ctx, prompt)}}}}
 	return p.submitVideoInput(ctx, input)
 }
 func (p *GoogleMediaProvider) submitVideoInput(ctx context.Context, input any) (VideoJob, error) {

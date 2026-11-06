@@ -22,6 +22,6 @@ export function previewFeature(preview?: {operation: string; input: Record<strin
   if (direct[preview.operation]) return direct[preview.operation]
   if (preview.operation === 'alignment') return preview.input.mode === 'transcription' ? 'speech_transcription' : 'subtitle_alignment'
   const input = preview.input
-  if (input.kind === 'image') return input.reference_asset_id || input.mask_asset_id || (Array.isArray(input.reference_asset_ids) && input.reference_asset_ids.length) ? 'image_edit' : input.character ? 'character_image' : input.shot_id ? 'shot_image' : 'image_generation'
+  if (input.kind === 'image') return (Array.isArray(input.library_inputs) && input.library_inputs.some(value => value && typeof value === 'object' && 'mode' in value && value.mode === 'reference')) || input.reference_asset_id || input.mask_asset_id || (Array.isArray(input.reference_asset_ids) && input.reference_asset_ids.length) ? 'image_edit' : input.character ? 'character_image' : input.shot_id ? 'shot_image' : 'image_generation'
   return ({analysis: 'brief_analysis', video: 'shot_video', speech: 'speech_synthesis', vision: 'vision_analysis', consistency: 'consistency_check'} as Record<string, string>)[String(input.kind)] ?? ''
 }

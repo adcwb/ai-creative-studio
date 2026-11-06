@@ -96,7 +96,6 @@ func (s *FileStore) pinCreativeLibraryMedia(ctx context.Context, project, space 
 			continue
 		}
 		pin := libraryMediaPin{MediaID: id, SHA256: sha, MIME: mime, Uses: []libraryUsePin{}}
-		purpose := libraryMediaPurpose(in.Kind, mime)
 		for _, source := range sources {
 			if s.library == nil {
 				return nil, errRuntimeDenied
@@ -104,6 +103,14 @@ func (s *FileStore) pinCreativeLibraryMedia(ctx context.Context, project, space 
 			current, e := s.library.Get(ctx, space, source.AssetID)
 			if e != nil {
 				return nil, e
+			}
+			purpose := libraryMediaPurpose(in.Kind, mime)
+			// A voice contribution remains a voice contribution inside a video
+			// descendant. Native-preset permission alone never authorizes reuse;
+			// require the separately declared voice-reference purpose, rather than
+			// asking a voice card for an impossible image/video-reference grant.
+			if current.Asset.Kind == "voice" && (purpose == "image_reference" || purpose == "video_reference") {
+				purpose = "voice_reference"
 			}
 			if !current.Asset.UseAuthorization.Allows(source.VersionID, purpose, time.Now().UTC()) {
 				return nil, providerFailure("library_use_denied")
@@ -121,8 +128,12 @@ func (s *FileStore) withLibraryDispatchGuard(ctx context.Context, job *CreativeJ
 	// Snapshot trusted pins so mutable completion/upstream fields cannot broaden
 	// authority. Rechecking is immediately before each mutating HTTP dispatch.
 	pins := cloneLibraryPins(job.LibraryMediaPins)
+	inputPins := cloneLibraryInputPins(job.LibraryInputs)
 	input := creativeJobMediaInput(job)
 	guard := func(ctx context.Context) error {
+		if e := s.checkLibraryInputPins(ctx, job.SpaceID, inputPins); e != nil {
+			return e
+		}
 		fresh, e := s.pinCreativeLibraryMedia(ctx, job.ProjectID, job.SpaceID, input)
 		if e != nil {
 			return e
@@ -132,7 +143,7 @@ func (s *FileStore) withLibraryDispatchGuard(ctx context.Context, job *CreativeJ
 		}
 		return nil
 	}
-	sources := []media.LibrarySource{}
+	sources := libraryInputSources(inputPins)
 	for _, pin := range pins {
 		for _, use := range pin.Uses {
 			sources = append(sources, use.Source)
@@ -140,6 +151,7 @@ func (s *FileStore) withLibraryDispatchGuard(ctx context.Context, job *CreativeJ
 	}
 	ctx = context.WithValue(ctx, libraryRecoveryIdentityKey{}, libraryRecoveryIdentity{Provider: job.Provider, Model: job.Model, Upstream: func() string { return job.UpstreamID }})
 	ctx = context.WithValue(ctx, libraryOutputSourcesKey{}, uniqueLibrarySources(sources))
+	ctx = context.WithValue(ctx, libraryInputContextKey{}, job.LibraryInputContext)
 	return context.WithValue(ctx, libraryDispatchKey{}, guard)
 }
 func checkLibraryDispatch(ctx context.Context) error {
@@ -179,7 +191,7 @@ func libraryReadOnlyRequest(req *http.Request) bool {
 // must still record source ancestry; it never manufactures an old grant or
 // permits another submission. Existing receipts keep their original identity.
 func (s *FileStore) libraryResultContext(ctx context.Context, job *CreativeJob) (context.Context, error) {
-	if len(job.LibraryMediaPins) > 0 || job.UpstreamID == "" {
+	if len(job.LibraryMediaPins) > 0 || len(job.LibraryInputs) > 0 || job.UpstreamID == "" {
 		return ctx, nil
 	}
 	sources := []media.LibrarySource{}

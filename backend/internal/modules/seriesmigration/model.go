@@ -461,7 +461,7 @@ func Preview(src Source, season series.Node, in Input) (Plan, error) {
 				kept = append(kept, id)
 			}
 		}
-		if len(kept) > 0 {
+		if len(kept) > 0 || len(b.MediaAssetIDs) == 0 {
 			b.MediaAssetIDs = kept
 			p.Bindings = append(p.Bindings, b)
 		}

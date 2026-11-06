@@ -68,3 +68,5 @@ JPEG规范化和海报合成追加服务端`parent_asset_ids`及结果SHA，后�
 后续T33C2C3已按[来源追溯记录](asset-lineage-implementation.md)补上可恢复旧任务、库引用与迁移证明、不明状态与C端只读核对；本文保留C2B当时边界。原生人物/风格/声音用途与C2D仍未退出。
 
 后续T33C2D1按[音频消费来源记录](alignment-source-implementation.md)补齐独立ASR/转写/强制对齐的固定来源与派发复核，并新增独立`audio_analysis`用途；本节五种用途列表保留C2B当时范围。音频分析不是声音生成或克隆许可，原生人物/风格/声音与完整C2D仍未退出。
+
+后续人物/风格/原生音色实际输入及剩余配音消费链按[实际输入记录](creative-inputs-implementation.md)校准，本文保留当时范围；完整回归完成前不把整套规格标为完成或推送。

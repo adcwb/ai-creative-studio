@@ -4,6 +4,9 @@ import {createHash} from 'node:crypto'
 import {deflateSync} from 'node:zlib'
 let calls = 0
 const requests = []
+function wav() {
+ const raw=Buffer.alloc(44+16000*2);raw.write('RIFF');raw.writeUInt32LE(raw.length-8,4);raw.write('WAVEfmt ',8);raw.writeUInt32LE(16,16);raw.writeUInt16LE(1,20);raw.writeUInt16LE(1,22);raw.writeUInt32LE(8000,24);raw.writeUInt32LE(16000,28);raw.writeUInt16LE(2,32);raw.writeUInt16LE(16,34);raw.write('data',36);raw.writeUInt32LE(raw.length-44,40);return raw
+}
 function png() {
  const chunk=(name,data)=>{const tag=Buffer.from(name), payload=Buffer.concat([tag,data]);let crc=0xffffffff;for(const b of payload){crc^=b;for(let i=0;i<8;i++)crc=(crc>>>1)^((crc&1)?0xedb88320:0)}const result=Buffer.alloc(data.length+12);result.writeUInt32BE(data.length);payload.copy(result,4);result.writeUInt32BE((crc^0xffffffff)>>>0,result.length-4);return result}
  const header=Buffer.alloc(13);header.writeUInt32BE(64);header.writeUInt32BE(64,4);header[8]=8;header[9]=2
@@ -26,6 +29,7 @@ http.createServer(async (req,res)=>{
  } else body=JSON.parse(raw.toString()||'{}')
  requests.push({path:req.url,body})
  if(body.model==='synthetic-reject'){res.writeHead(429);res.end(JSON.stringify({error:'Synthetic upstream refusal'}));return}
+ if(req.url==='/v1/audio/speech'&&body.model==='synthetic-speech'){res.setHeader('Content-Type','audio/wav');res.end(wav());return}
  if(req.url==='/v1/images/edits' && body.model==='synthetic-image' && body.image_hashes?.length){res.end(JSON.stringify({data:[{b64_json:png()}]}));return}
  if(req.url==='/v1/images/generations' && body.model==='synthetic-image') {res.end(JSON.stringify({data:[{b64_json:png()}]}));return}
  if(req.url==='/v1/responses/input_tokens'&&body.model?.startsWith('synthetic-text')){

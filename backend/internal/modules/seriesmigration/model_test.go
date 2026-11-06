@@ -54,6 +54,24 @@ func TestPreviewRequiresExplicitChoicesAndKeepsSourceImmutable(t *testing.T) {
 		t.Fatal("preview mutated original or was nondeterministic", e)
 	}
 }
+
+func TestPreviewKeepsMetadataOnlyVoiceAndStyleBindingsInTheirShotScope(t *testing.T) {
+	src, season, in := fixture()
+	src.Media.LibraryBindings = []media.LibraryBinding{
+		{ID: "voice", Kind: "voice", Usage: "voice", AssetID: "voice-card", VersionID: "voice-v1", MediaAssetIDs: []string{}},
+		{ID: "style", Kind: "style", Usage: "style", AssetID: "style-card", VersionID: "style-v1", ShotID: "seven", MediaAssetIDs: []string{}},
+		{ID: "other-shot", Kind: "voice", Usage: "voice", AssetID: "other-voice", VersionID: "other-v1", ShotID: "independent", MediaAssetIDs: []string{}},
+	}
+	before, _ := json.Marshal(src)
+	plan, err := Preview(src, season, in)
+	if err != nil || len(plan.Bindings) != 2 || plan.Bindings[0].VersionID != "voice-v1" || plan.Bindings[1].VersionID != "style-v1" || len(plan.Bindings[0].MediaAssetIDs) != 0 {
+		t.Fatal("metadata-only native/intent bindings were lost or broadened", plan.Bindings, err)
+	}
+	after, _ := json.Marshal(src)
+	if !reflect.DeepEqual(before, after) {
+		t.Fatal("rewrote source bindings")
+	}
+}
 func TestPreviewStableSceneAssociationSurvivesReorderAndLegacyStaleNeedsChoice(t *testing.T) {
 	src, season, in := fixture()
 	stable, _, e := projects.CompileStructure(*src.Project.Script, "space:"+src.Project.ID, 1)

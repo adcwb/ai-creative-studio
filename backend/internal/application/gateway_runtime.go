@@ -118,6 +118,11 @@ func operationFeature(operation string, in *CreativeJobInput) string {
 	case "analysis":
 		return "brief_analysis"
 	case "image":
+		for _, choice := range in.LibraryInputs {
+			if choice.Mode == "reference" {
+				return "image_edit"
+			}
+		}
 		if in.ReferenceAssetID != "" || in.MaskAssetID != "" || len(in.ReferenceAssetIDs) > 0 {
 			return "image_edit"
 		}

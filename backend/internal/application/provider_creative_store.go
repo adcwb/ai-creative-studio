@@ -20,7 +20,8 @@ import (
 )
 
 type CreativeJobInput struct {
-	PromptSource           *promptSourceInput `json:"prompt_source,omitempty"`
+	LibraryInputs          []libraryInputChoice `json:"library_inputs,omitempty"`
+	PromptSource           *promptSourceInput   `json:"prompt_source,omitempty"`
 	promptSnapshot         *prompts.Source
 	ImageParameters        *prompts.Defaults `json:"image_parameters,omitempty"`
 	ReferenceAssetIDs      []string          `json:"reference_asset_ids,omitempty"`
@@ -46,6 +47,8 @@ type CreativeJobInput struct {
 	Character             string `json:"character,omitempty"`
 }
 type CreativeJob struct {
+	LibraryInputs          []libraryInputPin `json:"library_inputs,omitempty"`
+	LibraryInputContext    string            `json:"library_input_context,omitempty"`
 	LibraryMediaPins       []libraryMediaPin `json:"library_media_pins,omitempty"`
 	PromptSource           *prompts.Source   `json:"prompt_source,omitempty"`
 	ImageParameters        *prompts.Defaults `json:"image_parameters,omitempty"`
@@ -384,6 +387,10 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	} else if in.AvatarID != "" || in.VoiceConfirmed || in.VoiceConsentReference != "" {
 		return CreativeJob{}, false, ErrInvalidProjectInput
 	}
+	libraryPins, libraryContext, err := s.compileLibraryInputs(context.Background(), id, space, &in, caps)
+	if err != nil {
+		return CreativeJob{}, false, err
+	}
 	if err := s.validateCreativeControls(id, space, in, caps); err != nil {
 		return CreativeJob{}, false, err
 	}
@@ -490,6 +497,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	}
 	job := CreativeJob{LibraryMediaPins: pins, PromptSource: in.promptSnapshot, ImageParameters: in.ImageParameters, ReferenceAssetIDs: append([]string(nil), in.ReferenceAssetIDs...), FirstFrameAssetID: in.FirstFrameAssetID, LastFrameAssetID: in.LastFrameAssetID, MotionReferenceAssetID: in.MotionReferenceAssetID, TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), AudioAssetID: in.AudioAssetID, ComparisonAssetID: in.ComparisonAssetID, MaskAssetID: in.MaskAssetID, ReferenceAssetID: in.ReferenceAssetID, ID: jid, SpaceID: space, ProjectID: id, Kind: in.Kind, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Prompt: in.Prompt, ShotID: in.ShotID, Character: in.Character, Source: ProjectInput{Title: p.Title, Brief: p.Brief}, CreatedAt: now, UpdatedAt: now}
 	job.AvatarID, job.VoiceConsentReference, job.VoiceConfirmed, job.AIGenerated = in.AvatarID, in.VoiceConsentReference, in.VoiceConfirmed, in.Kind == "digital_human"
+	job.LibraryInputs, job.LibraryInputContext = cloneLibraryInputPins(libraryPins), libraryContext
 	if in.Kind == "digital_human" {
 		job.VoiceConsentBy = in.consentActor
 	}
@@ -519,7 +527,11 @@ func (s *FileStore) listCreativeJobs(space, id string) ([]CreativeJob, error) {
 	jobs := []CreativeJob{}
 	for _, j := range c.data.Jobs {
 		if j.SpaceID == space && j.ProjectID == id {
-			j.ReferenceAssetIDs = append([]string(nil), j.ReferenceAssetIDs...)
+			j = cloneCreativeJob(j)
+			// Polling/history needs identities and applied/omitted fields, not a
+			// potentially large compiled payload on every refresh. The worker and
+			// original POST receipt retain the exact immutable context.
+			j.LibraryInputContext = ""
 			jobs = append(jobs, j)
 		}
 	}
@@ -1135,6 +1147,8 @@ type asyncReferenceImageProvider interface {
 }
 
 func cloneCreativeJob(job CreativeJob) CreativeJob {
+	job.RuntimeSelection = cloneRuntimeSelection(job.RuntimeSelection)
+	job.LibraryInputs = cloneLibraryInputPins(job.LibraryInputs)
 	job.ReferenceAssetIDs = append([]string(nil), job.ReferenceAssetIDs...)
 	job.LibraryMediaPins = cloneLibraryPins(job.LibraryMediaPins)
 	return job

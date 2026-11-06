@@ -47,7 +47,7 @@ func (p *GoogleInteractionsImageProvider) generateReferences(ctx context.Context
 			return GenerationResult{}, err
 		}
 	}
-	prompt := "Create one image. Template: " + in.Kind + ". Style: " + in.Style + ". Brief: " + in.Prompt
+	prompt := appendLibraryInputContext(ctx, "Create one image. Template: "+in.Kind+". Style: "+in.Style+". Brief: "+in.Prompt)
 	input := []map[string]string{{"type": "text", "text": prompt}}
 	for _, r := range refs {
 		input = append(input, map[string]string{"type": "image", "mime_type": r.MIME, "data": base64.StdEncoding.EncodeToString(r.Data)})

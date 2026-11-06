@@ -153,7 +153,7 @@ func (p *OpenAIProvider) Generate(ctx context.Context, in Input) (GenerationResu
 		return GenerationResult{}, providerFailure("provider_rejected")
 	}
 	size, width, height := imageSize(in.Ratio)
-	prompt := "Creative brief\nTemplate: " + in.Kind + "\nVisual style: " + in.Style + "\nRequested aspect ratio: " + in.Ratio + "\nDescription: " + in.Prompt
+	prompt := appendLibraryInputContext(ctx, "Creative brief\nTemplate: "+in.Kind+"\nVisual style: "+in.Style+"\nRequested aspect ratio: "+in.Ratio+"\nDescription: "+in.Prompt)
 	body, _ := json.Marshal(struct {
 		Model        string `json:"model"`
 		Prompt       string `json:"prompt"`

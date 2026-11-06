@@ -63,7 +63,7 @@ func (p *NativeImageProvider) GenerateWithReference(ctx context.Context, in Inpu
 	} else if mime != "" {
 		return GenerationResult{}, providerFailure("provider_rejected")
 	}
-	prompt := "Create one image. Template: " + in.Kind + ". Style: " + in.Style + ". Aspect ratio: " + in.Ratio + ". Brief: " + in.Prompt
+	prompt := appendLibraryInputContext(ctx, "Create one image. Template: "+in.Kind+". Style: "+in.Style+". Aspect ratio: "+in.Ratio+". Brief: "+in.Prompt)
 	var body any
 	var path string
 	switch p.kind {

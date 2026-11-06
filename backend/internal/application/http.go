@@ -289,7 +289,7 @@ func storeError(w http.ResponseWriter, err error) {
 		return
 	}
 	var failure *ProviderError
-	if errors.As(err, &failure) && failure.Code == "library_use_denied" {
+	if errors.As(err, &failure) && (failure.Code == "library_use_denied" || failure.Code == "provider_input_capacity") {
 		problem(w, 409, failure.Code, providerMessage(failure.Code))
 		return
 	}

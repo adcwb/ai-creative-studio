@@ -23,3 +23,8 @@
 .library-authorization form,.library-authorization>fieldset{margin-top:20px}
 .library-authorization label:has(input[type=checkbox]){display:flex;align-items:flex-start;gap:8px;margin-block:10px;font-weight:400}
 .library-authorization input[type=checkbox]{width:16px;height:16px;min-height:0;flex:0 0 16px;margin:4px 0 0}
+
+.library-native-voice label:has(input[type=checkbox]){display:flex;align-items:flex-start;gap:8px;margin-block:10px;font-weight:400}
+.library-native-voice input[type=checkbox],.library-input-picker input[type=checkbox]{width:16px;height:16px;min-height:0;flex:0 0 16px;margin:4px 0 0}
+.production-controls .library-input-picker>fieldset{max-height:none;overflow:visible}
+.library-input-picker .editing-note{margin-block:12px;overflow-wrap:anywhere}

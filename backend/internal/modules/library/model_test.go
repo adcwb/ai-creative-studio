@@ -31,6 +31,28 @@ func TestTypedCardNormalizationAndIsolation(t *testing.T) {
 	}
 }
 
+func TestNativeVoicePresetIsImmutablePublicMetadataWithExactModelAlias(t *testing.T) {
+	model := "vendor/" + strings.Repeat("a", 170) + "@latest"
+	in := library.Card{Name: "音色", Voice: &library.Voice{Performance: "只作创作备注", NativePreset: &library.NativeVoicePreset{ModelConfigID: "model", Provider: "gateway-speech", Model: model, Voice: "native-voice"}}}
+	normalized, err := library.Normalize("voice", in)
+	if err != nil || normalized.Voice.NativePreset.Model != model {
+		t.Fatal("valid configured alias was narrowed", err)
+	}
+	normalized.Voice.NativePreset.Voice = "other"
+	if in.Voice.NativePreset.Voice != "native-voice" {
+		t.Fatal("normalization mutated old preset")
+	}
+	for _, mutate := range []func(*library.NativeVoicePreset){func(p *library.NativeVoicePreset) { p.Model = "model\nunsafe" }, func(p *library.NativeVoicePreset) { p.Model = strings.Repeat("a", 201) }, func(p *library.NativeVoicePreset) { p.Voice = "has space" }, func(p *library.NativeVoicePreset) { p.ModelConfigID = "other/tenant" }} {
+		copy := *in.Voice.NativePreset
+		mutate(&copy)
+		bad := in
+		bad.Voice = &library.Voice{NativePreset: &copy}
+		if _, err := library.Normalize("voice", bad); err == nil {
+			t.Fatal("malformed preset accepted")
+		}
+	}
+}
+
 func TestStyleAndVoiceAreDistinctIntentWithNoFixedListAllowances(t *testing.T) {
 	for kind, card := range map[string]library.Card{"style": {Name: "  墨色  ", Style: &library.Style{Palette: "  青灰  "}}, "voice": {Name: "  低声  ", Voice: &library.Voice{Performance: "  克制  "}}} {
 		for i := 0; i < 35; i++ {

@@ -79,3 +79,5 @@ PostgreSQL仍复用既有媒体/创作/库版本JSON与迁移实体，无新增D
 下一项T33C2C2必须接上明确版本和用途的本集人物/风格/声音选择，并展示`native/reference/prompt_only/unsupported`的实际合同。代码已存在`ModelRequest.Voice`与网关speech的原生voice字段，但声音意图卡没有原生preset或音频引用配置；不能把表演说明拼进朗读文本，或仅保存voice notes便声称完成。人物图片引用是条件引导，不代表原生锁脸；风格文字或参考不能伪装成原生风格ID。完整C2D退出后再推进T34编剧、T41–T45导演与制作编排，最后做完整容量和发布核验。
 
 后续T33C2D1按[音频消费来源记录](alignment-source-implementation.md)补上独立ASR/转写/强制对齐消费链的来源固定与派发检查，本文保留C2C3当时范围。原生人物/风格/声音选择及C2D完整集成仍未完成。
+
+后续人物/风格/原生音色实际输入及剩余配音消费链按[实际输入记录](creative-inputs-implementation.md)校准，本文保留当时范围；完整回归完成前不把整套规格标为完成或推送。

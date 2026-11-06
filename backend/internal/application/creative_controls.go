@@ -116,10 +116,24 @@ func registerCreativeControls(mux *http.ServeMux, s *FileStore) {
 			return
 		}
 		q := r.URL.Query()
-		controls := creativeControls(q.Get("provider"), q.Get("model"), q.Get("kind"))
-		if id := q.Get("model_config_id"); id != "" && q.Get("kind") == "image" && s.runtime != nil && s.runtime.auth != nil {
+		kind := q.Get("kind")
+		controls := creativeControls(q.Get("provider"), q.Get("model"), kind)
+		inputProvider, reference := "", false
+		s.creative.mu.Lock()
+		caps := s.creative.mediaCaps()[kind]
+		if caps.Ready && caps.Mode == "real" && caps.Provider == q.Get("provider") && caps.Model == q.Get("model") {
+			inputProvider = caps.Provider
+			if kind == "image" {
+				_, reference = s.creative.image.(ReferenceImageProvider)
+			}
+			if kind == "video" {
+				_, reference = s.creative.video.(referenceVideoProvider)
+			}
+		}
+		s.creative.mu.Unlock()
+		if id := q.Get("model_config_id"); id != "" && (kind == "image" || kind == "video" || kind == "speech") && s.runtime != nil && s.runtime.auth != nil {
 			scope, _ := r.Context().Value(authScopeKey{}).(authScope)
-			selection, _, e := s.runtime.Resolve(r.Context(), space, scope.UserID, id, "image")
+			selection, entry, e := s.runtime.Resolve(r.Context(), space, scope.UserID, id, kind)
 			if e != nil {
 				storeError(w, e)
 				return
@@ -128,13 +142,32 @@ func registerCreativeControls(mux *http.ServeMux, s *FileStore) {
 				problem(w, 409, "provider_changed", "模型配置已变化，请刷新模型目录")
 				return
 			}
-			models := s.runtime.auth.models
-			models.mu.Lock()
-			m := models.data.Tenants[space].Models[selection.ModelID]
-			models.mu.Unlock()
-			controls = CreativeControls{MaxReferences: gatewayReferenceLimit(m)}
+			inputProvider = entry.Provider
+			controls = creativeControls(entry.Provider, entry.Model, kind)
+			if kind == "image" {
+				reference = s.runtime.imageReferenceSupported(selection, entry.Provider, entry.Model)
+				if selection.GatewayID != "" {
+					models := s.runtime.auth.models
+					models.mu.Lock()
+					m := models.data.Tenants[space].Models[selection.ModelID]
+					models.mu.Unlock()
+					controls = CreativeControls{MaxReferences: gatewayReferenceLimit(m)}
+					reference = controls.MaxReferences > 0
+				}
+			}
+			if kind == "video" {
+				reference = entry.Provider == "gemini-video" || entry.Provider == "ark-video" || entry.Provider == "minimax-video"
+			}
 		}
-		respond(w, 200, controls)
+		limit := controls.MaxReferences
+		if reference && limit == 0 {
+			limit = 1
+		}
+		respond(w, 200, struct {
+			CreativeControls
+			LibraryInputs         map[string][]string `json:"library_inputs"`
+			LibraryReferenceLimit int                 `json:"library_reference_limit"`
+		}{controls, libraryInputModes(kind, inputProvider, reference), limit})
 	})
 }
 
@@ -195,6 +228,6 @@ func (p *GoogleMediaProvider) SubmitControlledVideo(ctx context.Context, prompt 
 	if err != nil {
 		return VideoJob{}, err
 	}
-	content = append(content, map[string]string{"type": "text", "text": strings.Join(tags, " ") + " " + prompt})
+	content = append(content, map[string]string{"type": "text", "text": appendLibraryInputContext(ctx, strings.Join(tags, " ")+" "+prompt)})
 	return p.submitVideoInput(ctx, []map[string]any{{"type": "user_input", "content": content}})
 }

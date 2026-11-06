@@ -148,7 +148,7 @@ func (p *JimengImageProvider) SubmitImageWithReference(ctx context.Context, in I
 	if err != nil {
 		return AsyncImageJob{}, err
 	}
-	if len([]rune("Create one image. Style: "+in.Style+". Aspect ratio: "+in.Ratio+". Brief: "+in.Prompt)) > 800 {
+	if len([]rune(appendLibraryInputContext(ctx, "Create one image. Style: "+in.Style+". Aspect ratio: "+in.Ratio+". Brief: "+in.Prompt))) > 800 {
 		return AsyncImageJob{}, providerFailure("provider_rejected")
 	}
 	if e := checkLibraryDispatch(ctx); e != nil {
@@ -179,7 +179,7 @@ func (p *JimengImageProvider) submitImage(ctx context.Context, in Input, referen
 	if err != nil {
 		return AsyncImageJob{}, providerFailure("provider_rejected")
 	}
-	prompt := "Create one image. Style: " + in.Style + ". Aspect ratio: " + in.Ratio + ". Brief: " + in.Prompt
+	prompt := appendLibraryInputContext(ctx, "Create one image. Style: "+in.Style+". Aspect ratio: "+in.Ratio+". Brief: "+in.Prompt)
 	if len([]rune(prompt)) > 800 {
 		return AsyncImageJob{}, providerFailure("provider_rejected")
 	}

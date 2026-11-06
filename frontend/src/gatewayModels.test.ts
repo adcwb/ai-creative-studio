@@ -7,6 +7,8 @@ describe('gateway model routing', () => {
     expect(previewFeature({operation: 'creative', input: {kind: 'image', character: 'A'}})).toBe('character_image')
     expect(previewFeature({operation: 'creative', input: {kind: 'image', shot_id: 'shot-1'}})).toBe('shot_image')
     expect(previewFeature({operation: 'creative', input: {kind: 'image', shot_id: 'shot-1', reference_asset_id: 'ref'}})).toBe('image_edit')
+	 expect(previewFeature({operation:'creative',input:{kind:'image',library_inputs:[{binding_id:'fixed-style',mode:'reference',media_asset_ids:['copy']}]}})).toBe('image_edit')
+	 expect(previewFeature({operation:'creative',input:{kind:'image',shot_id:'shot-1',library_inputs:[{binding_id:'fixed-style',mode:'prompt_only'}]}})).toBe('shot_image')
     expect(previewFeature({operation: 'alignment', input: {mode: 'transcription'}})).toBe('speech_transcription')
     expect(previewFeature({operation: 'alignment', input: {mode: 'asr'}})).toBe('subtitle_alignment')
   })

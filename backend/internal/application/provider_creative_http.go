@@ -40,6 +40,9 @@ func registerCreativeRoutes(mux *http.ServeMux, s *FileStore) {
 					return
 				}
 			}
+			if !s.resolveCreativeLibraryVoice(w, r, space, r.PathValue("id"), &in) {
+				return
+			}
 			if !s.resolveCreativePrompt(w, r, space, r.PathValue("id"), key, &in) {
 				return
 			}

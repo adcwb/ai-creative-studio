@@ -210,6 +210,7 @@ func (s *FileStore) libraryMediaSourcesVisited(ctx context.Context, project, spa
 		}
 		if origin != nil {
 			markRecoveredLineage(ctx)
+			sources = append(sources, libraryInputSources(origin.Job.LibraryInputs)...)
 			for _, parent := range creativeMediaIDs(creativeJobMediaInput(&origin.Job)) {
 				inherited, _, _, e := s.libraryMediaSourcesVisited(ctx, project, space, parent, visiting, false)
 				if e != nil {

@@ -1,11 +1,12 @@
 export type LibraryKind = 'character' | 'product' | 'scene' | 'style' | 'voice'
+export interface NativeVoicePreset {model_config_id:string;provider:string;model:string;voice:string}
 export interface LibraryCard {
   name: string; description: string; prohibited_changes: string[]
   character?: {appearance: string; hair: string; costume: string; expression: string; voice_notes: string}
   product?: {model: string; dimensions: string; materials: string; packaging: string; exact_text: string}
   scene?: {layout: string; objects: string; lighting: string; viewpoints: string}
   style?: {palette:string;linework:string;composition:string;lighting:string;texture:string}
-  voice?: {timbre:string;performance:string;pace:string;pronunciation:string}
+  voice?: {timbre:string;performance:string;pace:string;pronunciation:string;native_preset?:NativeVoicePreset}
 }
 export interface LibraryReference {id: string; role: string; view_angle: string; mime_type: string; width: number; height: number; size_bytes: number; content_sha256: string; source_project_id: string; source_asset_id: string}
 export interface LibraryAsset {id: string; space_id: string; kind: LibraryKind; name: string; status: 'active' | 'archived'; head_version_id: string; created_at: string; updated_at: string}
@@ -30,3 +31,5 @@ export function emptyCard(kind: LibraryKind): LibraryCard {
   if(kind==='voice')return {...common,voice:{timbre:'',performance:'',pace:'',pronunciation:''}}
   return {...common, scene: {layout: '', objects: '', lighting: '', viewpoints: ''}}
 }
+
+export function cardText(card:LibraryCard,kind:LibraryKind,field:string):string {const value=(card[kind] as Record<string,unknown>|undefined)?.[field];return typeof value==='string'?value:''}
