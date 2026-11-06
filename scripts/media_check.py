@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """Local synthetic media acceptance; never configures or calls an AI provider."""
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
+import signal
 import socket
+import struct
 import subprocess
 import tempfile
 import time
 import urllib.error
 import urllib.request
 import warnings
+import zlib
 
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", DeprecationWarning)
@@ -66,7 +70,7 @@ def wait(fn, predicate, seconds=45):
 def start():
     global process
     env = {"PATH": os.environ["PATH"], "AUTH_MODE": "demo", "DATA_DIR": str(EVIDENCE / "data"), "HTTP_ADDR": f"127.0.0.1:{PORT}", "IMAGE_PROVIDER": "mock-svg", "TEXT_PROVIDER": "mock-text", "OPENAI_API_KEY": ""}
-    process = subprocess.Popen([str(ROOT / "backend/bin/server")], env=env, stdout=(EVIDENCE / "server.log").open("ab"), stderr=subprocess.STDOUT)
+    process = subprocess.Popen([str(ROOT / "backend/bin/server")], env=env, start_new_session=True, stdout=(EVIDENCE / "server.log").open("ab"), stderr=subprocess.STDOUT)
     for _ in range(100):
         try:
             request("/healthz")
@@ -78,8 +82,19 @@ def start():
 
 def stop():
     if process and process.poll() is None:
-        process.kill()
+        # Kill only this fixture's process group, including any local encoder.
+        os.killpg(process.pid, signal.SIGKILL)
         process.wait(10)
+
+
+def uncompressed_png(width, height):
+    """Valid synthetic RGB pixels, deliberately beyond the retired byte quota."""
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+    compressor = zlib.compressobj(level=0)
+    row = b"\0" + b"\x20\x60\x40" * width
+    pixels = b"".join(compressor.compress(row) for _ in range(height)) + compressor.flush()
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)) + chunk(b"IDAT", pixels) + chunk(b"IEND", b"")
 
 
 try:
@@ -91,9 +106,10 @@ try:
     # Invalid content cannot become executable media or an external URL fetch.
     request(path + "/uploads" + QUERY, b"<svg onload=alert(1)></svg>", "media-invalid-svg", status=415, mime="image/svg+xml")
     request(path + "/uploads" + QUERY, b"https://127.0.0.1/private", "media-invalid-png", status=400, mime="image/png")
-    request(path + "/uploads" + QUERY, b"0" * (32 * 1024 * 1024 + 1), "media-oversized-upload", status=413, mime="image/png")
+    rejected = request(path + "/uploads" + QUERY, b"0" * (32 * 1024 * 1024 + 1), "media-invalid-large-png", status=400, mime="image/png")
+    assert rejected["error"]["code"] == "invalid_media"
     assert request(path + QUERY)["assets"] == []
-    checks.append("upload MIME/content/32MiB limit rejection; no asset persisted")
+    checks.append("upload MIME and invalid content rejection, including above the retired 32MiB quota; no asset persisted")
     demo_body = {"expected_version": 1}
     media = request(path + "/demo" + QUERY, demo_body, "media-demo-acceptance")
     assert len(media["timeline"]["clips"]) > 0 and any(a["kind"] == "audio" for a in media["assets"])
@@ -112,6 +128,19 @@ try:
     request(upload_path, b"invalid", "media-valid-upload", status=409, mime="image/png")
     media = uploaded
     checks.append("valid synthetic PNG upload and exact replay; same-key altered file rejected")
+    large_png = uncompressed_png(4096, 3072)
+    assert len(large_png) > 32 * 1024 * 1024
+    large_sha = hashlib.sha256(large_png).hexdigest()
+    large_upload = request(upload_path, large_png, "media-large-valid-upload", mime="image/png")
+    assert len(large_upload["assets"]) == len(media["assets"]) + 1
+    large_asset = next(a for a in large_upload["assets"] if a["id"] == large_upload["uploaded_asset_id"])
+    assert large_asset["kind"] == "image" and large_asset["source"] == "uploaded"
+    assert large_asset["content_sha256"] == large_sha
+    assert hashlib.sha256(request(large_asset["file_url"])).hexdigest() == large_sha
+    assert request(upload_path, large_png, "media-large-valid-upload", mime="image/png") == large_upload
+    del large_png
+    media = large_upload
+    checks.append("valid 4096x3072 PNG larger than 32MiB accepted with exact content SHA, download and idempotent replay; retired per-file quota not restored")
     body = {"expected_version": media["version"], "timeline": copy.deepcopy(media["timeline"])}
     body["timeline"]["clips"][0]["subtitle"] = "合成验收字幕 Synthetic evidence"
     saved = request(path + "/timeline" + QUERY, body, "media-save-timeline", "PUT")
@@ -156,19 +185,32 @@ try:
     assert request(cancel_path, {}, "media-cancel-request") == cancelled
     request(path + f"/exports/{cancellation['id']}/file" + QUERY, status=404)
     interrupted = request(path + "/exports" + QUERY, export_body, "media-interrupted-export", status=202)
-    assert interrupted["status"] == "running"
+    assert interrupted["status"] == "queued" and interrupted["render_version"] == 1
     stop()
+    disk = json.loads((EVIDENCE / "data/media/state.json").read_text())
+    interrupted_disk = next(e for p in disk["projects"].values() for e in p["exports"] if e["id"] == interrupted["id"])
+    assert interrupted_disk["status"] in ("queued", "running"), interrupted_disk
     start()
     interrupted_replay = request(path + "/exports" + QUERY, export_body, "media-interrupted-export", status=202)
-    assert interrupted_replay["id"] == interrupted["id"] and interrupted_replay["status"] == "failed"
-    assert "中断" in interrupted_replay["error"]
+    assert interrupted_replay["id"] == interrupted["id"] and interrupted_replay["timeline"] == saved["timeline"]
+    assert interrupted_replay["status"] in ("queued", "running", "succeeded"), interrupted_replay
+    def recovered_export():
+        return next(e for e in request(path + QUERY)["exports"] if e["id"] == interrupted["id"])
+    recovered = wait(recovered_export, lambda e: e["status"] in ("succeeded", "failed", "cancelled"))
+    assert recovered["status"] == "succeeded", recovered
+    recovered_video = EVIDENCE / "synthetic-recovered.mp4"
+    recovered_video.write_bytes(request(recovered["file_url"]))
+    subprocess.run(["ffmpeg", "-v", "error", "-i", str(recovered_video), "-f", "null", "-"], check=True, timeout=30)
     cancelled_replay = request(cancel_path, {}, "media-cancel-request")
     assert cancelled_replay["status"] == "cancelled"
-    checks.append("cancel is persistent/idempotent; interrupted export is failed without automatic resubmission")
+    checks.append("cancel is persistent/idempotent; interrupted versioned local export resumes the same snapshot/ID and produces a decodable MP4 without any model request")
     restored = request(path + QUERY)
     assert restored["timeline"] == saved["timeline"]
     assert request(path + "/exports" + QUERY, export_body, "media-export-acceptance", status=202)["id"] == export_id
     assert request(done["file_url"]) == video.read_bytes()
+    assert hashlib.sha256(request(large_asset["file_url"])).hexdigest() == large_sha
+    assert len(restored["exports"]) == 3 and len({e["id"] for e in restored["exports"]}) == 3
+    assert request(path + "/exports" + QUERY, export_body, "media-interrupted-export", status=202)["id"] == interrupted["id"]
     checks.append("completed export, timeline, assets and idempotency survive actual process restart")
     (EVIDENCE / "acceptance.json").write_text(json.dumps({"checks": checks, "project_id": project["id"], "duration": expected_duration, "model_validation": False, "contract_responses": contract_count}, ensure_ascii=False, indent=2))
     print(json.dumps({"passed": checks, "evidence": str(EVIDENCE)}, ensure_ascii=False))
