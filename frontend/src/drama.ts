@@ -70,6 +70,7 @@ export const shotSizeLabels = {wide: '全景', medium: '中景', close_up: '特�
 export const cameraMovementLabels = {static: '固定', pan: '摇镜', track: '跟拍'} as const
 export interface StoryboardShot {
   scene_id?: string; purpose?: string; performance?: string; continuity?: string
+  angle?:string;composition?:string;axis?:string;eyeline?:string;blocking?:string;lighting?:string;sound?:string
   id: string; scene_index: number; description: string; shot_size: keyof typeof shotSizeLabels
   camera_movement: keyof typeof cameraMovementLabels; duration_seconds: number; dialogue: string
 }
@@ -90,10 +91,13 @@ export function storyboardDraftError(shots: StoryboardShot[]) {
     if (!/^[A-Za-z0-9_-]{1,40}$/.test(shot.id) || ids.has(shot.id)) return translate("{p0}标识无效或重复。", {p0: label})
     ids.add(shot.id)
     if (!Number.isInteger(shot.scene_index) || shot.scene_index < 0) return translate("{p0}场景引用需为非负整数。", {p0: label})
+    for(const field of ['purpose','performance','continuity','angle','composition','axis','eyeline','blocking','lighting','sound'] as const){
+      const error=fieldLengthError(shot[field]??'',0,1000,translate('导演说明'));if(error)return error
+    }
     const textError = fieldLengthError(shot.description, 1, 1000, translate("{p0}画面描述", {p0: label})) || fieldLengthError(shot.dialogue, 0, 2000, translate("{p0}对白", {p0: label}))
     if (textError) return textError
     if (!Object.hasOwn(shotSizeLabels, shot.shot_size) || !Object.hasOwn(cameraMovementLabels, shot.camera_movement)) return translate("{p0}景别或运镜无效。", {p0: label})
-    if (!Number.isInteger(shot.duration_seconds) || shot.duration_seconds < 1 || shot.duration_seconds > 60) return translate("{p0}时长需为 1–60 秒的整数。", {p0: label})
+    if (!Number.isSafeInteger(shot.duration_seconds) || shot.duration_seconds < 1) return translate("{p0}时长需为有效正整数。", {p0: label})
   }
   return ''
 }

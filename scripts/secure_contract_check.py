@@ -138,6 +138,19 @@ def main():
                 assert call(alice,'GET',use_path+query,use_route)['authorization']['status']=='revoked'
 
                 structure_project = call(alice, 'POST', '/api/v1/projects' + query, '/api/v1/projects', {'title': 'Stable identity scope', 'brief': 'An explicit metadata-only identity upgrade.'}, aq, status=201, key='secure-structure-project')
+                director_job_path = '/api/v1/projects/' + structure_project['id'] + '/creative-jobs'
+                director_job_route = '/api/v1/projects/{id}/creative-jobs'
+                director_job_body = dict(kind='image', expected_version=structure_project['version'], prompt='Synthetic detail permission fixture')
+                director_job = call(alice,'POST',director_job_path+query,director_job_route,director_job_body,aq,status=202,key='secure-director-job')
+                director_detail = director_job_path + '/' + director_job['id']
+                director_detail_route = director_job_route + '/{jobId}'
+                assert call(alice,'GET',director_detail+query,director_detail_route)['id'] == director_job['id']
+                assert 'runtime_selection' not in call(bob,'GET',director_detail+query,director_detail_route)
+                call(anonymous,'GET',director_detail+query,director_detail_route,status=401)
+                call(bob,'GET',director_detail+'?space_id='+other,director_detail_route,status=404)
+                call(alice,'POST',director_job_path+query,director_job_route,director_job_body,status=403,key='secure-director-csrf')
+                call(bob,'POST',director_job_path+query,director_job_route,dict(director_job_body,use_director_context=True),bq,status=403,key='secure-director-viewer')
+                call(alice,'POST',director_job_path+query,director_job_route,dict(director_job_body,director_context=dict(current={})),aq,status=400,key='secure-director-forged-source')
                 structure_path = '/api/v1/projects/' + structure_project['id'] + '/structure-upgrades'
                 structure_route = '/api/v1/projects/{id}/structure-upgrades'
                 structure_body = {'expected_version': structure_project['version']}
@@ -224,6 +237,7 @@ def main():
                 assert moved_directory['directory_changed'] and not moved_directory['current']
                 call(bob, 'PUT', budget + query, budget, {'currency': 'USD', 'limit_minor': 301, 'expected_limit_minor': 300}, bq, status=403)
                 call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'remove'}, aq)
+                call(bob,'GET',director_detail+query,director_detail_route,status=403)
                 call(bob, 'GET', task_path + query, task_route, status=403)
                 call(bob, 'GET', pinned_path + '/freshness' + query, fresh_route, status=403)
                 call(bob, 'GET', pinned_path + query, pinned_route, status=403)
@@ -372,7 +386,7 @@ def main():
                 call(alice, 'POST', variable_target + '/copies' + query, route + '/copies', dict(version_id=variable_saved['version']['id'], name='Copied recipe', visibility='private'), aq, status=201)
                 call(alice, 'POST', '/api/v1/auth/logout', '/api/v1/auth/logout', {}, aq)
                 assert call(alice, 'GET', session_route, session_route)['authenticated'] is False
-                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'library use declarations: CSRF, viewer, forged actor, original grant receipt and current revocation', 'read-only media lineage, exact uploaded bytes and current membership boundaries', 'explicit stable structure upgrade, CSRF and viewer refusal', 'episode copy preview, hidden target, viewer/CSRF refusal and revoked progress access', 'canonical story versions, immutable retrieval snapshots, current-source comparisons, original receipts, null-script safeguards and revoked access'], 'live_provider_calls': 0}))
+                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'library use declarations: CSRF, viewer, forged actor, original grant receipt and current revocation', 'read-only media lineage, exact uploaded bytes and current membership boundaries', 'explicit stable structure upgrade, CSRF and viewer refusal', 'episode copy preview, hidden target, viewer/CSRF refusal and revoked progress access', 'canonical story versions, immutable retrieval snapshots, current-source comparisons, original receipts, null-script safeguards and revoked access', 'on-demand director detail: current membership, viewer reads, forbidden writes, CSRF, source forgery and revoked access'], 'live_provider_calls': 0}))
             finally:
                 process.terminate()
                 process.wait(timeout=15)

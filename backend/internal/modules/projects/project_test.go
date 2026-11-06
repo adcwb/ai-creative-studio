@@ -65,3 +65,25 @@ func TestScriptCountsAreNotProjectQuotas(t *testing.T) {
 		t.Fatal("count removal weakened speaker integrity")
 	}
 }
+
+func TestDirectorIntentsSurviveStrictStoryboardNormalization(t *testing.T) {
+	shot := projects.StoryboardShot{ID: "directed", Description: "门框中的人物", ShotSize: "medium", CameraMovement: "static", DurationSeconds: 121, Dialogue: "", Angle: " 低机位 ", Composition: "右侧留白", Axis: "保持门内门外轴线", Eyeline: "看向画右", Blocking: "停顿后推门", Lighting: "青灰夜色", Sound: "雨声中停顿"}
+	raw, e := json.Marshal(shot)
+	if e != nil {
+		t.Fatal(e)
+	}
+	var decoded projects.StoryboardShot
+	if e = json.Unmarshal(raw, &decoded); e != nil {
+		t.Fatal(e)
+	}
+	got, e := projects.NormalizeStoryboardShots([]projects.StoryboardShot{decoded})
+	if e != nil || got[0].Angle != "低机位" || got[0].Sound != shot.Sound || got[0].DurationSeconds != 121 || shot.Angle != " 低机位 " {
+		t.Fatal("authored intent lost or caller mutated", got, e)
+	}
+	for i := 0; i < 1001; i++ {
+		shot.Blocking += "动"
+	}
+	if _, e = projects.NormalizeStoryboardShots([]projects.StoryboardShot{shot}); e == nil {
+		t.Fatal("oversized authored field accepted")
+	}
+}

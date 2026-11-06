@@ -1,6 +1,6 @@
 # 自定义提示词与长篇漫剧实施计划
 
-创建：2026-11-04；修订26：2026-11-06。状态：Implementing，**P0A首批实现已开始，任务未全部完成**。已fetch核对代码基线与origin/master均为`9e687c584632fdc98628c42592ff3df2ff0304cb`。用户已授权按阶段实施；按最新授权，全部规格实施且验证完成后推送GitHub并跟进CI；完成前只做本地阶段提交，不部署。
+创建：2026-11-04；修订27：2026-11-06。状态：Implementing，**P0A首批实现已开始，任务未全部完成**。已fetch核对代码基线与origin/master均为`9e687c584632fdc98628c42592ff3df2ff0304cb`。用户已授权按阶段实施；按最新授权，全部规格实施且验证完成后推送GitHub并跟进CI；完成前只做本地阶段提交，不部署。
 
 规格：[入口](../specs/2026-11-04-creative-series/README.md) · [需求](../specs/2026-11-04-creative-series/requirements.md) · [设计](../specs/2026-11-04-creative-series/design.md) · [验收](../specs/2026-11-04-creative-series/acceptance.md)。以下目标路径是拟定实施位置；已存在的文件按最小改动扩展，不要求一次重写所有模块。
 
@@ -84,6 +84,8 @@ flowchart LR
 ## P4：导演、可恢复制作与返修
 
 - [ ] **T41** 逐项导演意图/能力支持矩阵、静帧动态分镜、候选与前后镜头对照；扩展现有制作工作台。目标：projects/media、`ProductionBoard.tsx`、`ProjectStoryboard.tsx`、现有FFmpeg路径。依赖：T23、T34；验收 AC-S07–AC-S08。退出：明确预演身份、声音来源和能力边界，不承诺自动锁脸。
+- [x] **T41A** 导演意图字段、实际适配器逐项支持、固定本镜与同集邻镜的视觉上下文、历史详情及前后镜采用版对照；移除创作时长60秒门槛。实施与验证见[导演记录](../specs/2026-11-04-creative-series/director-implementation.md)，完整Go竞态、真实PG与离线往返、66项网关浏览器及HTTP合同通过；T41父项仍未勾选。
+- [ ] **T41B** 独立静帧预演、明确临时声音/静音、固定来源/检查点、预演身份和正式剪辑/成片隔离，补齐T41退出回归。依赖T41A；不能以页面图片比较代替实际预演。
 - [ ] **T42** 接入revisions纯规则的持久修订/分支/依赖，增加影响分类与明确选择的重做。目标：`modules/revisions`、series仓储与应用、项目历史/媒体保存协调。依赖：T32–T33；验收 AC-S06、AC-O03、AC-O06。退出：跨集资产改版不覆盖旧采用/封版，事务和CAS合同通过。
 - [ ] **T43** 实现productionruns有界DAG、原子attempt/queue/outbox、人工采纳gate、租约与非财务dispatch衔接；暂停/取消/unknown恢复。目标：`modules/productionruns`、`persistence/productionrunrepo`、`application/production_run_*`、现有jobqueue/worker与实际HTTP合同。依赖：T42、T34；验收 AC-O01–AC-O05。退出：多进程故障注入证明不盲目重复POST，无报价/预算代码路径。
 - [ ] **T44** 制作矩阵、批量范围/节点预览、返修状态、明确应用剪辑、封版清单/逐集导出和社交结果映射。目标：`features/series`、`ProductionBoard.tsx`、`ProjectMedia.tsx`、`ProjectPublish.tsx`、media/publishing应用。依赖：T41–T43；验收 AC-S08、AC-O04–AC-O06。退出：单人和协作都可完成，取消后结果/高优先级返修行为明示。
@@ -192,3 +194,7 @@ T32B–T32D已按[分集迁移实施记录](../specs/2026-11-04-creative-series/
 ## T34B/C阶段校准（2026-11-06）
 
 按[编剧上下文记录](../specs/2026-11-04-creative-series/writer-context-implementation.md)，季集正式节拍、固定资料与完整text请求、派发/原生计数后复核、证据原文、当前来源原子采纳已接入。首次起稿、不可变候选、明确确认/原回执、权限及文件/PG离线往返通过；移除30角色/100对白旧门槛。最终完整Go竞态、64项网关桌面手机浏览器及实际HTTP合同通过，T34B/C和父项T34按单集退出条件勾选。T41–T45、剩余P0A和T51–T53仍未完成，不提前推送。
+
+## T41A阶段校准（2026-11-06）
+
+导演意图、实际能力矩阵、固定同集镜头视觉资料和前后镜头对照已按[导演记录](../specs/2026-11-04-creative-series/director-implementation.md)完成。图像/视频真实合成HTTP、完整输入审核、声音/对白省略、121秒创作意图与8秒原生视频参数分离、历史与权限验证通过。完整Go竞态、文件/真实PG往返、66项网关浏览器、14项既有分镜/创作浏览器及619/177条HTTP合同通过。T41A勾选；独立静帧预演T41B、T41父项、T42–T45、剩余P0A和T51–T53仍未完成，不提前推送。

@@ -151,6 +151,7 @@ func (s *FileStore) withLibraryDispatchGuard(ctx context.Context, job *CreativeJ
 	}
 	ctx = context.WithValue(ctx, libraryRecoveryIdentityKey{}, libraryRecoveryIdentity{Provider: job.Provider, Model: job.Model, Upstream: func() string { return job.UpstreamID }})
 	ctx = context.WithValue(ctx, libraryOutputSourcesKey{}, uniqueLibrarySources(sources))
+	ctx = withDirectorContext(ctx, job)
 	ctx = context.WithValue(ctx, libraryInputContextKey{}, job.LibraryInputContext)
 	return context.WithValue(ctx, libraryDispatchKey{}, guard)
 }

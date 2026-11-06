@@ -9,6 +9,13 @@ import (
 )
 
 type StoryboardShot struct {
+	Angle           string `json:"angle,omitempty"`
+	Composition     string `json:"composition,omitempty"`
+	Axis            string `json:"axis,omitempty"`
+	Eyeline         string `json:"eyeline,omitempty"`
+	Blocking        string `json:"blocking,omitempty"`
+	Lighting        string `json:"lighting,omitempty"`
+	Sound           string `json:"sound,omitempty"`
 	SceneID         string `json:"scene_id,omitempty"`
 	Purpose         string `json:"purpose,omitempty"`
 	Performance     string `json:"performance,omitempty"`
@@ -88,7 +95,7 @@ func NormalizeStoryboardShots(shots []StoryboardShot) ([]StoryboardShot, error) 
 			return nil, InputError("场景引用需为非负整数，0表示独立镜头")
 		}
 		var err error
-		for _, field := range []*string{&shot.Purpose, &shot.Performance, &shot.Continuity} {
+		for _, field := range []*string{&shot.Purpose, &shot.Performance, &shot.Continuity, &shot.Angle, &shot.Composition, &shot.Axis, &shot.Eyeline, &shot.Blocking, &shot.Lighting, &shot.Sound} {
 			if *field, err = NormalizeText(*field, "导演说明", 0, 1000); err != nil {
 				return nil, err
 			}
@@ -99,8 +106,8 @@ func NormalizeStoryboardShots(shots []StoryboardShot) ([]StoryboardShot, error) 
 		if shot.Dialogue, err = NormalizeText(shot.Dialogue, "镜头对白", 0, 2000); err != nil {
 			return nil, err
 		}
-		if shot.DurationSeconds < 1 || shot.DurationSeconds > 60 {
-			return nil, InputError("镜头时长需为 1–60 秒")
+		if shot.DurationSeconds < 1 || shot.DurationSeconds > 9007199254740991 {
+			return nil, InputError("镜头时长需为有效正整数")
 		}
 		if shot.ShotSize != "wide" && shot.ShotSize != "medium" && shot.ShotSize != "close_up" {
 			return nil, InputError("景别无效")

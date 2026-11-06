@@ -435,7 +435,7 @@ def main():
                 assert ready["version"] == source["version"] + 1 and ready["script_version"] == 1 and not ready["storyboard_stale"]
                 assert ready["storyboard"]["source_script_version"] == 1 and ready["storyboard"]["shots"]
                 shots = copy.deepcopy(ready["storyboard"]["shots"])
-                shots[0].update(description="手工编辑后保留的镜头内容", duration_seconds=9, dialogue="", shot_size="close_up", camera_movement="pan")
+                shots[0].update(description="手工编辑后保留的镜头内容", duration_seconds=121, dialogue="", shot_size="close_up", camera_movement="pan", angle="低机位", composition="门框左侧留白", axis="保持轴线", eyeline="向右看", blocking="停顿后推门", lighting="青灰夜色", sound="仅保留声音意图")
                 save_body = {"expected_version": ready["version"], "shots": shots}
                 saved = project_call("PUT", suffix + "/storyboard", save_body, "board-save-first")
                 assert saved["storyboard"]["shots"] == shots and saved["script_version"] == 1 and not saved["storyboard_stale"]
@@ -443,7 +443,7 @@ def main():
                 assert project_call("PUT", suffix + "/storyboard", save_body, "board-save-stale", 409)["error"]["code"] == "version_conflict"
                 different = copy.deepcopy(save_body); different["shots"][0]["description"] = "同键不同内容"
                 assert project_call("PUT", suffix + "/storyboard", different, "board-save-first", 409)["error"]["code"] == "idempotency_conflict"
-                for index, change in enumerate([{"scene_index": -1}, {"scene_index": 4}, {"duration_seconds": 0}, {"duration_seconds": 61}, {"duration_seconds": 1.5}, {"shot_size": "other"}, {"camera_movement": "other"}, {"description": ""}, {"description": "长" * 1001}, {"dialogue": "长" * 2001}, {"dialogue": None}, {"id": "invalid id"}]):
+                for index, change in enumerate([{"scene_index": -1}, {"scene_index": 4}, {"duration_seconds": 0}, {"duration_seconds": 9007199254740992}, {"duration_seconds": 1.5}, {"shot_size": "other"}, {"camera_movement": "other"}, {"description": ""}, {"description": "长" * 1001}, {"dialogue": "长" * 2001}, {"dialogue": None}, {"id": "invalid id"}]):
                     invalid = copy.deepcopy(shots); invalid[0].update(change)
                     project_call("PUT", suffix + "/storyboard", {"expected_version": saved["version"], "shots": invalid}, f"board-invalid-shot-{index}", 400)
                 for index, invalid_shots in enumerate([[], [sample] * 121, [sample, sample], None]):

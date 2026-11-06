@@ -165,9 +165,10 @@ func registerCreativeControls(mux *http.ServeMux, s *FileStore) {
 		}
 		respond(w, 200, struct {
 			CreativeControls
+			DirectorControls      map[string]string   `json:"director_controls"`
 			LibraryInputs         map[string][]string `json:"library_inputs"`
 			LibraryReferenceLimit int                 `json:"library_reference_limit"`
-		}{controls, libraryInputModes(kind, inputProvider, reference), limit})
+		}{controls, directorSupport(kind, inputProvider, reference, controls), libraryInputModes(kind, inputProvider, reference), limit})
 	})
 }
 

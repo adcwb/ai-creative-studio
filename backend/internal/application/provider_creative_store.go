@@ -20,6 +20,7 @@ import (
 )
 
 type CreativeJobInput struct {
+	UseDirectorContext     bool                 `json:"use_director_context,omitempty"`
 	LibraryInputs          []libraryInputChoice `json:"library_inputs,omitempty"`
 	PromptSource           *promptSourceInput   `json:"prompt_source,omitempty"`
 	promptSnapshot         *prompts.Source
@@ -47,6 +48,9 @@ type CreativeJobInput struct {
 	Character             string `json:"character,omitempty"`
 }
 type CreativeJob struct {
+	DirectorContext        *DirectorSnapshot `json:"director_context,omitempty"`
+	DirectorSourceVersion  int               `json:"director_source_version,omitempty"`
+	DirectorSourceSHA256   string            `json:"director_source_sha256,omitempty"`
 	LibraryInputs          []libraryInputPin `json:"library_inputs,omitempty"`
 	LibraryInputContext    string            `json:"library_input_context,omitempty"`
 	LibraryMediaPins       []libraryMediaPin `json:"library_media_pins,omitempty"`
@@ -490,12 +494,23 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	if err != nil {
 		return CreativeJob{}, false, err
 	}
+	if in.UseDirectorContext && !visualLibrarySupported(in.Kind, caps.Provider) {
+		return CreativeJob{}, false, providerFailure("unsupported_capability")
+	}
+	director, err := prepareDirectorSnapshot(p, in)
+	if err != nil {
+		return CreativeJob{}, false, err
+	}
 	now := time.Now().UTC()
 	pins, err := s.pinCreativeLibraryMedia(context.WithValue(context.WithValue(context.Background(), lineageCreativeSnapshotKey{}, c.data), lineageCoreSnapshotKey{}, s.data.Projects), id, space, in)
 	if err != nil {
 		return CreativeJob{}, false, err
 	}
 	job := CreativeJob{LibraryMediaPins: pins, PromptSource: in.promptSnapshot, ImageParameters: in.ImageParameters, ReferenceAssetIDs: append([]string(nil), in.ReferenceAssetIDs...), FirstFrameAssetID: in.FirstFrameAssetID, LastFrameAssetID: in.LastFrameAssetID, MotionReferenceAssetID: in.MotionReferenceAssetID, TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), AudioAssetID: in.AudioAssetID, ComparisonAssetID: in.ComparisonAssetID, MaskAssetID: in.MaskAssetID, ReferenceAssetID: in.ReferenceAssetID, ID: jid, SpaceID: space, ProjectID: id, Kind: in.Kind, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Prompt: in.Prompt, ShotID: in.ShotID, Character: in.Character, Source: ProjectInput{Title: p.Title, Brief: p.Brief}, CreatedAt: now, UpdatedAt: now}
+	job.DirectorContext = director
+	if director != nil {
+		job.DirectorSourceVersion, job.DirectorSourceSHA256 = director.ProjectVersion, director.SHA256
+	}
 	job.AvatarID, job.VoiceConsentReference, job.VoiceConfirmed, job.AIGenerated = in.AvatarID, in.VoiceConsentReference, in.VoiceConfirmed, in.Kind == "digital_human"
 	job.LibraryInputs, job.LibraryInputContext = cloneLibraryInputPins(libraryPins), libraryContext
 	if in.Kind == "digital_human" {
@@ -532,6 +547,7 @@ func (s *FileStore) listCreativeJobs(space, id string) ([]CreativeJob, error) {
 			// potentially large compiled payload on every refresh. The worker and
 			// original POST receipt retain the exact immutable context.
 			j.LibraryInputContext = ""
+			j.DirectorContext = nil
 			jobs = append(jobs, j)
 		}
 	}
@@ -735,6 +751,9 @@ func (s *FileStore) executeCreativeJob(ctx context.Context, job *CreativeJob) er
 	return s.executeCreativeJobWith(ctx, job, nil)
 }
 func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob, managed *RuntimeProviders) error {
+	if e := validateDirectorSnapshot(job); e != nil {
+		return e
+	}
 	ctx = s.withLibraryDispatchGuard(ctx, job)
 	if job.UpstreamID == "" {
 		if err := checkLibraryDispatch(ctx); err != nil {
@@ -1147,6 +1166,7 @@ type asyncReferenceImageProvider interface {
 }
 
 func cloneCreativeJob(job CreativeJob) CreativeJob {
+	job.DirectorContext = cloneDirectorSnapshot(job.DirectorContext)
 	job.RuntimeSelection = cloneRuntimeSelection(job.RuntimeSelection)
 	job.LibraryInputs = cloneLibraryInputPins(job.LibraryInputs)
 	job.ReferenceAssetIDs = append([]string(nil), job.ReferenceAssetIDs...)

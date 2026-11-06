@@ -25971,6 +25971,149 @@
           }
         }
       }
+    },
+    "/api/v1/projects/{id}/creative-jobs/{jobId}": {
+      "get": {
+        "operationId": "getCreativeJob",
+        "summary": "Read the original candidate and fixed director source on demand",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；精确幂等重放不重复执行。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeJob"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Current project/space access required, including for accepted historical work. Lists omit full director context; this route returns immutable authored sources. Reading performs no model operation or timeline edit. Internal runtime selection remains hidden."
+      }
     }
   },
   "components": {
@@ -27415,7 +27558,8 @@
           "duration_seconds": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 60
+            "maximum": 9007199254740991,
+            "description": "Authored timing intent; not a native generation duration or per-shot quota. Provider native duration is separately configured and validated."
           },
           "dialogue": {
             "type": "string",
@@ -27439,6 +27583,41 @@
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]{1,64}$",
             "description": "结构版本2正scene_index对应source_scene_ids中的id；独立镜头scene_index=0省略。不匹配拒绝，禁止默默重绑到当前剧本。"
+          },
+          "angle": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Authored direction, not a guaranteed native camera or identity control."
+          },
+          "composition": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Authored direction, not a guaranteed native camera or identity control."
+          },
+          "axis": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Authored direction, not a guaranteed native camera or identity control."
+          },
+          "eyeline": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Authored direction, not a guaranteed native camera or identity control."
+          },
+          "blocking": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Authored direction, not a guaranteed native camera or identity control."
+          },
+          "lighting": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Authored direction, not a guaranteed native camera or identity control."
+          },
+          "sound": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Authored direction only; native capability is separately reported. Sound notes are retained but not sent in visual requests."
           }
         },
         "description": "镜头 ID 在计划内唯一；scene_index 为来源剧本场景数组的 1-based 序号，必须结合 source_script_version 理解，不能当作跨版本稳定场景 ID。",
@@ -28401,6 +28580,10 @@
             "items": {
               "$ref": "#/components/schemas/LibraryInputChoice"
             }
+          },
+          "use_director_context": {
+            "type": "boolean",
+            "description": "Explicitly pin the saved current shot and immediate neighbours for image/video visual prompt guidance. Requires current project CAS and a compatible real adapter. Sound/dialogue are omitted; later changes do not rewrite the fixed candidate source."
           }
         },
         "required": [
@@ -28568,6 +28751,17 @@
             "type": "string",
             "readOnly": true,
             "description": "Complete server-compiled authored visual context. Sent in addition to the original brief, reviewed before dispatch, and never silently truncated or appended to speech dialogue. Omitted from GET history/polling summaries; exact original POST receipts and server-side execution snapshots retain it."
+          },
+          "director_context": {
+            "$ref": "#/components/schemas/DirectorSnapshot"
+          },
+          "director_source_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "director_source_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
           }
         },
         "required": [
@@ -32153,6 +32347,19 @@
             "type": "integer",
             "minimum": 0,
             "description": "Actual single/multiple reference adapter capacity. Not a project asset quota."
+          },
+          "director_controls": {
+            "type": "object",
+            "description": "Actual selected adapter support. Authored text intentions are prompt_only, never exact native controls. An unresolved adapter reports unsupported.",
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "native",
+                "reference",
+                "prompt_only",
+                "unsupported"
+              ]
+            }
           }
         }
       },
@@ -38096,6 +38303,70 @@
           },
           "current": {
             "$ref": "#/components/schemas/StoryVersion"
+          }
+        }
+      },
+      "DirectorSnapshot": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "project_version",
+          "script_version",
+          "sha256",
+          "kind",
+          "current",
+          "omitted_fields"
+        ],
+        "properties": {
+          "project_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "script_version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "image",
+              "video"
+            ]
+          },
+          "current": {
+            "$ref": "#/components/schemas/StoryboardShot"
+          },
+          "previous": {
+            "$ref": "#/components/schemas/StoryboardShot"
+          },
+          "next": {
+            "$ref": "#/components/schemas/StoryboardShot"
+          },
+          "omitted_fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "sound",
+                "dialogue",
+                "duration_seconds"
+              ]
+            }
+          },
+          "omitted_neighbours": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "previous",
+                "next"
+              ]
+            },
+            "description": "An adjacent shot was omitted because its episode differs or cannot be established. No future episode body is sent."
           }
         }
       }

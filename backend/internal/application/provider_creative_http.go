@@ -22,6 +22,26 @@ func registerCreativeRoutes(mux *http.ServeMux, s *FileStore) {
 		}
 		respond(w, 200, jobs)
 	})
+	mux.HandleFunc("GET /api/v1/projects/{id}/creative-jobs/{jobId}", func(w http.ResponseWriter, r *http.Request) {
+		space, ok := spaceID(w, r)
+		if !ok {
+			return
+		}
+		if _, e := s.GetProject(space, r.PathValue("id")); e != nil {
+			storeError(w, e)
+			return
+		}
+		s.creative.mu.Lock()
+		job, ok := s.creative.data.Jobs[r.PathValue("jobId")]
+		job = cloneCreativeJob(job)
+		s.creative.mu.Unlock()
+		if !ok || job.SpaceID != space || job.ProjectID != r.PathValue("id") {
+			storeError(w, ErrNotFound)
+			return
+		}
+		job.RuntimeSelection = nil
+		respond(w, 200, job)
+	})
 	create := func(analysis bool) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			space, key, ok := projectWriteScope(w, r)

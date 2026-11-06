@@ -47,3 +47,5 @@
 [T34A编剧候选与明确采纳](superpowers/specs/2026-11-04-creative-series/writer-candidates-implementation.md)：生成保留正式稿，比较/编辑后明确采纳，原请求恢复和当前版本CAS；季集节拍、固定故事上下文及后续导演编排仍待实施。
 
 [T34B/C季集节拍与正式写作上下文](superpowers/specs/2026-11-04-creative-series/writer-context-implementation.md)：版本化计划、固定本集资料到真实text请求、来源变更检查与人工采纳；旧角色/对白数量门槛移除，64项桌面手机网关浏览器通过。T34完成，导演/制作编排和完整容量仍待实施。
+
+[T41A导演意图与固定镜头来源](superpowers/specs/2026-11-04-creative-series/director-implementation.md)：明确文字/原生/参考/不支持边界，固定本镜与同集邻镜到真实请求，保留声音意图并按需读历史，比较不改剪辑，阶段完整Go/PG与66项网关浏览器通过；完整静帧预演和制作DAG仍待实施。

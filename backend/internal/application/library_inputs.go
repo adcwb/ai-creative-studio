@@ -39,6 +39,7 @@ func cloneLibraryInputPins(in []libraryInputPin) []libraryInputPin {
 	return out
 }
 func appendLibraryInputContext(ctx context.Context, prompt string) string {
+	prompt = appendDirectorContext(ctx, prompt)
 	value, _ := ctx.Value(libraryInputContextKey{}).(string)
 	if value == "" {
 		return prompt
