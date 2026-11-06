@@ -159,7 +159,13 @@ func TestPostgresProductionRevisionOfflineRoundTrip(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	p, _, in := revisionFixture(t, s)
+	p, state, in := revisionFixture(t, s)
+	state.Timeline.Clips[0].AudioVolume = 1e-7
+	state, e = s.media.SaveTimeline(p.ID, p.SpaceID, "revision-numeric-source", state.Version, state.Timeline)
+	if e != nil {
+		t.Fatal(e)
+	}
+	in.ExpectedMediaVersion = state.Version
 	original, e := s.CaptureProductionRevision(ctx, p.SpaceID, p.ID, "main", "owner", "revision-offline-original", in, nil)
 	if e != nil {
 		t.Fatal(e)

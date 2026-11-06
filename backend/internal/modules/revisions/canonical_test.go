@@ -39,3 +39,21 @@ func TestCanonicalJSONBAndUnboundedReferenceHistory(t *testing.T) {
 		t.Fatal("duplicate reference accepted")
 	}
 }
+
+func TestCanonicalJSONBNumericRepresentations(t *testing.T) {
+	m := revisions.Manifest{Brief: json.RawMessage(`{}`), Script: json.RawMessage(`null`), Storyboard: json.RawMessage(`null`), Timeline: json.RawMessage(`{"volume":1e-7,"offset":-0.0,"large":9007199254740993}`), Poster: json.RawMessage(`null`)}
+	a, e := revisions.Digest(m)
+	if e != nil {
+		t.Fatal(e)
+	}
+	m.Timeline = json.RawMessage(`{"offset":0,"large":9007199254740993.0,"volume":0.0000001}`)
+	b, e := revisions.Digest(m)
+	if e != nil || a != b {
+		t.Fatal("JSONB numeric representation changed source identity", e)
+	}
+	m.Timeline = json.RawMessage(`{"offset":0,"large":9007199254740992,"volume":0.0000001}`)
+	c, e := revisions.Digest(m)
+	if e != nil || c == a {
+		t.Fatal("distinct integers lost precision", e)
+	}
+}

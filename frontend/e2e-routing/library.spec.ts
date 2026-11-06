@@ -11,7 +11,7 @@ test('library keeps historical cards when a new version is saved and archived', 
   await page.getByRole('button', {name: '建立资产卡', exact: true}).click()
   await page.getByLabel('资产名称', {exact: true}).fill('钟楼修理师')
   await page.getByLabel('发型', {exact: true}).fill('黑色短发')
-  await page.getByLabel('禁止变化项（每行一项，最多 20 项）').fill('左侧袖口的铜扣')
+  await page.getByRole('textbox', {name: '禁止变化项（每行一项）', exact: true}).fill('左侧袖口的铜扣')
   await page.getByRole('button', {name: '创建资产卡', exact: true}).click()
   await expect(page.getByRole('heading', {name: '钟楼修理师 · 版本 1'})).toBeVisible()
   await page.screenshot({path: testInfo.outputPath('library.png'), fullPage: true})

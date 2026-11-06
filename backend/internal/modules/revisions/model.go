@@ -106,7 +106,7 @@ func Digest(m Manifest) (string, error) {
 	if err = d.Decode(&v); err != nil {
 		return "", err
 	}
-	b, err = json.Marshal(v)
+	b, err = json.Marshal(canonicalNumbers(v))
 	if err != nil {
 		return "", err
 	}
