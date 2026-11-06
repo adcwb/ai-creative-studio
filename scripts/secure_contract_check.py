@@ -53,11 +53,11 @@ def main():
         def client():
             return urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         alice, bob, anonymous = client(), client(), client()
-        def call(opener, method, path, route, body=None, csrf='', status=200, key='secure-contract-operation', binary=None):
+        def call(opener, method, path, route, body=None, csrf='', status=200, key='secure-contract-operation', binary=None, binary_mime='application/octet-stream'):
             nonlocal count
             headers = {'Content-Type': 'application/json', 'Origin': origin, 'X-CSRF-Token': csrf, 'Idempotency-Key': key}
             if binary is not None:
-                headers['Content-Type'] = 'application/octet-stream'
+                headers['Content-Type'] = binary_mime
                 headers['X-Chunk-SHA256'] = hashlib.sha256(binary).hexdigest()
             request = urllib.request.Request(origin + path, method=method, headers=headers, data=binary if binary is not None else None if body is None else json.dumps(body).encode())
             try:
@@ -117,6 +117,54 @@ def main():
                 call(alice, 'GET', member, member_route)
                 call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'viewer'}, aq)
                 call(bob, 'GET', governance + query, governance)
+                preview_project = call(alice,'POST','/api/v1/projects'+query,'/api/v1/projects',dict(title='Independent animatic',brief='Local rendering only, no model required.'),aq,status=201,key='secure-preview-project')
+                preview_project_path = '/api/v1/projects/' + preview_project['id']
+                preview_shot = dict(id='preview-one',scene_index=0,description='Saved independent shot',shot_size='medium',camera_movement='static',duration_seconds=1,dialogue='PRIVATE_PREVIEW_DIALOGUE',sound='PRIVATE_PREVIEW_SOUND')
+                preview_project = call(alice,'PUT',preview_project_path+'/storyboard'+query,'/api/v1/projects/{id}/storyboard',dict(expected_version=preview_project['version'],shots=[preview_shot]),aq,key='secure-preview-board')
+                def preview_chunk(tag,data):
+                    payload=tag+data
+                    return struct.pack('>I',len(data))+payload+struct.pack('>I',zlib.crc32(payload)&0xffffffff)
+                preview_png=b'\x89PNG\r\n\x1a\n'+preview_chunk(b'IHDR',struct.pack('>IIBBBBB',32,32,8,2,0,0,0))+preview_chunk(b'IDAT',zlib.compress((b'\x00'+b'\x33\x77\x55'*32)*32))+preview_chunk(b'IEND',b'')
+                preview_upload=call(alice,'POST',preview_project_path+'/media/uploads'+query+'&filename=frame.png&role=shot&shot_id=preview-one','/api/v1/projects/{id}/media/uploads',csrf=aq,key='secure-preview-upload',binary=preview_png,binary_mime='image/png')
+                animatic_path=preview_project_path+'/media/previews'
+                animatic_route='/api/v1/projects/{id}/media/previews'
+                preview_options=call(alice,'GET',animatic_path+'/options'+query,animatic_route+'/options')
+                assert 'script' not in preview_options['project'] and 'exports' not in preview_options['media'] and preview_options['shot_episodes']['preview-one']==0
+                call(bob,'GET',animatic_path+'/options'+query,animatic_route+'/options')
+                preview_body=dict(expected_project_version=preview_project['version'],expected_media_version=preview_upload['version'],episode_number=1,aspect_ratio='16:9',sound_mode='silent',shots=[dict(shot_id='preview-one',asset_id=preview_upload['uploaded_asset_id'],duration=.5)])
+                call(anonymous,'POST',animatic_path+query,animatic_route,preview_body,status=401,key='preview-anonymous')
+                call(alice,'POST',animatic_path+query,animatic_route,preview_body,status=403,key='preview-csrf')
+                call(bob,'POST',animatic_path+query,animatic_route,preview_body,bq,status=403,key='preview-viewer')
+                call(alice,'POST',animatic_path+query,animatic_route,dict(preview_body,preview_source={}),aq,status=400,key='preview-forged-source')
+                call(alice,'POST',animatic_path+query,animatic_route,dict(preview_body,expected_project_version=0),aq,status=400,key='preview-invalid-version')
+                preview_export=call(alice,'POST',animatic_path+query,animatic_route,preview_body,aq,status=202,key='preview-original')
+                assert preview_export['purpose']=='animatic' and preview_export['timeline']['subtitle_mode']=='burn' and 'ANIMATIC' in preview_export['timeline']['clips'][0]['subtitle']
+                original_preview_source=preview_export['preview_source']
+                preview_detail_path=animatic_path+'/'+preview_export['id']
+                preview_detail_route=animatic_route+'/{preview_id}'
+                assert call(bob,'GET',preview_detail_path+query,preview_detail_route)['preview_source']==original_preview_source
+                call(bob,'GET',preview_detail_path+'?space_id='+other,preview_detail_route,status=404)
+                call(anonymous,'GET',preview_detail_path+query,preview_detail_route,status=401)
+                for action in ['cancel','resume']:
+                    call(bob,'POST',preview_detail_path+'/'+action+query,preview_detail_route+'/'+action,{},bq,status=403,key='preview-viewer-'+action)
+                    call(alice,'POST',preview_detail_path+'/'+action+query,preview_detail_route+'/'+action,{},status=403,key='preview-csrf-'+action)
+                changed_preview_shot=dict(preview_shot,description='Later current plan')
+                later_preview_project=call(alice,'PUT',preview_project_path+'/storyboard'+query,'/api/v1/projects/{id}/storyboard',dict(expected_version=preview_project['version'],shots=[changed_preview_shot]),aq,key='preview-later-plan')
+                replay_preview=call(alice,'POST',animatic_path+query,animatic_route,preview_body,aq,status=202,key='preview-original')
+                assert replay_preview['id']==preview_export['id'] and replay_preview['preview_source']==original_preview_source
+                call(alice,'POST',animatic_path+query,animatic_route,preview_body,aq,status=409,key='preview-stale-source')
+                for _ in range(100):
+                    preview_done=call(alice,'GET',preview_detail_path+query,preview_detail_route)
+                    if preview_done['status'] in ['succeeded','failed']:
+                        break
+                    time.sleep(.1)
+                assert preview_done['status']=='succeeded',preview_done
+                preview_page=call(alice,'GET',animatic_path+query+'&limit=1',animatic_route)
+                assert len(preview_page['items'])==1 and 'preview_source' not in preview_page['items'][0] and 'PRIVATE_PREVIEW' not in json.dumps(preview_page)
+                preview_media=call(alice,'GET',preview_project_path+'/media'+query,'/api/v1/projects/{id}/media')
+                assert preview_media['version']==preview_upload['version'] and preview_media['timeline']['clips']==[] and not preview_media.get('selections')
+                denied_delivery=call(alice,'POST',preview_project_path+'/social/jobs'+query,'/api/v1/projects/{id}/social/jobs',dict(expected_version=preview_media['version'],platform='tiktok',mode='export',export_id=preview_export['id'],confirmed=True),aq,status=400,key='preview-not-publishable')
+                assert '预演' in denied_delivery['error']['message']
                 library_route = '/api/v1/library/assets'
                 asset = call(alice, 'POST', library_route + query, library_route, dict(kind='style',card=dict(name='Synthetic style',description='',prohibited_changes=[],style={}),references=[]), aq, status=201, key='secure-library-authorization-card')
                 use_path = library_route + '/' + asset['asset']['id'] + '/use-authorization'
@@ -238,6 +286,9 @@ def main():
                 call(bob, 'PUT', budget + query, budget, {'currency': 'USD', 'limit_minor': 301, 'expected_limit_minor': 300}, bq, status=403)
                 call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'remove'}, aq)
                 call(bob,'GET',director_detail+query,director_detail_route,status=403)
+                call(bob,'GET',preview_detail_path+query,preview_detail_route,status=403)
+                call(bob,'GET',animatic_path+'/options'+query,animatic_route+'/options',status=403)
+                call(bob,'GET',preview_done['file_url'],'/api/v1/projects/{id}/media/exports/{export_id}/file',status=403)
                 call(bob, 'GET', task_path + query, task_route, status=403)
                 call(bob, 'GET', pinned_path + '/freshness' + query, fresh_route, status=403)
                 call(bob, 'GET', pinned_path + query, pinned_route, status=403)
@@ -386,7 +437,7 @@ def main():
                 call(alice, 'POST', variable_target + '/copies' + query, route + '/copies', dict(version_id=variable_saved['version']['id'], name='Copied recipe', visibility='private'), aq, status=201)
                 call(alice, 'POST', '/api/v1/auth/logout', '/api/v1/auth/logout', {}, aq)
                 assert call(alice, 'GET', session_route, session_route)['authenticated'] is False
-                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'library use declarations: CSRF, viewer, forged actor, original grant receipt and current revocation', 'read-only media lineage, exact uploaded bytes and current membership boundaries', 'explicit stable structure upgrade, CSRF and viewer refusal', 'episode copy preview, hidden target, viewer/CSRF refusal and revoked progress access', 'canonical story versions, immutable retrieval snapshots, current-source comparisons, original receipts, null-script safeguards and revoked access', 'on-demand director detail: current membership, viewer reads, forbidden writes, CSRF, source forgery and revoked access'], 'live_provider_calls': 0}))
+                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'library use declarations: CSRF, viewer, forged actor, original grant receipt and current revocation', 'read-only media lineage, exact uploaded bytes and current membership boundaries', 'explicit stable structure upgrade, CSRF and viewer refusal', 'episode copy preview, hidden target, viewer/CSRF refusal and revoked progress access', 'canonical story versions, immutable retrieval snapshots, current-source comparisons, original receipts, null-script safeguards and revoked access', 'on-demand director detail: current membership, viewer reads, forbidden writes, CSRF, source forgery and revoked access', 'independent animatic: source options, byte-pinned render, original receipt after plan changes, silent watermark, unchanged edit, publishing refusal and revoked downloads'], 'live_provider_calls': 0}))
             finally:
                 process.terminate()
                 process.wait(timeout=15)

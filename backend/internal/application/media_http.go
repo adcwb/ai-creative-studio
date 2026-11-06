@@ -64,6 +64,7 @@ func registerMediaRoutes(mux *http.ServeMux, s *FileStore) {
 		return space, key, true
 	}
 	base := "/api/v1/projects/{id}/media"
+	registerMediaPreviewRoutes(mux, s, scope)
 	mux.HandleFunc("GET "+base+"/review-members", func(w http.ResponseWriter, r *http.Request) {
 		if _, _, ok := scope(w, r, false); !ok {
 			return
@@ -305,6 +306,11 @@ func registerMediaRoutes(mux *http.ServeMux, s *FileStore) {
 					return
 				}
 				mime = "text/vtt; charset=utf-8"
+			}
+			if export && !subtitles && r.URL.Query().Get("download") == "1" {
+				if preview, err := m.preview(r.PathValue("id"), space, id); err == nil && preview.Purpose == "animatic" {
+					w.Header().Set("Content-Disposition", "attachment; filename=animatic-"+id+".mp4")
+				}
 			}
 			w.Header().Set("Content-Type", mime)
 			w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")

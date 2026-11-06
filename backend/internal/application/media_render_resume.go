@@ -30,7 +30,7 @@ func (m *MediaStore) ResumeExport(project, space, key, id string) (MediaExport, 
 			continue
 		}
 		if replay {
-			return *current, nil
+			return cloneMediaExport(*current), nil
 		}
 		if current.RenderVersion != 1 {
 			return MediaExport{}, mediaInvalid("这次导出不能继续，请重新导出")
@@ -78,7 +78,7 @@ func (m *MediaStore) ResumeExport(project, space, key, id string) (MediaExport, 
 			delete(m.cancels, id)
 			m.scheduleExportLocked(space, project, p, *current)
 		}
-		return *current, nil
+		return cloneMediaExport(*current), nil
 	}
 	return MediaExport{}, ErrNotFound
 }

@@ -20,7 +20,7 @@ export function readSeriesRecovery(actor:string,space:string,identity:string,pat
  const p=readPending(`studio.series.pending:${actor}:${space}:${identity}`,path,method)
  return p?JSON.parse(p.body) as Record<string,unknown>:null
 }
-export function useSeriesWrite<T extends {id:string}=SeriesEntry>(identity:string,path:string,method:string,onSaved:(n:T)=>void){
+export function useSeriesWrite<T extends {id:string}=SeriesEntry>(identity:string,path:string,method:string,onSaved:(n:T)=>void,definiteRejection?:(reason:unknown)=>boolean){
  const {space,session}=useAppWorkspace()
  const storageKey=`studio.series.pending:${session.user?.id??'demo-user'}:${space!.id}:${identity}`
  const [recovery]=useState(()=>readPending(storageKey,path,method))
@@ -46,7 +46,7 @@ export function useSeriesWrite<T extends {id:string}=SeriesEntry>(identity:strin
    if(alive.current){setDirty(false);setUncertain(false);setSaved(n)}
   }catch(reason){
    // A rejected retry cannot prove that the earlier ambiguous attempt was never accepted.
-   const definite=reason instanceof ApiError&&reason.status<500&&!uncertain
+   const definite=reason instanceof ApiError&&reason.status<500&&(!uncertain||Boolean(definiteRejection?.(reason)))
    if(definite){memoryPending.delete(storageKey);pending.current=null;try{sessionStorage.removeItem(storageKey)}catch{/* No accepted request to restore. */}}
    if(alive.current){setUncertain(!definite);setError(errorMessage(reason,translate('保存结果尚未确认，请在本页重试核对。')))}
   }finally{flight.current=false;if(alive.current)setBusy(false)}

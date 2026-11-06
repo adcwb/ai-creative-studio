@@ -34,16 +34,18 @@ type renderScope struct {
 }
 type renderScopeKey struct{}
 type renderManifest struct {
-	Version       int              `json:"version"`
-	SegmentFrames int64            `json:"segment_frames"`
-	Space         string           `json:"space"`
-	Project       string           `json:"project"`
-	Export        string           `json:"export"`
-	Engine        string           `json:"engine"`
-	Encoder       string           `json:"encoder"`
-	Timeline      MediaTimeline    `json:"timeline"`
-	Plan          media.RenderPlan `json:"plan"`
-	Sources       []BlobInfo       `json:"sources"`
+	Purpose             string           `json:"purpose,omitempty"`
+	PreviewSourceSHA256 string           `json:"preview_source_sha256,omitempty"`
+	Version             int              `json:"version"`
+	SegmentFrames       int64            `json:"segment_frames"`
+	Space               string           `json:"space"`
+	Project             string           `json:"project"`
+	Export              string           `json:"export"`
+	Engine              string           `json:"engine"`
+	Encoder             string           `json:"encoder"`
+	Timeline            MediaTimeline    `json:"timeline"`
+	Plan                media.RenderPlan `json:"plan"`
+	Sources             []BlobInfo       `json:"sources"`
 }
 type renderArtifact struct {
 	State    string   `json:"state"`
@@ -135,6 +137,9 @@ func renderInputIDs(t MediaTimeline) []string {
 	return out
 }
 func (m *MediaStore) withRenderSession(ctx context.Context, p MediaState, e MediaExport, fn func(*renderSession) error) error {
+	if err := validatePreviewExport(e); err != nil {
+		return err
+	}
 	if !mediaFileID(e.ID) {
 		return ErrBlobIntegrity
 	}
@@ -160,7 +165,10 @@ func (m *MediaStore) withRenderSession(ctx context.Context, p MediaState, e Medi
 	if err != nil {
 		return err
 	}
-	v := renderManifest{Version: 1, SegmentFrames: segmentFrames, Space: scope.Space, Project: scope.Project, Export: e.ID, Engine: renderEngine, Encoder: encoder, Timeline: e.Timeline, Plan: plan, Sources: []BlobInfo{}}
+	v := renderManifest{Purpose: e.Purpose, Version: 1, SegmentFrames: segmentFrames, Space: scope.Space, Project: scope.Project, Export: e.ID, Engine: renderEngine, Encoder: encoder, Timeline: e.Timeline, Plan: plan, Sources: []BlobInfo{}}
+	if e.PreviewSource != nil {
+		v.PreviewSourceSHA256 = e.PreviewSource.SHA256
+	}
 	for _, id := range renderInputIDs(e.Timeline) {
 		if _, ok := mediaAsset(p, id); !ok {
 			return ErrNotFound
@@ -181,6 +189,9 @@ func (m *MediaStore) withRenderSession(ctx context.Context, p MediaState, e Medi
 			if expected != info {
 				return ErrBlobIntegrity
 			}
+		}
+		if e.PreviewSource != nil && !previewAssetMatches(e.PreviewSource, id, info) {
+			return errRenderInputsChanged
 		}
 		v.Sources = append(v.Sources, info)
 	}

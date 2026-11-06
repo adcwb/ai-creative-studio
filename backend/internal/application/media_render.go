@@ -165,6 +165,17 @@ func (m *MediaStore) StartEpisodeExport(project, space, key string, version, epi
 	if p.Version != version {
 		return MediaExport{}, errMediaVersion
 	}
+	parent := ""
+	if len(traceParents) == 1 {
+		parent = traceParents[0]
+	}
+	return m.enqueueExportLocked(d, p, project, space, key, digest, episode, selected, "", nil, parent, nil)
+}
+
+// Caller holds media.mu. Both formal exports and explicit animatics use the same
+// durable queue, checkpoints, byte validation and single atomic receipt commit.
+func (m *MediaStore) enqueueExportLocked(d mediaDisk, p MediaState, project, space, key, digest string, episode int, selected MediaTimeline, purpose string, source *media.AnimaticSource, traceParent string, authorize func() bool) (MediaExport, error) {
+	k := mediaKey(space, project)
 	if err := validateTimeline(p, selected); err != nil {
 		return MediaExport{}, err
 	}
@@ -195,8 +206,8 @@ func (m *MediaStore) StartEpisodeExport(project, space, key string, version, epi
 		}
 	}
 	parent := ""
-	if len(traceParents) == 1 && tracing.ValidParent(traceParents[0]) {
-		parent = traceParents[0]
+	if tracing.ValidParent(traceParent) {
+		parent = traceParent
 	}
 	var seriesSnapshot *media.SeriesEpisodeSnapshot
 	if m.seriesSnapshot != nil {
@@ -206,7 +217,10 @@ func (m *MediaStore) StartEpisodeExport(project, space, key string, version, epi
 			return MediaExport{}, err
 		}
 	}
-	e := MediaExport{SeriesEpisode: seriesSnapshot, RenderVersion: 1, EpisodeNumber: episode, TraceParent: parent, ID: mediaID(), Status: "queued", Timeline: selected}
+	e := MediaExport{Purpose: purpose, PreviewSource: source, SeriesEpisode: seriesSnapshot, RenderVersion: 1, EpisodeNumber: episode, TraceParent: parent, ID: mediaID(), Status: "queued", Timeline: selected}
+	if err := validatePreviewExport(e); err != nil {
+		return MediaExport{}, err
+	}
 	plan, err := media.CompileRenderPlan(e.Timeline)
 	if err != nil {
 		return MediaExport{}, err
@@ -222,14 +236,17 @@ func (m *MediaStore) StartEpisodeExport(project, space, key string, version, epi
 		}
 		defer func() { m.pg.beforeCommit = nil }()
 	}
+	if authorize != nil && !authorize() {
+		return MediaExport{}, errRuntimeDenied
+	}
 	if err := m.commit(d); err != nil {
 		return MediaExport{}, err
 	}
 	if m.pg != nil {
-		return e, nil
+		return cloneMediaExport(e), nil
 	}
 	m.scheduleExportLocked(space, project, p, e)
-	return e, nil
+	return cloneMediaExport(e), nil
 }
 
 func (m *MediaStore) scheduleExportLocked(space, project string, p MediaState, e MediaExport) {
@@ -348,7 +365,7 @@ func (m *MediaStore) CancelExport(project, space, key, id string) (MediaExport, 
 			continue
 		}
 		if replay {
-			return *e, nil
+			return cloneMediaExport(*e), nil
 		}
 		if e.Status == "running" || e.Status == "queued" {
 			if m.pg != nil {
@@ -369,7 +386,7 @@ func (m *MediaStore) CancelExport(project, space, key, id string) (MediaExport, 
 		if cancel := m.cancels[id]; cancel != nil {
 			cancel()
 		}
-		return *e, nil
+		return cloneMediaExport(*e), nil
 	}
 	return MediaExport{}, ErrNotFound
 }

@@ -4,7 +4,7 @@ import social from './locales/social'
 
 describe('social delivery safety', () => {
   it('only offers images, videos and succeeded exports', () => {
-    expect(socialSources({assets: [{id: 'i', kind: 'image', name: 'Picture', mime_type: 'image/png'}, {id: 'v', kind: 'video', name: 'Video', mime_type: 'video/mp4'}, {id: 'a', kind: 'audio', name: 'Audio', mime_type: 'audio/wav'}], exports: [{id: 'done', status: 'succeeded'}, {id: 'wait', status: 'running'}, {id: 'failed', status: 'failed'}]}).map(item => item.id)).toEqual(['i', 'v', 'done'])
+    expect(socialSources({assets: [{id: 'i', kind: 'image', name: 'Picture', mime_type: 'image/png'}, {id: 'v', kind: 'video', name: 'Video', mime_type: 'video/mp4'}, {id: 'a', kind: 'audio', name: 'Audio', mime_type: 'audio/wav'}], exports: [{id:'animatic',status:'succeeded',purpose:'animatic'},{id:'unknown-artifact',status:'succeeded',purpose:'future-preview'},{id: 'done', status: 'succeeded'}, {id: 'wait', status: 'running'}, {id: 'failed', status: 'failed'}]}).map(item => item.id)).toEqual(['i', 'v', 'done'])
   })
   it('keeps the external season and episode captured by the completed export',()=>{
     const [source]=socialSources({assets:[],exports:[{id:'series-export',status:'succeeded',episode_number:1,series_episode:{season_ordinal:3,ordinal:7}}]})

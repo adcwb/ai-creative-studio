@@ -18,7 +18,8 @@ func TestBusinessModuleDependencies(t *testing.T) {
 		"projects": {"governance": true},
 		// A continuity snapshot pins one pure script value, never application state.
 		"story": {"projects": true, "governance": true},
-		"media": {"publishing": true, "prompts": true},
+		// An animatic pins pure storyboard values, never project execution state.
+		"media": {"publishing": true, "prompts": true, "projects": true},
 		// Migration compiles source value snapshots with the same pure script,
 		// timeline and directory validation as normal editing. I/O and task
 		// recovery remain in application and persistence, under the rules below.

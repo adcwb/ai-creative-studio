@@ -42,6 +42,9 @@ func socialSource(p MediaState, space, project string, in SocialCreate) (string,
 	}
 	for _, e := range p.Exports {
 		if e.ID == in.ExportID && e.Status == "succeeded" {
+			if e.Purpose != "" {
+				return "", "", mediaInvalid("预演不能作为正式成片发布，请从正式剪辑创建成片")
+			}
 			return mediaURL(space, project, "exports/"+e.ID+"/file"), "video/mp4", nil
 		}
 	}

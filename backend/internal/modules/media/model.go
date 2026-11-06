@@ -100,6 +100,8 @@ type SeriesEpisodeSnapshot struct {
 	ProjectLocalEpisode int    `json:"project_local_episode"`
 }
 type MediaExport struct {
+	Purpose         string                 `json:"purpose,omitempty"`
+	PreviewSource   *AnimaticSource        `json:"preview_source,omitempty"`
 	SeriesEpisode   *SeriesEpisodeSnapshot `json:"series_episode,omitempty"`
 	RenderProgress  *RenderProgress        `json:"render_progress,omitempty"`
 	ResumeAvailable bool                   `json:"resume_available,omitempty"`
