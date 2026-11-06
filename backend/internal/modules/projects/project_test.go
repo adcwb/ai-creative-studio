@@ -3,6 +3,7 @@ package projects_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/projects"
@@ -45,5 +46,22 @@ func TestStoryboardRequiresExplicitDialogue(t *testing.T) {
 	}
 	if _, err := projects.NormalizeStoryboardShots([]projects.StoryboardShot{shot, shot}); !errors.Is(err, projects.ErrInvalidProjectInput) {
 		t.Fatalf("duplicate shot identity accepted: %v", err)
+	}
+}
+
+func TestScriptCountsAreNotProjectQuotas(t *testing.T) {
+	input := scriptFixture()
+	for i := 0; i < 35; i++ {
+		input.Characters = append(input.Characters, projects.ScriptCharacter{Name: fmt.Sprintf("角色%d", i), Description: "合成角色说明"})
+	}
+	for range 140 {
+		input.Scenes[0].Dialogue = append(input.Scenes[0].Dialogue, projects.ScriptDialogue{Character: "甲", Text: "保持有效角色关联的对白"})
+	}
+	if _, e := projects.NormalizeScript(input); e != nil {
+		t.Fatal("valid authored counts rejected", e)
+	}
+	input.Scenes[0].Dialogue[len(input.Scenes[0].Dialogue)-1].Character = "没有声明的角色"
+	if _, e := projects.NormalizeScript(input); e == nil {
+		t.Fatal("count removal weakened speaker integrity")
 	}
 }

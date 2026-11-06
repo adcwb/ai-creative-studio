@@ -38,6 +38,8 @@ type ScriptDialogue struct {
 }
 
 type ScriptGeneration struct {
+	ContextID             string            `json:"context_snapshot_id,omitempty"`
+	ContextSHA256         string            `json:"context_sha256,omitempty"`
 	CandidateOnly         bool              `json:"candidate_only,omitempty"`
 	Candidate             *Script           `json:"candidate,omitempty"`
 	SourceScript          *Script           `json:"source_script,omitempty"`
@@ -66,14 +68,15 @@ type ScriptGeneration struct {
 // A candidate remains immutable after adoption. This receipt describes the
 // creator's explicit decision; it never grants permission to execute a model.
 type ScriptAdoption struct {
-	Actor          string    `json:"actor"`
-	GenerationID   string    `json:"generation_id"`
-	ProjectVersion int       `json:"project_version"`
-	ScriptVersion  int       `json:"script_version"`
-	SHA256         string    `json:"sha256"`
-	Edited         bool      `json:"edited"`
-	Reason         string    `json:"reason"`
-	CreatedAt      time.Time `json:"created_at"`
+	ReviewContextID string    `json:"review_context_snapshot_id,omitempty"`
+	Actor           string    `json:"actor"`
+	GenerationID    string    `json:"generation_id"`
+	ProjectVersion  int       `json:"project_version"`
+	ScriptVersion   int       `json:"script_version"`
+	SHA256          string    `json:"sha256"`
+	Edited          bool      `json:"edited"`
+	Reason          string    `json:"reason"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 func CloneScriptGeneration(g ScriptGeneration) ScriptGeneration {
@@ -167,9 +170,6 @@ func NormalizeScript(script Script) (Script, error) {
 		}
 		if scene.Action, err = NormalizeText(scene.Action, "场景动作", 1, 1000); err != nil {
 			return Script{}, err
-		}
-		if len(scene.Dialogue) > 100 {
-			return Script{}, InputError("每个场景最多100条对白")
 		}
 		for j := range scene.Dialogue {
 			line := &scene.Dialogue[j]

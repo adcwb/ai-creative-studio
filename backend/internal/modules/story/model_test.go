@@ -110,3 +110,51 @@ func TestStoryRejectsFalseKindsIDsAndCorruption(t *testing.T) {
 		t.Fatal("product content quota introduced")
 	}
 }
+
+func TestOutlinePlansStayInTheirSeasonAndEpisode(t *testing.T) {
+	order, versions := fixture(t)
+	for i, x := range []Outline{{SeasonID: ident(8), Goal: "本季人物弧线"}, {SeasonID: ident(8), EpisodeID: ident(2), Goal: "本集明确选择"}, {SeasonID: ident(8), EpisodeID: ident(3), Goal: "不要泄漏下一集节拍"}, {SeasonID: ident(99), Goal: "其他季的节拍"}} {
+		versions = append(versions, version(t, 40+i, Input{Title: "编剧计划", Kind: "outline", Status: "active", Body: Body{Outline: &x}}))
+	}
+	p, e := Compile(ident(1), ident(2), order, versions, 0)
+	if e != nil {
+		t.Fatal(e)
+	}
+	count := 0
+	for _, v := range p.Included {
+		if v.Body.Outline != nil {
+			count++
+			if !v.Required || v.Body.Outline.Goal == "不要泄漏下一集节拍" || v.Body.Outline.SeasonID != ident(8) {
+				t.Fatal("wrong plan scope", v)
+			}
+		}
+	}
+	if count != 2 {
+		t.Fatal("season/episode plan not both included", count)
+	}
+	for _, bad := range []Outline{{SeasonID: "invalid", Goal: "目标"}, {SeasonID: ident(8), EpisodeID: "other", Goal: "目标"}, {SeasonID: ident(8), Goal: " "}} {
+		if _, e = Normalize(Input{Title: "计划", Kind: "outline", Status: "active", Body: Body{Outline: &bad}}); e == nil {
+			t.Fatal("invalid outline accepted")
+		}
+	}
+}
+
+func TestAuthoredProjectIdentitiesAreNotCanonicalRecordIDs(t *testing.T) {
+	scene := "b51e71e7-a8a9-4b7b-a6c9-52688d13c117"
+	input := Input{Title: "原文来源", Kind: "event", Status: "active", Body: Body{Event: &Event{EpisodeID: ident(2), Description: "保留历史来源"}, Evidence: []Evidence{{EpisodeID: ident(2), SceneID: scene, ScriptVersion: 1, ScriptSHA256: strings.Repeat("a", 64), Quote: "原文"}}}}
+	if _, e := Normalize(input); e != nil {
+		t.Fatal("valid editor scene ID refused", e)
+	}
+	input.Body.Evidence[0].SceneID = "invalid scene with spaces"
+	if _, e := Normalize(input); e == nil {
+		t.Fatal("invalid authored scene ID accepted")
+	}
+	cast := &Cast{EpisodeID: ident(2), ScriptVersion: 1, ScriptSHA256: strings.Repeat("a", 64), BibleVersionID: ident(10), Characters: []CastCharacter{{ScriptID: scene, ScriptName: "手写人物", SeriesID: ident(20), SeriesName: "系列人物"}}}
+	if !normalizeCast(cast) {
+		t.Fatal("valid editor role ID refused")
+	}
+	cast.Characters[0].SeriesID = scene
+	if normalizeCast(cast) {
+		t.Fatal("canonical series identity grammar weakened")
+	}
+}

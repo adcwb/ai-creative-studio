@@ -6,6 +6,7 @@ type ScriptGenerationInput struct {
 	ExpectedProvider string `json:"expected_provider,omitempty"`
 	ExpectedVersion  int    `json:"expected_version"`
 	CandidateOnly    bool   `json:"candidate_only,omitempty"`
+	ContextID        string `json:"context_snapshot_id,omitempty"`
 }
 
 type projectReceipt struct {

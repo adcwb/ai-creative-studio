@@ -37,3 +37,12 @@ describe('short drama editable content and generation state', () => {
     expect(scriptDraftError(stable)).toContain('场次标识')
   })
 })
+
+it('accepts authored scripts above old character and per-scene dialogue counts without weakening references',()=>{
+ const large=structuredClone(script)
+ large.characters.push(...Array.from({length:35},(_,i)=>({name:`角色${i}`,description:'合成角色说明'})))
+ large.scenes[0].dialogue.push(...Array.from({length:140},()=>({character:'甲',text:'明确角色关联的对白'})))
+ expect(scriptDraftError(large)).toBe('')
+ large.scenes[0].dialogue.at(-1)!.character='未声明的角色'
+ expect(scriptDraftError(large)).not.toBe('')
+})

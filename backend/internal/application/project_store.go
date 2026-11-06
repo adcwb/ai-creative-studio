@@ -219,6 +219,17 @@ func (s *FileStore) UpdateProject(space, id, key string, in ProjectUpdate) (Proj
 }
 
 func (s *FileStore) CreateScriptGeneration(space, id, key string, in ScriptGenerationInput) (ScriptGeneration, bool, error) {
+	contextSHA := ""
+	if in.ContextID != "" {
+		if g, found, e := s.replayScriptCandidate(space, id, key, in); e != nil || found {
+			return g, false, e
+		}
+		snapshot, e := s.prepareWritingContext(space, id, in)
+		if e != nil {
+			return ScriptGeneration{}, false, e
+		}
+		contextSHA = snapshot.SHA256
+	}
 	if in.ExpectedVersion < 1 {
 		return ScriptGeneration{}, false, projectInputError("expected_version 必须为正整数")
 	}
@@ -263,6 +274,7 @@ func (s *FileStore) CreateScriptGeneration(space, id, key string, in ScriptGener
 	}
 	generation := ScriptGeneration{SourceEpisodeID: project.SeriesEpisodeID, TargetDurationSeconds: targetDuration, TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), ID: generationID, SpaceID: space, ProjectID: id, SourceTitle: project.Title, SourceBrief: project.Brief, BaseVersion: project.Version, Provider: s.creativeGenerationProvider("mock-script"), Model: s.creativeGenerationModel(), Status: "queued", CreatedAt: now, UpdatedAt: now}
 	generation.CandidateOnly = in.CandidateOnly
+	generation.ContextID, generation.ContextSHA256 = in.ContextID, contextSHA
 	if in.CandidateOnly {
 		generation.SourceScriptVersion = project.ScriptVersion
 		if project.Script != nil {

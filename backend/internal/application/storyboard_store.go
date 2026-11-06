@@ -17,7 +17,7 @@ type StoryboardRepository interface {
 }
 
 func (s *FileStore) CreateStoryboardGeneration(space, id, key string, in ScriptGenerationInput) (StoryboardGeneration, bool, error) {
-	if in.CandidateOnly {
+	if in.CandidateOnly || in.ContextID != "" {
 		return StoryboardGeneration{}, false, projectInputError("candidate_only 仅适用于剧本候选")
 	}
 	if in.ExpectedVersion < 1 {

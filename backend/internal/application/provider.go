@@ -67,6 +67,8 @@ func providerFailure(code string) error { return &ProviderError{Code: code} }
 
 func providerMessage(code string) string {
 	switch code {
+	case "writing_context_changed":
+		return "本集正式资料或剧本来源已变化，未发送新的生成请求；请核对并重新准备写作上下文。旧稿与候选保留。"
 	case "alignment_source_unpinned":
 		return "旧对齐任务未固定音频来源，未发送新的识别请求；请保留历史结果，并从已保存的配音重新创建任务。"
 	case "alignment_source_changed":

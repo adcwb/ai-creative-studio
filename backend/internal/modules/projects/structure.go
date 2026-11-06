@@ -10,6 +10,10 @@ import (
 
 var structureIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
+// Stable authored IDs are opaque. UUIDs from the editor and deterministic
+// migrated IDs share this grammar; neither is a canonical series record ID.
+func ValidStructureID(id string) bool { return structureIDPattern.MatchString(id) }
+
 // StructureMapping pins the original legacy names and indexes to identities.
 // It is stored with the project, never reconstructed using a reordered draft.
 type StructureMapping struct {

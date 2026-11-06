@@ -1,3 +1,4 @@
+import {useAppWorkspace} from '../../app/workspace'
 import {creationReady, gatewayCreationRequired} from '../../creationGateway'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -22,7 +23,9 @@ export function useProjectEditor({space, id, onDirtyChange, requestLeave}: {
   const [creative, setCreative] = useState<{provider: string; model?: string; mode: string; ready: boolean; message: string} | null>(null)
   useEffect(() => {const controller = new AbortController(); void request<{provider: string; model?: string; mode: string; ready: boolean; message: string}>('/creative-capabilities', {signal: controller.signal}).then(setCreative).catch(() => {if (!controller.signal.aborted) setCreative({provider: 'unavailable', mode: 'unavailable', ready: false, message: translate("无法读取创作配置，请刷新页面后重试。")})}); return () => controller.abort()}, [])
 
-  const editor = useDramaProject(space, id, ignoreProjectUpdate, creative?.provider, creative?.model, runtimeChoice, storyboardChoice)
+  const currentWorkspace = useAppWorkspace()
+  const projectEditor = useDramaProject(space, id, ignoreProjectUpdate, creative?.provider, creative?.model, runtimeChoice, storyboardChoice)
+  const editor = {...projectEditor, locked: projectEditor.locked || currentWorkspace.space?.role === 'viewer'}
   const scriptPreview = {operation: 'script' as const, project_id: id ?? '', input: {expected_version: editor.baseline?.version, candidate_only: true}}
   const storyboardPreview = {operation: 'storyboard' as const, project_id: id ?? '', input: {expected_version: editor.baseline?.version}}
   const effectiveCreative = runtimeChoice ? {provider: runtimeChoice.model.provider, model: runtimeChoice.model.model, mode: 'real', ready: creationReady(runtimeChoice, scriptPreview)} : gatewayCreationRequired ? {provider: 'unavailable', mode: 'real', ready: false} : creative

@@ -1,6 +1,7 @@
 package application
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -11,9 +12,13 @@ import (
 	"unicode/utf8"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/projects"
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/story"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/seriesrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/storyrepo"
 )
 
 type ScriptAdoptionInput struct {
+	ReviewContextID string `json:"review_context_snapshot_id,omitempty"`
 	actor           string
 	ExpectedVersion int     `json:"expected_version"`
 	ReviewedChanges bool    `json:"reviewed_changes,omitempty"`
@@ -57,6 +62,56 @@ func (s *FileStore) GetScriptGeneration(space, project, id string) (ScriptGenera
 // AdoptScriptCandidate is an artistic decision, not another provider call. The
 // candidate and its original source stay immutable, including after later edits.
 func (s *FileStore) AdoptScriptCandidate(space, project, id, key string, in ScriptAdoptionInput) (Project, error) {
+	// The original receipt is resolved before loading current story material.
+	s.mu.Lock()
+	p, e := s.projectLocked(space, project)
+	if e != nil {
+		s.mu.Unlock()
+		return Project{}, e
+	}
+	_, replay, e := s.projectReceiptLocked(space, key, "adopt-script:"+id, project, in)
+	if e != nil {
+		s.mu.Unlock()
+		return Project{}, e
+	}
+	if replay {
+		out := s.projectViewLocked(p)
+		s.mu.Unlock()
+		return out, nil
+	}
+	g, ok := s.data.ScriptGenerations[id]
+	g = cloneScriptGeneration(g)
+	s.mu.Unlock()
+	if !ok || g.SpaceID != space || g.ProjectID != project {
+		return Project{}, ErrNotFound
+	}
+	var review *story.ContextSnapshot
+	if g.ContextID != "" {
+		if !story.ID.MatchString(in.ReviewContextID) {
+			return Project{}, projectInputError("请先核对本集正式资料，再明确采纳候选")
+		}
+		old, e := s.writingSnapshot(context.Background(), space, project, g.ContextID)
+		if e != nil {
+			return Project{}, e
+		}
+		v, e := s.writingSnapshot(context.Background(), space, project, in.ReviewContextID)
+		if e != nil {
+			return Project{}, e
+		}
+		if old.SHA256 != g.ContextSHA256 || story.Digest(old.Context.Selection) != story.Digest(v.Context.Selection) {
+			return Project{}, ErrVersionConflict
+		}
+		changed := old.DirectorySHA256 != v.DirectorySHA256 || old.Context.SourcesSHA256 != v.Context.SourcesSHA256 || old.ProjectVersion != v.ProjectVersion
+		if changed && !in.ReviewedChanges {
+			return Project{}, ErrVersionConflict
+		}
+		review = &v
+	} else if in.ReviewContextID != "" {
+		return Project{}, projectInputError("这份候选没有正式故事上下文，不接受附加来源")
+	}
+	return s.adoptScriptCandidate(space, project, id, key, in, review)
+}
+func (s *FileStore) adoptScriptCandidate(space, project, id, key string, in ScriptAdoptionInput, review *story.ContextSnapshot) (Project, error) {
 	if in.ExpectedVersion < 1 || !utf8.ValidString(in.Reason) || utf8.RuneCountInString(in.Reason) > 2000 {
 		return Project{}, projectInputError("请核对当前版本与采纳说明")
 	}
@@ -118,13 +173,44 @@ func (s *FileStore) AdoptScriptCandidate(space, project, id, key string, in Scri
 	if actor == "" {
 		actor = "demo-user"
 	}
-	g.Adoption = &projects.ScriptAdoption{Actor: actor, GenerationID: id, ProjectVersion: p.Version, ScriptVersion: p.ScriptVersion, SHA256: hex.EncodeToString(digest[:]), Edited: !reflect.DeepEqual(chosen, *g.Candidate), Reason: strings.TrimSpace(in.Reason), CreatedAt: p.UpdatedAt}
+	g.Adoption = &projects.ScriptAdoption{ReviewContextID: in.ReviewContextID, Actor: actor, GenerationID: id, ProjectVersion: p.Version, ScriptVersion: p.ScriptVersion, SHA256: hex.EncodeToString(digest[:]), Edited: !reflect.DeepEqual(chosen, *g.Candidate), Reason: strings.TrimSpace(in.Reason), CreatedAt: p.UpdatedAt}
 	d := s.clone()
 	d.Projects[p.ID] = cloneProject(p)
 	d.ScriptGenerations[id] = g
 	d.ProjectReceipts[projectReceiptKey(space, key)] = receipt
-	if e = s.commit(d); e != nil {
-		return Project{}, e
+	commit := func() error { return s.commit(d) }
+	if review != nil {
+		// p has been incremented locally, while the source pins the pre-write view.
+		if review.ProjectVersion != in.ExpectedVersion {
+			return Project{}, ErrVersionConflict
+		}
+		q := storyrepo.Scope{Space: space, Series: review.SeriesID}
+		if s.pg != nil {
+			// Match canonical story writes: story lock, directory lock, core commit.
+			e = storyrepo.GuardHeadsTx(s.pg.ctx, s.pg.tx, q, review.Context.SourcesSHA256)
+			if e == nil {
+				var dir seriesrepo.DirectorySnapshot
+				dir, e = s.series.DirectoryTx(s.pg.ctx, s.pg.tx, space, q.Series)
+				if e == nil && story.Digest(dir) != review.DirectorySHA256 {
+					e = story.ErrConflict
+				}
+			}
+			if e == nil {
+				e = commit()
+			}
+		} else {
+			e = s.series.WithDirectory(context.Background(), space, q.Series, func(dir seriesrepo.DirectorySnapshot) error {
+				if story.Digest(dir) != review.DirectorySHA256 {
+					return story.ErrConflict
+				}
+				return s.story.WithHeads(context.Background(), q, review.Context.SourcesSHA256, commit)
+			})
+		}
+	} else {
+		e = commit()
+	}
+	if e != nil {
+		return Project{}, writingInputError(e)
 	}
 	return s.projectViewLocked(p), nil
 }

@@ -10,6 +10,24 @@ import (
 )
 
 func (s *FileStore) validateStory(ctx context.Context, space, root string, in story.Input) error {
+	if x := in.Body.Outline; x != nil {
+		n, e := s.series.Get(ctx, space, "season", x.SeasonID)
+		if e != nil {
+			return e
+		}
+		if n.SeriesID != root {
+			return story.ErrInput
+		}
+		if x.EpisodeID != "" {
+			ep, e := s.series.Get(ctx, space, "episode", x.EpisodeID)
+			if e != nil {
+				return e
+			}
+			if ep.Parent != x.SeasonID || ep.SeriesID != root {
+				return story.ErrInput
+			}
+		}
+	}
 	if in.Body.Cast != nil {
 		if e := s.validateStoryCast(ctx, space, root, *in.Body.Cast); e != nil {
 			return e

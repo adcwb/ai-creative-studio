@@ -73,6 +73,40 @@ func (s *Store) HeadDigest(ctx context.Context, q Scope) (string, error) {
 	return digest, e
 }
 
+// WithHeads protects a short local authored commit. Never call this around
+// provider I/O or reenter this repository in the callback.
+func (s *Store) WithHeads(ctx context.Context, q Scope, expected string, fn func() error) error {
+	if s.db != nil || !validScope(q) || !story.Hash.MatchString(expected) {
+		return story.ErrInput
+	}
+	return s.withFile(ctx, q, false, func() error {
+		digest, e := s.fileHeads(q)
+		if e != nil {
+			return e
+		}
+		if digest != expected {
+			return story.ErrConflict
+		}
+		return fn()
+	})
+}
+func GuardHeadsTx(ctx context.Context, tx *sql.Tx, q Scope, expected string) error {
+	if tx == nil || !validScope(q) || !story.Hash.MatchString(expected) {
+		return story.ErrInput
+	}
+	if _, e := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,728219140))`, q.Space+":"+q.Series); e != nil {
+		return e
+	}
+	digest, e := sqlHeads(ctx, tx, q)
+	if e != nil {
+		return e
+	}
+	if digest != expected {
+		return story.ErrConflict
+	}
+	return nil
+}
+
 func sqlHeads(ctx context.Context, db headsQuery, q Scope) (string, error) {
 	heads, e := queryHeads(ctx, db, q)
 	if e != nil {

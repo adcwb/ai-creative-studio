@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/governance"
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/projects"
 )
 
 // Evidence must quote a pinned, included record or one stable target scene.
@@ -140,7 +141,7 @@ func ValidateResult(job string, snapshot ContextSnapshot, in CheckResult) (Check
 					return CheckResult{}, ErrInput
 				}
 			} else {
-				if ev.VersionID != "" || !ID.MatchString(ev.SceneID) {
+				if ev.VersionID != "" || !projects.ValidStructureID(ev.SceneID) {
 					return CheckResult{}, ErrInput
 				}
 				found := false
@@ -168,7 +169,7 @@ func ValidateResult(job string, snapshot ContextSnapshot, in CheckResult) (Check
 		}
 		if f.Proposal != nil {
 			normalized, e := Normalize(*f.Proposal)
-			if e != nil || normalized.Kind == "cast" || len(normalized.Body.Evidence) > 0 {
+			if e != nil || (normalized.Kind == "cast" || normalized.Kind == "outline") || len(normalized.Body.Evidence) > 0 {
 				return CheckResult{}, ErrInput
 			}
 			if f.TargetRecordID != "" {

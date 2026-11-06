@@ -1,5 +1,7 @@
 package story
 
+import "github.com/adcwb/ai-creative-studio/backend/internal/modules/projects"
+
 // Cast pins an explicitly authored relationship between two separate identities.
 // Asset references select a version; they never grant voice or likeness rights.
 type Cast struct {
@@ -33,7 +35,7 @@ func normalizeCast(c *Cast) bool {
 	seen := map[string]bool{}
 	for i := range c.Characters {
 		x := &c.Characters[i]
-		if !ID.MatchString(x.ScriptID) || !ID.MatchString(x.SeriesID) || seen[x.ScriptID] || !clean(&x.ScriptName, true) || !clean(&x.SeriesName, true) || !clean(&x.Notes, false) {
+		if !projects.ValidStructureID(x.ScriptID) || !ID.MatchString(x.SeriesID) || seen[x.ScriptID] || !clean(&x.ScriptName, true) || !clean(&x.SeriesName, true) || !clean(&x.Notes, false) {
 			return false
 		}
 		seen[x.ScriptID] = true

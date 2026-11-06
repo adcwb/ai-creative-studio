@@ -1,3 +1,4 @@
+import {WritingContextPicker,WritingSourceReview,type WritingReview} from './WritingContext'
 import {useCallback,useEffect,useRef,useState} from 'react'
 import {errorMessage,request} from '../../api'
 import {useI18n} from '../../i18n'
@@ -37,9 +38,10 @@ function CandidateGenerator({state,onPending}:{state:ProjectEditorState;onPendin
  useEffect(()=>{reload.current=editor.reload},[editor.reload])
  const saved=useCallback(()=>reload.current(false),[])
  const write=useSeriesWrite<ScriptGeneration>(`script-generation:${id}`,creationPath(`/projects/${id}/generations`),'POST',saved)
+ const [context,setContext]=useState<WritingReview>({id:'',ready:true,changed:false})
  const pending=write.busy||write.uncertain
  useEffect(()=>{onPending('generation',pending);return()=>onPending('generation',false)},[pending,onPending])
- return <div><button type="button" className="primary" disabled={editor.locked||Boolean(editor.loadError)||editor.dirty||state.toolsDirty||!effectiveCreative?.ready||write.busy} onClick={()=>void write.save({candidate_only:true,expected_version:editor.project?.version,...(runtimeChoice?{...runtimeFields(runtimeChoice),expected_provider:runtimeChoice.model.provider,expected_model:runtimeChoice.model.model}:{})})}>{write.busy?t('正在提交…'):t('生成剧本候选')}</button>
+ return <div>{editor.project?.series_episode_id&&<WritingContextPicker episode={editor.project.id} space={state.space} projectVersion={editor.project.version} disabled={editor.locked||write.busy||write.uncertain} onChange={setContext}/>}<button type="button" className="primary" disabled={!context.ready||editor.locked||Boolean(editor.loadError)||editor.dirty||state.toolsDirty||!effectiveCreative?.ready||write.busy} onClick={()=>void write.save({candidate_only:true,...(context.id?{context_snapshot_id:context.id}:{}),expected_version:editor.project?.version,...(runtimeChoice?{...runtimeFields(runtimeChoice),expected_provider:runtimeChoice.model.provider,expected_model:runtimeChoice.model.model}:{})})}>{write.busy?t('正在提交…'):t('生成剧本候选')}</button>
  {write.error&&<p className="error" role="alert">{write.error}</p>}{write.storageNotice&&<p role="status">{write.storageNotice}</p>}
  {write.uncertain&&<div className="editing-note"><p>{t('生成结果尚未确认。请核对原请求，系统不会另开一次模型调用。')}</p><button type="button" disabled={write.busy} onClick={()=>void write.save({})}>{t('核对原生成请求')}</button></div>}
  </div>
@@ -47,7 +49,7 @@ function CandidateGenerator({state,onPending}:{state:ProjectEditorState;onPendin
 
 function Candidate({summary,state,onPending}:{summary:ScriptGeneration;state:ProjectEditorState;onPending:(id:string,dirty:boolean)=>void}) {
  const {t,formatDate}=useI18n(),{space,id,editor,requestLeave}=state
- const [shown,setShown]=useState<ScriptGeneration|null>(null),[draft,setDraft]=useState<DramaScript|null>(null),[editing,setEditing]=useState(false),[reason,setReason]=useState(''),[reviewed,setReviewed]=useState(false),[reviewedVersion,setReviewedVersion]=useState(0),[error,setError]=useState(''),[loading,setLoading]=useState(false)
+ const [shown,setShown]=useState<ScriptGeneration|null>(null),[draft,setDraft]=useState<DramaScript|null>(null),[editing,setEditing]=useState(false),[reason,setReason]=useState(''),[reviewed,setReviewed]=useState(false),[reviewedVersion,setReviewedVersion]=useState(0),[reviewedSource,setReviewedSource]=useState(''),[error,setError]=useState(''),[loading,setLoading]=useState(false)
  const path=`/projects/${id}/generations/${summary.id}`
  const reload=useRef(editor.reload)
  useEffect(()=>{reload.current=editor.reload},[editor.reload])
@@ -63,9 +65,11 @@ function Candidate({summary,state,onPending}:{summary:ScriptGeneration;state:Pro
   try{const v=await request<ScriptGeneration>(directoryURL(path,space),{signal:controller.signal});if(!controller.signal.aborted){setShown(v);setDraft(v.candidate?structuredClone(v.candidate):null);setReason('');setEditing(false);setReviewed(false);setReviewedVersion(0)}}catch(e){if(!controller.signal.aborted)setError(errorMessage(e,t('候选读取失败，请保留当前稿并重试。')))}finally{if(!controller.signal.aborted)setLoading(false)}
  }
  const adopted=shown?.adoption??summary.adoption
- const changed=editor.project?.version!==summary.base_version
+ const [sourceReview,setSourceReview]=useState<WritingReview>({id:'',ready:false,changed:false})
+ const changed=editor.project?.version!==summary.base_version||sourceReview.changed
+ const acknowledged=reviewed&&reviewedVersion===editor.project?.version&&(!shown?.context_snapshot_id||reviewedSource===sourceReview.id)
  const locked=editor.locked||Boolean(editor.loadError)||editor.dirty||write.busy||write.uncertain
- const valid=draft&&!scriptDraftError(draft)
+ const valid=draft&&!scriptDraftError(draft)&&(!shown?.context_snapshot_id||sourceReview.ready)
  return <article className="story-card script-candidate"><div><h4>{summary.source_title} · {t(generationLabels[summary.status])}</h4><p>{t('基于版本 {version}',{version:summary.base_version})} · {summary.provider} · <time>{formatDate(summary.created_at)}</time></p>
  {!summary.candidate_only&&<p>{t('旧版生成记录：当时采用自动更新流程。原稿可在版本历史中查看。')}</p>}
  {summary.error&&<p className="error" role="alert">{summary.error} <code>{summary.error_code}</code></p>}
@@ -73,14 +77,15 @@ function Candidate({summary,state,onPending}:{summary:ScriptGeneration;state:Pro
  {summary.candidate_only&&summary.status==='succeeded'&&<button type="button" disabled={loading||write.busy} onClick={()=>requestLeave(()=>void read())}>{loading?t('正在读取候选…'):t('比较这份候选')}</button>}
  {error&&<p className="error" role="alert">{error}</p>}
  {shown&&draft&&<section aria-label={t('候选比较与决定')}>
+ {shown.context_snapshot_id&&<WritingSourceReview episode={id!} space={space} contextID={shown.context_snapshot_id} projectVersion={editor.project?.version??0} onChange={setSourceReview}/>}
  <details><summary>{t('查看生成时的原稿与简报')}</summary><p>{shown.source_brief}</p>{shown.source_script?<ScriptText script={shown.source_script}/>:<p>{t('生成时尚无正式剧本。')}</p>}</details>
  <button type="button" disabled={write.busy||editor.loading} onClick={()=>editor.reload(false)}>{t('核对最新正式稿')}</button>
  <details><summary>{t('查看现在的正式剧本')}</summary><p>{editor.project?.brief}</p>{editor.project?.script?<ScriptText script={editor.project.script}/>:<p>{t('当前尚无正式剧本。')}</p>}</details>
  <DramaScriptEditor draftOnly provider={shown.provider} script={draft} editing={editing} disabled={locked||Boolean(adopted)} dirty={JSON.stringify(draft)!==JSON.stringify(shown.candidate)} onChange={v=>{setDraft(v)}} onEdit={()=>setEditing(true)} onCancel={()=>{setDraft(structuredClone(shown.candidate!));setEditing(false)}} onSave={()=>setEditing(false)}/>
  {!adopted&&<><label>{t('采纳理由（可选）')}<textarea aria-label={t('采纳理由（可选）')} disabled={locked} value={reason} maxLength={2000} onChange={e=>{setReason(e.target.value)}}/></label>
- {changed&&<div className="editing-note"><p>{t('正式稿或简报在生成后已变化。请比较现在的内容，再决定是否用这份候选形成新版本。')}</p><label className="checkbox-label"><input type="checkbox" checked={reviewed&&reviewedVersion===editor.project?.version} disabled={locked} onChange={e=>{setReviewed(e.target.checked);setReviewedVersion(editor.project?.version??0)}}/>{t('我已比较当前版本，仍决定采纳这份候选。')}</label></div>}
+ {changed&&<div className="editing-note"><p>{t('正式稿或简报在生成后已变化。请比较现在的内容，再决定是否用这份候选形成新版本。')}</p><label className="checkbox-label"><input type="checkbox" checked={acknowledged} disabled={locked} onChange={e=>{setReviewed(e.target.checked);setReviewedVersion(editor.project?.version??0);setReviewedSource(sourceReview.id)}}/>{t('我已比较当前版本，仍决定采纳这份候选。')}</label></div>}
  <p className="drama-help">{t('采纳会追加正式剧本版本；已有分镜需要复核，旧稿与候选保持不变。')}</p>
- <button type="button" className="primary" disabled={locked||editing||!valid||(changed&&(!reviewed||reviewedVersion!==editor.project?.version))} onClick={()=>void write.save({expected_version:editor.project?.version,reviewed_changes:changed&&reviewed&&reviewedVersion===editor.project?.version,script:draft,reason})}>{t('明确采纳为正式剧本')}</button></>}
+ <button type="button" className="primary" disabled={locked||editing||!valid||(changed&&!acknowledged)} onClick={()=>void write.save({...(shown.context_snapshot_id?{review_context_snapshot_id:sourceReview.id}:{}),expected_version:editor.project?.version,reviewed_changes:changed&&acknowledged,script:draft,reason})}>{t('明确采纳为正式剧本')}</button></>}
  </section>}
  {write.error&&<p className="error" role="alert">{write.error}</p>}{write.storageNotice&&<p role="status">{write.storageNotice}</p>}
  {write.uncertain&&<div className="editing-note"><p>{t('采纳结果尚未确认。请用原请求核对，避免重复更新正式稿。')}</p><button type="button" disabled={write.busy} onClick={()=>void write.save({})}>{t('核对原采纳请求')}</button></div>}

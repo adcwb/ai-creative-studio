@@ -71,7 +71,7 @@ func creativeFailure(err error) (string, string) {
 	if errors.As(err, &e) {
 		code = e.Code
 	}
-	if code == "library_use_denied" || code == "provider_input_capacity" || code == "provider_input_count_unavailable" || code == "alignment_source_unpinned" || code == "alignment_source_changed" {
+	if code == "writing_context_changed" || code == "library_use_denied" || code == "provider_input_capacity" || code == "provider_input_count_unavailable" || code == "alignment_source_unpinned" || code == "alignment_source_changed" {
 		return code, providerMessage(code)
 	}
 	return code, "创作服务执行未完成（" + code + "）；旧稿保留，远端结果或费用可能不确定，未自动重试。"
@@ -270,7 +270,11 @@ func (p *OpenAICreativeProvider) Script(ctx context.Context, in ProjectInput) (S
 		return Script{}, err
 	}
 	var s Script
-	err = p.json(ctx, in, scriptGenerationInstructions(in), &s)
+	if _, ok := ctx.Value(writingPayloadKey{}).(scriptWritingPayload); ok {
+		err = p.jsonBounded(ctx, writingPayload(ctx, in), scriptGenerationInstructions(in)+" The supplied material is fixed authored context for this episode only. Outline beats are plans, not occurred facts. Respect objective truth, subjective beliefs, character knowledge and immutable rules. Use current_script as a starting draft when provided, never invent future knowledge or assume omitted material. Return a candidate, never a claim of adoption. Do not copy structure_version or identity fields from current_script into the output; the service assigns candidate identities.", &s, 8<<20, 8<<20)
+	} else {
+		err = p.json(ctx, in, scriptGenerationInstructions(in), &s)
+	}
 	if err != nil {
 		return s, err
 	}

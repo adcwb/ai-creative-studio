@@ -56,9 +56,7 @@ func RunQueuedScriptWorker(ctx context.Context, q jobqueue.Queue, repo QueuedScr
 				return err
 			}
 		}
-		if e = q.Dispatch(ctx, j); e != nil {
-			return e
-		}
+
 		var result Script
 		var runErr error
 		if g.RuntimeSelection != nil {
@@ -66,25 +64,14 @@ func RunQueuedScriptWorker(ctx context.Context, q jobqueue.Queue, repo QueuedScr
 			if !ok {
 				runErr = ErrExecutionGovernance
 			} else {
-				runErr = store.executeManaged(ctx, ExecutionRequest{ID: "script:" + g.ID, Tenant: g.SpaceID, Provider: g.Provider, Model: g.Model, Capability: "text", Text: g.SourceTitle + "\n" + g.SourceBrief, Selection: g.RuntimeSelection}, func(ctx context.Context, providers RuntimeProviders) error {
-					if providers.Creative == nil {
-						return ErrExecutionGovernance
-					}
-					pipeline, e := NewScriptPipeline(ctx, CreativeScriptProvider(providers.Creative))
-					if e != nil {
-						return e
-					}
-					result, e = pipeline.Invoke(ctx, generationProjectInput(*g))
-					if e == nil {
-						raw, _ := json.Marshal(result)
-						e = store.execution.ReviewResult(ctx, ExecutionRequest{ID: g.ID, Selection: g.RuntimeSelection, Tenant: g.SpaceID, Provider: g.Provider, Model: g.Model, Capability: "text", Text: string(raw)})
-					}
-					return e
-				})
+				result, runErr = store.managedScript(ctx, *g, func(c context.Context) error { return q.Dispatch(c, j) })
 			}
 		} else if p.provider != "mock-script" || g.Provider != p.provider {
 			runErr = providerFailure("provider_unavailable")
 		} else {
+			if e = q.Dispatch(ctx, j); e != nil {
+				return e
+			}
 			result, runErr = p.Invoke(ctx, generationProjectInput(*g))
 		}
 

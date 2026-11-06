@@ -25694,6 +25694,283 @@
           }
         }
       }
+    },
+    "/api/v1/seasons/{id}/writing-beats": {
+      "get": {
+        "tags": [
+          "Series"
+        ],
+        "operationId": "getWritingBeats",
+        "summary": "Read the stable season/episode beat plan without generating content.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "episode_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "description": "Omit for this season arc; otherwise an episode belonging to this season."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scope and optional current canonical version. Missing current means no plan saved yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WritingBeatsView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Series"
+        ],
+        "operationId": "saveWritingBeats",
+        "summary": "Append an authored season or episode beat version.",
+        "description": "Body must have kind=outline and matching season/episode IDs. expected_version=0 creates the fixed record; later saves use canonical version CAS. Existing generic story write/history endpoints accept the same outline kind and stable scope ID. No provider call or automatic script update.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "episode_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "description": "Omit for this season arc; otherwise an episode belonging to this season."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "所有项目写操作在同一空间共享项目域命名空间，与图像任务键独立。指纹含操作、目标项目和规范化完整请求（含 expected_version）。同一提交网络重试必须保留键和 body；同键不同操作/目标/body 返回 idempotency_conflict。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoryWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Appended version or the exact original immutable receipt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryVersion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -26469,8 +26746,7 @@
             "items": {
               "$ref": "#/components/schemas/ScriptDialogue"
             },
-            "minItems": 0,
-            "maxItems": 100
+            "minItems": 0
           },
           "episode_number": {
             "type": "integer",
@@ -26531,7 +26807,7 @@
             "description": "省略/0为旧名字引用，2必须为每个角色和场次提供唯一id，并通过character_id关联对白。已启用项目禁止降级写入。"
           }
         },
-        "description": "Editable story with up to 30 unique characters and 1–120 scenes. Scenes can be silent and carry an optional episode number. Saving a first handwritten draft does not require generation. 结构版本2以角色/场次稳定ID关联；character显示名由character_id对应角色更新，删除被对白引用的角色会失败；角色名仍须唯一。旧项目必须显式升级后再保存新版结构；GET不自动分配ID。",
+        "description": "Editable story with unique characters and at least one scene; no project count quota on characters, scenes or dialogue. Scenes can be silent and carry an optional episode number. Saving a first handwritten draft does not require generation. 结构版本2以角色/场次稳定ID关联；character显示名由character_id对应角色更新，删除被对白引用的角色会失败；角色名仍须唯一。旧项目必须显式升级后再保存新版结构；GET不自动分配ID。",
         "example": {
           "title": "雨夜来信",
           "logline": "两名旧友因一封错寄的信，在雨夜车站重逢并决定合作。",
@@ -26748,7 +27024,8 @@
             "type": "string",
             "enum": [
               "mock_script_failed",
-              "invalid_script_output"
+              "invalid_script_output",
+              "writing_context_changed"
             ]
           },
           "model": {
@@ -26790,6 +27067,16 @@
           },
           "adoption": {
             "$ref": "#/components/schemas/ScriptAdoption"
+          },
+          "context_snapshot_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$",
+            "readOnly": true
+          },
+          "context_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "readOnly": true
           }
         },
         "description": "持久化执行尝试及不可变需求快照。只保留尝试状态和来源，不提供历史剧本版本恢复。mock 执行中重启重新排队，不创建新 attempt；失败保留项目既有稿件。",
@@ -27055,6 +27342,11 @@
             "type": "boolean",
             "default": false,
             "description": "Current UI sends true: persist an independent validated candidate without changing the official script. Omission preserves the legacy API auto-apply contract. Explicit adoption is a separate version-checked action."
+          },
+          "context_snapshot_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$",
+            "description": "Optional fixed canonical episode context. Requires candidate_only and an authorized gateway text selection. Required problems block generation; script_required alone does not block writing a first draft. Checked again before provider requests and after native input counting."
           }
         }
       },
@@ -35421,7 +35713,7 @@
           },
           "scene_id": {
             "type": "string",
-            "pattern": "^[a-f0-9]{32}$"
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
           },
           "script_version": {
             "type": "integer",
@@ -35477,6 +35769,9 @@
           },
           "cast": {
             "$ref": "#/components/schemas/StoryCast"
+          },
+          "outline": {
+            "$ref": "#/components/schemas/StoryOutline"
           }
         },
         "required": [
@@ -35507,6 +35802,11 @@
             "required": [
               "cast"
             ]
+          },
+          {
+            "required": [
+              "outline"
+            ]
           }
         ]
       },
@@ -35530,7 +35830,8 @@
               "fact",
               "event",
               "foreshadow",
-              "cast"
+              "cast",
+              "outline"
             ]
           },
           "status": {
@@ -35598,7 +35899,8 @@
               "fact",
               "event",
               "foreshadow",
-              "cast"
+              "cast",
+              "outline"
             ]
           },
           "status": {
@@ -35675,7 +35977,8 @@
               "fact",
               "event",
               "foreshadow",
-              "cast"
+              "cast",
+              "outline"
             ]
           },
           "status": {
@@ -35775,7 +36078,8 @@
               "fact",
               "event",
               "foreshadow",
-              "cast"
+              "cast",
+              "outline"
             ]
           },
           "status": {
@@ -36336,7 +36640,7 @@
           },
           "scene_id": {
             "type": "string",
-            "pattern": "^[a-f0-9]{32}$"
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
           },
           "quote": {
             "type": "string",
@@ -36813,7 +37117,7 @@
         "properties": {
           "script_character_id": {
             "type": "string",
-            "pattern": "^[a-f0-9]{32}$"
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
           },
           "series_character_id": {
             "type": "string",
@@ -37689,6 +37993,10 @@
             "type": "string",
             "minLength": 1,
             "description": "Server-authenticated creator who made this decision; not accepted from the request."
+          },
+          "review_context_snapshot_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
           }
         }
       },
@@ -37714,6 +38022,80 @@
           "reason": {
             "type": "string",
             "maxLength": 2000
+          },
+          "review_context_snapshot_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$",
+            "description": "Required for a candidate using canonical story context. Must be a current snapshot with the same original retrieval selection. Current directory, canonical heads and project version are guarded during the local adoption commit. Changes require reviewed_changes=true. Original request replay bypasses new source checks and never reapplies."
+          }
+        }
+      },
+      "StoryOutline": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "season_id",
+          "goal",
+          "opening",
+          "conflict",
+          "turn",
+          "hook"
+        ],
+        "properties": {
+          "season_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "episode_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "goal": {
+            "type": "string",
+            "minLength": 1
+          },
+          "opening": {
+            "type": "string"
+          },
+          "conflict": {
+            "type": "string"
+          },
+          "turn": {
+            "type": "string"
+          },
+          "hook": {
+            "type": "string"
+          }
+        },
+        "description": "Canonical authored plan. Missing episode_id means season arc; a plan is not an event that has occurred. One stable record per season/episode scope; immutable versions, no project count quota."
+      },
+      "WritingBeatsView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "series_id",
+          "season_id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "series_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "season_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "episode_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "current": {
+            "$ref": "#/components/schemas/StoryVersion"
           }
         }
       }

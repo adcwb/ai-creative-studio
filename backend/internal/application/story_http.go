@@ -51,6 +51,7 @@ func registerStoryRoutes(mux *http.ServeMux, s *FileStore) {
 		return
 	}
 	registerStoryEpisodeOptions(mux, s)
+	registerWritingBeatsRoutes(mux, s)
 	registerStorySnapshotRoutes(mux, s)
 	registerStoryCheckRoutes(mux, s)
 	registerStoryCastRoutes(mux, s)
@@ -130,6 +131,9 @@ func registerStoryRoutes(mux *http.ServeMux, s *FileStore) {
 				id = story.NewID(a, root, key)
 				if in.Kind == "cast" && in.Body.Cast != nil {
 					id = story.CastID(root, in.Body.Cast.EpisodeID)
+				}
+				if in.Kind == "outline" && in.Body.Outline != nil {
+					id = story.OutlineID(root, in.Body.Outline.SeasonID, in.Body.Outline.EpisodeID)
 				}
 				if in.Kind == "bible" {
 					id = storyrepo.BibleID(root)

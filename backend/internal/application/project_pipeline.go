@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -133,21 +132,7 @@ func RunScriptWorker(ctx context.Context, repo ProjectRepository, pipeline *Scri
 			if !exists {
 				runErr = ErrExecutionGovernance
 			} else {
-				runErr = store.executeManaged(ctx, ExecutionRequest{ID: "script:" + generation.ID, Tenant: generation.SpaceID, Provider: generation.Provider, Model: generation.Model, Capability: "text", Text: generation.SourceTitle + "\n" + generation.SourceBrief, Selection: generation.RuntimeSelection}, func(ctx context.Context, providers RuntimeProviders) error {
-					if providers.Creative == nil {
-						return ErrExecutionGovernance
-					}
-					p, e := NewScriptPipeline(ctx, CreativeScriptProvider(providers.Creative))
-					if e != nil {
-						return e
-					}
-					script, e = p.Invoke(ctx, generationProjectInput(generation))
-					if e == nil {
-						output, _ := json.Marshal(script)
-						e = store.execution.ReviewResult(ctx, ExecutionRequest{ID: "script:" + generation.ID, Selection: generation.RuntimeSelection, Tenant: generation.SpaceID, Provider: generation.Provider, Model: generation.Model, Capability: "text", Text: string(output)})
-					}
-					return e
-				})
+				script, runErr = store.managedScript(ctx, generation, nil)
 			}
 		} else if generation.Provider != pipeline.provider || (generation.Provider != "mock-script" && (generation.Model == "" || generation.Model != pipeline.model)) {
 			runErr = providerFailure("provider_unavailable")

@@ -52,6 +52,9 @@ func EpisodeRefs(b Body) []string {
 		add(b.Cast.EpisodeID)
 	}
 	add(b.FromEpisodeID)
+	if b.Outline != nil {
+		add(b.Outline.EpisodeID)
+	}
 	add(b.ToEpisodeID)
 	if b.Fact != nil {
 		add(b.Fact.AudienceFrom)
@@ -156,6 +159,10 @@ func Compile(seriesID, episodeID string, order []Episode, versions []Version, li
 	for _, v := range versions {
 		if v.Status != "active" {
 			p.Omitted = append(p.Omitted, Omission{v.ID, v.VersionID, "archived"})
+			continue
+		}
+		if x := v.Body.Outline; x != nil && (x.SeasonID != order[target].SeasonID || x.EpisodeID != "" && x.EpisodeID != episodeID) {
+			p.Omitted = append(p.Omitted, Omission{v.ID, v.VersionID, "other_writing_scope"})
 			continue
 		}
 		if c := v.Body.Cast; c != nil {

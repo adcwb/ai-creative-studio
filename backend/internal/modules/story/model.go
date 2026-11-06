@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/projects"
 	"regexp"
 	"strings"
 	"time"
@@ -79,7 +80,25 @@ type Evidence struct {
 	ScriptSHA256  string `json:"script_sha256"`
 	Quote         string `json:"quote"`
 }
+
+// Outline is an authored dramatic plan, not a generated script or a claim that
+// its beats have already happened. An empty EpisodeID denotes the season arc.
+type Outline struct {
+	SeasonID  string `json:"season_id"`
+	EpisodeID string `json:"episode_id,omitempty"`
+	Goal      string `json:"goal"`
+	Opening   string `json:"opening"`
+	Conflict  string `json:"conflict"`
+	Turn      string `json:"turn"`
+	Hook      string `json:"hook"`
+}
+
+func OutlineID(root, season, episode string) string {
+	return TextHash("outline:" + root + ":" + season + ":" + episode)[:32]
+}
+
 type Body struct {
+	Outline       *Outline    `json:"outline,omitempty"`
 	Cast          *Cast       `json:"cast,omitempty"`
 	Bible         *Bible      `json:"bible,omitempty"`
 	Fact          *Fact       `json:"fact,omitempty"`
@@ -173,7 +192,7 @@ func Normalize(in Input) (Input, error) {
 		return Input{}, ErrInput
 	}
 	count := 0
-	for _, x := range []bool{v.Body.Bible != nil, v.Body.Fact != nil, v.Body.Event != nil, v.Body.Foreshadow != nil, v.Body.Cast != nil} {
+	for _, x := range []bool{v.Body.Bible != nil, v.Body.Fact != nil, v.Body.Event != nil, v.Body.Foreshadow != nil, v.Body.Cast != nil, v.Body.Outline != nil} {
 		if x {
 			count++
 		}
@@ -188,12 +207,23 @@ func Normalize(in Input) (Input, error) {
 	for i := range v.Body.Evidence {
 		r := &v.Body.Evidence[i]
 		k := r.EpisodeID + ":" + r.SceneID + ":" + r.ScriptSHA256 + ":" + r.Quote
-		if !ID.MatchString(r.EpisodeID) || !ID.MatchString(r.SceneID) || r.ScriptVersion < 1 || !Hash.MatchString(r.ScriptSHA256) || !clean(&r.Quote, true) || seen[k] {
+		if !ID.MatchString(r.EpisodeID) || !projects.ValidStructureID(r.SceneID) || r.ScriptVersion < 1 || !Hash.MatchString(r.ScriptSHA256) || !clean(&r.Quote, true) || seen[k] {
 			return Input{}, ErrInput
 		}
 		seen[k] = true
 	}
 	switch v.Kind {
+	case "outline":
+		x := v.Body.Outline
+		if x == nil || !ID.MatchString(x.SeasonID) || !optionalID(x.EpisodeID) || v.Body.FromEpisodeID != "" || v.Body.ToEpisodeID != "" || !clean(&x.Goal, true) {
+			return Input{}, ErrInput
+		}
+		for _, p := range []*string{&x.Opening, &x.Conflict, &x.Turn, &x.Hook} {
+			if !clean(p, false) {
+				return Input{}, ErrInput
+			}
+		}
+		v.Required = true
 	case "bible":
 		b := v.Body.Bible
 		if b == nil || v.Body.FromEpisodeID != "" || v.Body.ToEpisodeID != "" {

@@ -24,6 +24,7 @@ def main():
     spec = json.loads((ROOT / 'api/openapi.json').read_text())
     resolver = RefResolver.from_schema(spec)
     calls = []
+    writing_calls = []
     native_counts, native_generations = [], []
     class Upstream(http.server.BaseHTTPRequestHandler):
         def log_message(self, *_):
@@ -50,6 +51,12 @@ def main():
             assert 'response_format' not in body
             data = json.loads(body['messages'][1]['content'])
             assert 'sources' not in data and 'omitted' not in data
+            if 'current_script' in data:
+                assert data['episode_id'] and data['current_script'] is None
+                assert any(x['kind']=='outline' for x in data['material'])
+                writing_calls.append(body)
+                result=dict(title='Writer candidate',logline='A traveller chooses to keep a question open.',characters=[],scenes=[dict(episode_number=1,heading='The doorway',action='The traveller pauses before entering.',dialogue=[])])
+                self.reply(dict(choices=[dict(finish_reason='stop',message=dict(content=json.dumps(result)))]));return
             record = data['material'][0]
             findings = [dict(id='', title='Synthetic finding ' + str(i), kind='ambiguity', severity='note', confidence='low', explanation='A creator must decide whether this is intentional.', evidence=[dict(record_id=record['id'], version_id=record['version_id'], quote=record['title'])]) for i in range(3)]
             result = dict(summary='Synthetic local-only continuity review.', findings=findings)
@@ -246,13 +253,52 @@ def main():
                 call(owner,'GET',evidence_path+query+'&limit=101',evidence_route,status=400)
                 other_series=call(owner,'POST','/api/v1/series'+query,'/api/v1/series',dict(title='Other series',summary='Source evidence must belong to this series.'),aq,status=201)
                 call(owner,'GET',evidence_path.replace(root_series['id'],other_series['id'])+'/1'+query,evidence_route+'/{version}',status=404)
+                # A first draft can use canonical material without an existing script.
+                writing_episode=call(owner,'POST','/api/v1/seasons/'+season['id']+'/episodes'+query,'/api/v1/seasons/{id}/episodes',dict(title='Writer first draft'),aq,status=201)
+                beat_path='/api/v1/seasons/'+season['id']+'/writing-beats';beat_route='/api/v1/seasons/{id}/writing-beats'
+                beat_query=query+'&episode_id='+writing_episode['id']
+                initial_beats=call(viewer,'GET',beat_path+beat_query,beat_route)
+                assert 'current' not in initial_beats
+                beat_input=dict(expected_version=0,title='Episode dramatic plan',kind='outline',status='active',required=True,body=dict(evidence=[],outline=dict(season_id=season['id'],episode_id=writing_episode['id'],goal='Respect the difference in knowledge.',opening='A cautious arrival',conflict='The visitor is unknown',turn='Delay the revelation',hook='A quiet sound behind the door')))
+                call(viewer,'PUT',beat_path+beat_query,beat_route,beat_input,bq,status=403)
+                call(owner,'PUT',beat_path+beat_query,beat_route,beat_input,status=403)
+                wrong_scope=json.loads(json.dumps(beat_input));wrong_scope['body']['outline']['season_id']='f'*32
+                call(owner,'PUT',beat_path+beat_query,beat_route,wrong_scope,aq,status=400)
+                saved_beats=call(owner,'PUT',beat_path+beat_query,beat_route,beat_input,aq,key='story-http-beat-original')
+                assert saved_beats['id']==initial_beats['id'] and saved_beats['number']==1
+                assert call(owner,'PUT',beat_path+beat_query,beat_route,beat_input,aq,key='story-http-beat-original')==saved_beats
+                assert call(viewer,'GET',beat_path+beat_query,beat_route)['current']==saved_beats
+                writing_model=call(owner,'POST','/api/v1/gateway-models'+query,'/api/v1/gateway-models',dict(expected_version=0,model=dict(gateway_id=report['gateways'][0]['id'],name='Synthetic writing text',model='synthetic-continuity-text',capabilities=['text'],enabled=True,max_output_tokens=512,json_output=False)),aq)['models']
+                writing_model=next(m for m in writing_model if m['name']=='Synthetic writing text')
+                call(owner,'PUT','/api/v1/model-features/script_generation'+query,'/api/v1/model-features/{feature_key}',dict(expected_version=0,binding=dict(feature_key='script_generation',model_config_id=writing_model['id'],enabled=True,allow_override=True)),aq)
+                writing_context=call(owner,'POST','/api/v1/episodes/'+writing_episode['id']+'/context-snapshots'+query,'/api/v1/episodes/{id}/context-snapshots',{},aq,status=201)
+                assert writing_context['script'] is None and all(p['code']=='script_required' for p in writing_context['context']['problems'])
+                writer_path='/api/v1/projects/'+writing_episode['id']
+                writer_input=dict(expected_version=1,candidate_only=True,context_snapshot_id=writing_context['id'],model_config_id=writing_model['id'],model_config_version=writing_model['version'])
+                generated=call(owner,'POST',writer_path+'/gateway-generations'+query,'/api/v1/projects/{id}/gateway-generations',writer_input,aq,status=202)
+                deadline=time.monotonic()+8
+                while generated['status'] in ('queued','running'):
+                    assert time.monotonic()<deadline
+                    time.sleep(.025);generated=call(owner,'GET',writer_path+query,'/api/v1/projects/{id}')['latest_generation']
+                assert generated['status']=='succeeded' and generated['context_sha256']==writing_context['content_sha256']
+                current_writer=call(owner,'GET',writer_path+query,'/api/v1/projects/{id}')
+                assert current_writer['version']==1 and 'script' not in current_writer
+                generated_path=writer_path+'/generations/'+generated['id'];generated_route='/api/v1/projects/{id}/generations/{generation}'
+                writing_detail=call(viewer,'GET',generated_path+query,generated_route)
+                assert writing_detail['candidate']['structure_version']==2 and 'runtime_selection' not in writing_detail
+                decision=dict(expected_version=1,review_context_snapshot_id=writing_context['id'])
+                call(viewer,'POST',generated_path+'/adoptions'+query,generated_route+'/adoptions',decision,bq,status=403)
+                adopted_writer=call(owner,'POST',generated_path+'/adoptions'+query,generated_route+'/adoptions',decision,aq,key='story-http-writing-adopt')
+                assert adopted_writer['script_version']==1
+                assert call(owner,'POST',generated_path+'/adoptions'+query,generated_route+'/adoptions',decision,aq,key='story-http-writing-adopt')['version']==adopted_writer['version']
+                assert len(writing_calls)==1
                 call(owner,'PUT',members,'/api/v1/organizations/{id}/members',dict(email=b['user']['email'],role='remove'),aq)
                 call(viewer,'GET',detail+query,detail_route,status=403)
                 call(viewer,'GET',first+'/review'+query,first_route+'/review',status=403)
                 call(viewer,'GET',evidence_path+query,evidence_route,status=403)
                 call(viewer,'GET',evidence_path+'/1'+query,evidence_route+'/{version}',status=403)
                 assert len(calls)==1, 'local decisions resent a paid check'
-                print(json.dumps(dict(result='passed',contract_responses=count,synthetic_gateway_calls=len(calls)+len(native_counts)+len(native_generations),native_count_calls=len(native_counts),native_generation_calls=len(native_generations),live_provider_calls=0,checks=['real guarded text protocol','no pricing configuration','strict schemas','CSRF and roles','pinned evidence','explicit historical scene selection and forged quote/digest refusal','current script comparison','explicit source acknowledgement','adoption CAS','original decision replay preserves later edits','intentional misdirection and rejection','explicit cast identities, asset pinning, CAS and original replay','native Responses input count and output reservation','no generation after native capacity failure','native original receipt replay','revoked access'])))
+                print(json.dumps(dict(result='passed',contract_responses=count,synthetic_gateway_calls=len(calls)+len(native_counts)+len(native_generations)+len(writing_calls),writing_calls=len(writing_calls),native_count_calls=len(native_counts),native_generation_calls=len(native_generations),live_provider_calls=0,checks=['canonical season/episode plans and original version replay','first-draft writing with nil current script and no pricing','pinned canonical writing material and explicit local adoption','real guarded text protocol','no pricing configuration','strict schemas','CSRF and roles','pinned evidence','explicit historical scene selection and forged quote/digest refusal','current script comparison','explicit source acknowledgement','adoption CAS','original decision replay preserves later edits','intentional misdirection and rejection','explicit cast identities, asset pinning, CAS and original replay','native Responses input count and output reservation','no generation after native capacity failure','native original receipt replay','revoked access'])))
             finally:
                 process.terminate()
                 try:

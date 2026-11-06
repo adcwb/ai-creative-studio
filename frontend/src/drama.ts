@@ -5,6 +5,7 @@ export interface ScriptScene { id?: string; episode_number?: number; heading: st
 export interface DramaScript { structure_version?: 2; title: string; logline: string; characters: ScriptCharacter[]; scenes: ScriptScene[] }
 export interface ScriptAdoption {actor:string;generation_id:string;project_version:number;script_version:number;sha256:string;edited:boolean;reason:string;created_at:string}
 export interface ScriptGeneration {
+  context_snapshot_id?:string;context_sha256?:string;
   candidate_only?: boolean; candidate?: DramaScript; source_script?: DramaScript; source_script_version?: number; adoption?: ScriptAdoption
   id: string; space_id: string; project_id: string; source_title: string; source_brief: string; base_version: number
   provider: string; status: 'queued' | 'running' | 'succeeded' | 'failed'; progress: number
@@ -58,7 +59,7 @@ export function scriptDraftError(script: DramaScript) {
       if (scene.dialogue.some(line => !line.character_id || !characterIds.has(line.character_id))) return translate('对白必须引用有效的角色标识。')
     }
     if (!Number.isSafeInteger(scene.episode_number ?? 1) || (scene.episode_number ?? 1) < 1) return translate('集数需为有效正整数。')
-    if (scene.dialogue.length > 100 || scene.dialogue.some(line => !names.has(line.character.trim()))) return translate('对白必须引用已有角色，每场最多100条。')
+    if (scene.dialogue.some(line => !names.has(line.character.trim()))) return translate('对白必须引用已有角色。')
     error ||= fieldLengthError(scene.heading, 1, 100, translate("第 {p0} 场标题", {p0: index + 1})) || fieldLengthError(scene.action, 1, 1000, translate("第 {p0} 场动作", {p0: index + 1}))
     for (const line of scene.dialogue) error ||= fieldLengthError(line.text, 1, 300, translate("第 {p0} 场对白", {p0: index + 1}))
   }

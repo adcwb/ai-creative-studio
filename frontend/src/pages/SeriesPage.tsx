@@ -1,3 +1,4 @@
+import {WritingWorkspace} from '../features/series/WritingWorkspace'
 import {useEffect,useState} from 'react'
 import {Link,useNavigate,useParams} from 'react-router-dom'
 import {useAppWorkspace} from '../app/workspace'
@@ -48,6 +49,7 @@ function SeriesWorkspace({id}:{id:string}){
  {mode==='new-season'&&<SeriesForm kind="season" parent={root.id} profile={root.profile} onCancel={close} onSaved={n=>{setSelected(n.id);onSaved()}}/>}
  {mode==='season'&&season&&<SeriesForm key={season.id} kind="season" item={season} onCancel={close} onSaved={onSaved} onRefresh={refresh}/>}
  {mode==='move-season'&&season&&<SeriesMoveForm item={season} parent={root} onCancel={close} onSaved={onSaved}/>}
+ {season&&<WritingWorkspace root={root.id} season={season}/>}
  {season&&<EpisodeDirectory key={`${season.id}:${mode!==''}`} root={root} season={season} revision={revision} refresh={refresh} disabled={mode!==''}/>}
  </>}
  </div>

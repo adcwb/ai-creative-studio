@@ -45,3 +45,5 @@
 [T33C2C2人物、风格与原生音色实际输入](superpowers/specs/2026-11-04-creative-series/creative-inputs-implementation.md)：明确模式、固定版本/授权、真实协议及配音消费链；不承诺原生身份锁定或克隆，完整Go竞态、58项桌面手机网关浏览器、前端及HTTP合同通过；T33按当前支持矩阵完成，后续编剧导演编排仍未实现。
 
 [T34A编剧候选与明确采纳](superpowers/specs/2026-11-04-creative-series/writer-candidates-implementation.md)：生成保留正式稿，比较/编辑后明确采纳，原请求恢复和当前版本CAS；季集节拍、固定故事上下文及后续导演编排仍待实施。
+
+[T34B/C季集节拍与正式写作上下文](superpowers/specs/2026-11-04-creative-series/writer-context-implementation.md)：版本化计划、固定本集资料到真实text请求、来源变更检查与人工采纳；旧角色/对白数量门槛移除，64项桌面手机网关浏览器通过。T34完成，导演/制作编排和完整容量仍待实施。
