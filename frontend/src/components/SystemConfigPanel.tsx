@@ -4,9 +4,12 @@ import { useI18n } from '../i18n'
 import './systemConfig.css'
 
 interface ConfigField {key: string; group: string; secret: boolean; read_only: boolean; value: string; configured: boolean; source: string; pending: boolean}
-interface ConfigReport {version: string; fields: ConfigField[]; restart_required: boolean}
+interface ConfigReport {build_revision?: string;version: string; fields: ConfigField[]; restart_required: boolean}
 const groups: Record<string, string> = {service: '服务与访问', authentication: '认证与登录', storage: '数据库与存储', gateway: '网关与执行', providers: '模型与本地服务', references: '参考素材存储', tracing: '追踪与诊断'}
 
+function sensitiveURL(value: string | null) {
+ try {const u=new URL(value??'');return Boolean(u.username||u.password||u.search)} catch {return false}
+}
 export function SystemConfigPanel({onDirtyChange}: {onDirtyChange?: (dirty: boolean) => void}) {
   const {t} = useI18n()
   const [report, setReport] = useState<ConfigReport | null>(null)
@@ -27,7 +30,7 @@ export function SystemConfigPanel({onDirtyChange}: {onDirtyChange?: (dirty: bool
     if (!report || busy) return
     setBusy(true); setError(''); setNotice('')
     const changes = {...draft}
-    setDraft(old => Object.fromEntries(Object.entries(old).filter(([key]) => !report.fields.some(field => field.key === key && field.secret))))
+    setDraft(old => Object.fromEntries(Object.entries(old).filter(([key]) => !report.fields.some(field => field.key === key && (field.secret || sensitiveURL(old[key]))))))
     try {
       const value = await request<ConfigReport>('/system-config', {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({expected_version: report.version, changes})})
       setReport(value); setDraft({}); setNotice(t('后端配置已保存，请重启 API 与 worker 后生效。'))
@@ -38,12 +41,13 @@ export function SystemConfigPanel({onDirtyChange}: {onDirtyChange?: (dirty: bool
     {error && <p className="error" role="alert">{error} <button type="button" disabled={busy} onClick={() => setRevision(value => value + 1)}>{t('重新读取')}</button></p>}
     {notice && <p className="notice" role="status">{notice}</p>}
     {!report ? <p role="status">{t('正在读取后端配置…')}</p> : <form onSubmit={event => {event.preventDefault(); void save()}}><fieldset disabled={busy}>
+      <p className="drama-help">API revision: <code>{report.build_revision ?? 'unknown'}</code></p>
       {report.restart_required && <p className="notice">{t('存在尚未生效的配置，请重启相关进程。')}</p>}
       {Object.entries(groups).map(([group, name]) => <details key={group} open={group === 'service' || undefined}><summary>{t(name)}</summary><div className="system-config-fields">{report.fields.filter(field => field.group === group).map(field => {
         const changed = field.key in draft
         const value = changed ? draft[field.key] ?? '' : field.value
         return <div className="system-config-field" key={field.key}><label htmlFor={`config-${field.key}`}><code>{field.key}</code>{field.pending && <span>{t('待重启')}</span>}</label>
-          <input aria-label={field.key} id={`config-${field.key}`} type={field.secret ? 'password' : 'text'} autoComplete={field.secret ? 'new-password' : 'off'} spellCheck={false} disabled={field.read_only || changed && draft[field.key] === null} maxLength={8192} placeholder={field.secret ? t(field.configured ? '已配置；留空保留现有值' : '未配置') : undefined} value={value} onChange={event => {if (field.secret && !event.target.value) setDraft(old => {const next = {...old}; delete next[field.key]; return next}); else change(field.key, event.target.value)}} />
+          <input aria-label={field.key} id={`config-${field.key}`} type={field.secret || sensitiveURL(value) ? 'password' : 'text'} autoComplete={field.secret ? 'new-password' : 'off'} spellCheck={false} disabled={field.read_only || changed && draft[field.key] === null} maxLength={8192} placeholder={field.secret ? t(field.configured ? '已配置；留空保留现有值' : '未配置') : undefined} value={value} onChange={event => {if (field.secret && !event.target.value) setDraft(old => {const next = {...old}; delete next[field.key]; return next}); else change(field.key, event.target.value)}} />
           <div className="config-field-footer"><small>{t(field.read_only ? '由部署环境管理' : field.source === 'file' ? '配置文件' : '环境变量')}{changed && ` · ${t(draft[field.key] === null ? '将恢复环境值' : '未保存')}`}</small>{!field.read_only && <div>{field.secret && <button type="button" onClick={() => change(field.key, '')}>{t('清除值')}</button>}<button type="button" onClick={() => change(field.key, null)}>{t('恢复环境值')}</button>{changed && <button type="button" onClick={() => setDraft(old => {const next = {...old}; delete next[field.key]; return next})}>{t('撤销修改')}</button>}</div>}</div>
         </div>
       })}</div></details>)}

@@ -9,6 +9,7 @@ import (
 	"net/mail"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -74,12 +75,19 @@ func OpenAuthStore(dir string) (*AuthStore, error) {
 			return nil, errors.New("invalid authentication account")
 		}
 	}
+	personalOwners := map[string]bool{}
 	for id, o := range s.data.Organizations {
-		if id != o.ID || o.Members == nil || o.Members[o.OwnerID] != "owner" {
+		if (o.Type != "" && o.Type != "personal" && o.Type != "team") || o.Version < 0 || (o.Type == "personal" && len(o.Members) != 1) || id != o.ID || o.Members == nil || o.Members[o.OwnerID] != "owner" {
 			return nil, errors.New("invalid organization owner")
 		}
+		if o.Type == "personal" {
+			if personalOwners[o.OwnerID] {
+				return nil, errors.New("duplicate personal space")
+			}
+			personalOwners[o.OwnerID] = true
+		}
 		for uid, role := range o.Members {
-			if _, ok := s.data.Users[uid]; !ok || !validRole(role) {
+			if _, ok := s.data.Users[uid]; !ok || !validRole(role) || (role == "owner" && uid != o.OwnerID) {
 				return nil, errors.New("invalid organization membership")
 			}
 		}
@@ -208,8 +216,7 @@ func (s *AuthStore) login(email, password string, register bool, beforeCommit ..
 		account = authAccount{AuthUser: AuthUser{ID: authRandom(16), Email: email}, Salt: authRandom(16)}
 		account.PasswordHash = authPassword(password, account.Salt)
 		d.Users[account.ID] = account
-		orgID := "org-" + authRandom(16)
-		d.Organizations[orgID] = AuthOrganization{ID: orgID, Name: "我的工作空间", OwnerID: account.ID, Members: map[string]string{account.ID: "owner"}}
+		ensurePersonalSpace(&d, account.ID)
 	} else {
 		salt := account.Salt
 		if !found {
@@ -220,6 +227,7 @@ func (s *AuthStore) login(email, password string, register bool, beforeCommit ..
 			return AuthUser{}, "", authSession{}, errors.New("invalid credentials")
 		}
 	}
+	ensurePersonalSpace(&d, account.ID)
 	now := time.Now()
 	count := 0
 	for k, ss := range d.Sessions {
@@ -251,16 +259,26 @@ func (s *AuthStore) role(user, org string) string {
 	if s.failed != nil {
 		return ""
 	}
-	return s.data.Organizations[org].Members[user]
+	o := s.data.Organizations[org]
+	if o.Type == "personal" && o.OwnerID != user {
+		return ""
+	}
+	return o.Members[user]
 }
 func (s *AuthStore) spaces(user string) []map[string]string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := []map[string]string{}
 	for _, o := range s.data.Organizations {
-		if role := o.Members[user]; role != "" {
-			out = append(out, map[string]string{"id": o.ID, "name": o.Name, "type": "team", "owner_id": o.OwnerID, "role": role})
+		if role := o.Members[user]; role != "" && (o.Type != "personal" || o.OwnerID == user) {
+			out = append(out, map[string]string{"id": o.ID, "name": o.Name, "type": spaceType(o), "owner_id": o.OwnerID, "role": role})
 		}
 	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i]["type"] != out[j]["type"] {
+			return out[i]["type"] == "personal"
+		}
+		return out[i]["id"] < out[j]["id"]
+	})
 	return out
 }

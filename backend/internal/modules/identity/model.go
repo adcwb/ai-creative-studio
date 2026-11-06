@@ -6,6 +6,8 @@ type AuthUser struct {
 }
 
 type AuthOrganization struct {
+	Type    string            `json:"type,omitempty"`
+	Version int64             `json:"version,omitempty"`
 	ID      string            `json:"id"`
 	Name    string            `json:"name"`
 	OwnerID string            `json:"owner_id"`

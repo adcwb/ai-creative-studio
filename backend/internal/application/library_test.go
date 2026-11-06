@@ -178,7 +178,7 @@ func TestLibrarySecureRolesAndSpaceIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	space, other := auth.spaces(owner.ID)[0]["id"], auth.spaces(viewer.ID)[0]["id"]
+	space, other := testTeamSpace(t, auth, owner.ID), testTeamSpace(t, auth, viewer.ID)
 	h := SecureHandler(s, "http://localhost:5173", auth, AuthOptions{AllowRegistration: true})
 	base := "/api/v1/library/assets"
 	body := `{"kind":"character","card":{"name":"Actor","description":"","prohibited_changes":[],"character":{}},"references":[]}`

@@ -62,7 +62,7 @@ func runtimeRoleAllowed(role string) bool {
 
 func (r *ModelRuntime) Resolve(ctx context.Context, tenant, actor, id, capability string) (RuntimeSelection, ModelConfigEntry, error) {
 	selection := RuntimeSelection{TenantID: tenant, ActorID: actor, ModelID: id, Capability: capability}
-	if ctx.Err() != nil || r == nil || r.auth == nil || r.auth.models == nil || !runtimeRoleAllowed(r.auth.role(actor, tenant)) {
+	if ctx.Err() != nil || r == nil || r.auth == nil || r.auth.models == nil || !r.auth.can(actor, tenant, "models.execute") {
 		return selection, ModelConfigEntry{}, errRuntimeDenied
 	}
 	s := r.auth.models
@@ -130,7 +130,7 @@ func (r *ModelRuntime) check(ctx context.Context, selection RuntimeSelection) er
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	if r == nil || r.auth == nil || r.auth.models == nil || r.authorize == nil || !runtimeRoleAllowed(r.auth.role(selection.ActorID, selection.TenantID)) {
+	if r == nil || r.auth == nil || r.auth.models == nil || r.authorize == nil || !r.auth.can(selection.ActorID, selection.TenantID, "models.execute") {
 		return errRuntimeDenied
 	}
 	s := r.auth.models

@@ -24,7 +24,7 @@ func TestStorySecureHTTPCurrentRolesCSRFVersionsAndRevocation(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	space := auth.spaces(owner.ID)[0]["id"]
+	space := testTeamSpace(t, auth, owner.ID)
 	a := series.Actor{Space: space, User: owner.ID, Writable: true}
 	root, e := s.series.Mutate(context.Background(), a, "secure-story-root", series.Command{Operation: "create", Kind: "series", ID: series.NewID(a, "create", "secure-story-root"), Input: series.Input{Title: "真实组织中的正式资料", Summary: "正式资料由当前组织授权的人编辑", Profile: series.DefaultProfile()}}, nil)
 	if e != nil {

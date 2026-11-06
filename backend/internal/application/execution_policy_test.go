@@ -86,6 +86,7 @@ func TestExecutionPolicyUnknownReviewCostNeverRunsCommand(t *testing.T) {
 }
 
 func TestExecutionPolicyRequiresNonbillableReviewContractAtStartup(t *testing.T) {
+	t.Setenv("CONTENT_MODERATION_MODE", "required")
 	store, err := OpenStore(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

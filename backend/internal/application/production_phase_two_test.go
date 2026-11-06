@@ -303,7 +303,7 @@ func TestProductionReviewMembersRespectOrganizationRoles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	space := auth.spaces(owner.ID)[0]["id"]
+	space := testTeamSpace(t, auth, owner.ID)
 	p, _, err := s.CreateProject(space, "review-auth-project", ProjectInput{Title: "Review", Brief: "A review assignment"})
 	if err != nil {
 		t.Fatal(err)

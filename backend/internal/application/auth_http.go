@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/identity"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/deployconfig"
 )
 
@@ -139,7 +140,7 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 			if logged {
 				out["user"] = user
 				out["csrf_token"] = session.CSRF
-				out["spaces"] = auth.spaces(user.ID)
+				out["spaces"] = auth.sessionSpaces(user.ID)
 				out["deployment_admin"] = deployconfig.IsAdmin(user.Email, options.SystemAdmins)
 			}
 			return out
@@ -246,7 +247,7 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 			return
 		}
 		if r.URL.Path == "/api/v1/spaces" && r.Method == "GET" {
-			respond(w, 200, auth.spaces(user.ID))
+			respond(w, 200, auth.sessionSpaces(user.ID))
 			return
 		}
 		if r.URL.Path == "/api/v1/organizations" && r.Method == "POST" {
@@ -277,11 +278,11 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 		publicMetadata := r.Method == "GET" && (r.URL.Path == "/api/v1/templates" || r.URL.Path == "/api/v1/capabilities" || r.URL.Path == "/api/v1/creative-registry" || r.URL.Path == "/api/v1/creative-capabilities" || r.URL.Path == "/api/v1/creative-media-capabilities" || r.URL.Path == "/api/v1/alignment-capabilities")
 		space := r.URL.Query().Get("space_id")
 		role := auth.role(user.ID, space)
-		if !publicMetadata && role == "" {
+		if !publicMetadata && (role == "" || !auth.can(user.ID, space, "workspace.read")) {
 			problem(w, 403, "tenant_denied", "没有此工作空间的访问权限")
 			return
 		}
-		if authWrite(r) && role == "viewer" && !promptReadAction(r) {
+		if authWrite(r) && !promptReadAction(r) && !auth.can(user.ID, space, "workspace.write") {
 			problem(w, 403, "role_denied", "只读成员不能修改内容")
 			return
 		}
@@ -290,10 +291,22 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 			return
 		}
 		if gatewayManagementPath(r.URL.Path) {
+			permission := "models.manage"
+			if r.Method == "GET" && (r.URL.Path == "/api/v1/model-usage" || r.URL.Path == "/api/v1/model-usage/calls") {
+				permission = "usage.read"
+			}
+			if !auth.can(user.ID, space, permission) {
+				problem(w, 403, "role_denied", "没有模型管理权限")
+				return
+			}
 			auth.models.serveGatewayManagement(w, r, authScope{UserID: user.ID, SpaceID: space, Role: role})
 			return
 		}
 		if r.URL.Path == "/api/v1/model-config" || strings.HasPrefix(r.URL.Path, "/api/v1/model-config/") {
+			if !auth.can(user.ID, space, "models.manage") {
+				problem(w, 403, "role_denied", "没有模型管理权限")
+				return
+			}
 			s := authScope{UserID: user.ID, SpaceID: space, Role: role}
 			auth.models.serve(w, r, s)
 			return
@@ -303,8 +316,7 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 			if !ok || current.ID != user.ID {
 				return false
 			}
-			role := auth.role(user.ID, space)
-			return role != "" && role != "viewer"
+			return auth.can(user.ID, space, "workspace.write")
 		}})))
 	})
 }
@@ -324,7 +336,7 @@ func (s *AuthStore) createOrganization(w http.ResponseWriter, r *http.Request, u
 	defer s.mu.Unlock()
 	d := s.clone()
 	id := "org-" + authRandom(16)
-	d.Organizations[id] = AuthOrganization{ID: id, Name: in.Name, OwnerID: user.ID, Members: map[string]string{user.ID: "owner"}}
+	d.Organizations[id] = AuthOrganization{ID: id, Name: in.Name, OwnerID: user.ID, Type: "team", Version: 1, Members: map[string]string{user.ID: "owner"}}
 	if err := s.commit(d); err != nil {
 		problem(w, 503, "auth_storage_error", "空间保存失败")
 		return
@@ -333,7 +345,7 @@ func (s *AuthStore) createOrganization(w http.ResponseWriter, r *http.Request, u
 }
 func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUser) {
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v1/organizations/"), "/")
-	if len(parts) != 2 || parts[1] != "members" {
+	if len(parts) != 2 || (parts[1] != "members" && parts[1] != "access") {
 		problem(w, 404, "not_found", "接口不存在")
 		return
 	}
@@ -345,11 +357,25 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 		problem(w, 403, "tenant_denied", "没有此工作空间的访问权限")
 		return
 	}
-	if role != "owner" && role != "admin" {
-		problem(w, 403, "role_denied", "仅管理员可管理成员")
+	if !s.canLocked(user.ID, org.ID, "members.read") {
+		problem(w, 403, "role_denied", "没有成员读取权限")
 		return
 	}
 	SetAuditIdentity(r.Context(), user.ID, org.ID, role)
+	if parts[1] == "access" {
+		if r.Method != "GET" {
+			problem(w, 405, "method_not_allowed", "方法不支持")
+			return
+		}
+		permissions := []string{}
+		for _, p := range identity.Permissions(role) {
+			if s.canLocked(user.ID, org.ID, p) {
+				permissions = append(permissions, p)
+			}
+		}
+		respond(w, 200, map[string]any{"id": org.ID, "name": org.Name, "type": spaceType(org), "owner_id": org.OwnerID, "version": spaceVersion(org), "role": role, "permissions": permissions})
+		return
+	}
 	if r.Method == "GET" {
 		members := []map[string]string{}
 		for uid, role := range org.Members {
@@ -359,16 +385,25 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 		respond(w, 200, members)
 		return
 	}
+	if r.Method != "GET" && (spaceType(org) == "personal" || !s.canLocked(user.ID, org.ID, "members.manage")) {
+		problem(w, 403, "role_denied", "个人空间不可添加成员，或当前角色没有成员管理权限")
+		return
+	}
 	if r.Method != "PUT" {
 		problem(w, 405, "method_not_allowed", "方法不支持")
 		return
 	}
 	var in struct {
-		Email  string `json:"email"`
-		Role   string `json:"role"`
-		UserID string `json:"user_id,omitempty"`
+		Email           string `json:"email"`
+		Role            string `json:"role"`
+		UserID          string `json:"user_id,omitempty"`
+		ExpectedVersion int64  `json:"expected_version,omitempty"`
 	}
 	if !decode(w, r, &in) {
+		return
+	}
+	if in.ExpectedVersion != 0 && in.ExpectedVersion != spaceVersion(org) {
+		problem(w, 409, "membership_conflict", "成员权限已变化，请重新读取后保存")
 		return
 	}
 	if in.Role != "admin" && in.Role != "editor" && in.Role != "viewer" && in.Role != "remove" {
@@ -395,7 +430,7 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 		return
 	}
 	current := org.Members[uid]
-	if current == "owner" || (role == "admin" && (current == "admin" || in.Role == "admin")) {
+	if current == "owner" || (!s.canLocked(user.ID, org.ID, "members.manage_admin") && (current == "admin" || in.Role == "admin")) {
 		problem(w, 403, "role_denied", "不能修改此角色")
 		return
 	}
@@ -404,6 +439,7 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 	}
 	d := s.clone()
 	changed := d.Organizations[org.ID]
+	changed.Version = spaceVersion(org) + 1
 	if in.Role == "remove" {
 		delete(changed.Members, uid)
 	} else {

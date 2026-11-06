@@ -32,7 +32,7 @@ def main():
     parser.add_argument('--pg-lib', type=Path)
     args = parser.parse_args()
     assert args.pg_socket.is_absolute() and args.pg_socket.is_dir()
-    assert args.pg_user.isalnum() and 0 < args.pg_port < 65536
+    assert args.pg_user.replace('_', '').isalnum() and 0 < args.pg_port < 65536
     dbname = 'studio_integration_' + uuid.uuid4().hex[:16]
     evidence = Path(tempfile.mkdtemp(prefix='studio-multiservice-'))
     env = {'PATH': os.environ['PATH'], 'PGPASSFILE': '/dev/null', 'PGSERVICEFILE': '/dev/null'}
@@ -46,7 +46,7 @@ def main():
     workers = []
     checks = []
     try:
-        for name in ('server', 'worker'):
+        for name in ('server', 'worker', 'store-migrate'):
             subprocess.run(['go', 'build', '-o', str(evidence / name), './cmd/' + name], cwd=ROOT / 'backend', check=True)
         ports = []
         for _ in range(2):
@@ -55,10 +55,12 @@ def main():
                 ports.append(sock.getsockname()[1])
         origin = f'http://127.0.0.1:{ports[0]}'
         common = {**env, 'STORAGE_BACKEND': 'postgres', 'QUEUE_BACKEND': 'postgres',
-                  'STORAGE_AUTO_MIGRATE': 'true', 'DATABASE_URL': f'host={args.pg_socket} port={args.pg_port} user={args.pg_user} dbname={dbname} sslmode=disable passfile=/dev/null',
+                  'STORAGE_AUTO_MIGRATE': 'false', 'DATABASE_URL': f'host={args.pg_socket} port={args.pg_port} user={args.pg_user} dbname={dbname} sslmode=disable passfile=/dev/null',
                   'BLOB_STORE': 'shared-file', 'BLOB_FILE_ROOT': str(evidence / 'objects'),
                   'AUTH_MODE': 'secure', 'AUTH_ALLOW_REGISTRATION': 'true', 'AUTH_COOKIE_SECURE': 'false',
                   'FRONTEND_ORIGIN': origin, 'IMAGE_PROVIDER': 'mock-svg', 'TEXT_PROVIDER': 'mock-text'}
+        # Migrate the new disposable database before starting any writers.
+        subprocess.run([str(evidence / 'store-migrate'), '-mode', 'init', '-confirm-stopped'], env=common, check=True, stdout=subprocess.DEVNULL)
         def start(name, index):
             log = (evidence / f'{name}-{index}.log').open('w')
             logs.append(log)
@@ -97,7 +99,7 @@ def main():
         a = call(alice, 0, 'POST', '/api/v1/auth/register', {'email': 'alice@example.invalid', 'password': 'Synthetic-password-2026!'})
         b = call(bob, 1, 'POST', '/api/v1/auth/register', {'email': 'bob@example.invalid', 'password': 'Synthetic-password-2026!'})
         assert call(alice, 1, 'GET', '/api/v1/auth/session')['user']['id'] == a['user']['id']
-        tenant = a['spaces'][0]['id']
+        tenant = call(alice, 0, 'POST', '/api/v1/organizations', {'name':'Synthetic multi-process team'}, a['csrf_token'], status=201)['id']
         query = '?space_id=' + tenant
         csrf = a['csrf_token']
         call(bob, 1, 'GET', '/api/v1/tasks' + query, status=403)

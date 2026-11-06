@@ -119,7 +119,7 @@ def main():
                 a = call(owner,'POST','/api/v1/auth/register','/api/v1/auth/register',dict(email='story-contract-owner@example.invalid',password='Synthetic-story-contract-password!'))
                 b = call(viewer,'POST','/api/v1/auth/register','/api/v1/auth/register',dict(email='story-contract-viewer@example.invalid',password='Synthetic-story-contract-password!'))
                 aq,bq=a['csrf_token'],b['csrf_token']
-                space=a['spaces'][0]['id'];query='?space_id='+space
+                space=call(owner,'POST','/api/v1/organizations','/api/v1/organizations',dict(name='Synthetic story team'),aq,status=201)['id'];query='?space_id='+space
                 root_series=call(owner,'POST','/api/v1/series'+query,'/api/v1/series',dict(title='Continuity contract',summary='A traveller has incomplete knowledge.'),aq,status=201)
                 season=call(owner,'POST','/api/v1/series/'+root_series['id']+'/seasons'+query,'/api/v1/series/{id}/seasons',{},aq,status=201)
                 episode=call(owner,'POST','/api/v1/seasons/'+season['id']+'/episodes'+query,'/api/v1/seasons/{id}/episodes',dict(title='The doorway'),aq,status=201)

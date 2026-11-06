@@ -182,7 +182,7 @@ func TestDigitalHumanHTTPAuthorizationAndIdempotency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	space := auth.spaces(u.ID)[0]["id"]
+	space := testTeamSpace(t, auth, u.ID)
 	p, a, _, _ := avatarFixture(t, s, space)
 	h := SecureHandler(s, "http://localhost:5173", auth, AuthOptions{})
 	path := "/api/v1/projects/" + p.ID + "/digital-humans?space_id=" + space

@@ -174,8 +174,8 @@ func TestScriptCandidateHTTPRolesOwnershipAndOriginalReceipt(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	space := auth.spaces(a.ID)[0]["id"]
-	otherSpace := auth.spaces(b.ID)[0]["id"]
+	space := testTeamSpace(t, auth, a.ID)
+	otherSpace := testTeamSpace(t, auth, b.ID)
 	p, _, e := s.CreateProject(space, "candidate-http-project", projectInput())
 	if e != nil {
 		t.Fatal(e)

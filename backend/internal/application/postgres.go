@@ -193,6 +193,9 @@ func InitPostgres(ctx context.Context, db *sql.DB) error {
 	if _, err = tx.ExecContext(ctx, migrationrepo.Schema); err != nil {
 		return err
 	}
+	if err = initRBAC(ctx, tx); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 
@@ -282,6 +285,9 @@ func (p *postgresScope) begin() {
 				d[c.field], _ = json.Marshal(values)
 			}
 		}
+	}
+	if p.err == nil && p.name == "auth" {
+		p.err = p.loadRBAC(d)
 	}
 	if p.err == nil {
 		var raw []byte
@@ -440,6 +446,11 @@ func (p *postgresScope) write(value any) error {
 			if err != nil {
 				return errors.New("postgres record constraint or write failed")
 			}
+		}
+	}
+	if p.name == "auth" {
+		if err = p.writeRBAC(records); err != nil {
+			return err
 		}
 	}
 	envelope, _ := json.Marshal(env)

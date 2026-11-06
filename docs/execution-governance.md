@@ -6,12 +6,12 @@
 
 - 已认证的组织角色具备执行权限，模型已启用且凭据可解密。
 - 当前配置版本、实际能力及功能绑定授权匹配；不能借文本模型生成图片。
-- 有效的内容审核程序审核实际输入与输出模态，拒绝、过期或故障时停止提交或发布。
+- 默认`CONTENT_MODERATION_MODE=disabled`，不要求审核器、不调用审核、不伪造审核通过。显式`required`时，有效审核程序检查实际模态，拒绝、过期或故障会停止提交。
 - 持久化发送凭证防止同一任务重复调用；并发、载荷、超时和存储边界仍生效。
 
 ## 审核配置
 
-可配置 `GATEWAY_MODERATION_COMMAND`、`GATEWAY_MODERATION_SOURCE` 与 `GATEWAY_MODERATION_EXPIRES_AT`，或使用 `EXECUTION_POLICY_FILE`：
+当前暂时禁用审核，页面标注结果未经本项目自动审核。重新启用必须显式设置`CONTENT_MODERATION_MODE=required`并重启API和worker。required模式可配置 `GATEWAY_MODERATION_COMMAND`、`GATEWAY_MODERATION_SOURCE` 与 `GATEWAY_MODERATION_EXPIRES_AT`，或使用 `EXECUTION_POLICY_FILE`：
 
 ```json
 {
@@ -23,7 +23,7 @@
 }
 ```
 
-该示例不能原样启用。审核命令须由部署方安装并声明为本地或免费执行，必须覆盖实际模态；此独立策略没有在成本管理改造中关闭，也没有默认“始终允许”审核器。命令以 JSON 读取 `ExecutionRequest`，返回带 provider、model、status、checked_at 的审核结论，输出阶段 `Stage` 为 `output`。只有新鲜的明确 allow 才通过。命令不继承部署密钥环境，受执行超时和输出大小限制。
+该示例不能原样启用。审核命令须由部署方安装并声明为本地或免费执行，必须覆盖实际模态；此独立策略现由CONTENT_MODERATION_MODE显式控制，没有默认“始终允许”审核器。命令以 JSON 读取 `ExecutionRequest`，返回带 provider、model、status、checked_at 的审核结论，输出阶段 `Stage` 为 `output`。只有新鲜的明确 allow 才通过。命令不继承部署密钥环境，受执行超时和输出大小限制。
 
 策略不再需要 `prices` 或 billing 设置。旧价格／账单字段可兼容读取，但过期不会阻止生成。音乐旧适配器的供应商账户资格、参考素材传输授权等独立许可仍保持校验。
 

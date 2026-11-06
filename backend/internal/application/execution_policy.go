@@ -191,8 +191,17 @@ func validatePolicyCommand(path string) error {
 // Storage credentials are read only for explicit reference-transfer grants and
 // REFERENCE_BRIDGE_ENABLED=true. No network calls or paid probes occur here.
 func ConfigureExecutionFromEnv(s *FileStore) error {
+	mode := strings.TrimSpace(os.Getenv("CONTENT_MODERATION_MODE"))
+	if mode != "" && mode != "disabled" && mode != "required" {
+		return errors.New("CONTENT_MODERATION_MODE must be disabled or required")
+	}
+	disabled := mode != "required"
 	path := os.Getenv("EXECUTION_POLICY_FILE")
 	if path == "" {
+		if disabled {
+			ConfigureExecutionGovernance(s, &ExecutionGovernor{Ledger: s.budget, ModerationDisabled: true})
+			return nil
+		}
 		if command := os.Getenv("GATEWAY_MODERATION_COMMAND"); command != "" {
 			expiry, e := time.Parse(time.RFC3339, os.Getenv("GATEWAY_MODERATION_EXPIRES_AT"))
 			policy := &ExecutionPolicy{ModerationCommand: command, ModerationContract: "local-or-free-v1", ModerationSource: os.Getenv("GATEWAY_MODERATION_SOURCE"), ModerationExpiresAt: expiry}
@@ -200,8 +209,9 @@ func ConfigureExecutionFromEnv(s *FileStore) error {
 				return ErrExecutionGovernance
 			}
 			ConfigureExecutionGovernance(s, &ExecutionGovernor{Ledger: s.budget, Quoter: policy, Moderator: policy})
+			return nil
 		}
-		return nil
+		return ErrExecutionGovernance
 	}
 	f, e := os.Open(path)
 	if e != nil {
@@ -222,7 +232,7 @@ func ConfigureExecutionFromEnv(s *FileStore) error {
 	if d.Decode(&extra) != io.EOF {
 		return ErrExecutionGovernance
 	}
-	if !policy.moderationIsNonbillable() || policy.Version != 1 || validatePolicyCommand(policy.ModerationCommand) != nil {
+	if policy.Version != 1 || (!disabled && (!policy.moderationIsNonbillable() || validatePolicyCommand(policy.ModerationCommand) != nil)) {
 		return ErrExecutionGovernance
 	}
 	if err := validateMusicEntitlements(policy.MusicEntitlements); err != nil {
@@ -231,7 +241,7 @@ func ConfigureExecutionFromEnv(s *FileStore) error {
 	if err := policy.configureReferenceBridge(); err != nil {
 		return err
 	}
-	ConfigureExecutionGovernance(s, &ExecutionGovernor{Ledger: s.budget, Quoter: &policy, Moderator: &policy, Billing: &policy})
+	ConfigureExecutionGovernance(s, &ExecutionGovernor{Ledger: s.budget, Quoter: &policy, Moderator: &policy, Billing: &policy, ModerationDisabled: disabled})
 	return nil
 }
 

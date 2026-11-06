@@ -400,7 +400,7 @@ func TestSocialHTTPAuthorization(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	oa, ob := auth.spaces(a.ID)[0]["id"], auth.spaces(b.ID)[0]["id"]
+	oa, ob := testTeamSpace(t, auth, a.ID), testTeamSpace(t, auth, b.ID)
 	p, _, e := s.CreateProject(oa, "social-project", projectInput())
 	if e != nil {
 		t.Fatal(e)

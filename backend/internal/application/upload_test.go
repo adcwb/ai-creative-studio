@@ -288,7 +288,7 @@ func TestResumableUploadSecureOwnerCSRFIsolationAndRevocation(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	space := auth.spaces(owner.ID)[0]["id"]
+	space := testTeamSpace(t, auth, owner.ID)
 	project, _, e := s.CreateProject(space, "secure-upload-project", projectInput())
 	if e != nil {
 		t.Fatal(e)

@@ -17,7 +17,7 @@ export interface Task extends TaskInput, ResultSource {
 }
 export interface Asset extends TaskInput, ResultSource { id: string; task_id: string; space_id: string; result_url: string }
 export interface Template extends TaskInput { id: string; name: string; description: string }
-export interface Space { id: string; name: string; type: string; owner_id: string; role?: 'owner' | 'admin' | 'editor' | 'viewer' }
+export interface Space { id: string; name: string; type: string; owner_id: string; role?: 'owner' | 'admin' | 'editor' | 'viewer'; permissions?: string[]; version?: number }
 export interface Catalog {
   templates: Template[]
   ratios: {value: Ratio; label: string}[]

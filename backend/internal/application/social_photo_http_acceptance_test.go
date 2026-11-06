@@ -57,8 +57,8 @@ func TestPhotoHTTPAcceptancePosterTenantReplayAndRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tenant := auth.spaces(alice.ID)[0]["id"]
-	foreign := auth.spaces(bob.ID)[0]["id"]
+	tenant := testTeamSpace(t, auth, alice.ID)
+	foreign := testTeamSpace(t, auth, bob.ID)
 	project, _, err := store.CreateProject(tenant, "photo-http-project", projectInput())
 	if err != nil {
 		t.Fatal(err)

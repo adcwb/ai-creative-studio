@@ -122,6 +122,7 @@ const server = http.createServer(async (req, res) => {
     if (state.libraryDropReply) {state.libraryDropReply = false; return send({error: {code: 'library_storage_error', message: '资产保存结果未确认，请使用原请求键核对'}}, 503)}
     return send(result, action === 'archive' ? 200 : 201)
   }
+  if (/^\/organizations\/.+\/access$/.test(path)) return send({id: 'personal-demo', name:'我的工作空间', type:'personal', owner_id:'user-1', role:state.role, version:1})
   if (/^\/organizations\/.+\/members$/.test(path)) return send([{id: 'user-1', email: 'studio@example.com', role: state.role}])
   if (path === '/model-config') return send({version: 1, entries: [], adapters: [{provider: 'openai-images', credential_refs: [], capabilities: ['image'], regions: ['global'], endpoint: 'https://api.openai.com/v1'}], secret_storage_available: false, live_enabled: false, runtime_applied: false})
   if (path === '/governance') return send({currency: url.searchParams.get('currency') ?? 'USD', minor_units: 2, limit_minor: 10000, exposure_minor: 1200, available_minor: 8800, entries: [], total_entries: 0, next_offset: null, budget_changes: [], live_execution_enabled: false, fx_available: false})

@@ -31,6 +31,7 @@ type RuntimeModelOption struct {
 	Available    bool                 `json:"available"`
 }
 type RuntimeModelCatalog struct {
+	ModerationMode        string                  `json:"moderation_mode"`
 	CostManagementEnabled bool                    `json:"cost_management_enabled"`
 	Bindings              []RuntimeFeatureBinding `json:"bindings,omitempty"`
 	GovernanceReady       bool                    `json:"governance_ready"`
@@ -58,6 +59,7 @@ func registerRuntimeCatalog(mux *http.ServeMux, s *FileStore) {
 			problem(w, 403, "tenant_denied", "没有此工作空间的访问权限")
 			return
 		}
+		canExecute := s.runtime.auth.can(scope.UserID, scope.SpaceID, "models.execute")
 		models := s.runtime.auth.models
 		models.mu.Lock()
 		defer models.mu.Unlock()
@@ -66,7 +68,7 @@ func registerRuntimeCatalog(mux *http.ServeMux, s *FileStore) {
 			return
 		}
 		ready := s.execution != nil && s.execution.Ready()
-		result := RuntimeModelCatalog{GovernanceReady: ready, Models: []RuntimeModelOption{}}
+		result := RuntimeModelCatalog{GovernanceReady: ready, ModerationMode: s.execution.ModerationMode(), Models: []RuntimeModelOption{}}
 		tenant := models.data.Tenants[scope.SpaceID]
 		for _, b := range tenant.Bindings {
 			result.Bindings = append(result.Bindings, RuntimeFeatureBinding{b.FeatureKey, b.ModelConfigID, b.AllowOverride, b.Voice, b.Enabled})
@@ -99,7 +101,7 @@ func registerRuntimeCatalog(mux *http.ServeMux, s *FileStore) {
 					reason = "gateway_credential_missing"
 				case !ready:
 					reason = "gateway_governance_missing"
-				case !runtimeRoleAllowed(scope.Role):
+				case !canExecute:
 					reason = "role_denied"
 				}
 				isDefault := false

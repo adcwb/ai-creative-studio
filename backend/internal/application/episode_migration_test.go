@@ -677,7 +677,7 @@ func TestEpisodeMigrationSecureCurrentRolesCSRFAndHiddenTargets(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	space := auth.spaces(owner.ID)[0]["id"]
+	space := testTeamSpace(t, auth, owner.ID)
 	actor := series.Actor{Space: space, User: owner.ID, Writable: true}
 	p, _, e := s.CreateProject(space, "secure-migration-source", projectInput())
 	if e != nil {

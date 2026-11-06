@@ -150,8 +150,8 @@ func TestModelConfigHTTPRequiresAdminTenantCSRFAndRejectsEndpoint(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	org := auth.spaces(a.ID)[0]["id"]
-	other := auth.spaces(b.ID)[0]["id"]
+	org := testTeamSpace(t, auth, a.ID)
+	other := testTeamSpace(t, auth, b.ID)
 	h := SecureHandler(testStore(t), "http://localhost:5173", auth, AuthOptions{})
 	route := "/api/v1/model-config?space_id=" + org
 	authRequest(t, h, "GET", route, "", "", "", 401)

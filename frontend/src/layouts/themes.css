@@ -56,3 +56,12 @@
 .configuration-boundaries>div>p,.configuration-boundaries>p {max-width:76ch;line-height:1.8;color:var(--ink-muted)}
 .organization-settings {margin-top:20px}
 .organization-settings>.model-management,.organization-settings>div {margin-top:20px}
+
+/* Navigation colors must not inherit the content-link palette. */
+.user-workspace .sidebar .app-nav a {color:var(--on-forest);font-size:14px}
+.user-workspace .sidebar .app-nav a:hover {color:var(--on-forest);background:var(--forest-raised)}
+.user-workspace .sidebar .app-nav a[aria-current=page] {color:var(--accent);background:var(--forest-raised);box-shadow:inset 3px 0 0 var(--accent)}
+.user-workspace .sidebar .group-toggle {color:var(--on-forest);font-size:13px}
+.user-workspace .sidebar .navigation-group[data-active=true]>.group-toggle {color:var(--accent)}
+.user-workspace .sidebar .app-nav a>span,.user-workspace .sidebar .group-toggle>span:not(.group-chevron){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-workspace .sidebar .app-nav a>.icon{flex-shrink:0}

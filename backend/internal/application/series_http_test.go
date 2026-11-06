@@ -210,7 +210,7 @@ func TestSeriesSecureRolesCSRFAndTenantIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	space := auth.spaces(owner.ID)[0]["id"]
+	space := testTeamSpace(t, auth, owner.ID)
 	q := "?space_id=" + space
 	h := SecureHandler(s, "http://localhost:5173", auth, AuthOptions{AllowRegistration: true})
 	body := `{"title":"权限测试系列","summary":"组织内部独立创作空间"}`

@@ -1,13 +1,7 @@
-import {chooseLanguage} from '../e2e/support/navigation'
+import {navigateTo as navigate,chooseLanguage} from '../e2e/support/navigation'
 import { test, expect, type Page } from '@playwright/test'
 
 const fixture = 'http://127.0.0.1:5189'
-async function navigate(page: Page, path: string) {
-  const link = page.locator(`.app-nav a[href="${path}"]`)
-  const toggle = page.locator('.menu-toggle')
-  if (await toggle.isVisible() && await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click()
-  await link.click()
-}
 async function switchSpace(page: Page, space: string) {
   const picker = page.getByLabel('选择组织', {exact: true})
   const toggle = page.locator('.menu-toggle')

@@ -32,7 +32,7 @@ func TestModelRuntimePostgresCrossInstanceRevocation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			tenant := a.spaces(owner.ID)[0]["id"]
+			tenant := testTeamSpace(t, a, owner.ID)
 			a.mu.Lock()
 			d := a.clone()
 			o := d.Organizations[tenant]

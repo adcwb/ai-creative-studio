@@ -75,7 +75,7 @@ def main():
                 start()
                 a = call(alice, 'POST', '/api/v1/auth/register', body={'email': 'poster-alice@example.invalid', 'password': 'Synthetic-poster-passphrase!'})
                 b = call(bob, 'POST', '/api/v1/auth/register', body={'email': 'poster-bob@example.invalid', 'password': 'Synthetic-poster-passphrase!'})
-                tenant = a['spaces'][0]['id']; query = '?space_id=' + tenant; csrf = a['csrf_token']
+                tenant = call(alice, 'POST', '/api/v1/organizations', body={'name':'Synthetic contract team'}, csrf=a['csrf_token'], status=201)['id']; query = '?space_id=' + tenant; csrf = a['csrf_token']
                 project = call(alice, 'POST', '/api/v1/projects' + query, body={'title': 'Synthetic secure creative acceptance', 'brief': 'Only synthetic text and logos; no real external publication.'}, csrf=csrf, status=201)
                 base = '/api/v1/projects/' + project['id']; route = '/api/v1/projects/{id}'
                 media = call(alice, 'POST', base + '/media/demo' + query, body={'expected_version': 1}, csrf=csrf)

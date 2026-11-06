@@ -21,7 +21,7 @@
 | 预览与输出 | 浏览器画面预览和时间轴拖动；可组合的镜头转场；H.264/AAC MP4、横屏／竖屏／方形、360p 至有界 4K |
 | 声音与字幕 | 显式原声混音、背景音乐、人工字幕、ASR 候选、字幕烧录与 SRT/VTT；纯文本转写与带时间戳字幕分开 |
 | 发布准备 | 小红书、抖音、TikTok 发布中心；按平台审批、授权及协议区分导出、App 交接、草稿与直发 |
-| 团队与治理 | 登录、组织、服务端角色权限、租户隔离、模型配置、预算预留／结算、审核与脱敏审计 |
+| 团队与治理 | 登录、组织、服务端角色权限、租户隔离、模型配置、个人/团队空间、RBAC、可选审核与脱敏审计（项目不设费用或额度门槛） |
 
 以上功能的具体实现、测试结果及未完成部分以[本轮交付矩阵](docs/iteration-10-delivery.md)为准。合成素材、模拟上游和离线协议测试不代表真实模型效果或社交平台审批通过。
 
@@ -47,7 +47,7 @@
 
 提供 OpenAI、Anthropic / Claude、Google / Gemini / Nano Banana、字节 Ark / 豆包、MiniMax 和即梦公开视觉 API 的可替换适配。不同厂商和型号的文本、图像、视频、语音与转写能力不同，配置型号不等于协议兼容或账户获权。
 
-OpenAI Videos / Sora 已退役并在本地拒绝；即梦视频没有已核实的可用新版官方接口。旧语音与转写接口生命周期见[候选合同核对](docs/iteration-9-followup.md)。真实账号、效果、耗时和费用尚未验证，不以 mock 结果代替。[真实验收准备](docs/live-evaluation.md)默认 dry-run，独立评测工具仍要求明确授权。创作页面已移除报价、费用确认和预算限制；配置启用模型后，在组织授权、能力匹配和内容审核就绪时直接生成，详见[执行与兼容说明](docs/runtime-model-selection.md)。
+OpenAI Videos / Sora 已退役并在本地拒绝；即梦视频没有已核实的可用新版官方接口。旧语音与转写接口生命周期见[候选合同核对](docs/iteration-9-followup.md)。真实账号、效果、耗时和费用尚未验证，不以 mock 结果代替。[真实验收准备](docs/live-evaluation.md)默认 dry-run，独立评测工具仍要求明确授权。创作页面已移除报价、费用确认和预算限制；配置启用模型后，在组织授权与能力匹配时直接生成；本项目自动审核默认暂时禁用，结果未经自动审核，详见[执行与兼容说明](docs/runtime-model-selection.md)。
 
 ## 本地启动
 
@@ -86,8 +86,9 @@ docker compose up -d
 ```bash
 cd backend
 go vet ./...
-# 两个互补分组都须运行，避免大媒体协议与数据库回归共用单包10分钟计时。
-go test -race ./... -skip '^TestNative'
+# 三个互补分组都须运行，保留全部测试覆盖，避免大媒体与数据库回归共用单包10分钟计时。
+go test -race ./... -run '^Test[A-M]'
+go test -race ./... -skip '^(TestNative|Test[A-M])'
 go test -race ./... -run '^TestNative'
 go build ./cmd/server
 cd ../frontend
@@ -109,7 +110,7 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e
 
 图像页可将当前描述或成功任务保存为私人提示词，管理分类、标签、收藏和历史版本，并明确共享至当前组织。选用只预填；点击创建后仍走当前组织绑定的真实网关。保存、预览和选用不调用模型。修改保留新版本，冲突保留草稿，未确认保存可跨刷新恢复原请求。支持纯文本与明确声明的文字/枚举变量；纯文本中的花括号仍按字面保存。变量配方须先通过服务端完整预览后填入创作区，任务固定变量和版本。支持固定版本、有序参考图配方，在项目制作中明确应用后再生成；模型必须支持实际参考组合，不能静默丢图。现有系列/季/集和独立项目已接入，批量制作与200集容量验收仍在后续阶段。详见[提示词记录](docs/superpowers/specs/2026-11-04-creative-series/prompts-implementation.md)与[参考配方记录](docs/superpowers/specs/2026-11-04-creative-series/references-implementation.md)。
 
-本地后续修复将继续编辑原图、照片/蒙版保存改为现有分块上传，二进制网关音视频及原生视频下载、审核与入库走文件流式链路，移除这些路径的旧32MiB及蒙版4MiB门槛；保留实际像素、格式、权限和审核检查。准确支持范围及其他残余限制见[媒体流式实施记录](docs/superpowers/specs/2026-11-04-creative-series/media-streaming-implementation.md)。这不是已经发布的新镜像。
+本地后续修复将继续编辑原图、照片/蒙版保存改为现有分块上传，二进制网关音视频及原生视频下载、审核与入库走文件流式链路，移除这些路径的旧32MiB及蒙版4MiB门槛；保留实际像素、格式、权限及显式required模式的审核检查。准确支持范围及其他残余限制见[媒体流式实施记录](docs/superpowers/specs/2026-11-04-creative-series/media-streaming-implementation.md)。这不是已经发布的新镜像。
 原生JSON/hex和多参考路径继续采用有界流式编码/解码，移除聚合10MiB等项目字节门槛；Google内联容量由实际模型上游决定，MiniMax V2视频30MB单图/64MB请求按已核验协议处理，不是项目额度。其他适配器、像素及素材时长支持边界详见同一实施记录；当前仍仅本地验证，不表示远端CI或镜像已成功。
 本地核心收尾已将通用网关图像JSON/URL接为流式，取消素材180秒及网关ASR/视觉输入的旧字节/时长门槛，前端按实际素材与时间轴显示范围；供应商原生协议、格式安全和旧插件支持范围仍须区分，详见同一实施记录。尚未推送或验证本轮云端发布。
 

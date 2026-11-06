@@ -3,7 +3,7 @@
   "info": {
     "title": "映创 · Iteration 7 Creative Studio API",
     "version": "0.7.0",
-    "description": "Local creative studio. Default secure mode requires authenticated organization membership, CSRF and a non-empty Origin for writes. CORS accepts all origins and echoes the request Origin with credentials enabled. FRONTEND_ORIGIN is only the SSO return destination. Explicit AUTH_MODE=demo is local-only and provides no tenant security. Real model runtime requires current authorization, configured capabilities and content safety; local costs and quotas do not gate execution. Local protocol tests are not live quality verification."
+    "description": "Local creative studio. Default secure mode requires authenticated organization membership, CSRF and a non-empty Origin for writes. CORS accepts all origins and echoes the request Origin with credentials enabled. FRONTEND_ORIGIN is only the SSO return destination. Explicit AUTH_MODE=demo is local-only and provides no tenant security. Real model runtime requires current authorization, configured capabilities; automatic moderation is temporarily disabled by default and may be required by deployment policy; local costs and quotas do not gate execution. Local protocol tests are not live quality verification."
   },
   "servers": [
     {
@@ -7747,6 +7747,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Membership version conflict; reload before saving.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -7782,6 +7792,11 @@
                   "user_id": {
                     "type": "string",
                     "description": "Stable user ID; required when target account is SSO. Must match the email account; prevents directory-email reuse from granting access to the wrong identity."
+                  },
+                  "expected_version": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "CAS version from space access. Omitted only for older clients."
                   }
                 },
                 "required": [
@@ -27755,6 +27770,84 @@
           }
         }
       }
+    },
+    "/api/v1/organizations/{id}/access": {
+      "get": {
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "operationId": "readSpaceAccess",
+        "summary": "Current space type, role, effective permissions and membership version",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Space"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -28237,6 +28330,17 @@
               "editor",
               "viewer"
             ]
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Effective permissions for this user in this space. Unknown permissions deny."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
           }
         }
       },
@@ -31528,9 +31632,7 @@
           },
           "runtime_applied": {
             "type": "boolean",
-            "enum": [
-              false
-            ]
+            "description": "Whether the runtime dispatch governance is ready. This does not verify model credentials, capability or upstream generation."
           },
           "scope": {
             "type": "string",
@@ -31632,9 +31734,7 @@
           },
           "runtime_applied": {
             "type": "boolean",
-            "enum": [
-              false
-            ]
+            "description": "Whether the runtime dispatch governance is ready. This does not verify model credentials, capability or upstream generation."
           },
           "model_verified": {
             "type": "boolean",
@@ -31757,7 +31857,7 @@
         "properties": {
           "governance_ready": {
             "type": "boolean",
-            "description": "Execution moderation readiness, independent of prices, quotes, budgets and cost consent."
+            "description": "Execution dispatch readiness. Disabled moderation mode requires no reviewer; results are not reviewed or approved."
           },
           "models": {
             "type": "array",
@@ -31777,6 +31877,14 @@
               false
             ],
             "description": "Cost management is disabled. Historical budgets and costs do not restrict new model calls."
+          },
+          "moderation_mode": {
+            "type": "string",
+            "enum": [
+              "disabled",
+              "required"
+            ],
+            "description": "Deployment moderation policy. disabled does not mean reviewed or approved; identity, tenant, capability and duplicate-dispatch checks remain enforced."
           }
         }
       },
@@ -35046,6 +35154,10 @@
           },
           "restart_required": {
             "type": "boolean"
+          },
+          "build_revision": {
+            "type": "string",
+            "description": "Server build revision, unknown for builds without injected revision."
           }
         }
       },

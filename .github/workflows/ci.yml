@@ -39,7 +39,8 @@ jobs:
           go vet ./...
           # Complementary groups: every test still runs, with native/large-media
           # protocol acceptance isolated from the already long database suite.
-          go test -race ./... -skip '^TestNative'
+          go test -race ./... -run '^Test[A-M]'
+          go test -race ./... -skip '^(TestNative|Test[A-M])'
           go test -race ./... -run '^TestNative'
           go build -o bin/server ./cmd/server
       - name: Process crash and recovery smoke test
@@ -186,7 +187,8 @@ jobs:
           export STUDIO_TEST_PG_RESTORE=/usr/lib/postgresql/16/bin/pg_restore
           # Complementary groups: every test still runs, with native/large-media
           # protocol acceptance isolated from the already long database suite.
-          go test -race ./... -skip '^TestNative'
+          go test -race ./... -run '^Test[A-M]'
+          go test -race ./... -skip '^(TestNative|Test[A-M])'
           go test -race ./... -run '^TestNative'
           go build ./cmd/...
           python3 ../scripts/test_scheduled_backup.py
@@ -264,6 +266,7 @@ jobs:
         with:
           context: ./${{ matrix.component }}
           file: ./${{ matrix.component }}/Dockerfile
+          build-args: BUILD_REVISION=${{ github.sha }}
           platforms: linux/amd64
           push: ${{ env.PUBLISH_IMAGE == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}

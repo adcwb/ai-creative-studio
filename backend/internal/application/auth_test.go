@@ -30,6 +30,24 @@ func authRequest(t *testing.T, h http.Handler, method, path, body, token, csrf s
 	}
 	return w
 }
+
+// Collaboration fixtures create a real team; personal spaces remain private.
+func testTeamSpace(t *testing.T, auth *AuthStore, user string) string {
+	t.Helper()
+	r := httptest.NewRequest("POST", "/api/v1/organizations", strings.NewReader(`{"name":"Synthetic test team"}`))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	auth.createOrganization(w, r, AuthUser{ID: user})
+	if w.Code != 201 {
+		t.Fatalf("create team: %d %s", w.Code, w.Body.String())
+	}
+	var space map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &space); err != nil {
+		t.Fatal(err)
+	}
+	return space["id"]
+}
+
 func TestAuthTenantRBACAndResourceIsolation(t *testing.T) {
 	s := testStore(t)
 	auth, err := OpenAuthStore(t.TempDir())
@@ -44,7 +62,7 @@ func TestAuthTenantRBACAndResourceIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	oa, ob := auth.spaces(a.ID)[0]["id"], auth.spaces(b.ID)[0]["id"]
+	oa, ob := testTeamSpace(t, auth, a.ID), testTeamSpace(t, auth, b.ID)
 	h := SecureHandler(s, "http://localhost:5173", auth, AuthOptions{AllowRegistration: true})
 	authRequest(t, h, "GET", "/api/v1/projects?space_id="+oa, "", "", "", 401)
 	authRequest(t, h, "GET", "/api/v1/projects?space_id="+oa, "", tb, "", 403)
@@ -217,7 +235,7 @@ func TestAuthAuditRejectsMutationAndDoesNotLogCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	org := auth.spaces(user.ID)[0]["id"]
+	org := testTeamSpace(t, auth, user.ID)
 	store := testStore(t)
 	ops, err := OpenOperations(dir)
 	if err != nil {
@@ -296,7 +314,7 @@ func TestAuthSSOMemberRequiresImmutableID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	org := auth.spaces(owner.ID)[0]["id"]
+	org := testTeamSpace(t, auth, owner.ID)
 	h := SecureHandler(testStore(t), "http://localhost:5173", auth, AuthOptions{})
 	path := "/api/v1/organizations/" + org + "/members"
 	authRequest(t, h, "PUT", path, `{"email":"sso-member@example.test","role":"viewer"}`, token, session.CSRF, 403)

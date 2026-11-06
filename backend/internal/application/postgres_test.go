@@ -160,18 +160,31 @@ func TestPostgresAuthRevocationOIDCAndRateShared(t *testing.T) {
 	if _, _, ok := b.authenticate(token); ok {
 		t.Fatal("revoked session resurrected from cache")
 	}
-	a.mu.Lock()
-	d = a.clone()
-	o := d.Organizations[org]
-	delete(o.Members, u.ID)
-	d.Organizations[org] = o
-	err = a.commit(d)
-	a.mu.Unlock()
+	// Revoke an ordinary team member; the owner remains protected.
+	member, _, _, err := a.login("revoke-member@example.test", "synthetic-only-password", true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b.role(u.ID, org) != "" {
-		t.Fatal("revoked member survived refresh")
+	org = testTeamSpace(t, a, u.ID)
+	a.mu.Lock()
+	d = a.clone()
+	o := d.Organizations[org]
+	o.Members[member.ID] = "editor"
+	d.Organizations[org] = o
+	err = a.commit(d)
+	a.mu.Unlock()
+	if err != nil || b.role(member.ID, org) != "editor" {
+		t.Fatal("member setup", err)
+	}
+	a.mu.Lock()
+	d = a.clone()
+	o = d.Organizations[org]
+	delete(o.Members, member.ID)
+	d.Organizations[org] = o
+	err = a.commit(d)
+	a.mu.Unlock()
+	if err != nil || b.role(member.ID, org) != "" {
+		t.Fatal("revoked member survived refresh", err)
 	}
 	p := oidcPending{Nonce: "synthetic-nonce", Verifier: "synthetic-verifier", Binding: "synthetic-binding", Expires: time.Now().Add(time.Minute)}
 	if err := postgresPutOIDC(db, "synthetic-state", p); err != nil {

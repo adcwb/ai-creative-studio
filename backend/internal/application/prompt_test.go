@@ -31,7 +31,7 @@ func TestPromptSecureRolesHistoryAndRevocation(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	space := auth.spaces(owner.ID)[0]["id"]
+	space := testTeamSpace(t, auth, owner.ID)
 	h := SecureHandler(s, "http://localhost:5173", auth, AuthOptions{AllowRegistration: true})
 	base := "/api/v1/prompt-templates"
 	q := "?space_id=" + space

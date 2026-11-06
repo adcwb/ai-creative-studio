@@ -6,6 +6,9 @@ import (
 	"net/http"
 )
 
+// BuildRevision is injected by the image build; local builds report unknown.
+var BuildRevision = "unknown"
+
 func serveSystemConfig(w http.ResponseWriter, r *http.Request, s *deployconfig.Store) {
 	var out deployconfig.Report
 	var err error
@@ -33,6 +36,7 @@ func serveSystemConfig(w http.ResponseWriter, r *http.Request, s *deployconfig.S
 	case err != nil:
 		problem(w, 503, "config_storage_error", "配置保存未确认，请重新读取后核对")
 	default:
+		out.BuildRevision = BuildRevision
 		respond(w, 200, out)
 	}
 }

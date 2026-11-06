@@ -70,6 +70,11 @@ func readPostgresScopeTx(ctx context.Context, tx *sql.Tx, name string, template 
 			env[c.field], _ = json.Marshal(values)
 		}
 	}
+	if name == "auth" {
+		if err = (&postgresScope{tx: tx, ctx: ctx}).loadRBAC(env); err != nil {
+			return nil, nil, err
+		}
+	}
 	raw, err = json.Marshal(env)
 	return raw, records, err
 }

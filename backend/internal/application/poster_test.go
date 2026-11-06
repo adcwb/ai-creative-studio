@@ -120,7 +120,7 @@ func TestPosterHTTPAuthorization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	oa, ob := auth.spaces(a.ID)[0]["id"], auth.spaces(b.ID)[0]["id"]
+	oa, ob := testTeamSpace(t, auth, a.ID), testTeamSpace(t, auth, b.ID)
 	h := SecureHandler(s, "http://localhost:5173", auth, AuthOptions{AllowRegistration: true})
 	w := authRequest(t, h, "POST", "/api/v1/projects?space_id="+oa, `{"title":"Poster","brief":"Synthetic poster test"}`, ta, sa.CSRF, 201)
 	var p Project

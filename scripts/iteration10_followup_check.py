@@ -75,7 +75,7 @@ def main():
                 start()
                 a = call(alice, 'POST', '/api/v1/auth/register', body={'email':'photo-owner@example.invalid','password':'Synthetic-photo-password!'})
                 b = call(bob, 'POST', '/api/v1/auth/register', body={'email':'photo-other@example.invalid','password':'Synthetic-photo-password!'})
-                tenant = a['spaces'][0]['id']; query = '?space_id=' + tenant; csrf = a['csrf_token']
+                tenant = call(alice, 'POST', '/api/v1/organizations', body={'name':'Synthetic contract team'}, csrf=a['csrf_token'], status=201)['id']; query = '?space_id=' + tenant; csrf = a['csrf_token']
                 project = call(alice, 'POST', '/api/v1/projects' + query, body={'title':'Synthetic PHOTO contract','brief':'Synthetic poster normalization; no external authorization or posting.'}, csrf=csrf, status=201)
                 base = '/api/v1/projects/' + project['id']; route = '/api/v1/projects/{id}'
                 poster = {'width':256,'height':256,'background':'#ffffff','layers':[{'id':'text','kind':'text','text':'Synthetic PHOTO','x':8,'y':8,'width':240,'height':60,'font_size':18,'color':'#123456','opacity':1}]}

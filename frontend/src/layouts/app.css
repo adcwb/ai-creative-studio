@@ -184,3 +184,29 @@
 @media(max-width:760px){.sidebar-collapse{display:none}.workspace-page-context strong{font-size:13px}.workspace-page-context>span{max-width:44vw}.app-shell .topbar.workspace-page-header{min-height:68px}.workspace-page-header .provider-badge{max-width:30vw;white-space:normal;text-align:right}}
 @media(min-width:761px){.navigation-collapsed main#workspace{width:calc(100% - 80px)}}
 .navigation-group[data-active=true]>.group-toggle{color:var(--accent)}
+/* Clear hierarchy for everyday creators, within the existing forest theme. */
+.app-shell .sidebar-inner{padding-top:20px}
+.app-shell .space-picker{margin:22px 0 14px}
+.settings-nav{margin-top:12px}
+.app-nav .group-toggle{font-size:13px;color:#e0e9e3;min-height:40px}
+.app-nav .nav-subgroup{margin-left:20px;padding-left:12px;border-left:1px solid #648474}
+.app-nav .nav-subgroup a{font-size:14px;min-height:40px;line-height:1.5;white-space:nowrap}
+.app-nav .group-toggle span:not(.group-chevron){white-space:nowrap}
+.space-create{padding:26px;margin-bottom:24px}.space-create>p,.space-card>p,.access-explanation p{color:var(--ink-muted);line-height:1.8}
+.space-create form{display:flex;gap:16px;align-items:end}.space-create label{flex:1;max-width:560px;margin:0}.space-create button{min-height:42px}
+.space-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px}.space-card{padding:24px}.space-card h2{overflow-wrap:anywhere}.space-card a{display:block;margin-top:14px;color:var(--primary)}
+.access-explanation{padding:28px;max-width:900px}.role-guide{margin:20px 0;padding:16px;border:1px solid var(--border);border-radius:8px}.role-guide summary{cursor:pointer;font-weight:600}.role-guide dl{display:grid;grid-template-columns:100px 1fr;gap:10px}.role-guide dd{margin:0;color:var(--ink-muted);line-height:1.7}
+.member-list{list-style:none;margin:0;padding:0}.member-list li{display:flex;align-items:center;gap:14px;padding:16px 0;border-bottom:1px solid var(--border)}.member-list li>div{flex:1;min-width:0}.member-list strong{display:block;overflow-wrap:anywhere}.member-list small{display:block;margin-top:4px;color:var(--ink-muted)}.member-avatar{display:grid;place-items:center;width:36px;height:36px;background:var(--surface-soft);color:var(--primary);border-radius:50%;flex-shrink:0}.account-id{overflow-wrap:anywhere;color:var(--ink-muted);font-size:12px}
+.settings-page .system-config-panel{margin-top:0;padding:24px;background:var(--surface);border:1px solid var(--border);border-radius:10px}
+@media(max-width:760px){.space-create{padding:20px}.space-create form{align-items:stretch;flex-direction:column}.space-create label{max-width:none;width:100%}.space-card{padding:20px}.settings-page .system-config-panel{padding:18px}.role-guide dl{grid-template-columns:1fr}.role-guide dt{font-weight:600}.member-list li{flex-wrap:wrap}.member-list button{margin-left:50px}}
+@media(min-width:1700px){.settings-page{max-width:1400px}}
+.app-nav .navigation-group{margin:4px 0}.personal-nav{padding-top:12px;margin-top:10px}
+/* Keep the prompt within the desktop first screen, without hiding model status. */
+.image-page>.page-heading{margin-bottom:18px}.image-page>.image-continue-actions{margin:12px 0 18px}.image-page .templates{margin-bottom:20px}
+@media(min-width:1151px){
+ .image-page .creation-controls>.runtime-model-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:16px 20px}
+ .image-page .creation-controls>.runtime-model-picker p{grid-column:1/-1;margin:0;line-height:1.6}
+ .image-page .creation-controls>.runtime-model-picker button{grid-column:1/-1;justify-self:start;margin:0}
+ .image-page .creation-controls>.runtime-model-picker label{min-width:0;margin:0}
+ .image-page .composer textarea{min-height:128px}
+}

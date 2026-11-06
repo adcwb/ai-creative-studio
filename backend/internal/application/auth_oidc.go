@@ -202,9 +202,9 @@ func (s *AuthStore) loginSSO(identity SSOIdentity, allowRegistration bool) (Auth
 		}
 		account = authAccount{AuthUser: AuthUser{ID: authRandom(16), Email: email}, Issuer: identity.Issuer, Subject: identity.Subject}
 		d.Users[account.ID] = account
-		id := "org-" + authRandom(16)
-		d.Organizations[id] = AuthOrganization{ID: id, Name: "我的工作空间", OwnerID: account.ID, Members: map[string]string{account.ID: "owner"}}
+		ensurePersonalSpace(&d, account.ID)
 	}
+	ensurePersonalSpace(&d, account.ID)
 	now := time.Now()
 	count := 0
 	for k, ss := range d.Sessions {

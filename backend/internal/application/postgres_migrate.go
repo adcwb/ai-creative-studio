@@ -352,6 +352,9 @@ func ExportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(728219117)`); err != nil {
 		return report, err
 	}
+	if err = validateFileExportGrants(ctx, tx); err != nil {
+		return report, err
+	}
 	uncertain, err := postgresExportUncertainJobs(ctx, tx)
 	if err != nil {
 		return report, err

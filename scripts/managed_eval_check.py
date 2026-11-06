@@ -71,7 +71,7 @@ def main():
         process_env = {**env, 'STORAGE_BACKEND':'postgres','QUEUE_BACKEND':'postgres','STORAGE_AUTO_MIGRATE':'true',
             'DATABASE_URL':f'host={args.pg_socket} port={args.pg_port} user={args.pg_user} dbname={database} sslmode=disable passfile=/dev/null',
             'BLOB_STORE':'shared-file','BLOB_FILE_ROOT':str(evidence/'objects'),'DATA_DIR':str(evidence/'cache'),
-            'AUTH_MODE':'secure','AUTH_ALLOW_REGISTRATION':'true','AUTH_COOKIE_SECURE':'false','FRONTEND_ORIGIN':origin,
+            'CONTENT_MODERATION_MODE':'required', 'AUTH_MODE':'secure','AUTH_ALLOW_REGISTRATION':'true','AUTH_COOKIE_SECURE':'false','FRONTEND_ORIGIN':origin,
             'HTTP_ADDR':f'127.0.0.1:{port}','IMAGE_PROVIDER':'mock-svg','TEXT_PROVIDER':'mock-text',
             'EXECUTION_POLICY_FILE':str(policy),'MODEL_CONFIG_KEK_BASE64':base64.b64encode(bytes([83])*32).decode()}
         log = (evidence/'server.log').open('w')

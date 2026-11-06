@@ -19,10 +19,12 @@ func imageExecutionRequest(t Task) ExecutionRequest {
 }
 
 type ExecutionGovernor struct {
-	Ledger    *BudgetLedger
-	Quoter    ExecutionQuoter
-	Moderator ExecutionModerator
-	Billing   ExecutionBillingReader
+	// Disabled is an explicit deployment policy, never a synthetic allow decision.
+	ModerationDisabled bool
+	Ledger             *BudgetLedger
+	Quoter             ExecutionQuoter
+	Moderator          ExecutionModerator
+	Billing            ExecutionBillingReader
 }
 type executionPermitKey struct{}
 type executionPermit struct {
@@ -73,12 +75,14 @@ func (g *ExecutionGovernor) Execute(ctx context.Context, r ExecutionRequest, dis
 	if err := checkLibraryDispatch(ctx); err != nil {
 		return err
 	}
-	decision, err := g.review(ctx, r)
+	if !g.ModerationDisabled {
+		decision, err := g.review(ctx, r)
+		if err != nil || !freshModerationAllow(decision, time.Now()) {
+			return ErrExecutionGovernance
+		}
+	}
 	if sourceErr := checkLibraryDispatch(ctx); sourceErr != nil {
 		return sourceErr
-	}
-	if err != nil || !freshModerationAllow(decision, time.Now()) {
-		return ErrExecutionGovernance
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -94,7 +98,7 @@ func (g *ExecutionGovernor) Execute(ctx context.Context, r ExecutionRequest, dis
 		return err
 	}
 	outcome = "unknown"
-	_, err = dispatch(runCtx)
+	_, err := dispatch(runCtx)
 	if err == nil {
 		outcome = "ok"
 	}
@@ -102,13 +106,26 @@ func (g *ExecutionGovernor) Execute(ctx context.Context, r ExecutionRequest, dis
 }
 
 func (g *ExecutionGovernor) Ready() bool {
-	if g == nil || g.Ledger == nil || g.Moderator == nil {
+	if g == nil || g.Ledger == nil {
+		return false
+	}
+	if g.ModerationDisabled {
+		return true
+	}
+	if g.Moderator == nil {
 		return false
 	}
 	if readiness, ok := g.Moderator.(interface{ ReviewReady() bool }); ok {
 		return readiness.ReviewReady()
 	}
 	return true
+}
+
+func (g *ExecutionGovernor) ModerationMode() string {
+	if g != nil && g.ModerationDisabled {
+		return "disabled"
+	}
+	return "required"
 }
 
 // ConfigureExecutionGovernance must run before serving requests or workers.
@@ -155,6 +172,9 @@ func freshModerationAllow(d ModerationDecision, now time.Time) bool {
 }
 
 func (g *ExecutionGovernor) ReviewResult(ctx context.Context, r ExecutionRequest) error {
+	if g != nil && g.ModerationDisabled {
+		return ctx.Err()
+	}
 	if g == nil || g.Moderator == nil {
 		return ErrExecutionGovernance
 	}

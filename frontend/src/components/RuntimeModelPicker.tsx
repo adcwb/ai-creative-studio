@@ -14,7 +14,7 @@ export function RuntimeModelPicker({space, capability, value, onChange, preview,
   const {t} = useI18n()
   const requireGateway = gatewayOnly && gatewayCreationRequired
   const demo = useAppWorkspace()?.session.mode === 'demo'
-  const [catalog, setCatalog] = useState<{governance_ready: boolean; models: RuntimeModelOption[]; bindings?: {feature_key: string; model_config_id: string; allow_override: boolean; enabled: boolean; voice?: string}[]} | null>(null)
+  const [catalog, setCatalog] = useState<{moderation_mode?: 'disabled' | 'required'; governance_ready: boolean; models: RuntimeModelOption[]; bindings?: {feature_key: string; model_config_id: string; allow_override: boolean; enabled: boolean; voice?: string}[]} | null>(null)
   const [revision, setRevision] = useState(0)
   const [error, setError] = useState(false)
   const feature = previewFeature(preview)
@@ -44,6 +44,7 @@ export function RuntimeModelPicker({space, capability, value, onChange, preview,
   const stale = !!value && !options.some(model => model.id === value.model.id && model.version === value.model.version && model.available === value.model.available)
   return <fieldset className="runtime-model-picker" disabled={disabled}>
     <legend>{t('本次执行模型')}</legend>
+    {catalog.moderation_mode === 'disabled' && <p className="drama-help">{t('内容审核暂未启用，生成结果未经本项目自动审核。')}</p>}
     {requireGateway && !binding && <p role="alert">{t('此功能尚未绑定网关模型，请联系组织管理员配置。')} <Link to="/settings/models">{t('模型管理')}</Link></p>}
     {binding && <p>{t('已使用此功能的默认绑定，切换仅影响本次生成。')}</p>}
     <label>{t('AI 网关')}<select value={value?.model.gateway_id ?? ''} disabled={!!binding && !binding.allow_override} onChange={event => {const model = options.find(item => item.gateway_id === event.target.value); onChange(model ? initialRuntimeChoice(model) : null)}}><option value="">{t('选择网关')}</option>{[...new Map(options.filter(item => item.gateway_id).map(item => [item.gateway_id!, item.gateway_name!])).entries()].map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>

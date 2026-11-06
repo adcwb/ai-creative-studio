@@ -23,7 +23,7 @@ func TestRuntimeAcceptanceBindsAuthenticatedActorAndVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tenant := auth.spaces(user.ID)[0]["id"]
+	tenant := testTeamSpace(t, auth, user.ID)
 	auth.models, err = OpenModelConfigStore(t.TempDir(), bytes.Repeat([]byte{91}, 32))
 	if err != nil {
 		t.Fatal(err)
@@ -196,7 +196,7 @@ func TestRuntimeCatalogIsTenantScopedAndDoesNotExposeCredentialMetadata(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	tenant := auth.spaces(owner.ID)[0]["id"]
+	tenant := testTeamSpace(t, auth, owner.ID)
 	auth.models, err = OpenModelConfigStore(t.TempDir(), bytes.Repeat([]byte{17}, 32))
 	if err != nil {
 		t.Fatal(err)

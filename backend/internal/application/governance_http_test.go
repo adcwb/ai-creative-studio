@@ -24,7 +24,7 @@ func TestGovernanceAuthenticatedCurrencyBudget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tenant, other := auth.spaces(a.ID)[0]["id"], auth.spaces(b.ID)[0]["id"]
+	tenant, other := testTeamSpace(t, auth, a.ID), testTeamSpace(t, auth, b.ID)
 	h := SecureHandler(s, "http://localhost:5173", auth, AuthOptions{})
 	reportPath := "/api/v1/governance?space_id=" + tenant
 	writePath := "/api/v1/governance/budget?space_id=" + tenant

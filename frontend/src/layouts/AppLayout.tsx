@@ -77,9 +77,9 @@ export function AppLayout() {
   }, [location.pathname, locale, t])
 
   const space = spaces.find(item => item.id === spaceID)
-  const context: WorkspaceContext = {session, space, capability: provider.capability, capabilityError: provider.error, refreshCapability: provider.refresh, refreshSpaces, setDirty, setImageDirty, requestLeave}
-  const isPersonalSettings = location.pathname === '/settings/preferences'
-  const isOrganization = ['/settings/organization', '/settings/preferences'].includes(location.pathname)
+  const context: WorkspaceContext = {session, space, spaces, switchSpace: id => requestLeave(() => {setDirty(false); setImageDirty(false); setSpaceID(id)}), capability: provider.capability, capabilityError: provider.error, refreshCapability: provider.refresh, refreshSpaces, setDirty, setImageDirty, requestLeave}
+  const isPersonalSettings = ['/settings/preferences','/settings/backend'].includes(location.pathname)
+  const isOrganization = ['/settings/organization', '/settings/preferences','/settings/backend','/settings/spaces'].includes(location.pathname)
   return <NavigationTaskContext.Provider value={setTaskDirty}><StudioShell session={session} spaces={spaces} space={spaceID} onSpaceChange={next => {
     if (next === spaceID) return
     requestLeave(() => {

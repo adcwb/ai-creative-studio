@@ -28,7 +28,7 @@ def main():
     p.add_argument('--chromium', default='/usr/bin/chromium')
     p.add_argument('--quote-fixture', '--acceptance-fixture', action='store_true', help='Exercise acceptance without cost configuration or any model worker')
     args = p.parse_args()
-    if not args.pg_socket.is_absolute() or not args.pg_user.isalnum():
+    if not args.pg_socket.is_absolute() or not args.pg_user.replace('_', '').isalnum():
         p.error('use an absolute local test socket and an alphanumeric synthetic user')
     for port in (8082, 5175):
         with socket.socket() as sock:
@@ -47,7 +47,7 @@ def main():
         common = {**env, 'STORAGE_BACKEND': 'postgres', 'QUEUE_BACKEND': 'postgres',
                   'DATABASE_URL': f'host={args.pg_socket} port={args.pg_port} user={args.pg_user} dbname={dbname} sslmode=disable passfile=/dev/null',
                   'BLOB_STORE': 'shared-file', 'BLOB_FILE_ROOT': str(evidence / 'objects'),
-                  'AUTH_MODE': 'secure', 'AUTH_ALLOW_REGISTRATION': 'true', 'AUTH_COOKIE_SECURE': 'false',
+                  'STUDIO_ADMIN_EMAILS':'p0-desktop@example.invalid,p0-mobile@example.invalid', 'AUTH_MODE': 'secure', 'AUTH_ALLOW_REGISTRATION': 'true', 'AUTH_COOKIE_SECURE': 'false',
                   'FRONTEND_ORIGIN': 'http://localhost:5175', 'IMAGE_PROVIDER': 'mock-svg', 'TEXT_PROVIDER': 'mock-text'}
         if args.quote_fixture:
             expiry = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
@@ -56,7 +56,7 @@ def main():
             moderator.chmod(0o700)
             policy = evidence / 'synthetic-policy.json'
             policy.write_text(json.dumps(dict(version=1, prices=[], moderation_command=str(moderator), moderation_contract='local-or-free-v1', moderation_source='synthetic local deny fixture', moderation_expires_at=expiry)))
-            common.update(EXECUTION_POLICY_FILE=str(policy), MODEL_CONFIG_KEK_BASE64=base64.b64encode(bytes([71])*32).decode())
+            common.update(CONTENT_MODERATION_MODE='required', EXECUTION_POLICY_FILE=str(policy), MODEL_CONFIG_KEK_BASE64=base64.b64encode(bytes([71])*32).decode())
         def start(name, extra):
             log = (evidence / (name + '.log')).open('w')
             logs.append(log)

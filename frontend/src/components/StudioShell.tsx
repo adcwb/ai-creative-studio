@@ -1,3 +1,4 @@
+import {hasPermission} from '../permissions'
 import {gatewayCreationRequired} from '../creationGateway'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
@@ -18,12 +19,13 @@ export function StudioShell({spaces, space, capability, capabilityError, onSpace
   const gatewayPage = gatewayCreationRequired && (location.pathname.startsWith('/studio') || location.pathname.startsWith('/projects') || location.pathname.startsWith('/series/'))
   const {navigation, setNavigation} = usePreferences()
   const collapsed = navigation.collapsed
-  const toggleGroup = (key: string) => setNavigation({...navigation, groups: {...navigation.groups, [key]: navigation.groups[key] === false}})
+  const groupOpen = (key: string) => collapsed || (navigation.groups[key] ?? (key === activeGroup || ['creative','organization','system'].includes(key)))
+  const toggleGroup = (key: string) => setNavigation({...navigation, groups: {...navigation.groups, [key]: !groupOpen(key)}})
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLButtonElement>(null)
   const sidebarRef = useRef<HTMLElement>(null)
   const activeSpace = spaces.find(item => item.id === space)
-  const canManage = activeSpace?.role === 'owner' || activeSpace?.role === 'admin'
+  const canManage = hasPermission(activeSpace, 'models.manage')
   const roles: Record<string, string> = {owner: '所有者', admin: '管理员', editor: '编辑者', viewer: '只读成员'}
   const title = workspaceTitle(location.pathname)
   useEffect(() => {
@@ -44,8 +46,8 @@ export function StudioShell({spaces, space, capability, capabilityError, onSpace
     return () => {document.body.style.overflow = previousOverflow; window.removeEventListener('keydown', keydown)}
   }, [open])
   const navItem = (to: string, label: string, icon: Parameters<typeof Icon>[0]['name']) => <NavLink className={({isActive})=>isActive||(to==='/projects'&&location.pathname.startsWith('/series/'))?'active':undefined} to={to} title={t(label)} aria-label={t(label)} onClick={() => setOpen(false)}><Icon name={icon} /><span>{t(label)}</span></NavLink>
-  const activeGroup = location.pathname.startsWith('/digital-humans') ? 'avatars' : ['/assets','/library'].includes(location.pathname) ? 'resources' : location.pathname.startsWith('/settings') ? 'organization' : 'creative'
-  const group = (key: string, label: string, icon: Parameters<typeof Icon>[0]['name'], content: ReactNode) => <section className="navigation-group" data-group={key} data-active={activeGroup === key}><button type="button" className="nav-parent group-toggle" title={t(label)} aria-label={t(label)} aria-expanded={navigation.groups[key] !== false} aria-controls={`nav-group-${key}`} onClick={() => toggleGroup(key)}><Icon name={icon} /><span>{t(label)}</span><span className="group-chevron" aria-hidden="true">{navigation.groups[key] === false ? '›' : '⌄'}</span></button><div id={`nav-group-${key}`} className="nav-subgroup" hidden={navigation.groups[key] === false}>{content}</div></section>
+  const activeGroup = location.pathname.startsWith('/digital-humans') ? 'avatars' : ['/assets','/library'].includes(location.pathname) ? 'resources' : ['/settings/preferences','/settings/backend'].includes(location.pathname) ? 'system' : location.pathname.startsWith('/settings') ? 'organization' : 'creative'
+  const group = (key: string, label: string, icon: Parameters<typeof Icon>[0]['name'], content: ReactNode) => <section className="navigation-group" data-group={key} data-active={activeGroup === key}><button type="button" className="nav-parent group-toggle" title={t(label)} aria-label={t(label)} aria-expanded={groupOpen(key)} aria-controls={`nav-group-${key}`} onClick={() => toggleGroup(key)}><Icon name={icon} /><span>{t(label)}</span><span className="group-chevron" aria-hidden="true">{!groupOpen(key) ? '›' : '⌄'}</span></button><div id={`nav-group-${key}`} className="nav-subgroup" hidden={!groupOpen(key)}>{content}</div></section>
   return <div className={`shell app-shell ${collapsed ? 'navigation-collapsed' : ''}`}>
     <a className="skip-link" href="#page-content">{t('跳到创作工作区')}</a>
     {open && <button type="button" className="sidebar-backdrop" aria-label={t('关闭导航')} onClick={() => {setOpen(false); menuRef.current?.focus()}} />}
@@ -59,8 +61,8 @@ export function StudioShell({spaces, space, capability, capabilityError, onSpace
           {group('avatars', '数字人', 'person', <>{navItem('/digital-humans/video', '视频型数字人', 'videoPerson')}{navItem('/digital-humans/interactive', '交互型数字人', 'conversation')}{navItem('/digital-humans/3d', '3D 数字人', 'cube')}</>)}
           {group('resources', '资源中心', 'folder', <>{navItem('/assets', '素材文件', 'grid')}{navItem('/library', '创作资产', 'layers')}</>)}
         </nav>
-        {session.mode === 'secure' && <nav className="app-nav settings-nav" aria-label={t('管理导航')}>{group('organization', '组织与设置', 'users', <>{navItem('/settings/organization', '组织与成员', 'users')}{canManage && navItem('/settings/models', '模型管理', 'settings')}{navItem('/settings/billing', '模型使用统计', 'wallet')}</>)}</nav>}
-        <nav className="app-nav personal-nav" aria-label={t('个人设置')}>{navItem('/settings/preferences', '系统设置', 'settings')}</nav>
+        {session.mode === 'secure' && <nav className="app-nav settings-nav" aria-label={t('管理导航')}>{group('organization', '空间与协作', 'users', <>{navItem('/settings/spaces', '团队空间', 'folder')}{navItem('/settings/organization', '组织与成员', 'users')}{canManage && navItem('/settings/models', '模型管理', 'settings')}{navItem('/settings/billing', '模型使用统计', 'wallet')}</>)}</nav>}
+        <nav className="app-nav personal-nav" aria-label={t('个人设置')}>{group('system', '系统设置', 'settings', <>{navItem('/settings/preferences', '偏好设置', 'settings')}{session.mode === 'secure' && navItem('/settings/backend', '后端配置', 'settings')}</>)}</nav>
         <div className="sidebar-account"><div className="account-profile"><span className="avatar">{session.user?.email?.slice(0, 1).toUpperCase() ?? t('映')}</span><div><strong title={session.user?.email}>{session.mode === 'demo' ? t('演示工作空间') : session.user?.email}</strong><small>{session.mode === 'demo' ? t('模拟模式') : t(roles[activeSpace?.role ?? ''] ?? '未选择')}</small></div></div>{session.mode === 'secure' ? <button type="button" className="account-signout" title={t('退出登录')} onClick={onLogout}>{t('退出登录')}</button> : <p className="demo-description">{t('无生产认证 · 空间不构成权限隔离')}</p>}</div>
       </div>
     </aside>

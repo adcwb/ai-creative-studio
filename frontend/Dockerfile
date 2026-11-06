@@ -5,6 +5,8 @@ RUN npm ci
 COPY . .
 # A nonempty slash normalizes to an empty origin in api.ts.
 ENV VITE_API_BASE_URL=/
+ARG BUILD_REVISION=unknown
+ENV VITE_BUILD_REVISION=${BUILD_REVISION}
 RUN npm run build
 
 FROM nginx:stable-alpine AS runtime

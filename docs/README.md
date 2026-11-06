@@ -13,6 +13,8 @@
 - [PostgreSQL、worker 与恢复](postgres-workers.md)（包含历史成本治理说明；成本限制已取消，以运行时模型选择文档为准）
 - [真实服务验收边界](live-evaluation.md)
 
+- [系统设置、空间与 RBAC 操作及迁移](superpowers/specs/2026-11-06-p0-administration/README.md)
+
 ## 需求设计与实施规范
 
 - [Spec Coding 文档约定与历史设计索引](superpowers/README.md)

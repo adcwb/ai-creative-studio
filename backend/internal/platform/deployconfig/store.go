@@ -34,6 +34,7 @@ type Field struct {
 	Pending    bool   `json:"pending"`
 }
 type Report struct {
+	BuildRevision   string  `json:"build_revision,omitempty"`
 	Version         string  `json:"version"`
 	Fields          []Field `json:"fields"`
 	RestartRequired bool    `json:"restart_required"`
@@ -60,7 +61,7 @@ func definitions() []Field {
 			group = "authentication"
 		case strings.HasPrefix(key, "BLOB_") || strings.HasPrefix(key, "STORAGE_") || strings.HasPrefix(key, "QUEUE_") || key == "DATABASE_URL":
 			group = "storage"
-		case strings.HasPrefix(key, "MODEL_") || strings.HasPrefix(key, "GATEWAY_") || key == "EXECUTION_POLICY_FILE":
+		case strings.HasPrefix(key, "MODEL_") || strings.HasPrefix(key, "GATEWAY_") || key == "EXECUTION_POLICY_FILE" || key == "CONTENT_MODERATION_MODE":
 			group = "gateway"
 		case strings.HasPrefix(key, "REFERENCE_"):
 			group = "references"
@@ -69,7 +70,7 @@ func definitions() []Field {
 		case key == "HTTP_ADDR" || key == "FRONTEND_ORIGIN" || key == "DATA_DIR" || key == "METRICS_ADDR" || strings.HasPrefix(key, "STUDIO_"):
 			group = "service"
 		}
-		secret := strings.Contains(key, "SECRET") || strings.Contains(key, "API_KEY") || strings.Contains(key, "ACCESS_KEY") || strings.Contains(key, "SESSION_TOKEN") || key == "DATABASE_URL" || key == "MODEL_CONFIG_KEK_BASE64"
+		secret := strings.Contains(key, "SECRET") || strings.Contains(key, "API_KEY") || strings.Contains(key, "ACCESS_KEY") || strings.Contains(key, "TOKEN") || strings.Contains(key, "PASSWORD") || strings.Contains(key, "HEADERS") || key == "DATABASE_URL" || key == "MODEL_CONFIG_KEK_BASE64"
 		out = append(out, Field{Key: key, Group: group, Secret: secret, ReadOnly: key == "DATA_DIR" || key == "AUTH_MODE" || key == "MODEL_CONFIG_KEK_BASE64" || key == "MODEL_CONFIG_KEK_FILE" || strings.HasPrefix(key, "STUDIO_")})
 	}
 	return out
@@ -128,6 +129,8 @@ func validValue(key, value string) bool {
 			return value == "inprocess" || value == "postgres"
 		case "BLOB_STORE":
 			return value == "file" || value == "shared-file" || value == "s3"
+		case "CONTENT_MODERATION_MODE":
+			return value == "disabled" || value == "required"
 		case "TRACE_MODE":
 			return value == "off" || value == "json"
 		case "HTTP_ADDR", "METRICS_ADDR":
@@ -200,6 +203,10 @@ func (s *Store) report() (Report, error) {
 			f.Source = "file"
 		} else {
 			value = s.base[f.Key]
+		}
+		// A URL may embed credentials even when its variable name is harmless.
+		if u, e := url.Parse(value); e == nil && u.Host != "" && (u.User != nil || u.RawQuery != "") {
+			f.Secret = true
 		}
 		f.Configured = value != ""
 		f.Pending = value != s.active[f.Key]

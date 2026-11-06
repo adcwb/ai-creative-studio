@@ -10,6 +10,8 @@ export interface WorkspaceContext {
   capabilityError: string
   refreshCapability: () => void
   refreshSpaces: () => void
+  spaces: Space[]
+  switchSpace: (id: string) => void
   setDirty: (dirty: boolean) => void
   setImageDirty: (dirty: boolean) => void
   requestLeave: (action: () => void) => void

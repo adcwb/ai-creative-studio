@@ -95,7 +95,8 @@ def main():
                     assert session['authenticated'] is True
                 a = call(alice, 'GET', session_route, session_route)
                 b = call(bob, 'GET', session_route, session_route)
-                org, other = a['spaces'][0]['id'], b['spaces'][0]['id']
+                org = call(alice, 'POST', '/api/v1/organizations', '/api/v1/organizations', {'name':'Synthetic contract team'}, a['csrf_token'], status=201)['id']
+                other = b['spaces'][0]['id']
                 query = '?space_id=' + org
                 aq, bq = a['csrf_token'], b['csrf_token']
                 governance = '/api/v1/governance'
@@ -339,7 +340,7 @@ def main():
                 call(alice, 'GET', exchange + query + '&from=USD&to=USD', exchange)
                 model_route = '/api/v1/model-config'
                 model = call(alice, 'GET', model_route + query, model_route)
-                assert model['secret_storage_available'] is True and model['live_enabled'] is False and model['runtime_applied'] is False
+                assert model['secret_storage_available'] is True and model['live_enabled'] is False and model['runtime_applied'] is True
                 call(bob, 'GET', model_route + query, model_route, status=403)
                 declaration = {'expected_version': model['version'], 'entry': {'provider': 'openai-text', 'model': 'synthetic-model-declaration', 'capability': 'text', 'region': 'global', 'enabled': False, 'is_default': False, 'lifecycle': 'active'}, 'credential': {'action': 'keep'}}
                 call(alice, 'PUT', model_route + query, model_route, declaration, aq, status=410)

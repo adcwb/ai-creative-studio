@@ -132,3 +132,22 @@ func TestStartupLoadAndRemovingOverride(t *testing.T) {
 		t.Fatal("removing override lost environment baseline", f)
 	}
 }
+
+func TestEmbeddedURLSecretsAndModerationMode(t *testing.T) {
+	t.Setenv("REFERENCE_S3_ENDPOINT", "https://synthetic:private@example.test/path?token=private")
+	s := configStore(t)
+	r, err := s.Report()
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := findField(t, r, "REFERENCE_S3_ENDPOINT")
+	if !f.Secret || f.Value != "" {
+		t.Fatal("embedded URL credentials leaked")
+	}
+	if _, err = s.Save(r.Version, map[string]*string{"CONTENT_MODERATION_MODE": pointer("always_allow")}); !errors.Is(err, ErrInput) {
+		t.Fatal("invalid moderation mode saved", err)
+	}
+	if _, err = s.Save(r.Version, map[string]*string{"CONTENT_MODERATION_MODE": pointer("disabled")}); err != nil {
+		t.Fatal(err)
+	}
+}

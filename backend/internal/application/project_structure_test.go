@@ -299,7 +299,7 @@ func TestStructureUpgradeSecureRolesCSRFRevocationAndSourceScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	space := auth.spaces(owner.ID)[0]["id"]
+	space := testTeamSpace(t, auth, owner.ID)
 	p, _, err := s.CreateProject(space, "structure-owned-project", projectInput())
 	if err != nil {
 		t.Fatal(err)

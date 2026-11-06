@@ -4,7 +4,8 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/server ./cmd/server
+ARG BUILD_REVISION=unknown
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X github.com/adcwb/ai-creative-studio/backend/internal/application.BuildRevision=${BUILD_REVISION}" -o /out/server ./cmd/server
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/worker ./cmd/worker
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/blob-migrate ./cmd/blob-migrate
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/store-migrate ./cmd/store-migrate

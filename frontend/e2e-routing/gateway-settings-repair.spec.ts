@@ -61,7 +61,7 @@ test('gateway accepts a key, scheduled sync and a deduplicated catalog import', 
 
 test('deployment settings redact secrets, save a patch and survive reload', async ({page, request}) => {
   await request.post(fixture + '/__test__/reset', {data: {deploymentAdmin: true}})
-  await page.goto('/settings/preferences')
+  await page.goto('/settings/backend')
   const panel = page.locator('.system-config-panel')
   await expect(panel.getByRole('heading', {name: '后端配置'})).toBeVisible()
   await expect(panel.getByLabel('DATA_DIR', {exact: true})).toBeDisabled()
