@@ -1,7 +1,9 @@
 package application
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"io"
@@ -191,14 +193,51 @@ func TestAlignmentPersistentEstimateProvenanceAndConflict(t *testing.T) {
 	}
 }
 func TestAlignmentASRClipsAudioTimeAndNeverResends(t *testing.T) {
+	m, p := alignmentFixture(t)
+	defer m.close()
+	path, _, err := m.file("p", "s", p.Assets[0].ID, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	audio, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantSHA := sha256.Sum256(audio)
 	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
+		// A successful ASR fixture must consume the streamed upload before
+		// returning a result, rather than racing the multipart sender.
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Error(err)
+			http.Error(w, "invalid multipart", http.StatusBadRequest)
+			return
+		}
+		defer r.MultipartForm.RemoveAll()
+		if r.Method != http.MethodPost || r.Header.Get("Authorization") != "Bearer synthetic" || r.FormValue("model") != "whisper-1" || r.FormValue("response_format") != "verbose_json" || strings.Join(r.MultipartForm.Value["timestamp_granularities[]"], ",") != "segment,word" {
+			t.Error("ASR request contract changed")
+		}
+		f, header, err := r.FormFile("file")
+		if err != nil {
+			t.Error(err)
+			http.Error(w, "missing audio", http.StatusBadRequest)
+			return
+		}
+		defer f.Close()
+		digest := sha256.New()
+		n, err := io.Copy(digest, f)
+		if err != nil || n != int64(len(audio)) || !bytes.Equal(digest.Sum(nil), wantSHA[:]) || header.Header.Get("Content-Type") != "audio/wav" {
+			t.Error("ASR did not receive the exact saved audio", n, err)
+		}
+		if _, err := io.Copy(io.Discard, r.Body); err != nil {
+			t.Error(err)
+			http.Error(w, "incomplete upload", http.StatusBadRequest)
+			return
+		}
 		_, _ = w.Write([]byte(`{"segments":[{"start":0.25,"end":0.75,"text":"一"},{"start":1,"end":2.5,"text":"二"}]}`))
 	}))
 	defer server.Close()
-	m, p := alignmentFixture(t)
-	defer m.close()
 	a := m.alignment
 	a.provider = newOpenAIAlignmentProvider("synthetic", "whisper-1", server.URL, server.Client())
 	a.caps = Capabilities{Provider: "openai-asr", Model: "whisper-1", Mode: "real", Ready: true}
