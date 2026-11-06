@@ -6,22 +6,39 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
+	"io"
 )
 
 // A bounded contact sheet allows any configured vision adapter to compare
 // appearance in two project-owned images. This is creative feedback, not identity recognition.
 func consistencyContactSheet(left, right []byte) ([]byte, error) {
+	return consistencyContactSheetReaders([]io.ReadSeeker{bytes.NewReader(left), bytes.NewReader(right)})
+}
+func consistencyContactSheetFiles(left, right string) ([]byte, error) {
+	var readers []io.ReadSeeker
+	for _, path := range []string{left, right} {
+		f, e := openLocalBlob(path)
+		if e != nil {
+			return nil, e
+		}
+		defer f.Close()
+		readers = append(readers, f)
+	}
+	return consistencyContactSheetReaders(readers)
+}
+func consistencyContactSheetReaders(readers []io.ReadSeeker) ([]byte, error) {
+
 	out := image.NewRGBA(image.Rect(0, 0, 1024, 512))
 	draw.Draw(out, out.Bounds(), &image.Uniform{C: color.RGBA{240, 240, 240, 255}}, image.Point{}, draw.Src)
-	for i, data := range [][]byte{left, right} {
-		if len(data) == 0 || len(data) > 16<<20 {
+	for i, reader := range readers {
+		cfg, format, err := image.DecodeConfig(reader)
+		if err != nil || cfg.Width < 1 || cfg.Height < 1 || cfg.Width > 20_000_000/cfg.Height || (format != "png" && format != "jpeg") {
 			return nil, providerFailure("provider_rejected")
 		}
-		cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
-		if err != nil || cfg.Width < 1 || cfg.Height < 1 || cfg.Width > 20_000_000/cfg.Height {
-			return nil, providerFailure("provider_rejected")
+		if _, err = reader.Seek(0, 0); err != nil {
+			return nil, err
 		}
-		img, _, err := image.Decode(bytes.NewReader(data))
+		img, _, err := image.Decode(reader)
 		if err != nil {
 			return nil, providerFailure("provider_rejected")
 		}

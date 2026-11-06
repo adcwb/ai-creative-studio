@@ -65,6 +65,20 @@ func multipartImageFiles(ctx context.Context, p *OpenAICreativeProvider, fields 
 	return multipartImageReferences(ctx, p, fields, []referenceMedia{{Path: reference, MIME: mime}}, mask, nil)
 }
 func multipartImageReferences(ctx context.Context, p *OpenAICreativeProvider, fields map[string]string, refs []referenceMedia, maskPath string, maskData []byte) ([]byte, error) {
+	res, e := multipartImageResponse(ctx, p, fields, refs, maskPath, maskData)
+	if e != nil {
+		return nil, e
+	}
+	defer res.Body.Close()
+	raw, e := io.ReadAll(io.LimitReader(res.Body, maxProviderResponseBytes+1))
+	if e != nil || len(raw) > maxProviderResponseBytes {
+		return nil, providerFailure("invalid_provider_response")
+	}
+	return raw, nil
+}
+
+// Caller owns the successful response; media consumers parse it incrementally.
+func multipartImageResponse(ctx context.Context, p *OpenAICreativeProvider, fields map[string]string, refs []referenceMedia, maskPath string, maskData []byte) (*http.Response, error) {
 	for _, ref := range refs {
 		if e := validateReference(ctx, ref); e != nil {
 			return nil, e
@@ -142,10 +156,17 @@ func multipartImageReferences(ctx context.Context, p *OpenAICreativeProvider, fi
 		if res != nil {
 			res.Body.Close()
 		}
+		var failure *ProviderError
+		if errors.As(e, &failure) && failure.Code == "library_use_denied" {
+			return nil, e
+		}
+		if errors.Is(e, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return nil, providerFailure("provider_timeout")
+		}
 		return nil, providerFailure("provider_error")
 	}
-	defer res.Body.Close()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		res.Body.Close()
 		code := "provider_rejected"
 		if res.StatusCode == 401 || res.StatusCode == 403 {
 			code = "provider_auth_failed"
@@ -155,12 +176,9 @@ func multipartImageReferences(ctx context.Context, p *OpenAICreativeProvider, fi
 		}
 		return nil, providerFailure(code)
 	}
-	raw, e := io.ReadAll(io.LimitReader(res.Body, maxProviderResponseBytes+1))
-	if e != nil || len(raw) > maxProviderResponseBytes {
-		return nil, providerFailure("invalid_provider_response")
-	}
-	return raw, nil
+	return res, nil
 }
+
 func (p *gatewayImageProvider) GenerateWithReferenceFiles(ctx context.Context, in Input, reference, mime, mask string) (GenerationResult, error) {
 	if !modelHasCapability(p.model, "image_edit") {
 		return GenerationResult{}, providerFailure("unsupported_capability")
@@ -170,11 +188,12 @@ func (p *gatewayImageProvider) GenerateWithReferenceFiles(ctx context.Context, i
 		return GenerationResult{}, e
 	}
 	size, _, _ := imageSize(in.Ratio)
-	raw, e := multipartImageFiles(ctx, p.api, map[string]string{"model": p.model.Model, "prompt": appendLibraryInputContext(ctx, "Style: "+in.Style+". Aspect ratio: "+in.Ratio+". "+in.Prompt), "size": size, "n": "1"}, reference, mime, mask)
+	res, e := multipartImageResponse(ctx, p.api, map[string]string{"model": p.model.Model, "prompt": appendLibraryInputContext(ctx, "Style: "+in.Style+". Aspect ratio: "+in.Ratio+". "+in.Prompt), "size": size, "n": "1"}, []referenceMedia{{Path: reference, MIME: mime}}, mask, nil)
 	if e != nil {
 		return GenerationResult{}, e
 	}
-	return decodeGatewayImage(ctx, raw, p.download)
+	defer res.Body.Close()
+	return p.decodeImageReader(ctx, res.Body)
 }
 func (p *OpenAIProvider) GenerateWithReferenceFiles(ctx context.Context, in Input, reference, mime, mask string) (GenerationResult, error) {
 	in, e := Normalize(in)

@@ -7,7 +7,7 @@ export function VideoOverlayEditor({layers, assets, duration, onChange}: {layers
   function move(index: number, delta: number) {const next = [...layers]; [next[index], next[index + delta]] = [next[index + delta], next[index]]; onChange(next)}
   const fields = [
     {name: 'start', label: t('成片起点（秒）'), min: 0, max: duration, step: .1},
-    {name: 'trim_start', label: t('视频起点（秒）'), min: 0, max: 180, step: .1},
+    {name: 'trim_start', label: t('视频起点（秒）'), min: 0, max: undefined, step: .1},
     {name: 'duration', label: t('使用时长（秒）'), min: .1, max: duration, step: .1},
     {name: 'x', label: t('横向位置（0–1）'), min: 0, max: .9, step: .01},
     {name: 'y', label: t('纵向位置（0–1）'), min: 0, max: .9, step: .01},
@@ -27,7 +27,7 @@ export function VideoOverlayEditor({layers, assets, duration, onChange}: {layers
       </div>
       <div className="storyboard-fields">
         <label>{t('画面素材')}<select aria-label={t('叠层 {index} 素材', {index: index + 1})} value={layer.asset_id} onChange={event => update(index, {asset_id: event.target.value, preserve_source_audio: false, source_audio_volume: 0, trim_start: 0})}>{visual.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</select></label>
-        {fields.map(field => <label key={field.name}>{field.label}<input type="number" aria-label={t('叠层 {index} {field}', {index: index + 1, field: field.label})} min={field.min} max={field.max} step={field.step} disabled={field.name === 'trim_start' && visual.find(asset => asset.id === layer.asset_id)?.kind !== 'video'} value={layer[field.name]} onChange={event => update(index, {[field.name]: Number(event.target.value)})} /></label>)}
+        {fields.map(field => <label key={field.name}>{field.label}<input type="number" aria-label={t('叠层 {index} {field}', {index: index + 1, field: field.label})} min={field.min} max={field.name === 'trim_start' ? visual.find(asset => asset.id === layer.asset_id)?.duration : field.max} step={field.step} disabled={field.name === 'trim_start' && visual.find(asset => asset.id === layer.asset_id)?.kind !== 'video'} value={layer[field.name]} onChange={event => update(index, {[field.name]: Number(event.target.value)})} /></label>)}
         <label><input type="checkbox" checked={layer.preserve_source_audio} disabled={visual.find(asset => asset.id === layer.asset_id)?.kind !== 'video'} onChange={event => update(index, {preserve_source_audio: event.target.checked, source_audio_volume: event.target.checked ? 1 : 0})} />{t('保留叠层 {index} 视频原音', {index: index + 1})}</label>
         <label>{t('原音音量')}<input aria-label={t('叠层 {index} 原音音量', {index: index + 1})} type="number" min="0" max="1" step="0.1" disabled={!layer.preserve_source_audio} value={layer.source_audio_volume} onChange={event => update(index, {source_audio_volume: Number(event.target.value)})} /></label>
       </div>

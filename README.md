@@ -111,6 +111,7 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e
 
 本地后续修复将继续编辑原图、照片/蒙版保存改为现有分块上传，二进制网关音视频及原生视频下载、审核与入库走文件流式链路，移除这些路径的旧32MiB及蒙版4MiB门槛；保留实际像素、格式、权限和审核检查。准确支持范围及其他残余限制见[媒体流式实施记录](docs/superpowers/specs/2026-11-04-creative-series/media-streaming-implementation.md)。这不是已经发布的新镜像。
 原生JSON/hex和多参考路径继续采用有界流式编码/解码，移除聚合10MiB等项目字节门槛；Google内联容量由实际模型上游决定，MiniMax V2视频30MB单图/64MB请求按已核验协议处理，不是项目额度。其他适配器、像素及素材时长支持边界详见同一实施记录；当前仍仅本地验证，不表示远端CI或镜像已成功。
+本地核心收尾已将通用网关图像JSON/URL接为流式，取消素材180秒及网关ASR/视觉输入的旧字节/时长门槛，前端按实际素材与时间轴显示范围；供应商原生协议、格式安全和旧插件支持范围仍须区分，详见同一实施记录。尚未推送或验证本轮云端发布。
 
 镜头制作与剪辑页现支持可暂停、刷新后重选原文件恢复的分块上传；先校验完整文件，再登记素材，无项目累计容量配额。当前为本地开发阶段，S3原生multipart恢复已实现，详见[S3实施记录](docs/superpowers/specs/2026-11-04-creative-series/s3-implementation.md)；新版本导出保存分段进度，服务重启后继续，失败或取消后可明确继续原时间轴，详见[渲染记录](docs/superpowers/specs/2026-11-04-creative-series/render-implementation.md)；上传交互详见[上传实施记录](docs/superpowers/specs/2026-11-04-creative-series/uploads-implementation.md)。
 

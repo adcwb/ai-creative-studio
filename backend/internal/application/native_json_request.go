@@ -210,6 +210,13 @@ func requestNativeJSON(ctx context.Context, client *http.Client, url, header, se
 	_ = body.Close()
 	writeErr := <-done
 	if e != nil {
+		var failure *ProviderError
+		if errors.As(e, &failure) && (failure.Code == "library_use_denied" || failure.Code == "alignment_source_unpinned" || failure.Code == "alignment_source_changed") {
+			if res != nil {
+				res.Body.Close()
+			}
+			return nil, e
+		}
 		if res != nil {
 			res.Body.Close()
 		}

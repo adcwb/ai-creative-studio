@@ -14,6 +14,12 @@ func guardRuntimeDownloadTo(lifetime context.Context, download func(context.Cont
 		return nil
 	}
 	return func(ctx context.Context, url string, out io.Writer) error {
+		if e := lifetime.Err(); e != nil {
+			return e
+		}
+		if e := ctx.Err(); e != nil {
+			return e
+		}
 		if e := guard(ctx); e != nil {
 			return e
 		}
@@ -28,6 +34,12 @@ func guardRuntimeDownloadTo(lifetime context.Context, download func(context.Cont
 	}
 }
 func safeVideoDownloadTo(ctx context.Context, raw string, out io.Writer) error {
+	return safeMediaDownloadStream(ctx, raw, out, "video/mp4")
+}
+func safeImageDownloadTo(ctx context.Context, raw string, out io.Writer) error {
+	return safeMediaDownloadStream(ctx, raw, out, "")
+}
+func safeMediaDownloadStream(ctx context.Context, raw string, out io.Writer, mime string) error {
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 	u, ip, e := downloadDestination(ctx, raw, net.DefaultResolver.LookupNetIP)
@@ -50,7 +62,11 @@ func safeVideoDownloadTo(ctx context.Context, raw string, out io.Writer) error {
 	if response.StatusCode != 200 {
 		return providerFailure("invalid_provider_response")
 	}
-	return copyProviderMedia(ctx, response.Body, out, "video/mp4")
+	if mime != "" {
+		return copyProviderMedia(ctx, response.Body, out, mime)
+	}
+	_, e = io.CopyBuffer(out, contextBlobReader{ctx, response.Body}, make([]byte, 64<<10))
+	return e
 }
 func downloadVideoResult(ctx context.Context, url string, stream func(context.Context, string, io.Writer) error, legacy func(context.Context, string) ([]byte, error), out io.Writer) error {
 	if stream != nil {

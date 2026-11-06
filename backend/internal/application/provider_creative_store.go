@@ -798,6 +798,9 @@ func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob
 	switch job.Kind {
 	case "vision", "consistency":
 		adapter, ok := textProvider.(VisionProvider)
+		if managed != nil && managed.Vision != nil {
+			adapter, ok = managed.Vision, true
+		}
 		if !ok {
 			return providerFailure("unsupported_capability")
 		}
@@ -805,30 +808,41 @@ func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob
 		if e != nil {
 			return e
 		}
-		ref, e := os.ReadFile(path)
-		if e != nil || len(ref) > 4<<20 {
-			return providerFailure("provider_rejected")
-		}
 		prompt := job.Prompt
+		var analysis BriefAnalysis
 		if job.Kind == "consistency" {
 			otherPath, _, e := s.media.file(job.ProjectID, job.SpaceID, job.ComparisonAssetID, false, false)
 			if e != nil {
 				return e
 			}
-			other, e := os.ReadFile(otherPath)
+			ref, e := consistencyContactSheetFiles(path, otherPath)
 			if e != nil {
 				return e
 			}
-			ref, e = consistencyContactSheet(ref, other)
-			if e != nil {
-				return e
-			}
-			refMIME = "image/png"
 			prompt = "Compare creative character continuity: LEFT is the reference, RIGHT is the shot. Report visible differences in costume, hair, palette and props and actionable corrections; describe uncertainty, never identify a person or guarantee identity. " + shortScriptText(job.Prompt, 1000)
-		}
-		analysis, e := adapter.DescribeImage(ctx, prompt, ref, refMIME)
-		if e != nil {
-			return e
+			analysis, e = adapter.DescribeImage(ctx, prompt, ref, "image/png")
+			if e != nil {
+				return e
+			}
+		} else if file, ok := adapter.(fileVisionProvider); ok {
+			analysis, e = file.DescribeImageFile(ctx, prompt, path, refMIME)
+			if e != nil {
+				return e
+			}
+		} else {
+			f, e := openLocalBlob(path)
+			if e != nil {
+				return e
+			}
+			normalized, e := nativeImageReader(contextReadSeeker{contextBlobReader{ctx, f}, f}, refMIME)
+			f.Close()
+			if e != nil {
+				return e
+			}
+			analysis, e = adapter.DescribeImage(ctx, prompt, normalized.Data, "image/png")
+			if e != nil {
+				return e
+			}
 		}
 		analysis.SourceVersion = job.SourceVersion
 		job.Analysis = &analysis

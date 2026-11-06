@@ -11,6 +11,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"log/slog"
+	"math"
 	"os"
 	"os/exec"
 	"strconv"
@@ -80,8 +81,8 @@ func validateMedia(path, mime string) (string, float64, error) {
 		return "", 0, err
 	}
 	duration, err := strconv.ParseFloat(p.Format.Duration, 64)
-	if err != nil || duration <= 0 || duration > 180 {
-		return "", 0, mediaInvalid("媒体时长需为 0–180 秒")
+	if err != nil || duration <= 0 || math.IsNaN(duration) || math.IsInf(duration, 0) {
+		return "", 0, mediaInvalid("媒体时长必须是有限正数")
 	}
 	expected := map[string]string{"audio/wav": "wav", "audio/mpeg": "mp3", "video/mp4": "mp4"}[mime]
 	if !strings.Contains(p.Format.Name, expected) {

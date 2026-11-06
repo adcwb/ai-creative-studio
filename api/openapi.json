@@ -30520,7 +30520,7 @@
           },
           "audio_asset_id": {
             "type": "string",
-            "description": "ASR必须引用当前镜头已保存的WAV/MP3配音资产ID；最多24MiB、180秒。transcription仅允许gpt-transcribe，最多30秒；不接受任意同项目音频替代。"
+            "description": "ASR必须引用当前镜头已保存的WAV/MP3配音资产ID，不接受任意同项目音频替代。内置网关ASR按文件流式派发，不设项目24MiB、180秒或纯转写30秒门槛；实际模型及时间戳协议由对应功能绑定校验。直连OpenAI文件接口仍遵循供应商单文件25MB边界；旧本地强制对齐适配器保留独立支持范围。"
           },
           "mode": {
             "type": "string",

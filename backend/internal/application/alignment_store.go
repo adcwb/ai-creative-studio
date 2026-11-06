@@ -286,7 +286,7 @@ func (m *MediaStore) createAlignment(project, space, key string, in AlignmentInp
 	if in.selection != nil {
 		caps = in.selectedCaps
 	}
-	if in.Mode == "transcription" && (in.selection == nil || !validRuntimeAlignmentMode(in.Mode, caps.Model, in.selection) || audio.Duration > 30) {
+	if in.Mode == "transcription" && (in.selection == nil || !validRuntimeAlignmentMode(in.Mode, caps.Model, in.selection)) {
 		return AlignmentTask{}, false, ErrProviderNotReady
 	}
 	if in.Mode == "asr" && !validRuntimeAlignmentMode(in.Mode, caps.Model, in.selection) {
@@ -458,45 +458,40 @@ func (a *AlignmentStore) runTask(ctx context.Context, m *MediaStore, id string, 
 			path, mime, err = m.file(task.ProjectID, task.SpaceID, task.AudioAssetID, false, false)
 		}
 		if err == nil {
-			var data []byte
-			var stat os.FileInfo
-			stat, err = os.Stat(path)
-			if err == nil && (stat.Size() <= 0 || stat.Size() > 24<<20) {
-				err = mediaInvalid("ASR音频最多24MiB")
-			}
-			if err == nil {
-				data, err = os.ReadFile(path)
-			}
+			sourceMedia, e := executionFileMedia(ctx, path, mime)
+			err = e
 			if err == nil && task.AudioSHA256 != "" {
-				sum := sha256.Sum256(data)
-				if hex.EncodeToString(sum[:]) != task.AudioSHA256 || mime != task.AudioMIME {
+				sha := ""
+				if sourceMedia.Stream != nil {
+					sha = sourceMedia.Stream.SHA256
+				} else {
+					sum := sha256.Sum256(sourceMedia.Data)
+					sha = hex.EncodeToString(sum[:])
+				}
+				if sha != task.AudioSHA256 || mime != task.AudioMIME {
 					err = providerFailure("alignment_source_changed")
 				}
 			}
+
 			if err == nil {
 				var result AlignmentResult
 				if task.RuntimeSelection != nil {
-					err = a.execution.ExecuteRuntime(ctx, a.runtime, alignmentExecutionRequest(task, data, mime), func(ctx context.Context, p RuntimeProviders) error {
+					request := alignmentExecutionRequest(task, nil, mime)
+					request.Media = []ExecutionMedia{sourceMedia}
+					err = a.execution.ExecuteRuntime(ctx, a.runtime, request, func(ctx context.Context, p RuntimeProviders) error {
 						if p.Alignment == nil {
 							return ErrExecutionGovernance
 						}
 						var runErr error
-						result, runErr = p.Alignment.Transcribe(ctx, data, mime, task.AudioDuration)
+						result, runErr = runAlignmentFile(ctx, p.Alignment, task, path, mime)
 						if runErr == nil {
 							raw, _ := json.Marshal(result)
 							runErr = a.execution.ReviewResult(ctx, ExecutionRequest{ID: "alignment:" + task.ID, Selection: task.RuntimeSelection, Tenant: task.SpaceID, Provider: task.Provider, Model: task.Model, Capability: "text", Text: string(raw)})
 						}
 						return runErr
 					})
-				} else if task.Mode == "forced" {
-					aligner, ok := provider.(ForcedAlignmentProvider)
-					if !ok {
-						err = providerFailure("unsupported_capability")
-					} else {
-						result, err = aligner.Align(ctx, data, mime, task.AudioDuration, task.Text)
-					}
 				} else {
-					result, err = provider.Transcribe(ctx, data, mime, task.AudioDuration)
+					result, err = runAlignmentFile(ctx, provider, task, path, mime)
 				}
 				if err == nil {
 					task.Cues = []SubtitleCue{}

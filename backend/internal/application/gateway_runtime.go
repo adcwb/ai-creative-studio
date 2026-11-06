@@ -79,7 +79,7 @@ func (r *ModelRuntime) executeGateway(ctx context.Context, q RuntimeSelection, d
 	case "vision":
 		providers.Vision = &gatewayCreativeProvider{OpenAICreativeProvider: api, model: m}
 	case "image":
-		providers.Image = &gatewayImageProvider{api: api, model: m, download: guardRuntimeDownload(ctx, safeMediaDownload, guard, onDispatch)}
+		providers.Image = &gatewayImageProvider{api: api, model: m, downloadTo: guardRuntimeDownloadTo(ctx, safeImageDownloadTo, guard, onDispatch)}
 	case "video", "speech":
 		providers.Creative = runtimeCreative{p: &gatewayCreativeProvider{OpenAICreativeProvider: api, model: m, voice: q.Voice}, capability: q.Capability}
 	case "asr":

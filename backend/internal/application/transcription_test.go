@@ -3,6 +3,7 @@ package application
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -34,8 +35,8 @@ func TestTextTranscriptionWireBoundsAndNoInventedTiming(t *testing.T) {
 	if err != nil || result.Transcript != "Synthetic words." || len(result.Cues) != 0 || result.TimingBasis != "transcript-only" {
 		t.Fatal(result, err)
 	}
-	if _, err = p.Transcribe(context.Background(), syntheticWAV(1), "audio/wav", 30.01); err == nil || calls != 1 {
-		t.Fatal("duration limit not checked before request")
+	if result, err = p.Transcribe(context.Background(), syntheticWAV(31), "audio/wav", 31); err != nil || calls != 2 || len(result.Cues) != 0 || result.TimingBasis != "transcript-only" {
+		t.Fatal("retired local 30-second quota or invented timing", err, calls)
 	}
 	for _, bad := range []string{`{}`, `{"text":" "}`, `{"text":123}`, `{"text":` + string(mustJSON(strings.Repeat("x", 2001))) + `}`} {
 		body = bad
@@ -124,7 +125,37 @@ func TestTextTranscriptionGovernedRuntime(t *testing.T) {
 	err = g.ExecuteRuntime(context.Background(), runtime, request, func(ctx context.Context, p RuntimeProviders) error {
 		client := p.Alignment.(*OpenAIAlignmentProvider).client
 		transport := client.Transport.(runtimeTransport)
-		transport.base = runtimeFixtureTransport(func(*http.Request) (*http.Response, error) {
+		transport.base = runtimeFixtureTransport(func(req *http.Request) (*http.Response, error) {
+			form, e := req.MultipartReader()
+			if e != nil {
+				return nil, e
+			}
+			seen := false
+			for {
+				part, e := form.NextPart()
+				if e == io.EOF {
+					break
+				}
+				if e != nil {
+					return nil, e
+				}
+				if part.FormName() == "file" {
+					seen = true
+					h := sha256.New()
+					if _, e = io.Copy(h, part); e != nil {
+						return nil, e
+					}
+					want := sha256.Sum256(request.Media[0].Data)
+					if !bytes.Equal(h.Sum(nil), want[:]) {
+						t.Error("managed transcription audio changed")
+					}
+				} else {
+					io.Copy(io.Discard, part)
+				}
+			}
+			if !seen {
+				t.Error("managed transcription omitted audio")
+			}
 			calls++
 			return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"text":"Reviewed transcript."}`))}, nil
 		})
