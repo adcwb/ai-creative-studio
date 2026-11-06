@@ -165,6 +165,41 @@ def main():
                 assert preview_media['version']==preview_upload['version'] and preview_media['timeline']['clips']==[] and not preview_media.get('selections')
                 denied_delivery=call(alice,'POST',preview_project_path+'/social/jobs'+query,'/api/v1/projects/{id}/social/jobs',dict(expected_version=preview_media['version'],platform='tiktok',mode='export',export_id=preview_export['id'],confirmed=True),aq,status=400,key='preview-not-publishable')
                 assert '预演' in denied_delivery['error']['message']
+                # Production snapshots use current membership, immutable source receipts,
+                # explicit branch CAS and metadata-only lists. No permissions are saved.
+                revision_base = preview_project_path
+                revision_route = '/api/v1/projects/{id}'
+                revision_options = call(bob,'GET',revision_base+'/revision-options'+query,revision_route+'/revision-options')
+                assert revision_options['branch'] is None
+                revisions_path = revision_base+'/revision-branches/main/revisions'
+                revisions_route = revision_route+'/revision-branches/{branch_id}/revisions'
+                revision_body = dict(expected_project_version=later_preview_project['version'],expected_media_version=preview_media['version'],expected_branch_version=0,expected_head_revision_id='',label='Pinned production sources')
+                call(anonymous,'POST',revisions_path+query,revisions_route,revision_body,status=401,key='revision-anonymous')
+                call(alice,'POST',revisions_path+query,revisions_route,revision_body,status=403,key='revision-no-csrf')
+                call(bob,'POST',revisions_path+query,revisions_route,revision_body,bq,status=403,key='revision-viewer')
+                call(alice,'POST',revisions_path+query,revisions_route,dict(revision_body,actor='forged'),aq,status=400,key='revision-forged-actor')
+                missing_clock=dict(revision_body);del missing_clock['expected_branch_version']
+                call(alice,'POST',revisions_path+query,revisions_route,missing_clock,aq,status=400,key='revision-missing-clock')
+                call(alice,'POST',revisions_path+query,revisions_route,dict(revision_body,manifest={}),aq,status=400,key='revision-forged-source')
+                production_revision=call(alice,'POST',revisions_path+query,revisions_route,revision_body,aq,status=201,key='revision-original')
+                assert set(production_revision)=={'id','branch','revision'}
+                assert 'runtime_selection' not in json.dumps(production_revision) and 'authorization_revision' not in json.dumps(production_revision)
+                assert call(alice,'POST',revisions_path+query,revisions_route,revision_body,aq,status=201,key='revision-original')==production_revision
+                call(alice,'POST',revisions_path+query,revisions_route,revision_body,aq,status=409,key='revision-stale-branch')
+                revision_detail_path=revision_base+'/revisions/'+production_revision['id']
+                revision_detail_route=revision_route+'/revisions/{revision_id}'
+                assert call(bob,'GET',revision_detail_path+query,revision_detail_route)==production_revision['revision']
+                call(bob,'GET',revision_detail_path+'?space_id='+other,revision_detail_route,status=404)
+                call(anonymous,'GET',revision_detail_path+query,revision_detail_route,status=401)
+                revision_history=call(bob,'GET',revisions_path+query,revisions_route)
+                assert len(revision_history['items'])==1 and 'manifest' not in revision_history['items'][0]
+                branch_path,branch_route=revision_base+'/revision-branches',revision_route+'/revision-branches'
+                branch_body=dict(source_revision_id=production_revision['id'],name='Alternative direction')
+                call(bob,'POST',branch_path+query,branch_route,branch_body,bq,status=403,key='revision-viewer-fork')
+                forked_revision=call(alice,'POST',branch_path+query,branch_route,branch_body,aq,status=201,key='revision-fork')
+                assert forked_revision['branch']['head_revision_id']==production_revision['id']
+                assert call(alice,'POST',branch_path+query,branch_route,branch_body,aq,status=201,key='revision-fork')==forked_revision
+                call(bob,'GET',branch_path+query,branch_route)
                 library_route = '/api/v1/library/assets'
                 asset = call(alice, 'POST', library_route + query, library_route, dict(kind='style',card=dict(name='Synthetic style',description='',prohibited_changes=[],style={}),references=[]), aq, status=201, key='secure-library-authorization-card')
                 use_path = library_route + '/' + asset['asset']['id'] + '/use-authorization'
@@ -286,6 +321,9 @@ def main():
                 call(bob, 'PUT', budget + query, budget, {'currency': 'USD', 'limit_minor': 301, 'expected_limit_minor': 300}, bq, status=403)
                 call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'remove'}, aq)
                 call(bob,'GET',director_detail+query,director_detail_route,status=403)
+                call(bob,'GET',revision_detail_path+query,revision_detail_route,status=403)
+                call(bob,'GET',revisions_path+query,revisions_route,status=403)
+                call(bob,'POST',branch_path+query,branch_route,branch_body,bq,status=403,key='revision-revoked-fork')
                 call(bob,'GET',preview_detail_path+query,preview_detail_route,status=403)
                 call(bob,'GET',animatic_path+'/options'+query,animatic_route+'/options',status=403)
                 call(bob,'GET',preview_done['file_url'],'/api/v1/projects/{id}/media/exports/{export_id}/file',status=403)
@@ -437,7 +475,7 @@ def main():
                 call(alice, 'POST', variable_target + '/copies' + query, route + '/copies', dict(version_id=variable_saved['version']['id'], name='Copied recipe', visibility='private'), aq, status=201)
                 call(alice, 'POST', '/api/v1/auth/logout', '/api/v1/auth/logout', {}, aq)
                 assert call(alice, 'GET', session_route, session_route)['authenticated'] is False
-                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'library use declarations: CSRF, viewer, forged actor, original grant receipt and current revocation', 'read-only media lineage, exact uploaded bytes and current membership boundaries', 'explicit stable structure upgrade, CSRF and viewer refusal', 'episode copy preview, hidden target, viewer/CSRF refusal and revoked progress access', 'canonical story versions, immutable retrieval snapshots, current-source comparisons, original receipts, null-script safeguards and revoked access', 'on-demand director detail: current membership, viewer reads, forbidden writes, CSRF, source forgery and revoked access', 'independent animatic: source options, byte-pinned render, original receipt after plan changes, silent watermark, unchanged edit, publishing refusal and revoked downloads'], 'live_provider_calls': 0}))
+                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'library use declarations: CSRF, viewer, forged actor, original grant receipt and current revocation', 'read-only media lineage, exact uploaded bytes and current membership boundaries', 'explicit stable structure upgrade, CSRF and viewer refusal', 'episode copy preview, hidden target, viewer/CSRF refusal and revoked progress access', 'canonical story versions, immutable retrieval snapshots, current-source comparisons, original receipts, null-script safeguards and revoked access', 'on-demand director detail: current membership, viewer reads, forbidden writes, CSRF, source forgery and revoked access', 'independent animatic: source options, byte-pinned render, original receipt after plan changes, silent watermark, unchanged edit, publishing refusal and revoked downloads', 'production revision snapshots: required clocks, CSRF, viewer, immutable source, branch CAS, metadata-only history, explicit fork and current membership'], 'live_provider_calls': 0}))
             finally:
                 process.terminate()
                 process.wait(timeout=15)

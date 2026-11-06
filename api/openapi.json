@@ -27027,6 +27027,734 @@
         },
         "description": "Continues a failed or canceled versioned local export with its original timeline and source identities. No model request or new export is created. Replays use the original idempotency key."
       }
+    },
+    "/api/v1/projects/{id}/revision-options": {
+      "get": {
+        "summary": "Read current project/media clocks and the selected branch head. Does not return creative bodies or call a model.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(main|[a-f0-9]{32})$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted immutable record or current-source metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductionRevisionOptions"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/revision-branches": {
+      "get": {
+        "summary": "Page branch metadata for the authorized project.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted immutable record or current-source metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductionBranchPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Fork an immutable revision. The new branch does not change live project/media state or restore execution permissions.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "媒体域持久幂等键；项目+空间范围内共享，重试必须保留相同请求及标签。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Accepted immutable record or current-source metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductionRevisionMutation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductionRevisionFork"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/revision-branches/{branch_id}/revisions": {
+      "get": {
+        "summary": "Page immutable revision metadata. Full manifests are fetched only by detail request.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "branch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(main|[a-f0-9]{32})$"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted immutable record or current-source metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductionRevisionPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Capture the saved production sources under project/media/branch CAS. Exact original receipts precede current CAS. Never generates media or changes the formal edit.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "branch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(main|[a-f0-9]{32})$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "媒体域持久幂等键；项目+空间范围内共享，重试必须保留相同请求及标签。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Accepted immutable record or current-source metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductionRevisionMutation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductionRevisionCapture"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/revisions/{revision_id}": {
+      "get": {
+        "summary": "Read one immutable production manifest under current project access. No execution credentials, consent or publishing state is restorable.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(main|[a-f0-9]{32})_[0-9]{20}_[a-f0-9]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted immutable record or current-source metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductionRevision"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or storage outcome unconfirmed. Preserve the original write key and body for recovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -39728,6 +40456,624 @@
           "project",
           "media",
           "shot_episodes"
+        ]
+      },
+      "ProductionBranch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(main|[a-f0-9]{32})$"
+          },
+          "space_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "head_revision_id": {
+            "type": "string",
+            "pattern": "^(main|[a-f0-9]{32})_[0-9]{20}_[a-f0-9]{64}$"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "space_id",
+          "project_id",
+          "name",
+          "head_revision_id",
+          "version",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "ProductionRevisionRef": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "version_id": {
+            "type": "string"
+          },
+          "content_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "version_id",
+          "content_sha256"
+        ]
+      },
+      "ProductionRevisionJobSource": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "asset_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "shot_id": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "prompt_source": {
+            "$ref": "#/components/schemas/PromptSource"
+          },
+          "director_context": {
+            "$ref": "#/components/schemas/DirectorSnapshot"
+          },
+          "visual_context": {
+            "type": "string"
+          },
+          "reference_asset_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "first_frame_asset_id": {
+            "type": "string"
+          },
+          "last_frame_asset_id": {
+            "type": "string"
+          },
+          "motion_reference_asset_id": {
+            "type": "string"
+          },
+          "library_versions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "asset_id": {
+                  "type": "string"
+                },
+                "version_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "asset_id",
+                "version_id"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "asset_id",
+          "kind",
+          "shot_id",
+          "prompt",
+          "library_versions"
+        ]
+      },
+      "ProductionRevisionSources": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "structure_version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "script_version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "script_brief": {
+            "type": "string"
+          },
+          "series_episode_id": {
+            "type": "string"
+          },
+          "episode_timelines": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MediaTimeline"
+            }
+          },
+          "selections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductionSelection"
+            }
+          },
+          "library_bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryBinding"
+            }
+          },
+          "library_versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryVersion"
+            }
+          },
+          "prompt_applications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PromptApplication"
+            }
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "asset": {
+                  "$ref": "#/components/schemas/MediaAsset"
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "asset",
+                "sha256",
+                "size"
+              ]
+            }
+          },
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductionRevisionJobSource"
+            }
+          },
+          "contexts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoryContextSnapshot"
+            }
+          },
+          "script_origin": {
+            "type": "string",
+            "enum": [
+              "manual_or_legacy",
+              "adopted_candidate"
+            ]
+          }
+        },
+        "required": [
+          "format",
+          "structure_version",
+          "script_version",
+          "script_brief",
+          "selections",
+          "library_bindings",
+          "library_versions",
+          "prompt_applications",
+          "assets",
+          "jobs",
+          "contexts",
+          "script_origin"
+        ]
+      },
+      "ProductionRevisionManifest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "brief": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "brief": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "brief"
+            ]
+          },
+          "script": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Script"
+              },
+              {
+                "type": "object",
+                "nullable": true,
+                "enum": [
+                  null
+                ]
+              }
+            ]
+          },
+          "storyboard": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Storyboard"
+              },
+              {
+                "type": "object",
+                "nullable": true,
+                "enum": [
+                  null
+                ]
+              }
+            ]
+          },
+          "timeline": {
+            "$ref": "#/components/schemas/MediaTimeline"
+          },
+          "poster": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PosterDocument"
+              },
+              {
+                "type": "object",
+                "nullable": true,
+                "enum": [
+                  null
+                ]
+              }
+            ]
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductionRevisionRef"
+            }
+          },
+          "sources": {
+            "$ref": "#/components/schemas/ProductionRevisionSources"
+          },
+          "parent_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "brief",
+          "script",
+          "storyboard",
+          "timeline",
+          "poster",
+          "references",
+          "sources"
+        ]
+      },
+      "ProductionRevision": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(main|[a-f0-9]{32})_[0-9]{20}_[a-f0-9]{64}$"
+          },
+          "space_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "branch_id": {
+            "type": "string",
+            "pattern": "^(main|[a-f0-9]{32})$"
+          },
+          "label": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "project_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "media_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "parent_id": {
+            "type": "string",
+            "pattern": "^(main|[a-f0-9]{32})_[0-9]{20}_[a-f0-9]{64}$"
+          },
+          "restored_from_id": {
+            "type": "string",
+            "pattern": "^(main|[a-f0-9]{32})_[0-9]{20}_[a-f0-9]{64}$"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/ProductionRevisionManifest"
+          },
+          "content_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "space_id",
+          "project_id",
+          "branch_id",
+          "label",
+          "actor",
+          "project_version",
+          "media_version",
+          "manifest",
+          "content_sha256",
+          "created_at"
+        ]
+      },
+      "ProductionRevisionSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(main|[a-f0-9]{32})_[0-9]{20}_[a-f0-9]{64}$"
+          },
+          "branch_id": {
+            "type": "string",
+            "pattern": "^(main|[a-f0-9]{32})$"
+          },
+          "label": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "project_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "media_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "parent_id": {
+            "type": "string"
+          },
+          "content_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "branch_id",
+          "label",
+          "actor",
+          "project_version",
+          "media_version",
+          "parent_id",
+          "content_sha256",
+          "created_at"
+        ]
+      },
+      "ProductionRevisionCapture": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_project_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "expected_media_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "expected_branch_version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "expected_head_revision_id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "expected_project_version",
+          "expected_media_version",
+          "expected_branch_version",
+          "expected_head_revision_id",
+          "label"
+        ]
+      },
+      "ProductionRevisionFork": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source_revision_id": {
+            "type": "string",
+            "pattern": "^(main|[a-f0-9]{32})_[0-9]{20}_[a-f0-9]{64}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "source_revision_id",
+          "name"
+        ]
+      },
+      "ProductionRevisionMutation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "branch": {
+            "$ref": "#/components/schemas/ProductionBranch"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/ProductionRevision"
+          }
+        },
+        "required": [
+          "id",
+          "branch"
+        ]
+      },
+      "ProductionRevisionOptions": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "project_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "media_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "branch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProductionBranch"
+              },
+              {
+                "type": "object",
+                "nullable": true,
+                "enum": [
+                  null
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "project_version",
+          "media_version",
+          "branch"
+        ]
+      },
+      "ProductionBranchPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductionBranch"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "ProductionRevisionPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductionRevisionSummary"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
         ]
       }
     },

@@ -19,9 +19,10 @@ import prompts from './locales/prompts'
 import writer from './locales/writer'
 import director from './locales/director'
 import animatic from './locales/animatic'
+import revisions from './locales/revisions'
 export type Locale = 'zh-CN' | 'en'
 export type TranslationParams = Record<string, string | number>
-const dictionaries: Record<string, string> = {...drama, ...mediaLegacy, ...core, ...governance, ...runtime, ...mediaComposite, ...poster, ...social, ...douyin, ...navigation, ...digitalHuman, ...library, ...production, ...models, ...appearance, ...mediaOutput, ...prompts, ...writer, ...director, ...animatic}
+const dictionaries: Record<string, string> = {...drama, ...mediaLegacy, ...core, ...governance, ...runtime, ...mediaComposite, ...poster, ...social, ...douyin, ...navigation, ...digitalHuman, ...library, ...production, ...models, ...appearance, ...mediaOutput, ...prompts, ...writer, ...director, ...animatic, ...revisions}
 export function resolveLocale(saved: string | null, languages: readonly string[]): Locale {
   if (saved === 'zh-CN' || saved === 'en') return saved
   return languages[0]?.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'

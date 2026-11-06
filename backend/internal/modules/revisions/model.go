@@ -3,6 +3,7 @@
 package revisions
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -13,7 +14,7 @@ import (
 
 var ErrInput = errors.New("invalid revision input")
 var ErrConflict = errors.New("branch version conflict")
-var idPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,80}$`)
+var idPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,160}$`)
 
 type Ref struct {
 	Kind      string `json:"kind"`
@@ -22,14 +23,21 @@ type Ref struct {
 	SHA256    string `json:"content_sha256"`
 }
 type Manifest struct {
-	Brief      json.RawMessage `json:"brief"`
-	Script     json.RawMessage `json:"script"`
-	Storyboard json.RawMessage `json:"storyboard"`
-	Timeline   json.RawMessage `json:"timeline"`
-	Poster     json.RawMessage `json:"poster"`
-	References []Ref           `json:"references"`
+	Sources      json.RawMessage `json:"sources,omitempty"`
+	ParentSHA256 string          `json:"parent_sha256,omitempty"`
+	Brief        json.RawMessage `json:"brief"`
+	Script       json.RawMessage `json:"script"`
+	Storyboard   json.RawMessage `json:"storyboard"`
+	Timeline     json.RawMessage `json:"timeline"`
+	Poster       json.RawMessage `json:"poster"`
+	References   []Ref           `json:"references"`
 }
 type Revision struct {
+	BranchID       string    `json:"branch_id,omitempty"`
+	Label          string    `json:"label,omitempty"`
+	Actor          string    `json:"actor,omitempty"`
+	ProjectVersion int       `json:"project_version,omitempty"`
+	MediaVersion   int       `json:"media_version,omitempty"`
 	ID             string    `json:"id"`
 	SpaceID        string    `json:"space_id"`
 	ProjectID      string    `json:"project_id"`
@@ -40,12 +48,14 @@ type Revision struct {
 	CreatedAt      time.Time `json:"created_at"`
 }
 type Branch struct {
-	ID             string `json:"id"`
-	SpaceID        string `json:"space_id"`
-	ProjectID      string `json:"project_id"`
-	Name           string `json:"name"`
-	HeadRevisionID string `json:"head_revision_id"`
-	Version        int    `json:"version"`
+	ID             string    `json:"id"`
+	SpaceID        string    `json:"space_id"`
+	ProjectID      string    `json:"project_id"`
+	Name           string    `json:"name"`
+	HeadRevisionID string    `json:"head_revision_id"`
+	Version        int       `json:"version"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 type Edge struct {
 	Consumer Ref    `json:"consumer"`
@@ -64,11 +74,11 @@ func validRef(r Ref) bool {
 }
 func ValidateManifest(m Manifest) error {
 	for _, raw := range []json.RawMessage{m.Brief, m.Script, m.Storyboard, m.Timeline, m.Poster} {
-		if len(raw) > 1<<20 || !json.Valid(raw) {
+		if !json.Valid(raw) {
 			return ErrInput
 		}
 	}
-	if len(m.References) > 512 {
+	if len(m.Sources) > 0 && !json.Valid(m.Sources) || m.ParentSHA256 != "" && !validHash(m.ParentSHA256) {
 		return ErrInput
 	}
 	seen := map[string]bool{}
@@ -84,7 +94,19 @@ func Digest(m Manifest) (string, error) {
 	if err := ValidateManifest(m); err != nil {
 		return "", err
 	}
+	// JSONB may reorder object keys. Hash canonical JSON values, including nested
+	// authored raw documents, rather than their incidental serialization order.
 	b, err := json.Marshal(m)
+	if err != nil {
+		return "", err
+	}
+	var v any
+	d := json.NewDecoder(bytes.NewReader(b))
+	d.UseNumber()
+	if err = d.Decode(&v); err != nil {
+		return "", err
+	}
+	b, err = json.Marshal(v)
 	if err != nil {
 		return "", err
 	}
@@ -109,9 +131,6 @@ func Advance(b Branch, expectedVersion int, expectedHead string, next Revision) 
 // ValidateEdges bounds traversal and rejects cycles on concrete versions, not
 // on asset identities: new versions may legitimately derive from old ones.
 func ValidateEdges(edges []Edge) error {
-	if len(edges) > 4096 {
-		return ErrInput
-	}
 	graph := map[string][]string{}
 	for _, e := range edges {
 		if !validRef(e.Consumer) || !validRef(e.Source) || !idPattern.MatchString(e.Usage) {
@@ -144,3 +163,5 @@ func ValidateEdges(edges []Edge) error {
 	}
 	return nil
 }
+
+func validHash(v string) bool { b, e := hex.DecodeString(v); return e == nil && len(b) == 32 }

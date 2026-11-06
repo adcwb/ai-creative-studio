@@ -32,6 +32,11 @@ func TestPostgresNativeBackupRestore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	productionClock := revisionCaptureInput{ExpectedProjectVersion: seriesProject.Version, ExpectedMediaVersion: 1, Label: "备份前的制作起点"}
+	productionRevision, err := store.CaptureProductionRevision(context.Background(), seriesProject.SpaceID, seriesProject.ID, "main", seriesActor.User, "native-backup-production-revision", productionClock, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	actor := prompts.Actor{Space: "synthetic-backup", User: "owner", Writable: true}
 	recipe, err := store.prompts.Mutate(context.Background(), actor, "44444444444444444444444444444444", "backup-prompt-key", promptCommand())
 	if err != nil {
@@ -104,6 +109,10 @@ func TestPostgresNativeBackupRestore(t *testing.T) {
 	restoredEpisode, restoredProject, err := restored.CreateSeriesEpisode(context.Background(), seriesActor, "native-backup-episode", seriesSeason.ID, series.Input{Title: "恢复后的新起点"})
 	if err != nil || restoredEpisode.ID != seriesEpisode.ID || restoredProject.ID != seriesProject.ID {
 		t.Fatal("native restore lost independent series Project or receipt", err)
+	}
+	restoredRevision, err := restored.CaptureProductionRevision(context.Background(), seriesProject.SpaceID, seriesProject.ID, "main", seriesActor.User, "native-backup-production-revision", productionClock, nil)
+	if err != nil || !sameRevisionJSON(restoredRevision, productionRevision) {
+		t.Fatal("native restore lost production revision/branch/original receipt", err)
 	}
 	remoteRestored := remoteFixture.store(t, t.TempDir())
 	if e := remoteRestored.configureMultipart("", restoredDB); e != nil {

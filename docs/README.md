@@ -16,7 +16,7 @@
 ## 需求设计与实施规范
 
 - [Spec Coding 文档约定与历史设计索引](superpowers/README.md)
-- [自定义图像提示词与长篇 AI 漫剧规格包](superpowers/specs/2026-11-04-creative-series/README.md)（2026-11-06修订30：每集1–2分钟、1K–4K、项目去配额；实施中，第一批结果与剩余工作见包内实施记录）
+- [自定义图像提示词与长篇 AI 漫剧规格包](superpowers/specs/2026-11-04-creative-series/README.md)（2026-11-06修订32：每集1–2分钟、1K–4K、项目去配额；实施中，第一批结果与剩余工作见包内实施记录）
 
 其他 `iteration-*`、`design/*` 和日期设计文档保留对应轮次的背景与验证记录；阅读时应核对基线、状态和后续专题文档。
 
@@ -51,3 +51,7 @@
 [T41A导演意图与固定镜头来源](superpowers/specs/2026-11-04-creative-series/director-implementation.md)：明确文字/原生/参考/不支持边界，固定本镜与同集邻镜到真实请求，保留声音意图并按需读历史，比较不改剪辑，阶段完整Go/PG与66项网关浏览器通过；完整静帧预演和制作DAG仍待实施。
 
 [T41B独立静帧预演](superpowers/specs/2026-11-04-creative-series/animatic-implementation.md)：真实静帧/临时声音、明确静音、独立来源与可恢复视频，不改正式剪辑或进入成片发布；T42–T45及长期容量仍未完成，整套Spec通过前不推送。
+
+[制作修订快照/分支](superpowers/specs/2026-11-04-creative-series/revision-implementation.md)：T42当前子集；完整影响分析/恢复、批量和容量仍未完成。按[当前任务清单](superpowers/specs/2026-11-04-creative-series/README.md#current-task-list)优先完成单集真实制作—审片—合成，再推进批量及200集；完整Spec通过前不推送。
+
+最新发布以[收紧后的本次范围](superpowers/specs/2026-11-04-creative-series/README.md#focused-release)为准：提示词、现有系列集管理、单集真实生成—人工审片—合成；画布、批量DAG和长期容量专项延期。聚焦验收后推送并核验CI，下方/历史记录中的旧完整Spec推送门槛不再适用于本次范围。

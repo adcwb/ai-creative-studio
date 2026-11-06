@@ -1,4 +1,5 @@
 const messages: Record<string, string> = {
+ "未选择组织模型": "No organization model selected",
  "纯文本转写": "Text-only transcription",
  "纯文本转写没有时间戳；不能直接应用为逐句字幕。": "Text-only transcription has no timestamps and cannot be applied as timed subtitles.",
  "转写片段 {p0} 配音文本": "Transcribe audio text for clip {p0}",

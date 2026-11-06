@@ -18,6 +18,7 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/migrationrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/promptrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/revisionrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/seriesrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/storyrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
@@ -53,6 +54,7 @@ type FileStore struct {
 	storyWorkerMu     sync.Mutex
 	storyWorkerClosed bool
 	storyRunner       *storyCheckRunner
+	revisions         *revisionrepo.Store
 	story             *storyrepo.Store
 	migrations        *migrationrepo.Store
 	series            *seriesrepo.Store

@@ -21,6 +21,7 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/migrationrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/promptrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/revisionrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/seriesrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/storyrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
@@ -159,6 +160,9 @@ func InitPostgres(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, seriesrepo.Schema); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, revisionrepo.Schema); err != nil {
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, storyrepo.Schema); err != nil {

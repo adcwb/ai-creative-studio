@@ -48,7 +48,7 @@ export function RuntimeModelPicker({space, capability, value, onChange, preview,
     {binding && <p>{t('已使用此功能的默认绑定，切换仅影响本次生成。')}</p>}
     <label>{t('AI 网关')}<select value={value?.model.gateway_id ?? ''} disabled={!!binding && !binding.allow_override} onChange={event => {const model = options.find(item => item.gateway_id === event.target.value); onChange(model ? initialRuntimeChoice(model) : null)}}><option value="">{t('选择网关')}</option>{[...new Map(options.filter(item => item.gateway_id).map(item => [item.gateway_id!, item.gateway_name!])).entries()].map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
     <label>{t('模型选择')}<select aria-label={t('模型选择')} value={value?.model.id ?? ''} disabled={!!binding && !binding.allow_override} onChange={event => {const model = options.find(item => item.id === event.target.value); onChange(model ? initialRuntimeChoice(model) : null)}}>
-      <option value="" disabled={!!binding}>{t(binding || requireGateway ? '请选择此功能的模型' : '保留当前本地或演示模式')}</option>
+      <option value="" disabled={!!binding}>{t(binding || requireGateway ? '请选择此功能的模型' : '未选择组织模型')}</option>
       {options.filter(model => !value?.model.gateway_id || model.gateway_id === value.model.gateway_id).map(model => <option key={model.id} value={model.id}>{model.name ?? model.provider} / {model.model}{model.is_default ? ` · ${t('组织默认')}` : ''}{!model.available ? ` · ${t('暂不可执行')}` : ''}</option>)}
     </select></label>
     <button type="button" onClick={() => {setCatalog(null); onChange(null); setRevision(previous => previous + 1)}}>{t('刷新模型目录')}</button>
