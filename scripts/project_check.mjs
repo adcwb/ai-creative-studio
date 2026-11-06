@@ -113,7 +113,7 @@ try {
       const geometry = await checkProjectLayout(page, expect)
       expect(errors).toEqual([]); measurements.push({state,name:view.name,...geometry})
       if (state==='generated' && ['desktop-1440','mobile-390'].includes(view.name)) await page.screenshot({path:join(output,`script-${view.name}.png`),fullPage:true})
-      const lastControl = state==='editing' ? page.getByRole('button',{name:'保存剧本',exact:true}) : state==='empty' ? page.getByRole('button',{name:'创建项目',exact:true}) : page.getByRole('button',{name:'查看生成记录',exact:false})
+      const lastControl = state==='editing' ? page.getByRole('button',{name:'保存剧本',exact:true}) : state==='empty' ? page.getByRole('button',{name:'创建项目',exact:true}) : page.locator('.project-tools > summary')
       await lastControl.scrollIntoViewIfNeeded(); await expect(lastControl).toBeInViewport()
       if (state==='long') {await page.locator('.drama-scene').last().locator('.drama-dialogue p').last().scrollIntoViewIfNeeded();await expect(page.locator('.drama-scene').last().locator('.drama-dialogue p').last()).toBeInViewport()}
     }

@@ -57,7 +57,6 @@ jobs:
           npm run test:e2e
           npm run test:routing
           npx playwright test -c playwright.auth.config.ts
-          npm run test:gateway
       - name: Local image provider integration
         run: node scripts/provider_check.mjs
       - name: Script workspace integration and layout
@@ -88,6 +87,38 @@ jobs:
         run: python scripts/media_check.py
       - name: Audio, subtitle and video alignment
         run: python scripts/alignment_check.py
+  gateway-smoke:
+    name: Gateway creation workflows
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PLAYWRIGHT_BROWSER_CHANNEL: chrome
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install local media dependencies
+        run: |
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-noto-cjk
+      - name: Build the local fixture server
+        working-directory: backend
+        run: go build -o bin/server ./cmd/server
+      - name: Real gateway contracts on desktop and mobile
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chrome
+          npm run test:gateway
   container-smoke:
     name: Two-container acceptance
     runs-on: ubuntu-24.04
@@ -174,7 +205,7 @@ jobs:
         run: /usr/lib/postgresql/16/bin/pg_ctl -D /tmp/studio-ci-pg-data -m fast stop || true
   docker:
     name: Docker / ${{ matrix.component }}
-    needs: [verify, container-smoke, durable-smoke]
+    needs: [verify, gateway-smoke, container-smoke, durable-smoke]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
