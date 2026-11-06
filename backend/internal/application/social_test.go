@@ -410,7 +410,7 @@ func TestSocialHTTPAuthorization(t *testing.T) {
 	authRequest(t, h, "GET", path+"?space_id="+oa, "", "", "", 401)
 	authRequest(t, h, "GET", path+"?space_id="+ob, "", tb, "", 404)
 	authRequest(t, h, "POST", path+"/jobs?space_id="+oa, `{}`, ta, "", 403)
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+oa+"/members", `{"email":"social-b@example.test","role":"viewer"}`, ta, sa.CSRF, 200)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+oa+"/members", testMemberInput(t, auth, "social-b@example.test", "viewer"), ta, sa.CSRF, 200)
 	authRequest(t, h, "POST", path+"/jobs?space_id="+oa, `{}`, tb, sb.CSRF, 403)
 	authRequest(t, h, "POST", path+"/connections/start?space_id="+oa, `{"expected_version":1,"platform":"tiktok"}`, tb, sb.CSRF, 403)
 }

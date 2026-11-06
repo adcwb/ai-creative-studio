@@ -309,14 +309,14 @@ func TestStructureUpgradeSecureRolesCSRFRevocationAndSourceScope(t *testing.T) {
 	body := `{"expected_version":1}`
 	authRequest(t, h, "POST", path, body, token, "", 403)
 	authRequest(t, h, "POST", path, body, viewerToken, viewerSession.CSRF, 403)
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"structure-viewer@example.invalid","role":"viewer"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", testMemberInput(t, auth, "structure-viewer@example.invalid", "viewer"), token, session.CSRF, 200)
 	authRequest(t, h, "POST", path, body, viewerToken, viewerSession.CSRF, 403)
 	w := authRequest(t, h, "POST", path, body, token, session.CSRF, 200)
 	var accepted Project
 	if err = json.Unmarshal(w.Body.Bytes(), &accepted); err != nil || accepted.StructureVersion != 2 {
 		t.Fatal("authorized upgrade failed", err)
 	}
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"structure-viewer@example.invalid","role":"remove"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", testMemberInput(t, auth, "structure-viewer@example.invalid", "remove"), token, session.CSRF, 200)
 	authRequest(t, h, "POST", path, body, viewerToken, viewerSession.CSRF, 403)
 }
 

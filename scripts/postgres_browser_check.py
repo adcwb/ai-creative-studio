@@ -42,7 +42,7 @@ def main():
     subprocess.run([str(args.pg_bin / 'createdb'), *pg_args, '-T', 'template0', '-E', 'UTF8', dbname], env=pg_env, check=True)
     processes, logs = [], []
     try:
-        for name in ('server', 'worker'):
+        for name in ('server', 'worker', 'bootstrap-user', 'store-migrate'):
             subprocess.run(['go', 'build', '-o', str(evidence / name), './cmd/' + name], cwd=ROOT / 'backend', check=True)
         common = {**env, 'STORAGE_BACKEND': 'postgres', 'QUEUE_BACKEND': 'postgres',
                   'DATABASE_URL': f'host={args.pg_socket} port={args.pg_port} user={args.pg_user} dbname={dbname} sslmode=disable passfile=/dev/null',
@@ -57,13 +57,20 @@ def main():
             policy = evidence / 'synthetic-policy.json'
             policy.write_text(json.dumps(dict(version=1, prices=[], moderation_command=str(moderator), moderation_contract='local-or-free-v1', moderation_source='synthetic local deny fixture', moderation_expires_at=expiry)))
             common.update(CONTENT_MODERATION_MODE='required', EXECUTION_POLICY_FILE=str(policy), MODEL_CONFIG_KEK_BASE64=base64.b64encode(bytes([71])*32).decode())
+        subprocess.run([str(evidence/'store-migrate'),'-mode','init','-confirm-stopped'],env=common,check=True,stdout=subprocess.DEVNULL)
+        if not args.quote_fixture:
+            ids=[]
+            for device in ('desktop','mobile'):
+                created=subprocess.run([str(evidence/'bootstrap-user'),'-email',f'p0-{device}@example.invalid','-confirm-stopped'],env={**common,'DATA_DIR':str(evidence/'server-cache')},input='Synthetic-P0-passphrase!\n',text=True,capture_output=True,check=True)
+                ids.append(json.loads(created.stdout)['user_id'])
+            common['STUDIO_ADMIN_USER_IDS']=','.join(ids)
         def start(name, extra):
             log = (evidence / (name + '.log')).open('w')
             logs.append(log)
             process = subprocess.Popen([str(evidence / name)], env={**common, 'DATA_DIR': str(evidence / (name + '-cache')), **extra}, stdout=log, stderr=log)
             processes.append(process)
             return process
-        server = start('server', {'HTTP_ADDR': '127.0.0.1:8082', 'STORAGE_AUTO_MIGRATE': 'true'})
+        server = start('server', {'HTTP_ADDR': '127.0.0.1:8082', 'STORAGE_AUTO_MIGRATE': 'false'})
         client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         for _ in range(200):
             if server.poll() is not None:

@@ -6,6 +6,7 @@ COPY cmd ./cmd
 COPY internal ./internal
 ARG BUILD_REVISION=unknown
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X github.com/adcwb/ai-creative-studio/backend/internal/application.BuildRevision=${BUILD_REVISION}" -o /out/server ./cmd/server
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/bootstrap-user ./cmd/bootstrap-user
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/worker ./cmd/worker
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/blob-migrate ./cmd/blob-migrate
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/store-migrate ./cmd/store-migrate
@@ -20,6 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && groupadd --gid 10001 studio && useradd --uid 10001 --gid studio --no-create-home studio \
     && mkdir -p /app/data && chown studio:studio /app/data
 COPY --from=build /out/server /app/server
+COPY --from=build /out/bootstrap-user /app/bootstrap-user
 COPY --from=build /out/worker /app/worker
 COPY --from=build /out/blob-migrate /app/blob-migrate
 COPY --from=build /out/store-migrate /app/store-migrate

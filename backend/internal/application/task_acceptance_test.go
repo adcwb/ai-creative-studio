@@ -216,7 +216,7 @@ func TestRuntimeCatalogIsTenantScopedAndDoesNotExposeCredentialMetadata(t *testi
 		t.Fatal("unsafe catalog", w.Body.String())
 	}
 	authRequest(t, h, "GET", "/api/v1/runtime-models?space_id="+tenant, "", otherToken, "", 403)
-	member := fmt.Sprintf(`{"email":%q,"role":"editor"}`, other.Email)
+	member := testMemberInput(t, auth, other.Email, "editor")
 	authRequest(t, h, "PUT", "/api/v1/organizations/"+tenant+"/members", member, token, session.CSRF, 200)
 	authRequest(t, h, "GET", "/api/v1/runtime-models?space_id="+tenant, "", otherToken, "", 200)
 	authRequest(t, h, "GET", "/api/v1/model-config?space_id="+tenant, "", otherToken, "", 403)

@@ -103,7 +103,7 @@ def main():
                 intent={'expected_version':prepared['version'],'platform':'tiktok','mode':'direct','media_type':'PHOTO','photo_asset_ids':[normalized_id],'photo_cover_index':0,'public_media_confirmed':True,'confirmed':True,'rights_confirmed':True,'privacy_level':'SELF_ONLY'}
                 call(alice,'POST',base+'/social/jobs'+query,route+'/social/jobs',intent,csrf,'photo-no-live',status=503)
                 members = '/api/v1/organizations/'+tenant+'/members'
-                call(alice,'PUT',members,body={'email':b['user']['email'],'role':'viewer'},csrf=csrf)
+                call(alice,'PUT',members,body={'email':b['user']['email'],'user_id':b['user']['id'],'role':'viewer'},csrf=csrf)
                 call(bob,'POST',endpoint+query,contract,{**payload,'expected_version':prepared['version']},b['csrf_token'],'photo-viewer',status=403)
                 process.terminate();process.wait(timeout=15);start()
                 restored = call(alice,'POST',endpoint+query,contract,payload,csrf,'photo-normalize')

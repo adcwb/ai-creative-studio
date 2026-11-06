@@ -194,7 +194,7 @@ func TestScriptCandidateHTTPRolesOwnershipAndOriginalReceipt(t *testing.T) {
 	authRequest(t, h, "GET", path+"?space_id="+space, "", otherToken, "", 403)
 	authRequest(t, h, "GET", path+"?space_id="+otherSpace, "", otherToken, "", 404)
 	members := "/api/v1/organizations/" + space + "/members"
-	authRequest(t, h, "PUT", members, `{"email":"writer-viewer@example.invalid","role":"viewer"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", members, testMemberInput(t, auth, "writer-viewer@example.invalid", "viewer"), token, session.CSRF, 200)
 	w := authRequest(t, h, "GET", path+"?space_id="+space, "", otherToken, "", 200)
 	var detail ScriptGeneration
 	_ = json.Unmarshal(w.Body.Bytes(), &detail)
@@ -222,7 +222,7 @@ func TestScriptCandidateHTTPRolesOwnershipAndOriginalReceipt(t *testing.T) {
 	if response.Code != 200 || !strings.Contains(response.Body.String(), g.ID) {
 		t.Fatal("accepted receipt incorrectly required a new model", response.Code, response.Body.String())
 	}
-	authRequest(t, h, "PUT", members, `{"email":"writer-viewer@example.invalid","role":"remove"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", members, testMemberInput(t, auth, "writer-viewer@example.invalid", "remove"), token, session.CSRF, 200)
 	authRequest(t, h, "GET", path+"?space_id="+space, "", otherToken, "", 403)
 }
 

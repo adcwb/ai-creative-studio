@@ -159,14 +159,21 @@ func (s *AuthStore) commit(d authSnapshot) error {
 	return nil
 }
 func (s *AuthStore) authenticate(token string) (AuthUser, authSession, bool) {
+	user, session, ok, _ := s.authenticateWithState(token)
+	return user, session, ok
+}
+func (s *AuthStore) authenticateWithState(token string) (AuthUser, authSession, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.failed != nil || len(token) != 64 {
-		return AuthUser{}, authSession{}, false
+	if s.failed != nil || s.pg != nil && s.pg.err != nil {
+		return AuthUser{}, authSession{}, false, errors.New("authentication storage unavailable")
+	}
+	if len(token) != 64 {
+		return AuthUser{}, authSession{}, false, nil
 	}
 	ss, ok := s.data.Sessions[authDigest(token)]
 	u, exists := s.data.Users[ss.UserID]
-	return u.AuthUser, ss, ok && exists && time.Now().Before(ss.Expires)
+	return u.AuthUser, ss, ok && exists && time.Now().Before(ss.Expires), nil
 }
 func (s *AuthStore) allowAttempt(ip string) bool {
 	if s.pg != nil {
@@ -256,7 +263,7 @@ func (s *AuthStore) login(email, password string, register bool, beforeCommit ..
 func (s *AuthStore) role(user, org string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.failed != nil {
+	if s.failed != nil || s.pg != nil && s.pg.err != nil {
 		return ""
 	}
 	o := s.data.Organizations[org]
@@ -269,6 +276,9 @@ func (s *AuthStore) spaces(user string) []map[string]string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := []map[string]string{}
+	if s.failed != nil || s.pg != nil && s.pg.err != nil {
+		return out
+	}
 	for _, o := range s.data.Organizations {
 		if role := o.Members[user]; role != "" && (o.Type != "personal" || o.OwnerID == user) {
 			out = append(out, map[string]string{"id": o.ID, "name": o.Name, "type": spaceType(o), "owner_id": o.OwnerID, "role": role})

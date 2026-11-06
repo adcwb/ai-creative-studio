@@ -316,7 +316,7 @@ func TestProductionReviewMembersRespectOrganizationRoles(t *testing.T) {
 	path := "/api/v1/projects/" + p.ID + "/media"
 	authRequest(t, h, "GET", path+"/review-members?space_id="+space, "", viewerToken, "", 403)
 	memberPath := "/api/v1/organizations/" + space + "/members"
-	authRequest(t, h, "PUT", memberPath, `{"email":"review-viewer@example.test","role":"viewer"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", memberPath, testMemberInput(t, auth, "review-viewer@example.test", "viewer"), token, session.CSRF, 200)
 	response := authRequest(t, h, "GET", path+"/review-members?space_id="+space, "", token, "", 200)
 	var members []productionMember
 	if json.Unmarshal(response.Body.Bytes(), &members) != nil || len(members) != 1 || members[0].ID != owner.ID {
@@ -326,7 +326,7 @@ func TestProductionReviewMembersRespectOrganizationRoles(t *testing.T) {
 	raw, _ := json.Marshal(in)
 	authRequest(t, h, "POST", path+"/decisions?space_id="+space, string(raw), token, session.CSRF, 400)
 	authRequest(t, h, "POST", path+"/decisions?space_id="+space, string(raw), viewerToken, viewerSession.CSRF, 403)
-	authRequest(t, h, "PUT", memberPath, `{"email":"review-viewer@example.test","role":"editor"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", memberPath, testMemberInput(t, auth, "review-viewer@example.test", "editor"), token, session.CSRF, 200)
 	authRequest(t, h, "POST", path+"/decisions?space_id="+space, string(raw), token, session.CSRF, 200)
 	note := s.media.Get(p.ID, space).Reviews[0]
 	if note.CreatedBy != owner.ID || note.AssigneeID != viewer.ID {

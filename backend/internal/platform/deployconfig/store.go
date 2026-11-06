@@ -129,6 +129,9 @@ func validValue(key, value string) bool {
 			return value == "inprocess" || value == "postgres"
 		case "BLOB_STORE":
 			return value == "file" || value == "shared-file" || value == "s3"
+		case "AUTH_ALLOWED_ORIGINS":
+			_, err := TrustedOrigins("", strings.Split(value, ","))
+			return err == nil
 		case "CONTENT_MODERATION_MODE":
 			return value == "disabled" || value == "required"
 		case "TRACE_MODE":
@@ -137,7 +140,10 @@ func validValue(key, value string) bool {
 			_, port, err := net.SplitHostPort(value)
 			n, e := strconv.Atoi(port)
 			return err == nil && e == nil && n > 0 && n <= 65535
-		case "FRONTEND_ORIGIN", "OIDC_ISSUER", "OIDC_REDIRECT_URL":
+		case "FRONTEND_ORIGIN":
+			_, err := CanonicalOrigin(value)
+			return err == nil
+		case "OIDC_ISSUER", "OIDC_REDIRECT_URL":
 			u, err := url.Parse(value)
 			return err == nil && u.Host != "" && (u.Scheme == "https" || u.Scheme == "http") && u.User == nil
 		}
@@ -293,7 +299,7 @@ func syncDirectory(path string) error {
 	return dir.Sync()
 }
 
-func Admins() []string {
+func ReservedEmails() []string {
 	out := strings.Split(strings.ToLower(os.Getenv("STUDIO_ADMIN_EMAILS")), ",")
 	for i := range out {
 		out[i] = strings.TrimSpace(out[i])
@@ -301,7 +307,7 @@ func Admins() []string {
 	sort.Strings(out)
 	return out
 }
-func IsAdmin(email string, admins []string) bool {
+func IsReservedEmail(email string, admins []string) bool {
 	for _, v := range admins {
 		if v != "" && strings.EqualFold(v, email) {
 			return true

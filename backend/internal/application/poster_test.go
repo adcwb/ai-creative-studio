@@ -135,7 +135,7 @@ func TestPosterHTTPAuthorization(t *testing.T) {
 	authRequest(t, h, "PUT", path+"?space_id="+ob, body, tb, sb.CSRF, 404)
 	authRequest(t, h, "POST", path+"/exports?space_id="+ob, `{"expected_version":1}`, tb, sb.CSRF, 404)
 	authRequest(t, h, "PUT", path+"?space_id="+oa, body, ta, sa.CSRF, 200)
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+oa+"/members", `{"email":"poster-b@example.test","role":"viewer"}`, ta, sa.CSRF, 200)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+oa+"/members", testMemberInput(t, auth, "poster-b@example.test", "viewer"), ta, sa.CSRF, 200)
 	authRequest(t, h, "PUT", path+"?space_id="+oa, body, tb, sb.CSRF, 403)
 	authRequest(t, h, "POST", path+"/exports?space_id="+oa, `{"expected_version":2}`, tb, sb.CSRF, 403)
 }

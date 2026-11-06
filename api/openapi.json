@@ -3,7 +3,7 @@
   "info": {
     "title": "映创 · Iteration 7 Creative Studio API",
     "version": "0.7.0",
-    "description": "Local creative studio. Default secure mode requires authenticated organization membership, CSRF and a non-empty Origin for writes. CORS accepts all origins and echoes the request Origin with credentials enabled. FRONTEND_ORIGIN is only the SSO return destination. Explicit AUTH_MODE=demo is local-only and provides no tenant security. Real model runtime requires current authorization, configured capabilities; automatic moderation is temporarily disabled by default and may be required by deployment policy; local costs and quotas do not gate execution. Local protocol tests are not live quality verification."
+    "description": "Local creative studio. Default secure mode requires authenticated organization membership, CSRF and a non-empty Origin for writes. Secure-mode CORS permits only FRONTEND_ORIGIN and explicitly configured AUTH_ALLOWED_ORIGINS; null, wildcard and other origins are denied. Deployment administrators are pinned by STUDIO_ADMIN_USER_IDS, never an unverified email claim. Explicit AUTH_MODE=demo is local-only and provides no tenant security. Real model runtime requires current authorization, configured capabilities; automatic moderation is temporarily disabled by default and may be required by deployment policy; local costs and quotas do not gate execution. Local protocol tests are not live quality verification."
   },
   "servers": [
     {
@@ -7791,7 +7791,7 @@
                   },
                   "user_id": {
                     "type": "string",
-                    "description": "Stable user ID; required when target account is SSO. Must match the email account; prevents directory-email reuse from granting access to the wrong identity."
+                    "description": "Explicit immutable recipient ID confirmed through a trusted channel. Required for every membership change; unverified email alone never authorizes an account."
                   },
                   "expected_version": {
                     "type": "integer",
@@ -7801,7 +7801,8 @@
                 },
                 "required": [
                   "email",
-                  "role"
+                  "role",
+                  "user_id"
                 ]
               }
             }
@@ -15843,7 +15844,7 @@
       "get": {
         "operationId": "getBackendConfiguration",
         "summary": "Read redacted global backend configuration; explicit deployment administrator only.",
-        "description": "Requires an authenticated user whose login email is in deployment-owned STUDIO_ADMIN_EMAILS. Organization ownership alone is insufficient. No space_id is required.",
+        "description": "Requires an authenticated immutable account ID pinned in deployment-owned STUDIO_ADMIN_USER_IDS. Legacy STUDIO_ADMIN_EMAILS does not authorize unverified email claims. Organization ownership alone is insufficient. No space_id is required.",
         "responses": {
           "200": {
             "description": "Successful operation.",
@@ -15910,7 +15911,7 @@
       "patch": {
         "operationId": "patchBackendConfiguration",
         "summary": "Persist a backend configuration patch for application after process restart.",
-        "description": "Same deployment administrator boundary as GET, plus normal session CSRF and audit. Omitted keys preserve existing values. Null deletes the file override; an empty string explicitly clears a value. Bootstrap paths, administrator identities, auth mode and encryption key cannot be changed here. Does not restart any process. File values override environment at next API/worker startup.",
+        "description": "Requires an authenticated immutable account ID pinned in deployment-owned STUDIO_ADMIN_USER_IDS. Legacy STUDIO_ADMIN_EMAILS does not authorize unverified email claims. Organization ownership alone is insufficient. No space_id is required.",
         "parameters": [
           {
             "in": "header",

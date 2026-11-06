@@ -116,7 +116,7 @@ def main():
                 member = '/api/v1/organizations/' + org + '/members'
                 member_route = '/api/v1/organizations/{id}/members'
                 call(alice, 'GET', member, member_route)
-                call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'viewer'}, aq)
+                call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'user_id':b['user']['id'], 'role': 'viewer'}, aq)
                 call(bob, 'GET', governance + query, governance)
                 preview_project = call(alice,'POST','/api/v1/projects'+query,'/api/v1/projects',dict(title='Independent animatic',brief='Local rendering only, no model required.'),aq,status=201,key='secure-preview-project')
                 preview_project_path = '/api/v1/projects/' + preview_project['id']
@@ -320,7 +320,7 @@ def main():
                 moved_directory = call(bob, 'GET', pinned_path + '/freshness' + query, fresh_route)
                 assert moved_directory['directory_changed'] and not moved_directory['current']
                 call(bob, 'PUT', budget + query, budget, {'currency': 'USD', 'limit_minor': 301, 'expected_limit_minor': 300}, bq, status=403)
-                call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'remove'}, aq)
+                call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'user_id':b['user']['id'], 'role': 'remove'}, aq)
                 call(bob,'GET',director_detail+query,director_detail_route,status=403)
                 call(bob,'GET',revision_detail_path+query,revision_detail_route,status=403)
                 call(bob,'GET',revisions_path+query,revisions_route,status=403)
@@ -383,7 +383,7 @@ def main():
                 binding = {'expected_version': 0, 'binding': {'feature_key': 'script_generation', 'model_config_id': gateway_model['id'], 'enabled': True, 'allow_override': False}}
                 call(alice, 'PUT', feature + query, feature_route, binding, aq)
                 call(alice, 'PUT', feature + query, feature_route, binding, aq, status=409)
-                call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'viewer'}, aq)
+                call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'user_id':b['user']['id'], 'role': 'viewer'}, aq)
                 call(bob, 'GET', management + query, management, status=403)
                 call(bob, 'POST', gateways + query, gateways, gateway_payload, bq, status=403)
                 catalog = call(bob, 'GET', '/api/v1/runtime-models' + query + '&feature_key=script_generation', '/api/v1/runtime-models')
@@ -392,7 +392,7 @@ def main():
                 assert 'base_url' not in wire and 'ciphertext' not in wire and 'secret_status' not in wire
                 for usage in ['/api/v1/model-usage', '/api/v1/model-usage/calls']:
                     assert call(bob, 'GET', usage + query, usage)['total'] == 0
-                call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'remove'}, aq)
+                call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'user_id':b['user']['id'], 'role': 'remove'}, aq)
                 call(bob, 'GET', '/api/v1/model-usage' + query, '/api/v1/model-usage', status=403)
                 # Personal recipes use immutable revisions without generating tasks.
                 prompts = '/api/v1/prompt-templates'
@@ -413,7 +413,7 @@ def main():
                 call(alice, 'PUT', target + '/favorite' + query, route + '/favorite', dict(enabled=True), aq)
                 assert len(call(alice, 'GET', prompts + query + '&q=%25_&favorite=true', prompts)['items']) == 1
                 call(bob, 'GET', target + '?space_id=' + other, route, status=404)
-                call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'editor'}, aq)
+                call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'user_id':b['user']['id'], 'role': 'editor'}, aq)
                 call(bob, 'GET', target + query, route, status=404)
                 metadata['visibility'] = 'organization'
                 shared = call(alice, 'PATCH', target + query, route, dict(**metadata, expected_row_version=saved['template']['row_version'], status='active'), aq)
@@ -422,7 +422,7 @@ def main():
                 updated = call(bob, 'POST', target + '/versions' + query, route + '/versions', dict(expected_head_version_id=shared['version']['id'], version=recipe), bq, status=201)
                 # This is a different body under Bob's same operation key.
                 call(bob, 'POST', target + '/versions' + query, route + '/versions', dict(expected_head_version_id=updated['version']['id'], version=recipe), bq, status=409)
-                call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'role': 'remove'}, aq)
+                call(alice, 'PUT', member, member_route, {'email': b['user']['email'], 'user_id':b['user']['id'], 'role': 'remove'}, aq)
                 call(bob, 'GET', target + query, route, status=403)
                 call(bob, 'POST', target + '/versions' + query, route + '/versions', dict(expected_head_version_id=shared['version']['id'], version=recipe), bq, status=403)
                 variable_recipe = dict(syntax='variables_v1', body='{{subject}} under {{palette}} light', defaults=dict(kind='poster', ratio='4:5', style='natural'), notes='variable contract', variables=[dict(name='subject', label='Subject', type='text', required=True, max_length=100), dict(name='palette', label='Palette', type='enum', required=False, default='warm', options=['warm','cool'], max_length=20)])

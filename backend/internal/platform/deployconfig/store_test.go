@@ -95,7 +95,7 @@ func TestRejectsProtectedUnknownAndMalformedConfig(t *testing.T) {
 }
 func TestDeploymentAdminIsExplicit(t *testing.T) {
 	t.Setenv("STUDIO_ADMIN_EMAILS", "operator@example.test, Second@example.test ")
-	if !IsAdmin("SECOND@example.test", Admins()) || IsAdmin("owner@example.test", Admins()) || IsAdmin("", []string{""}) {
+	if !IsReservedEmail("SECOND@example.test", ReservedEmails()) || IsReservedEmail("owner@example.test", ReservedEmails()) || IsReservedEmail("", []string{""}) {
 		t.Fatal("administrator boundary failed")
 	}
 }

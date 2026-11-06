@@ -9,7 +9,7 @@ import (
 )
 
 func TestModelRuntimePostgresCrossInstanceRevocation(t *testing.T) {
-	for _, change := range []string{"membership", "model"} {
+	for _, change := range []string{"membership", "model", "downgrade"} {
 		t.Run(change, func(t *testing.T) {
 			db := postgresTestDB(t)
 			a, err := OpenPostgresAuthStore(t.TempDir(), db)
@@ -72,11 +72,15 @@ func TestModelRuntimePostgresCrossInstanceRevocation(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Fatal("fixture dispatch did not start")
 			}
-			if change == "membership" {
+			if change == "membership" || change == "downgrade" {
 				b.mu.Lock()
 				d := b.clone()
 				o := d.Organizations[tenant]
-				delete(o.Members, editor.ID)
+				if change == "downgrade" {
+					o.Members[editor.ID] = "viewer"
+				} else {
+					delete(o.Members, editor.ID)
+				}
 				d.Organizations[tenant] = o
 				err = b.commit(d)
 				b.mu.Unlock()

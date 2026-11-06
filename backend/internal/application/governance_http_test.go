@@ -71,7 +71,7 @@ func TestGovernanceAuthenticatedCurrencyBudget(t *testing.T) {
 	}
 	memberPath := "/api/v1/organizations/" + tenant + "/members"
 	for _, role := range []string{"viewer", "editor", "admin"} {
-		authRequest(t, h, "PUT", memberPath, `{"email":"budget-reader@example.test","role":"`+role+`"}`, ta, sa.CSRF, 200)
+		authRequest(t, h, "PUT", memberPath, testMemberInput(t, auth, "budget-reader@example.test", role), ta, sa.CSRF, 200)
 		authRequest(t, h, "GET", reportPath, "", tb, "", 200)
 		authRequest(t, h, "PUT", writePath, `{"currency":"USD","limit_minor":2000,"expected_limit_minor":1000}`, tb, sb.CSRF, 403)
 	}

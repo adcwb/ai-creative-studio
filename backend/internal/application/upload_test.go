@@ -302,7 +302,7 @@ func TestResumableUploadSecureOwnerCSRFIsolationAndRevocation(t *testing.T) {
 	w := authRequest(t, h, "POST", base+q, string(b), token, session.CSRF, 201)
 	var u uploads.Session
 	json.Unmarshal(w.Body.Bytes(), &u)
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"upload-editor@example.invalid","role":"editor"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", testMemberInput(t, auth, "upload-editor@example.invalid", "editor"), token, session.CSRF, 200)
 	authRequest(t, h, "GET", base+"/"+u.ID+q, "", et, "", 404)
 	w = authRequest(t, h, "GET", base+q, "", et, "", 200)
 	if bytes.Contains(w.Body.Bytes(), []byte(in.Name)) {
@@ -310,9 +310,9 @@ func TestResumableUploadSecureOwnerCSRFIsolationAndRevocation(t *testing.T) {
 	}
 	authRequest(t, h, "POST", base+"/"+u.ID+"/cancel"+q, "{}", et, es.CSRF, 404)
 	authRequest(t, h, "POST", base+"/"+u.ID+"/complete"+q, "{}", token, session.CSRF, 409)
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"upload-editor@example.invalid","role":"viewer"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", testMemberInput(t, auth, "upload-editor@example.invalid", "viewer"), token, session.CSRF, 200)
 	authRequest(t, h, "POST", base+q, string(b), et, es.CSRF, 403)
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"upload-editor@example.invalid","role":"editor"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", testMemberInput(t, auth, "upload-editor@example.invalid", "editor"), token, session.CSRF, 200)
 	w = authRequest(t, h, "POST", base+q, string(b), et, es.CSRF, 201)
 	var editorUpload uploads.Session
 	if e = json.Unmarshal(w.Body.Bytes(), &editorUpload); e != nil {
@@ -333,7 +333,7 @@ func TestResumableUploadSecureOwnerCSRFIsolationAndRevocation(t *testing.T) {
 		}
 	}
 	part(200)
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"upload-editor@example.invalid","role":"remove"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", testMemberInput(t, auth, "upload-editor@example.invalid", "remove"), token, session.CSRF, 200)
 	part(403)
 	authRequest(t, h, "POST", base+"/"+editorUpload.ID+"/complete"+q, "{}", et, es.CSRF, 403)
 	authRequest(t, h, "GET", base+"/"+editorUpload.ID+q, "", et, "", 403)

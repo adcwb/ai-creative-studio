@@ -316,9 +316,9 @@ def main():
         assert sql("SELECT state||':'||attempt FROM execution_jobs WHERE id='" + crash_task['id'] + "'") == 'unknown:1'
         checks.append('SIGKILL after dispatch: API reports unknown and no worker resubmits')
         members = f'/api/v1/organizations/{tenant}/members'
-        call(alice, 0, 'PUT', members, {'email': b['user']['email'], 'role': 'viewer'}, csrf)
+        call(alice, 0, 'PUT', members, {'email': b['user']['email'], 'user_id':b['user']['id'], 'role': 'viewer'}, csrf)
         call(bob, 1, 'GET', '/api/v1/tasks' + query)
-        call(alice, 0, 'PUT', members, {'email': b['user']['email'], 'role': 'remove'}, csrf)
+        call(alice, 0, 'PUT', members, {'email': b['user']['email'], 'user_id':b['user']['id'], 'role': 'remove'}, csrf)
         call(bob, 1, 'GET', '/api/v1/tasks' + query, status=403)
         checks.append('cross-instance membership revocation and tenant isolation')
         call(alice, 0, 'POST', '/api/v1/auth/logout', {}, csrf)

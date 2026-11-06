@@ -47,7 +47,7 @@ func TestPromptSecureRolesHistoryAndRevocation(t *testing.T) {
 		t.Fatal("create")
 	}
 	path := base + "/" + created.Template.ID
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"prompt-editor@example.invalid","role":"editor"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", testMemberInput(t, auth, "prompt-editor@example.invalid", "editor"), token, session.CSRF, 200)
 	for _, suffix := range []string{"", "/versions", "/versions/" + created.Version.ID} {
 		authRequest(t, h, "GET", path+suffix+q, "", et, "", 404)
 	}
@@ -81,7 +81,7 @@ func TestPromptSecureRolesHistoryAndRevocation(t *testing.T) {
 	different.Body = "Different same key body"
 	diff, _ := json.Marshal(map[string]any{"expected_head_version_id": shared.Version.ID, "version": different})
 	authRequest(t, h, "POST", path+"/versions"+q, string(diff), et, es.CSRF, 409)
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"prompt-editor@example.invalid","role":"viewer"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", testMemberInput(t, auth, "prompt-editor@example.invalid", "viewer"), token, session.CSRF, 200)
 	authRequest(t, h, "POST", path+"/versions"+q, string(versionBody), et, es.CSRF, 403)
 	authRequest(t, h, "GET", path+q, "", et, "", 200)
 	previewBody, _ := json.Marshal(map[string]any{"version_id": created.Version.ID})
@@ -89,7 +89,7 @@ func TestPromptSecureRolesHistoryAndRevocation(t *testing.T) {
 	authRequest(t, h, "PUT", path+"/favorite"+q, `{"enabled":true}`, et, es.CSRF, 200)
 	authRequest(t, h, "PUT", path+"/favorite"+q, `{"enabled":true}`, et, "", 403)
 
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"prompt-editor@example.invalid","role":"remove"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", testMemberInput(t, auth, "prompt-editor@example.invalid", "remove"), token, session.CSRF, 200)
 	authRequest(t, h, "POST", path+"/versions"+q, string(versionBody), et, es.CSRF, 403)
 	authRequest(t, h, "GET", path+q, "", et, "", 403)
 	if len(s.List(space)) != 0 {

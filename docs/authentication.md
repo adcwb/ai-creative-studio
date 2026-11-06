@@ -6,7 +6,7 @@
 
 - `AUTH_ALLOW_REGISTRATION=true` 才开放自助注册（含首次SSO账号），默认关闭。不创建默认密码，不配置已有账号。首次使用需操作者明确开启注册，让用户自行注册后可关闭。
 - `AUTH_COOKIE_SECURE` 默认true；仅HTTP回环开发显式设false。会话cookie为HttpOnly、SameSite=Lax、12小时；前端请求携带credentials。
-- CORS 放行所有来源，响应回显请求的 `Origin` 并允许携带凭据。所有写操作仍要求非空 `Origin`；登录后写操作另要求 `X-CSRF-Token`。`FRONTEND_ORIGIN` 仅用于 SSO 登录完成后的固定回跳，不限制 CORS 来源。没有用客户端身份头、转发头、邮箱或space_id自称授权。
+- 安全模式只允许 `FRONTEND_ORIGIN` 和显式 `AUTH_ALLOWED_ORIGINS` 中的完整来源（scheme/host/port），不信任Host、转发头或Referer推导；任意、null、通配符来源拒绝。受信来源的写请求仍要求会话CSRF。旧跨域部署升级前须列出全部真实前端来源，不能继续任意来源携带凭据。只有显式demo模式保留开放CORS；签名媒体分享GET/HEAD及其仅Range预检单独允许无凭据的公开读取，不作为登录或管理入口。
 - 登录/注册每来源连接IP每15分钟20次、最多1024个限流桶。默认不信任转发头。部署可明确设置 `AUTH_TRUSTED_PROXY_CIDRS`（逗号分隔CIDR，最多32项），仅当TCP对端在该列表才使用其覆盖写入的 `X-Real-IP`；不读取X-Forwarded-For，非法地址拒绝。Nginx必须用 `$remote_addr` 覆盖X-Real-IP，不能传递客户端原头。Docker配置仅信任专用内部网络中的前端代理单IP；额外公网代理链须独立审查。没有分布式限流。每用户最多20个未过期session。
 - 密码为12–128字节，独立随机16字节盐，PBKDF2-HMAC-SHA256 600000次、32字节派生值；session只存SHA256摘要。原密码和原session token不落盘。
 - 暂无本地账号邮件验证、密码重置、MFA、其他设备退出及owner转移。自助注册不证明邮箱所有权，因此绝不自动以同邮箱绑定SSO。
@@ -39,3 +39,6 @@ viewer只读，editor可修改创作内容，admin/owner另能管理成员。spa
 ## 个人/团队与RBAC（2026-11-06）
 
 新账号拥有明确的个人空间，仅本人可访问，不允许邀请他人。团队空间在“空间与协作 → 团队空间”创建，成员页面展示角色说明与权限调整；旧组织保持team及原ID和成员，登录时独立补建personal，不搬移旧资源。owner/admin/editor/viewer的权限矩阵、真实关系表、CAS接口和停写迁移要求见[P0规范](superpowers/specs/2026-11-06-p0-administration/README.md)。空间所有者不等于部署管理员，不会获得全局后端配置权限。团队基础不包含席位或使用额度限制。
+
+
+安全复审更新：部署管理员必须由`STUDIO_ADMIN_USER_IDS`固定不可变账号ID，邮箱名单不再授权。旧`STUDIO_ADMIN_EMAILS`只保留为禁止公开抢注的保留名称，已存在同名未验证账号不会自动升级。成员添加/变更一律需要明确`user_id`与邮箱匹配，本地邮箱未验证，需在可信渠道核对ID；SSO也不再接受仅邮箱授权。旧客户端只有邮箱的写请求将被拒绝，必须升级；无`expected_version`但带正确ID的旧请求仍按串行最后写入生效，不保证CAS，新前端始终发送版本。详见[P0安全迁移](superpowers/specs/2026-11-06-p0-administration/README.md)。

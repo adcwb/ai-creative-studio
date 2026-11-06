@@ -194,7 +194,7 @@ func TestDouyinRuntimeAuthBypassIsExactAndDefaultClosed(t *testing.T) {
 	for _, tc := range []struct {
 		method, path string
 		code         int
-	}{{"GET", douyinMediaPath + "?cap=invalid", 404}, {"HEAD", douyinMediaPath + "?cap=invalid", 404}, {"POST", douyinMediaPath, 401}, {"GET", douyinMediaPath + "/other", 401}, {"GET", "/api/v1/projects/guess/media", 401}} {
+	}{{"OPTIONS", douyinMediaPath + "?cap=invalid", 204}, {"GET", douyinMediaPath + "?cap=invalid", 404}, {"HEAD", douyinMediaPath + "?cap=invalid", 404}, {"POST", douyinMediaPath, 401}, {"GET", douyinMediaPath + "/other", 401}, {"GET", "/api/v1/projects/guess/media", 401}} {
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(tc.method, tc.path, nil)
 		req.Header.Set("Origin", "http://localhost:5173")
@@ -202,6 +202,12 @@ func TestDouyinRuntimeAuthBypassIsExactAndDefaultClosed(t *testing.T) {
 		if w.Code != tc.code {
 			t.Fatalf("%s %s: %d != %d", tc.method, tc.path, w.Code, tc.code)
 		}
+		if (tc.method == "GET" || tc.method == "HEAD" || tc.method == "OPTIONS") && strings.HasPrefix(tc.path, douyinMediaPath+"?") {
+			if w.Header().Get("Access-Control-Allow-Origin") != "*" || w.Header().Get("Access-Control-Allow-Credentials") != "" {
+				t.Fatal("public grant inherited credentialed CORS")
+			}
+		}
+
 	}
 	r := douyinRuntimeFromEnv(s)
 	if r.ready() {

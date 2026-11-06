@@ -219,10 +219,10 @@ func TestSeriesSecureRolesCSRFAndTenantIsolation(t *testing.T) {
 	var root series.Node
 	json.Unmarshal(w.Body.Bytes(), &root)
 	authRequest(t, h, "GET", "/api/v1/series/"+root.ID+q, "", viewerToken, "", 403)
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"series-viewer@example.invalid","role":"viewer"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", testMemberInput(t, auth, "series-viewer@example.invalid", "viewer"), token, session.CSRF, 200)
 	authRequest(t, h, "GET", "/api/v1/series/"+root.ID+q, "", viewerToken, "", 200)
 	authRequest(t, h, "POST", "/api/v1/series/"+root.ID+"/seasons"+q, `{}`, viewerToken, viewerSession.CSRF, 403)
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"series-viewer@example.invalid","role":"remove"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", testMemberInput(t, auth, "series-viewer@example.invalid", "remove"), token, session.CSRF, 200)
 	authRequest(t, h, "GET", "/api/v1/series/"+root.ID+q, "", viewerToken, "", 403)
 }
 

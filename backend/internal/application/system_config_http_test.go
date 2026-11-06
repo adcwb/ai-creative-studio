@@ -19,7 +19,7 @@ func TestSystemConfigurationRequiresDeploymentAdminAndCSRF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, operator, operatorSession, err := auth.login("operator@example.test", "synthetic-password", true)
+	operatorUser, operator, operatorSession, err := auth.login("operator@example.test", "synthetic-password", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +27,7 @@ func TestSystemConfigurationRequiresDeploymentAdminAndCSRF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := SecureHandler(testStore(t), "http://localhost:5173", auth, AuthOptions{SystemConfig: config, SystemAdmins: []string{"operator@example.test"}})
+	h := SecureHandler(testStore(t), "http://localhost:5173", auth, AuthOptions{SystemConfig: config, SystemAdminUserIDs: []string{operatorUser.ID}, ReservedAdminEmails: []string{"operator@example.test"}})
 	authRequest(t, h, "GET", "/api/v1/system-config", "", "", "", 401)
 	authRequest(t, h, "GET", "/api/v1/system-config", "", owner, "", 403)
 	authRequest(t, h, "PATCH", "/api/v1/system-config", `{}`, operator, "", 403)

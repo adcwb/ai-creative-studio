@@ -24,12 +24,14 @@ type authScope struct {
 	recheckWrite          func() bool
 }
 type AuthOptions struct {
-	SystemConfig      *deployconfig.Store
-	SystemAdmins      []string
-	AllowRegistration bool
-	SecureCookie      bool
-	OIDC              *OIDCLogin
-	TrustedProxies    []*net.IPNet
+	SystemConfig        *deployconfig.Store
+	ReservedAdminEmails []string // Reserved legacy emails; never an authorization source.
+	SystemAdminUserIDs  []string
+	AllowedOrigins      []string
+	AllowRegistration   bool
+	SecureCookie        bool
+	OIDC                *OIDCLogin
+	TrustedProxies      []*net.IPNet
 }
 
 // SSOAuthenticator is a trusted server-side adapter boundary, never a client identity header.
@@ -96,7 +98,11 @@ func HandlerFromEnv(repo Repository, origin, dir string) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	return SecureHandler(repo, origin, s, AuthOptions{SystemConfig: configuration, SystemAdmins: deployconfig.Admins(), AllowRegistration: os.Getenv("AUTH_ALLOW_REGISTRATION") == "true", SecureCookie: secure, OIDC: oidcLogin, TrustedProxies: trustedProxies}), nil
+	additionalOrigins := strings.Split(os.Getenv("AUTH_ALLOWED_ORIGINS"), ",")
+	if _, err = deployconfig.TrustedOrigins(origin, additionalOrigins); err != nil {
+		return nil, err
+	}
+	return SecureHandler(repo, origin, s, AuthOptions{AllowedOrigins: additionalOrigins, SystemAdminUserIDs: deployconfig.AdminUserIDs(), SystemConfig: configuration, ReservedAdminEmails: deployconfig.ReservedEmails(), AllowRegistration: os.Getenv("AUTH_ALLOW_REGISTRATION") == "true", SecureCookie: secure, OIDC: oidcLogin, TrustedProxies: trustedProxies}), nil
 }
 func authWrite(r *http.Request) bool {
 	return r.Method != "GET" && r.Method != "HEAD" && r.Method != "OPTIONS"
@@ -106,15 +112,41 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 		ConfigureManagedRuntime(s, auth)
 	}
 	next := Handler(repo, origin)
+	trusted, originError := deployconfig.TrustedOrigins(origin, options.AllowedOrigins)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
+		// Signed media grants are deliberately public reads, never credentialed CORS.
+		publicGrant := (r.URL.Path == douyinMediaPath || r.URL.Path == tiktokPhotoMediaPath) && (r.Method == "GET" || r.Method == "HEAD" || r.Method == "OPTIONS")
+		if publicGrant {
+			clone := r.Clone(r.Context())
+			clone.Header = r.Header.Clone()
+			clone.Header.Del("Origin")
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			if r.Method == "OPTIONS" {
+				w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Range")
+				w.WriteHeader(204)
+				return
+			}
+			next.ServeHTTP(w, clone)
+			return
+		}
+		if originError != nil {
+			problem(w, 503, "trusted_origin_unconfigured", "可信前端来源未配置")
+			return
+		}
 		if o := r.Header.Get("Origin"); o != "" {
+			normalized, e := deployconfig.CanonicalOrigin(o)
+			if e != nil || len(r.Header.Values("Origin")) != 1 || !trusted[normalized] {
+				problem(w, 403, "origin_denied", "此来源未获授权")
+				return
+			}
 			w.Header().Set("Access-Control-Allow-Origin", o)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, X-CSRF-Token, X-Chunk-SHA256")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, POST, PUT, PATCH, OPTIONS")
 		}
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(204)
@@ -134,14 +166,18 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 		if cookie != nil {
 			token = cookie.Value
 		}
-		user, session, logged := auth.authenticate(token)
+		user, session, logged, authErr := auth.authenticateWithState(token)
+		if authErr != nil {
+			problem(w, 503, "auth_storage_error", "认证存储暂不可用，请稍后重试")
+			return
+		}
 		sessionResponse := func() map[string]any {
 			out := map[string]any{"mode": "secure", "authenticated": logged, "registration_enabled": options.AllowRegistration, "sso_available": options.OIDC != nil}
 			if logged {
 				out["user"] = user
 				out["csrf_token"] = session.CSRF
 				out["spaces"] = auth.sessionSpaces(user.ID)
-				out["deployment_admin"] = deployconfig.IsAdmin(user.Email, options.SystemAdmins)
+				out["deployment_admin"] = deployconfig.IsAdminID(user.ID, options.SystemAdminUserIDs)
 			}
 			return out
 		}
@@ -182,6 +218,10 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 				Password string `json:"password"`
 			}
 			if !decode(w, r, &in) {
+				return
+			}
+			if register && deployconfig.IsReservedEmail(strings.ToLower(strings.TrimSpace(in.Email)), options.ReservedAdminEmails) {
+				problem(w, 403, "identity_reserved", "此账号需由部署维护人员建立，不能自行注册")
 				return
 			}
 			var newToken string
@@ -262,7 +302,7 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 			return
 		}
 		if r.URL.Path == "/api/v1/system-config" {
-			if !deployconfig.IsAdmin(user.Email, options.SystemAdmins) || options.SystemConfig == nil {
+			if !deployconfig.IsAdminID(user.ID, options.SystemAdminUserIDs) || options.SystemConfig == nil {
 				problem(w, 403, "deployment_admin_required", "仅部署管理员可以管理后端配置")
 				return
 			}
@@ -410,23 +450,14 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 		problem(w, 400, "invalid_input", "角色无效")
 		return
 	}
-	uid := ""
-	for id, u := range s.data.Users {
-		if u.Email == strings.ToLower(strings.TrimSpace(in.Email)) {
-			uid = id
-			break
-		}
-	}
-	if uid == "" {
-		problem(w, 404, "not_found", "该账号不存在，请先注册")
+	if in.UserID == "" {
+		problem(w, 403, "member_identity_confirmation_required", "请通过可信渠道核对成员账号 ID，不能仅凭邮箱授权")
 		return
 	}
-	if in.UserID != "" && in.UserID != uid {
-		problem(w, 403, "member_identity_mismatch", "账号ID与当前邮箱不匹配")
-		return
-	}
-	if s.data.Users[uid].Issuer != "" && in.UserID != uid {
-		problem(w, 403, "sso_identity_confirmation_required", "SSO成员变更需要提供对方分享的稳定账号ID，不能仅凭邮箱授权")
+	uid := in.UserID
+	target, known := s.data.Users[uid]
+	if !known || target.Email != strings.ToLower(strings.TrimSpace(in.Email)) {
+		problem(w, 403, "member_identity_mismatch", "账号 ID 与邮箱不匹配")
 		return
 	}
 	current := org.Members[uid]

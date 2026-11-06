@@ -48,6 +48,32 @@ func testTeamSpace(t *testing.T, auth *AuthStore, user string) string {
 	return space["id"]
 }
 
+// Tests select the known fixture identity, never infer a real recipient from email.
+func testMemberInput(t *testing.T, auth *AuthStore, email, role string, versions ...int64) string {
+	t.Helper()
+	auth.mu.Lock()
+	id := ""
+	for _, u := range auth.data.Users {
+		if u.Email == email {
+			id = u.ID
+			break
+		}
+	}
+	auth.mu.Unlock()
+	if id == "" {
+		t.Fatal("fixture member missing")
+	}
+	value := map[string]any{"email": email, "user_id": id, "role": role}
+	if len(versions) > 0 {
+		value["expected_version"] = versions[0]
+	}
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(raw)
+}
+
 func TestAuthTenantRBACAndResourceIsolation(t *testing.T) {
 	s := testStore(t)
 	auth, err := OpenAuthStore(t.TempDir())
@@ -77,13 +103,13 @@ func TestAuthTenantRBACAndResourceIsolation(t *testing.T) {
 	}
 	authRequest(t, h, "PUT", "/api/v1/projects/"+p.ID+"?space_id="+oa, `{}`, ta, "", 403)
 	memberPath := "/api/v1/organizations/" + oa + "/members"
-	authRequest(t, h, "PUT", memberPath, `{"email":"bob@example.test","role":"viewer"}`, ta, sa.CSRF, 200)
+	authRequest(t, h, "PUT", memberPath, testMemberInput(t, auth, "bob@example.test", "viewer"), ta, sa.CSRF, 200)
 	authRequest(t, h, "GET", "/api/v1/projects/"+p.ID+"?space_id="+oa, "", tb, "", 200)
 	authRequest(t, h, "POST", "/api/v1/projects?space_id="+oa, `{"title":"Forbidden","brief":"Synthetic story"}`, tb, sb.CSRF, 403)
-	authRequest(t, h, "PUT", memberPath, `{"email":"bob@example.test","role":"admin"}`, tb, sb.CSRF, 403)
-	authRequest(t, h, "PUT", memberPath, `{"email":"bob@example.test","role":"admin"}`, ta, sa.CSRF, 200)
-	authRequest(t, h, "PUT", memberPath, `{"email":"alice@example.test","role":"remove"}`, tb, sb.CSRF, 403)
-	authRequest(t, h, "PUT", memberPath, `{"email":"bob@example.test","role":"remove"}`, ta, sa.CSRF, 200)
+	authRequest(t, h, "PUT", memberPath, testMemberInput(t, auth, "bob@example.test", "admin"), tb, sb.CSRF, 403)
+	authRequest(t, h, "PUT", memberPath, testMemberInput(t, auth, "bob@example.test", "admin"), ta, sa.CSRF, 200)
+	authRequest(t, h, "PUT", memberPath, testMemberInput(t, auth, "alice@example.test", "remove"), tb, sb.CSRF, 403)
+	authRequest(t, h, "PUT", memberPath, testMemberInput(t, auth, "bob@example.test", "remove"), ta, sa.CSRF, 200)
 	authRequest(t, h, "GET", "/api/v1/projects/"+p.ID+"?space_id="+oa, "", tb, "", 403)
 	authRequest(t, h, "POST", "/api/v1/auth/logout", `{}`, ta, sa.CSRF, 200)
 	authRequest(t, h, "GET", "/api/v1/projects?space_id="+oa, "", ta, "", 401)

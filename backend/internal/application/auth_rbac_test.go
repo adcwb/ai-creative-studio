@@ -24,23 +24,23 @@ func TestSpaceTypesPermissionsAndCAS(t *testing.T) {
 	}
 	personal := auth.spaces(owner.ID)[0]["id"]
 	h := SecureHandler(testStore(t), "http://localhost:5173", auth, AuthOptions{})
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+personal+"/members", `{"email":"member@example.test","role":"editor"}`, token, session.CSRF, 403)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+personal+"/members", testMemberInput(t, auth, "member@example.test", "editor"), token, session.CSRF, 403)
 	if auth.role(member.ID, personal) != "" || auth.can(member.ID, personal, "workspace.read") {
 		t.Fatal("personal space leaked")
 	}
 	team := testTeamSpace(t, auth, owner.ID)
 	path := "/api/v1/organizations/" + team
 	authRequest(t, h, "GET", path+"/access", "", memberToken, "", 403)
-	authRequest(t, h, "PUT", path+"/members", `{"email":"member@example.test","role":"editor","expected_version":1}`, token, session.CSRF, 200)
-	authRequest(t, h, "PUT", path+"/members", `{"email":"member@example.test","role":"admin","expected_version":1}`, token, session.CSRF, 409)
+	authRequest(t, h, "PUT", path+"/members", testMemberInput(t, auth, "member@example.test", "editor", 1), token, session.CSRF, 200)
+	authRequest(t, h, "PUT", path+"/members", testMemberInput(t, auth, "member@example.test", "admin", 1), token, session.CSRF, 409)
 	authRequest(t, h, "GET", path+"/members", "", memberToken, "", 200)
-	authRequest(t, h, "PUT", path+"/members", `{"email":"member@example.test","role":"admin"}`, memberToken, memberSession.CSRF, 403)
+	authRequest(t, h, "PUT", path+"/members", testMemberInput(t, auth, "member@example.test", "admin"), memberToken, memberSession.CSRF, 403)
 	if !auth.can(member.ID, team, "models.execute") || auth.can(member.ID, team, "models.manage") || auth.can(member.ID, team, "unknown") {
 		t.Fatal("editor grants")
 	}
-	authRequest(t, h, "PUT", path+"/members", `{"email":"member@example.test","role":"admin","expected_version":2}`, token, session.CSRF, 200)
-	authRequest(t, h, "PUT", path+"/members", `{"email":"owner@example.test","role":"remove"}`, memberToken, memberSession.CSRF, 403)
-	authRequest(t, h, "PUT", path+"/members", `{"email":"member@example.test","role":"remove","expected_version":3}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", path+"/members", testMemberInput(t, auth, "member@example.test", "admin", 2), token, session.CSRF, 200)
+	authRequest(t, h, "PUT", path+"/members", testMemberInput(t, auth, "owner@example.test", "remove"), memberToken, memberSession.CSRF, 403)
+	authRequest(t, h, "PUT", path+"/members", testMemberInput(t, auth, "member@example.test", "remove", 3), token, session.CSRF, 200)
 	if auth.can(member.ID, team, "workspace.read") {
 		t.Fatal("revoked access")
 	}
@@ -242,5 +242,38 @@ func TestPostgresRBACExportUsesCurrentRelationsAndRejectsLossyGrants(t *testing.
 	}
 	if !errors.Is(validateFileExportGrants(context.Background(), tx), errRBACFileExport) {
 		t.Fatal("lossy role export accepted")
+	}
+}
+
+func TestPostgresRBACBadLegacyMigrationIsAtomic(t *testing.T) {
+	db := postgresTestDB(t)
+	a, err := OpenPostgresAuthStore(t.TempDir(), db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, _, _, err := a.login("bad-legacy-owner@example.test", "synthetic-password", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	team := testTeamSpace(t, a, owner.ID)
+	if _, err = db.Exec(`DROP TABLE studio_space_memberships,studio_space_access,studio_rbac_role_permissions,studio_rbac_permissions,studio_rbac_roles CASCADE`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(`UPDATE studio_organizations SET payload=jsonb_set(payload,'{members}',jsonb_build_object(payload->>'owner_id','owner','missing-user','editor')) WHERE entity_id=$1`, team); err != nil {
+		t.Fatal(err)
+	}
+	var before, after []byte
+	if err = db.QueryRow(`SELECT payload FROM studio_organizations WHERE entity_id=$1`, team).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	if err = InitPostgres(context.Background(), db); err == nil {
+		t.Fatal("bad legacy identity was silently migrated")
+	}
+	var rolledBack bool
+	if err = db.QueryRow(`SELECT to_regclass('studio_space_access') IS NULL`).Scan(&rolledBack); err != nil || !rolledBack {
+		t.Fatal("partial RBAC migration committed", err)
+	}
+	if err = db.QueryRow(`SELECT payload FROM studio_organizations WHERE entity_id=$1`, team).Scan(&after); err != nil || string(before) != string(after) {
+		t.Fatal("source legacy identity changed", err)
 	}
 }

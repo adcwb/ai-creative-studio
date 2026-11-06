@@ -159,7 +159,7 @@ func TestPhotoHTTPAcceptancePosterTenantReplayAndRestart(t *testing.T) {
 	bad["photo_asset_ids"] = []string{jpeg.ID}
 	bad["caption"] = "changed under same key"
 	call("POST", path+"/social/jobs"+query, "photo-http-create", bad, aliceToken, aliceSession.CSRF, 409)
-	call("PUT", "/api/v1/organizations/"+tenant+"/members", "photo-http-member", map[string]string{"email": bob.Email, "role": "viewer"}, aliceToken, aliceSession.CSRF, 200)
+	call("PUT", "/api/v1/organizations/"+tenant+"/members", "photo-http-member", map[string]string{"email": bob.Email, "user_id": bob.ID, "role": "viewer"}, aliceToken, aliceSession.CSRF, 200)
 	call("POST", normalizePath+query, "photo-http-viewer", map[string]any{"expected_version": view.Version, "asset_id": poster.ID, "confirmed": true}, bobToken, bobSession.CSRF, 403)
 	call("POST", path+"/social/jobs"+query, "photo-http-viewer-job", intent, bobToken, bobSession.CSRF, 403)
 	if upstreamCalls != 1 {

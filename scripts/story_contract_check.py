@@ -124,7 +124,7 @@ def main():
                 season=call(owner,'POST','/api/v1/series/'+root_series['id']+'/seasons'+query,'/api/v1/series/{id}/seasons',{},aq,status=201)
                 episode=call(owner,'POST','/api/v1/seasons/'+season['id']+'/episodes'+query,'/api/v1/seasons/{id}/episodes',dict(title='The doorway'),aq,status=201)
                 members='/api/v1/organizations/'+space+'/members'
-                call(owner,'PUT',members,'/api/v1/organizations/{id}/members',dict(email=b['user']['email'],role='viewer'),aq)
+                call(owner,'PUT',members,'/api/v1/organizations/{id}/members',dict(email=b['user']['email'],user_id=b['user']['id'],role='viewer'),aq)
                 story_path='/api/v1/series/'+root_series['id']+'/story-records';story_route='/api/v1/series/{id}/story-records'
                 bible=dict(expected_version=0,title='Canonical story bible',kind='bible',status='active',required=True,body=dict(evidence=[],bible=dict(theme='Uncertainty and trust',world_rules='Knowledge is not shared automatically.',story_arc='',visual_intent='',immutable_rules='',characters=[dict(id='9'*32,name='Canonical traveller',desire='',flaw='',arc='',relationships='',visual_intent='',voice_intent='')])) )
                 call(owner,'POST',story_path+query,story_route,bible,aq,status=201)
@@ -292,7 +292,7 @@ def main():
                 assert adopted_writer['script_version']==1
                 assert call(owner,'POST',generated_path+'/adoptions'+query,generated_route+'/adoptions',decision,aq,key='story-http-writing-adopt')['version']==adopted_writer['version']
                 assert len(writing_calls)==1
-                call(owner,'PUT',members,'/api/v1/organizations/{id}/members',dict(email=b['user']['email'],role='remove'),aq)
+                call(owner,'PUT',members,'/api/v1/organizations/{id}/members',dict(email=b['user']['email'],user_id=b['user']['id'],role='remove'),aq)
                 call(viewer,'GET',detail+query,detail_route,status=403)
                 call(viewer,'GET',first+'/review'+query,first_route+'/review',status=403)
                 call(viewer,'GET',evidence_path+query,evidence_route,status=403)

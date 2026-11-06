@@ -42,7 +42,7 @@ func TestStorySecureHTTPCurrentRolesCSRFVersionsAndRevocation(t *testing.T) {
 	q := "?space_id=" + space
 	base := "/api/v1/series/" + root.ID + "/story-records"
 	members := "/api/v1/organizations/" + space + "/members"
-	authRequest(t, h, "PUT", members, `{"email":"story-viewer@example.invalid","role":"viewer"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", members, testMemberInput(t, auth, "story-viewer@example.invalid", "viewer"), token, session.CSRF, 200)
 	authRequest(t, h, "GET", base+q, "", "", "", 401)
 	authRequest(t, h, "POST", base+q, projectJSON(t, storyBible()), token, "", 403)
 	authRequest(t, h, "POST", base+q, projectJSON(t, storyBible()), viewerToken, viewerSession.CSRF, 403)
@@ -99,7 +99,7 @@ func TestStorySecureHTTPCurrentRolesCSRFVersionsAndRevocation(t *testing.T) {
 	authRequest(t, h, "GET", snapshots+"/"+snapshot.ID+q, "", viewerToken, "", 200)
 	other := createProject(t, s)
 	authRequest(t, h, "GET", base+"/"+v.ID+"?space_id="+other.SpaceID, "", token, "", 403)
-	authRequest(t, h, "PUT", members, `{"email":"story-viewer@example.invalid","role":"remove"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", members, testMemberInput(t, auth, "story-viewer@example.invalid", "remove"), token, session.CSRF, 200)
 	authRequest(t, h, "GET", snapshots+q, "", viewerToken, "", 403)
 	authRequest(t, h, "GET", snapshots+"/"+snapshot.ID+q, "", viewerToken, "", 403)
 	authRequest(t, h, "GET", base+q, "", viewerToken, "", 403)

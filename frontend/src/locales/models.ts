@@ -1,4 +1,13 @@
 const models: Record<string, string> = {
+ "账号 ID 与邮箱不匹配": "The account ID does not match the email address.",
+ "请通过可信渠道核对成员账号 ID，不能仅凭邮箱授权": "Confirm the member’s account ID through a trusted channel. Email alone cannot authorize access.",
+ "认证存储暂不可用，请稍后重试": "Authentication storage is temporarily unavailable. Please try again later.",
+ "可信前端来源未配置": "Trusted frontend origins are not configured.",
+ "此来源未获授权": "This origin is not trusted.",
+ "后端全局配置需要部署管理员权限，请在部署环境的 STUDIO_ADMIN_USER_IDS 中配置经核对的账号 ID后重启。": "Global backend settings require deployment administrator access. Pin the confirmed account ID in STUDIO_ADMIN_USER_IDS and restart.",
+ "请由部署维护人员在 STUDIO_ADMIN_USER_IDS 中配置经核对的账号 ID，并重启 API 与 worker 后重新登录。": "Ask the deployment operator to pin your verified account ID in STUDIO_ADMIN_USER_IDS, restart the API and workers, then sign in again.",
+ "本地账号邮箱未经验证。请通过可信渠道核对对方的账号 ID，再添加成员；不能仅凭邮箱确认身份。移除后立即失去访问权限。": "Local account emails are unverified. Confirm the recipient’s account ID through a trusted channel before adding them. Email alone is not proof of identity. Removal revokes access.",
+ "成员账号 ID（必填）": "Member account ID (required)",
  "优先级：本次明确选择 → 当前组织功能绑定。权限与能力匹配仍然生效。内容审核模式由部署配置决定，创作时会显示当前状态。": "Priority: explicit selection → space feature binding. Permissions and capability checks still apply. The deployment controls moderation mode; creation pages show its current status.",
  "打开后端配置": "Open backend settings",
  "正在保存…": "Saving…",

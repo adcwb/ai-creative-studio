@@ -102,7 +102,7 @@ def main():
                 assert len(call(alice, 'POST', jobpath + query, jobschema, payload, csrf, 'social-export')['jobs']) == 1
                 call(alice, 'POST', jobpath + query, jobschema, {**payload,'mode':'direct','expected_version':prepared['version']}, csrf, 'no-direct', status=503)
                 members = '/api/v1/organizations/' + tenant + '/members'
-                call(alice, 'PUT', members, body={'email':b['user']['email'],'role':'viewer'},csrf=csrf)
+                call(alice, 'PUT', members, body={'email':b['user']['email'],'user_id':b['user']['id'],'role':'viewer'},csrf=csrf)
                 call(bob, 'GET', base + '/social' + query, route + '/social')
                 call(bob, 'PUT', path + query, schema, {**body,'expected_version':prepared['version']}, b['csrf_token'], 'viewer-poster', status=403)
                 call(bob, 'POST', jobpath + query, jobschema, {**payload,'expected_version':prepared['version']}, b['csrf_token'], 'viewer-social', status=403)
@@ -112,7 +112,7 @@ def main():
                 restored_poster = call(alice, 'GET', base + '/media' + query)['poster']
                 assert restored_poster['width'] == 256 and restored_poster['layers'][0]['text'] == poster['layers'][0]['text']
                 assert call(alice, 'GET', restored['jobs'][0]['download_url']).startswith(b'\x89PNG')
-                call(alice, 'PUT', members, body={'email':b['user']['email'],'role':'remove'}, csrf=csrf)
+                call(alice, 'PUT', members, body={'email':b['user']['email'],'user_id':b['user']['id'],'role':'remove'}, csrf=csrf)
                 call(bob, 'GET', restored['jobs'][0]['download_url'], status=403)
                 print(json.dumps({'result':'passed','http_responses':count,'checks':['poster actual PNG','new OpenAPI response contracts','tenant isolation','CSRF','viewer write denial','CAS','idempotency','file restart persistence','membership revocation','social export is not publication','unconfigured direct dispatch refused'],'social_calls':0,'real_credentials':False}))
             finally:

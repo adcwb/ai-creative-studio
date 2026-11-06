@@ -191,7 +191,7 @@ func TestLibrarySecureRolesAndSpaceIsolation(t *testing.T) {
 	}
 	authRequest(t, h, "GET", base+"/"+created.Asset.ID+"?space_id="+other, "", viewerToken, "", 404)
 	authRequest(t, h, "GET", base+"/"+created.Asset.ID+"/versions/"+created.Version.ID+"?space_id="+other, "", viewerToken, "", 404)
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"library-viewer@example.test","role":"viewer"}`, ownerToken, ownerSession.CSRF, 200)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", testMemberInput(t, auth, "library-viewer@example.test", "viewer"), ownerToken, ownerSession.CSRF, 200)
 	authRequest(t, h, "GET", base+"/"+created.Asset.ID+"?space_id="+space, "", viewerToken, "", 200)
 	authRequest(t, h, "POST", base+"?space_id="+space, body, viewerToken, viewerSession.CSRF, 403)
 	authRequest(t, h, "POST", base+"/"+created.Asset.ID+"/archive?space_id="+space, `{"expected_asset_version_id":"`+created.Version.ID+`"}`, viewerToken, viewerSession.CSRF, 403)
@@ -246,7 +246,7 @@ func TestLibrarySecureRolesAndSpaceIsolation(t *testing.T) {
 		}
 		authRequest(t, h, "GET", base+"/"+v.Asset.ID+"?space_id="+space, "", viewerToken, "", 200)
 	}
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"library-viewer@example.test","role":"remove"}`, ownerToken, ownerSession.CSRF, 200)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", testMemberInput(t, auth, "library-viewer@example.test", "remove"), ownerToken, ownerSession.CSRF, 200)
 	authRequest(t, h, "GET", base+"?space_id="+space+"&kind=voice", "", viewerToken, "", 403)
 	authRequest(t, h, "GET", authorizationPath, "", viewerToken, "", 403)
 	authRequest(t, h, "GET", lineagePath, "", viewerToken, "", 403)

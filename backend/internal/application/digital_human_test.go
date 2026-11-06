@@ -203,7 +203,7 @@ func TestDigitalHumanHTTPAuthorizationAndIdempotency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"viewer-avatar@example.test","role":"viewer"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", testMemberInput(t, auth, "viewer-avatar@example.test", "viewer"), token, session.CSRF, 200)
 	authRequest(t, h, "POST", path, string(body), viewerToken, viewerSession.CSRF, 403)
 	revoke := "/api/v1/projects/" + p.ID + "/digital-humans/" + created.ID + "/revoke?space_id=" + space
 	authRequest(t, h, "POST", revoke, `{}`, viewerToken, viewerSession.CSRF, 403)

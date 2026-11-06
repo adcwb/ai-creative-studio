@@ -1,11 +1,11 @@
 import {test,expect} from '@playwright/test'
 import {navigateTo,openNavigation} from '../e2e/support/navigation'
 test('personal and team spaces, access boundaries and explicit backend settings',async({page},info)=>{
+ if(info.project.name==='desktop')await page.setViewportSize({width:1920,height:1080})
  await page.goto('/')
- await page.getByRole('button',{name:'创建新账户'}).click()
  await page.locator('#auth-email').fill(`p0-${info.project.name}@example.invalid`)
  await page.locator('#auth-password').fill('Synthetic-P0-passphrase!')
- await page.getByRole('button',{name:'注册并登录'}).click()
+ await page.getByRole('button',{name:'登录',exact:true}).click()
  await expect(page.getByLabel('描述你的画面')).toBeVisible()
  await navigateTo(page,'/settings/organization')
  await expect(page.getByText('个人空间仅你自己可访问。需要共同创作时，请创建团队空间。')).toBeVisible()
@@ -19,6 +19,8 @@ test('personal and team spaces, access boundaries and explicit backend settings'
  await navigateTo(page,'/settings/organization')
  await expect(page.getByRole('button',{name:'保存成员权限'})).toBeVisible()
  await expect(page.locator('.member-list')).toContainText('所有者')
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+ await page.screenshot({path:`test-results/p0-real-members-${info.project.name}.png`,fullPage:true})
  await navigateTo(page,'/settings/backend')
  await expect(page.getByRole('heading',{name:'后端配置',exact:true})).toHaveCount(2)
  await expect(page.getByLabel('FRONTEND_ORIGIN',{exact:true})).toHaveValue('http://localhost:5175')
@@ -41,4 +43,17 @@ test('personal and team spaces, access boundaries and explicit backend settings'
   await page.keyboard.press('Escape')
   await expect(page.locator('.menu-toggle')).toBeFocused()
  }
+ const api='http://localhost:8082/api/v1',trusted='http://localhost:5175'
+ const session=await(await page.request.get(api+'/auth/session',{headers:{Origin:trusted}})).json()
+ const before=await(await page.request.get(api+'/system-config',{headers:{Origin:trusted}})).json()
+ await page.goto('http://localhost:5185')
+ const cannotRead=await page.evaluate(async url=>{try{await(await fetch(url,{credentials:'include'})).json();return false}catch{return true}},'http://localhost:5186/api/v1/auth/session')
+ expect(cannotRead).toBe(true)
+ const observed=await(await page.request.get('http://localhost:5186/__observations')).json()
+ expect(observed).toMatchObject({saw_cookie:true,status:403})
+ const denied=await page.request.patch(api+'/system-config',{headers:{Origin:'http://localhost:5185','X-CSRF-Token':session.csrf_token},data:{expected_version:before.version,changes:{CONTENT_MODERATION_MODE:'required'}}})
+ expect(denied.status()).toBe(403)
+ const after=await(await page.request.get(api+'/system-config',{headers:{Origin:trusted}})).json()
+ expect(after.version).toBe(before.version)
+
 })

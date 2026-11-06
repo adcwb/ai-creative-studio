@@ -47,7 +47,7 @@ func TestRenderResumeSecurityReplayAndOriginalSnapshot(t *testing.T) {
 	foreign := fmt.Sprintf("/api/v1/projects/%s/media/exports/%s/resume?space_id=%s", project.ID, original.ID, otherSpace)
 	authRequest(t, h, "POST", foreign, "{}", otherToken, otherSession.CSRF, 404)
 	members := "/api/v1/organizations/" + space + "/members"
-	authRequest(t, h, "PUT", members, `{"email":"render-viewer@example.test","role":"viewer"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", members, testMemberInput(t, auth, "render-viewer@example.test", "viewer"), token, session.CSRF, 200)
 	authRequest(t, h, "POST", path, "{}", otherToken, otherSession.CSRF, 403)
 	response := authRequest(t, h, "POST", path, "{}", token, session.CSRF, http.StatusAccepted)
 	var resumed MediaExport
@@ -62,8 +62,8 @@ func TestRenderResumeSecurityReplayAndOriginalSnapshot(t *testing.T) {
 	if pending != 2 || exports != 1 {
 		t.Fatal("duplicate resume scheduled work", pending, exports)
 	}
-	authRequest(t, h, "PUT", members, `{"email":"render-viewer@example.test","role":"editor"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", members, testMemberInput(t, auth, "render-viewer@example.test", "editor"), token, session.CSRF, 200)
 	authRequest(t, h, "POST", path, "{}", otherToken, otherSession.CSRF, http.StatusAccepted)
-	authRequest(t, h, "PUT", members, `{"email":"render-viewer@example.test","role":"remove"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", members, testMemberInput(t, auth, "render-viewer@example.test", "remove"), token, session.CSRF, 200)
 	authRequest(t, h, "POST", path, "{}", otherToken, otherSession.CSRF, 403)
 }

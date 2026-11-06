@@ -27,7 +27,7 @@ export function SettingsPage() {
   return <div className="settings-page">
     <header className="page-heading"><div><h1>{t(description[0])}</h1><p>{t(description[1])}</p></div></header>
     {denied ? <section className="panel page-empty"><h2>{t('当前账户无法访问此页面')}</h2><p>{t(session.mode === 'demo' ? '演示模式不提供组织管理。请使用安全模式登录。' : '模型接入需要组织所有者或管理员权限。')}</p></section>
-      : section === 'backend' ? session.deployment_admin ? <SystemConfigPanel onDirtyChange={setDirty} /> : <section className="panel access-explanation"><h2>{t('需要部署管理员权限')}</h2><p>{t('后端配置影响整个服务。团队所有者和管理员不自动获得此权限。')}</p><p>{t('请由部署维护人员在 STUDIO_ADMIN_EMAILS 中配置你的登录邮箱，并重启 API 与 worker 后重新登录。')}</p><p>{t('组织模型接入请前往「模型管理」。')}</p></section>
+      : section === 'backend' ? session.deployment_admin ? <SystemConfigPanel onDirtyChange={setDirty} /> : <section className="panel access-explanation"><h2>{t('需要部署管理员权限')}</h2><p>{t('后端配置影响整个服务。团队所有者和管理员不自动获得此权限。')}</p><p>{t('请由部署维护人员在 STUDIO_ADMIN_USER_IDS 中配置经核对的账号 ID，并重启 API 与 worker 后重新登录。')}</p><p>{t('组织模型接入请前往「模型管理」。')}</p></section>
       : section === 'spaces' ? <SpacesPanel />
       : section === 'organization' ? <OrganizationPanel userID={session.user?.id} space={space} onChange={refreshSpaces} onDirtyChange={setDirty} />
       : space ? section === 'models' ? <ModelManagementPanel space={space} onDirtyChange={setDirty} /> : <ModelUsagePanel space={space} onDirtyChange={setDirty} /> : null}

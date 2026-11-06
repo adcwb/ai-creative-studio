@@ -702,7 +702,7 @@ func TestEpisodeMigrationSecureCurrentRolesCSRFAndHiddenTargets(t *testing.T) {
 	h := SecureHandler(s, "http://localhost:5173", auth, AuthOptions{AllowRegistration: true})
 	q := "?space_id=" + space
 	base := "/api/v1/projects/" + p.ID
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"migration-viewer@example.invalid","role":"viewer"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", testMemberInput(t, auth, "migration-viewer@example.invalid", "viewer"), token, session.CSRF, 200)
 	authRequest(t, h, "GET", base+"/migration-source"+q, "", "", "", 401)
 	in := m.Input{Episode: 7, SeasonID: season.ID, Ordinal: 7, ProjectVersion: p.Version, MediaVersion: 1, SeasonVersion: season.Version, OutputMode: "series", BoardPolicy: "include", ShotAssignments: map[string]int{}, CharacterAssignments: map[string]string{}}
 	body := projectJSON(t, in)
@@ -733,6 +733,6 @@ func TestEpisodeMigrationSecureCurrentRolesCSRFAndHiddenTargets(t *testing.T) {
 		t.Fatal("publish", e, job.State)
 	}
 	authRequest(t, h, "GET", "/api/v1/projects/"+job.Target+q, "", viewerToken, "", 200)
-	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", `{"email":"migration-viewer@example.invalid","role":"remove"}`, token, session.CSRF, 200)
+	authRequest(t, h, "PUT", "/api/v1/organizations/"+space+"/members", testMemberInput(t, auth, "migration-viewer@example.invalid", "remove"), token, session.CSRF, 200)
 	authRequest(t, h, "GET", step+q, "", viewerToken, "", 403)
 }
