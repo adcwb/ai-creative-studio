@@ -1,0 +1,23 @@
+name: Prepare CI dependencies
+description: Reuse runner tools and cache signed Ubuntu media packages
+inputs:
+  postgres:
+    description: Also require PostgreSQL 16 server and client packages
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - id: cache-key
+      shell: bash
+      run: |
+        echo "image=${ImageVersion:?Expected the official Ubuntu runner image version}" >> "$GITHUB_OUTPUT"
+        mkdir -p "$RUNNER_TEMP/studio-apt/archives"
+    - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5; Node 24
+      with:
+        # Cache package downloads, never restore installed system files or apt indexes.
+        path: ${{ runner.temp }}/studio-apt/archives/*.deb
+        key: apt-${{ runner.os }}-${{ runner.arch }}-${{ steps.cache-key.outputs.image }}-${{ hashFiles('scripts/ci_dependencies.sh') }}
+    - shell: bash
+      env:
+        STUDIO_CI_POSTGRES: ${{ inputs.postgres }}
+      run: bash scripts/ci_dependencies.sh

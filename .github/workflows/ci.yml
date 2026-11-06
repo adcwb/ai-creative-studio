@@ -27,11 +27,9 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Install local media dependencies
+      - name: Prepare local media dependencies
         timeout-minutes: 8
-        run: |
-          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
-          sudo apt-get install -y --no-install-recommends ffmpeg fonts-noto-cjk
+        uses: ./.github/actions/ci-dependencies
       - name: Go checks
         working-directory: backend
         run: |
@@ -55,9 +53,9 @@ jobs:
           npm test
           npm run build
           node ../scripts/i18n_check.cjs
-      - name: Install browser for integration scripts
+      - name: Check runner browser for integration scripts
         working-directory: frontend
-        run: npx playwright install --with-deps chrome
+        run: node ../scripts/ci_browser_check.mjs
       - name: Local image provider integration
         run: node scripts/provider_check.mjs
       - name: Script workspace integration and layout
@@ -105,11 +103,9 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Install local media dependencies
+      - name: Prepare local media dependencies
         timeout-minutes: 8
-        run: |
-          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
-          sudo apt-get install -y --no-install-recommends ffmpeg fonts-noto-cjk
+        uses: ./.github/actions/ci-dependencies
       - name: Build isolated browser services
         working-directory: backend
         run: |
@@ -119,7 +115,7 @@ jobs:
         working-directory: frontend
         run: |
           npm ci
-          npx playwright install --with-deps chrome
+          node ../scripts/ci_browser_check.mjs
           npm run test:e2e
           npm run test:routing
           npx playwright test -c playwright.auth.config.ts
@@ -142,10 +138,9 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Install local media dependencies
-        run: |
-          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
-          sudo apt-get install -y --no-install-recommends ffmpeg fonts-noto-cjk
+      - name: Prepare local media dependencies
+        timeout-minutes: 8
+        uses: ./.github/actions/ci-dependencies
       - name: Build the local fixture server
         working-directory: backend
         run: go build -o bin/server ./cmd/server
@@ -153,7 +148,7 @@ jobs:
         working-directory: frontend
         run: |
           npm ci
-          npx playwright install --with-deps chrome
+          node ../scripts/ci_browser_check.mjs
           npm run test:gateway
   container-smoke:
     name: Two-container acceptance
@@ -194,10 +189,13 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Prepare local media and PostgreSQL dependencies
+        timeout-minutes: 8
+        uses: ./.github/actions/ci-dependencies
+        with:
+          postgres: 'true'
       - name: Start disposable local PostgreSQL
         run: |
-          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
-          sudo apt-get install -y --no-install-recommends postgresql-16 postgresql-client-16 ffmpeg fonts-noto-cjk
           mkdir -m 700 /tmp/studio-ci-pg-socket
           /usr/lib/postgresql/16/bin/initdb -D /tmp/studio-ci-pg-data --encoding=UTF8 --auth-local=trust --auth-host=reject
           /usr/lib/postgresql/16/bin/pg_ctl -D /tmp/studio-ci-pg-data -l /tmp/studio-ci-pg.log -o '-k /tmp/studio-ci-pg-socket -p 55439 -h 127.0.0.1' start
@@ -232,7 +230,7 @@ jobs:
         run: |
           cd frontend
           npm ci
-          npx playwright install --with-deps chrome
+          node ../scripts/ci_browser_check.mjs
           cd ..
           python3 scripts/postgres_browser_check.py --pg-bin /usr/lib/postgresql/16/bin --pg-socket /tmp/studio-ci-pg-socket --pg-port 55439 --pg-user "$(id -un)" --chromium "$(command -v google-chrome)"
           python3 scripts/postgres_browser_check.py --pg-bin /usr/lib/postgresql/16/bin --pg-socket /tmp/studio-ci-pg-socket --pg-port 55439 --pg-user "$(id -un)" --chromium "$(command -v google-chrome)" --quote-fixture

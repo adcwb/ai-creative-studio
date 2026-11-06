@@ -105,3 +105,13 @@ CI布局调整：66df603的verify中Go约10分27秒，浏览器约13分47秒，�
 安全修订验收结果：隔离旧二进制的两项漏洞均实际复现；修订后四角色HTTP类别矩阵、未验证/SSO邮箱不得隐式成为部署管理员、受控停机引导账号、恶意同站不同源浏览器（记录实际Cookie存在但不记录值）以及有效CSRF越源拒绝均通过。新增竞态回归通过，跨实例撤销/降级、不确定结果处理、坏迁移整事务回滚通过；安全HTTP契约242响应、故事契约98响应、真实PG与独立worker的桌面/手机24项、后端完整非Native回归232.563秒、前端lint/生产构建与OpenAPI验证通过。镜像/最终CI待安全修订推送后核验。
 
 安全修订后两API/两worker验收也已重新通过：16合成任务、2租户、8并发客户端零失败，跨实例会话/成员撤销、派发后SIGKILL不重发及实际音视频合成通过；真实外部模型和S3仍未调用。最终来源/PATCH/签名媒体匿名Range预检和管理员绑定回归通过；生产创建管理员、迁移与部署均未执行。
+
+## 浏览器CI依赖修复
+
+文档提交3db10d18的CI 42260712666两次在安装媒体依赖时超时，尚未执行浏览器测试；日志显示azure.archive.ubuntu.com的包下载缓慢，而不是应用断言失败。其他四项前置检查通过，镜像因浏览器失败而跳过，不将该提交记录为全绿。
+
+[官方Ubuntu 24.04 runner清单](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md)与[Chrome安装脚本](https://github.com/actions/runner-images/blob/main/images/ubuntu/scripts/build/install-google-chrome.sh)确认已提供Chrome及PostgreSQL 16，但未提供本项目需要的FFmpeg和中文CJK字体。四个宿主机验收任务改为复用预装工具、只安装缺失软件包；不再执行重复的playwright install --with-deps chrome，而是在npm ci后用锁定Playwright启动真实Chrome并读取回环HTTP页面，失败仍阻止后续验收和镜像发布。
+
+共享CI action使用固定提交的官方actions/cache v5缓存.deb下载，键包含runner操作系统/架构、官方镜像版本与安装脚本摘要；不缓存已安装系统文件或apt索引。冷缓存从Ubuntu官方HTTPS archive/security源下载，使用独立sources文件，不修改runner的全局源，不再依赖缓慢的Azure镜像或无关第三方仓库。Ubuntu archive keyring签名及索引中的包校验仍由apt执行，缓存命中也不绕过验证。更新和安装均设置30秒网络超时、两次重试，保留原8分钟步骤/30分钟job上限；源更新、包安装、字体或浏览器检查失败均明确终止，不跳测试、不放大超时。
+
+本地验证：13项脚本测试、真实本地Chromium启动/回环页面检查及YAML门禁保留检查通过。本环境是Debian，未在宿主机执行Ubuntu apt安装；官方runner上的冷缓存安装与完整CI结果须在修复推送后核验。缓存是性能优化，外部包源全部不可用时仍应明确失败，不能以缓存或重试宣称永远可用。
