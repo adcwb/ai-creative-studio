@@ -12,6 +12,7 @@ import { useI18n } from '../../i18n'
 import { MaskEditor } from '../../components/MaskEditor'
 import { RuntimeModelPicker } from '../../components/RuntimeModelPicker'
 import {ResumableMediaUpload} from '../uploads/ResumableMediaUpload'
+import {uploadMediaBlob} from '../uploads/uploadBlob'
 import {ProjectPromptPicker} from '../prompts/ProjectPromptPicker'
 import { runtimeFields, runtimeReady, type RuntimeChoice } from '../../runtimeSelection'
 
@@ -121,7 +122,12 @@ export function ProductionBoard({project, space, onDirtyChange, disabled = false
     if (typeof attempt.body === 'string') try {sessionStorage.setItem(storageKey, JSON.stringify(attempt))} catch { /* In-memory idempotency still applies. */ }
     flight.current = true; setBusy(true); setError(''); setNotice('')
     try {
-      const result = await request<Media | Job>(attempt.path, {method: 'POST', headers: {'Content-Type': attempt.mime, 'Idempotency-Key': attempt.key}, body: attempt.body})
+      let result:Media|Job
+      if(attempt.body instanceof Blob && attempt.path.startsWith(`${path}/media/uploads?`)) {
+        const fields=new URLSearchParams(attempt.path.split('?')[1])
+        const uploaded=await uploadMediaBlob(space,project.id,attempt.body,fields.get('filename')??'',fields.get('role')??'',attempt.key,fields.get('character')??'',fields.get('shot_id')??'')
+        result={...await request<Media>(`${path}/media?${query}`),uploaded_asset_id:uploaded.uploaded_asset_id}
+      } else result = await request<Media | Job>(attempt.path, {method: 'POST', headers: {'Content-Type': attempt.mime, 'Idempotency-Key': attempt.key}, body: attempt.body})
       if (!alive.current) return
       pending.current = null; setUncertain(false)
       try {sessionStorage.removeItem(storageKey)} catch { /* No stored recovery. */ }
@@ -148,7 +154,7 @@ export function ProductionBoard({project, space, onDirtyChange, disabled = false
   function upload(file: Blob, name: string, purpose = 'upload') {
     if (locked) return
     const mime = file.type === 'audio/x-wav' ? 'audio/wav' : file.type
-    if (!['image/png', 'image/jpeg', 'video/mp4', 'audio/wav', 'audio/mpeg'].includes(mime) || file.size > 32 * 1024 * 1024) {setError(t('请选择32MiB以内的PNG、JPEG、MP4、WAV或MP3')); return}
+    if (!['image/png', 'image/jpeg', 'video/mp4', 'audio/wav', 'audio/mpeg'].includes(mime)) {setError(t('请选择有效的PNG、JPEG、MP4、WAV或MP3文件')); return}
     const params = new URLSearchParams({space_id: space, filename: name, role: purpose === 'mask' ? 'mask' : 'shot', shot_id: shot})
     void execute({path: `${path}/media/uploads?${params}`, body: file, mime, key: crypto.randomUUID(), purpose})
   }

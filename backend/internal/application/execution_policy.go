@@ -85,15 +85,31 @@ func (b *limitedCommandBuffer) Write(p []byte) (int, error) {
 	return b.Buffer.Write(p)
 }
 func policyCommand(ctx context.Context, path string, in, out any) error {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
+	if request, ok := in.(ExecutionRequest); ok && hasStreamMedia(request) {
+		reader, done, e := executionJSONStream(ctx, request)
+		if e != nil {
+			return ErrExecutionGovernance
+		}
+		e = policyCommandInput(ctx, path, reader, out)
+		_ = reader.Close()
+		streamErr := <-done
+		if e != nil || streamErr != nil {
+			return ErrExecutionGovernance
+		}
+		return nil
+	}
 	raw, e := json.Marshal(in)
 	if e != nil || len(raw) > 64<<20 {
 		return ErrExecutionGovernance
 	}
+	return policyCommandInput(ctx, path, bytes.NewReader(raw), out)
+}
+func policyCommandInput(ctx context.Context, path string, input io.Reader, out any) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 	cmd := exec.CommandContext(ctx, path)
 	cmd.WaitDelay = time.Second
-	cmd.Stdin = bytes.NewReader(raw)
+	cmd.Stdin = input
 	// Explicitly empty inherited environment prevents accidental platform secret
 	// exposure. Commands needing services must use operator-controlled references.
 	cmd.Env = []string{"PATH=/usr/bin:/bin"}

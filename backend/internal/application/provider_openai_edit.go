@@ -27,7 +27,7 @@ type MaskImageProvider interface {
 }
 
 func validateEditMask(reference []byte, mime string, mask []byte) error {
-	if len(mask) == 0 || len(mask) > 4<<20 {
+	if len(mask) == 0 {
 		return providerFailure("provider_rejected")
 	}
 	ref, err := nativeImage(reference, mime)

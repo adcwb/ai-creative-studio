@@ -474,16 +474,8 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		if e != nil {
 			return CreativeJob{}, false, ErrInvalidProjectInput
 		}
-		mask, e := os.ReadFile(path)
-		if e != nil {
-			return CreativeJob{}, false, e
-		}
-		ref, e := os.ReadFile(refPath)
-		if e != nil {
-			return CreativeJob{}, false, e
-		}
-		if validateEditMask(ref, refMIME, mask) != nil {
-			return CreativeJob{}, false, projectInputError("蒙版须与参考图同尺寸，PNG透明区域编辑、不透明区域保留，最大4MiB")
+		if validateEditMaskFiles(refPath, refMIME, path) != nil {
+			return CreativeJob{}, false, projectInputError("蒙版须与参考图同尺寸，PNG透明区域编辑、不透明区域保留")
 		}
 	}
 
@@ -773,6 +765,13 @@ func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob
 		textCaps = caps
 	}
 	var data []byte
+	var resultFile *os.File
+	defer func() {
+		if resultFile != nil {
+			_ = resultFile.Close()
+			_ = os.Remove(resultFile.Name())
+		}
+	}()
 	var mime, role string
 	var err error
 	if job.Kind == "analysis" {
@@ -865,48 +864,64 @@ func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob
 				}
 				result, err = adapter.GenerateWithReferences(ctx, input, refs)
 			} else if job.ReferenceAssetID != "" {
-				adapter, ok := imageProvider.(ReferenceImageProvider)
-				if !ok {
-					return providerFailure("unsupported_capability")
-				}
-				path, refMIME, e := s.media.file(job.ProjectID, job.SpaceID, job.ReferenceAssetID, false, false)
-				if e != nil {
-					return e
-				}
-				ref, e := os.ReadFile(path)
-				if e != nil || len(ref) > 16<<20 {
-					return providerFailure("invalid_provider_response")
-				}
-				if job.MaskAssetID != "" {
-					maskAdapter, ok := imageProvider.(MaskImageProvider)
-					if !ok {
-						return providerFailure("unsupported_capability")
-					}
-					maskPath, maskMIME, e := s.media.file(job.ProjectID, job.SpaceID, job.MaskAssetID, false, false)
-					if e != nil || maskMIME != "image/png" {
-						return ErrInvalidProjectInput
-					}
-					mask, e := os.ReadFile(maskPath)
+				if fileAdapter, ok := imageProvider.(fileReferenceImageProvider); ok {
+					refPath, refMIME, e := s.media.file(job.ProjectID, job.SpaceID, job.ReferenceAssetID, false, false)
 					if e != nil {
 						return e
 					}
-					result, err = maskAdapter.GenerateWithMask(ctx, input, ref, refMIME, mask)
-				} else if async, ok := imageProvider.(asyncReferenceImageProvider); ok {
-					if job.UpstreamID == "" {
-						ack, e := async.SubmitImageWithReference(ctx, input, ref, refMIME)
+					maskPath := ""
+					if job.MaskAssetID != "" {
+						var maskMIME string
+						maskPath, maskMIME, e = s.media.file(job.ProjectID, job.SpaceID, job.MaskAssetID, false, false)
+						if e != nil || maskMIME != "image/png" {
+							return ErrInvalidProjectInput
+						}
+					}
+					result, err = fileAdapter.GenerateWithReferenceFiles(ctx, input, refPath, refMIME, maskPath)
+				} else {
+					adapter, ok := imageProvider.(ReferenceImageProvider)
+					if !ok {
+						return providerFailure("unsupported_capability")
+					}
+					path, refMIME, e := s.media.file(job.ProjectID, job.SpaceID, job.ReferenceAssetID, false, false)
+					if e != nil {
+						return e
+					}
+					ref, e := os.ReadFile(path)
+					if e != nil || len(ref) > 16<<20 {
+						return providerFailure("invalid_provider_response")
+					}
+					if job.MaskAssetID != "" {
+						maskAdapter, ok := imageProvider.(MaskImageProvider)
+						if !ok {
+							return providerFailure("unsupported_capability")
+						}
+						maskPath, maskMIME, e := s.media.file(job.ProjectID, job.SpaceID, job.MaskAssetID, false, false)
+						if e != nil || maskMIME != "image/png" {
+							return ErrInvalidProjectInput
+						}
+						mask, e := os.ReadFile(maskPath)
 						if e != nil {
 							return e
 						}
-						if ack.ID == "" {
-							return providerFailure("invalid_provider_response")
+						result, err = maskAdapter.GenerateWithMask(ctx, input, ref, refMIME, mask)
+					} else if async, ok := imageProvider.(asyncReferenceImageProvider); ok {
+						if job.UpstreamID == "" {
+							ack, e := async.SubmitImageWithReference(ctx, input, ref, refMIME)
+							if e != nil {
+								return e
+							}
+							if ack.ID == "" {
+								return providerFailure("invalid_provider_response")
+							}
+							if e = c.recordCreativeUpstream(job, ack.ID); e != nil {
+								return e
+							}
 						}
-						if e = c.recordCreativeUpstream(job, ack.ID); e != nil {
-							return e
-						}
+						result, err = awaitAsyncImage(ctx, async, job.UpstreamID, 2*time.Second)
+					} else {
+						result, err = adapter.GenerateWithReference(ctx, input, ref, refMIME)
 					}
-					result, err = awaitAsyncImage(ctx, async, job.UpstreamID, 2*time.Second)
-				} else {
-					result, err = adapter.GenerateWithReference(ctx, input, ref, refMIME)
 				}
 			} else {
 				if async, ok := imageProvider.(AsyncImageProvider); ok {
@@ -971,7 +986,14 @@ func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob
 	case "speech":
 		mime = "audio/wav"
 		role = "voice"
-		data, err = speechProvider.Speech(ctx, job.Prompt)
+		if stream, ok := speechProvider.(streamingSpeechProvider); ok {
+			resultFile, err = newProviderMediaFile(s.media.dir)
+			if err == nil {
+				err = stream.SpeechTo(ctx, job.Prompt, resultFile)
+			}
+		} else {
+			data, err = speechProvider.Speech(ctx, job.Prompt)
+		}
 	case "video":
 		mime = "video/mp4"
 		role = "shot"
@@ -1038,7 +1060,14 @@ func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob
 			case <-timer.C:
 			}
 		}
-		data, err = videoProvider.DownloadVideo(ctx, job.UpstreamID)
+		if stream, ok := videoProvider.(streamingVideoProvider); ok {
+			resultFile, err = newProviderMediaFile(s.media.dir)
+			if err == nil {
+				err = stream.DownloadVideoTo(ctx, job.UpstreamID, resultFile)
+			}
+		} else {
+			data, err = videoProvider.DownloadVideo(ctx, job.UpstreamID)
+		}
 	}
 	if err != nil {
 		return err
@@ -1046,8 +1075,23 @@ func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob
 	if err = ctx.Err(); err != nil {
 		return err
 	}
+	var resultMedia ExecutionMedia
+	if resultFile != nil {
+		if err = errors.Join(resultFile.Sync(), resultFile.Close()); err != nil {
+			return err
+		}
+		if err = validateProviderMediaFile(ctx, resultFile.Name(), mime); err != nil {
+			return err
+		}
+		resultMedia, err = executionFileMedia(ctx, resultFile.Name(), mime)
+		if err != nil {
+			return err
+		}
+	} else {
+		resultMedia = ExecutionMedia{Data: data, MIME: mime}
+	}
 	if managed != nil {
-		if err = s.execution.ReviewResult(ctx, ExecutionRequest{ID: "creative:" + job.ID, Selection: job.RuntimeSelection, Tenant: job.SpaceID, Provider: job.Provider, Model: job.Model, Capability: job.Kind, HasMedia: true, Media: []ExecutionMedia{{Data: data, MIME: mime}}}); err != nil {
+		if err = s.execution.ReviewResult(ctx, ExecutionRequest{ID: "creative:" + job.ID, Selection: job.RuntimeSelection, Tenant: job.SpaceID, Provider: job.Provider, Model: job.Model, Capability: job.Kind, HasMedia: true, Media: []ExecutionMedia{resultMedia}}); err != nil {
 			return err
 		}
 	}
@@ -1057,7 +1101,11 @@ func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob
 	}
 	// Asset ingest has its own persistent idempotency receipt. Restart cannot
 	// publish duplicate assets even if ingestion succeeded before job completion.
-	_, err = s.media.addAssetContext(ctx, job.ProjectID, job.SpaceID, "creative-"+job.ID, "创作素材 · "+job.Kind, role, job.Character, job.ShotID, job.Provider, data, mime, job.lease)
+	if resultFile != nil {
+		_, err = s.media.addAssetFile(ctx, job.ProjectID, job.SpaceID, "creative-"+job.ID, "创作素材 · "+job.Kind, role, job.Character, job.ShotID, job.Provider, resultFile.Name(), mime, nil, job.lease)
+	} else {
+		_, err = s.media.addAssetContext(ctx, job.ProjectID, job.SpaceID, "creative-"+job.ID, "创作素材 · "+job.Kind, role, job.Character, job.ShotID, job.Provider, data, mime, job.lease)
+	}
 	if err != nil {
 		return err
 	}

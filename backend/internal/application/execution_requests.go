@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/prompts"
-	"io"
-	"os"
 )
 
 func (s *FileStore) creativeExecutionRequest(job CreativeJob) (ExecutionRequest, error) {
@@ -25,17 +23,12 @@ func (s *FileStore) creativeExecutionRequest(job CreativeJob) (ExecutionRequest,
 		if e != nil {
 			return ExecutionRequest{}, e
 		}
-		file, e := os.Open(path)
+		media, e := executionFileMedia(context.Background(), path, mime)
 		if e != nil {
 			return ExecutionRequest{}, e
 		}
-		data, e := io.ReadAll(io.LimitReader(file, (32<<20)+1))
-		_ = file.Close()
-		if e != nil || len(data) > 32<<20 {
-			return ExecutionRequest{}, ErrExecutionGovernance
-		}
 		request.HasMedia = true
-		request.Media = append(request.Media, ExecutionMedia{Data: data, MIME: mime})
+		request.Media = append(request.Media, media)
 	}
 	var roles []string
 	controls := CreativeJobInput{Kind: job.Kind, ReferenceAssetIDs: job.ReferenceAssetIDs, FirstFrameAssetID: job.FirstFrameAssetID, LastFrameAssetID: job.LastFrameAssetID, MotionReferenceAssetID: job.MotionReferenceAssetID}

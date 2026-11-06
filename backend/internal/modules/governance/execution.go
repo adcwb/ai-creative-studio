@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"time"
 )
 
@@ -22,15 +23,34 @@ type ExecutionRequest struct {
 }
 
 type ExecutionMedia struct {
-	Data []byte
-	MIME string
+	Data   []byte
+	MIME   string
+	Stream *MediaStream `json:"-"`
+}
+
+// Only trusted application code constructs a stream from pinned private bytes.
+// The opener is never serialized, persisted or accepted through public JSON.
+type MediaStream struct {
+	SHA256 string
+	Size   int64
+	Open   func() (io.ReadCloser, error)
 }
 
 func ExecutionRequestDigest(r ExecutionRequest) string {
 	hashes := []string{}
 	for _, m := range r.Media {
-		sum := sha256.Sum256(m.Data)
-		hashes = append(hashes, m.MIME+":"+hex.EncodeToString(sum[:]))
+		if m.Stream != nil {
+			if m.Data != nil || m.Stream.Open == nil || m.Stream.Size < 0 || len(m.Stream.SHA256) != 64 {
+				return ""
+			}
+			if _, e := hex.DecodeString(m.Stream.SHA256); e != nil {
+				return ""
+			}
+			hashes = append(hashes, m.MIME+":"+m.Stream.SHA256)
+		} else {
+			sum := sha256.Sum256(m.Data)
+			hashes = append(hashes, m.MIME+":"+hex.EncodeToString(sum[:]))
+		}
 	}
 	voice := ""
 	binding := ""

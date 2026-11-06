@@ -105,7 +105,9 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e
 
 ### 自定义图像提示词（本地开发阶段）
 
-图像页可将当前描述或成功任务保存为私人提示词，管理分类、标签、收藏和历史版本，并明确共享至当前组织。选用只预填；点击创建后仍走当前组织绑定的真实网关。保存、预览和选用不调用模型。修改保留新版本，冲突保留草稿，未确认保存可跨刷新恢复原请求。支持纯文本与明确声明的文字/枚举变量；纯文本中的花括号仍按字面保存。变量配方须先通过服务端完整预览后填入创作区，任务固定变量和版本。支持固定版本、有序参考图配方，在项目制作中明确应用后再生成；模型必须支持实际参考组合，不能静默丢图。长剧仍在后续阶段。详见[提示词记录](docs/superpowers/specs/2026-11-04-creative-series/prompts-implementation.md)与[参考配方记录](docs/superpowers/specs/2026-11-04-creative-series/references-implementation.md)。
+图像页可将当前描述或成功任务保存为私人提示词，管理分类、标签、收藏和历史版本，并明确共享至当前组织。选用只预填；点击创建后仍走当前组织绑定的真实网关。保存、预览和选用不调用模型。修改保留新版本，冲突保留草稿，未确认保存可跨刷新恢复原请求。支持纯文本与明确声明的文字/枚举变量；纯文本中的花括号仍按字面保存。变量配方须先通过服务端完整预览后填入创作区，任务固定变量和版本。支持固定版本、有序参考图配方，在项目制作中明确应用后再生成；模型必须支持实际参考组合，不能静默丢图。现有系列/季/集和独立项目已接入，批量制作与200集容量验收仍在后续阶段。详见[提示词记录](docs/superpowers/specs/2026-11-04-creative-series/prompts-implementation.md)与[参考配方记录](docs/superpowers/specs/2026-11-04-creative-series/references-implementation.md)。
+
+本地后续修复将继续编辑原图、照片/蒙版保存改为现有分块上传，二进制网关音视频及原生视频下载、审核与入库走文件流式链路，移除这些路径的旧32MiB及蒙版4MiB门槛；保留实际像素、格式、权限和审核检查。准确支持范围及其他残余限制见[媒体流式实施记录](docs/superpowers/specs/2026-11-04-creative-series/media-streaming-implementation.md)。这不是已经发布的新镜像。
 
 镜头制作与剪辑页现支持可暂停、刷新后重选原文件恢复的分块上传；先校验完整文件，再登记素材，无项目累计容量配额。当前为本地开发阶段，S3原生multipart恢复已实现，详见[S3实施记录](docs/superpowers/specs/2026-11-04-creative-series/s3-implementation.md)；新版本导出保存分段进度，服务重启后继续，失败或取消后可明确继续原时间轴，详见[渲染记录](docs/superpowers/specs/2026-11-04-creative-series/render-implementation.md)；上传交互详见[上传实施记录](docs/superpowers/specs/2026-11-04-creative-series/uploads-implementation.md)。
 

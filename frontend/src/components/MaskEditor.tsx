@@ -39,7 +39,6 @@ export function MaskEditor({url, name, disabled, onSave, onClose}: {url: string;
       for (let i = 3; i < pixels.length; i += 4) {if (pixels[i] === 0) transparent = true; if (pixels[i] === 255) opaque = true; if (transparent && opaque) break}
       if (!transparent || !opaque) throw new Error(t("请同时保留要修改的透明区域和不修改的不透明区域。"))
       const blob = await new Promise<Blob>((resolve, reject) => canvas.current!.toBlob(value => value ? resolve(value) : reject(new Error(t("遮罩编码失败"))), 'image/png'))
-      if (blob.size > 4 * 1024 * 1024) throw new Error(t("遮罩超过4 MiB，请使用更小的参考图。"))
       onSave(blob, `mask-${name.replace(/\.[^.]+$/, '')}.png`); onClose()
     } catch (reason) {setError(errorMessage(reason, t("遮罩保存失败")))}
   }

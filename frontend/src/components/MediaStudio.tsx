@@ -1,6 +1,7 @@
 import {MediaLineage} from '../features/library/MediaLineage'
 import {useSeriesEpisode} from '../features/series/episodeContext'
 import {ResumableMediaUpload} from '../features/uploads/ResumableMediaUpload'
+import {uploadMediaBlob} from '../features/uploads/uploadBlob'
 import { translate as t, useI18n } from "../i18n"
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, baseURL, errorMessage, request } from '../api'
@@ -102,7 +103,10 @@ function EpisodeMediaStudio({project, space, onDirtyChange, episode, allowSynthe
     if (inFlight.current) return
     inFlight.current = true; setBusy(true); setError(''); setNotice('')
     try {
-      await request(`${attempt.path}`, {method: attempt.method, headers: {'Content-Type': attempt.type, 'Idempotency-Key': attempt.key}, body: attempt.body})
+      if(attempt.body instanceof Blob && attempt.path.startsWith(`${path}/uploads?`)) {
+        const fields=new URLSearchParams(attempt.path.split('?')[1])
+        await uploadMediaBlob(space,project.id,attempt.body,fields.get('filename')??'',fields.get('role')??'',attempt.key,fields.get('character')??'',fields.get('shot_id')??'')
+      } else await request(`${attempt.path}`, {method: attempt.method, headers: {'Content-Type': attempt.type, 'Idempotency-Key': attempt.key}, body: attempt.body})
       if (!alive.current) return
       pending.current = null; setUncertain(false)
       setNotice(t("操作已保存。生成与导出状态以服务端记录为准。"))
@@ -128,7 +132,6 @@ function EpisodeMediaStudio({project, space, onDirtyChange, episode, allowSynthe
   }
   async function editPhoto() {
     if (!photo) return
-    if (photo.size > 32 * 1024 * 1024) {setError(t("照片不能超过 32 MiB。")); return}
     try {
       const bitmap = await createImageBitmap(photo)
       if (bitmap.width * bitmap.height > 20000000) {bitmap.close(); throw new Error(t("图片像素过大，请选择不超过 2000 万像素的照片。"))}

@@ -2,6 +2,10 @@ package governance_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +24,22 @@ func TestCurrencyPrecisionAndMissingExchangeProvider(t *testing.T) {
 	}
 	if _, err := governance.GetExchangeQuote(context.Background(), nil, "USD", "CNY", time.Now(), time.Minute); err == nil {
 		t.Fatal("missing exchange evidence accepted")
+	}
+}
+
+func TestStreamedMediaRetainsExistingContentDigest(t *testing.T) {
+	data := []byte("pinned synthetic media")
+	r := governance.ExecutionRequest{Media: []governance.ExecutionMedia{{Data: data, MIME: "audio/wav"}}}
+	original := governance.ExecutionRequestDigest(r)
+	sum := sha256.Sum256(data)
+	r.Media[0].Data = nil
+	r.Media[0].Stream = &governance.MediaStream{SHA256: hex.EncodeToString(sum[:]), Size: int64(len(data)), Open: func() (io.ReadCloser, error) { return io.NopCloser(strings.NewReader(string(data))), nil }}
+	if governance.ExecutionRequestDigest(r) != original {
+		t.Fatal("stream changed durable content identity")
+	}
+	r.Media[0].Stream.SHA256 = "invalid"
+	if governance.ExecutionRequestDigest(r) != "" {
+		t.Fatal("invalid identity accepted")
 	}
 }
 

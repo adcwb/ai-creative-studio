@@ -73,7 +73,7 @@ func (g *ExecutionGovernor) Execute(ctx context.Context, r ExecutionRequest, dis
 	if err := checkLibraryDispatch(ctx); err != nil {
 		return err
 	}
-	decision, err := g.Moderator.ReviewExecution(ctx, r)
+	decision, err := g.review(ctx, r)
 	if sourceErr := checkLibraryDispatch(ctx); sourceErr != nil {
 		return sourceErr
 	}
@@ -159,7 +159,7 @@ func (g *ExecutionGovernor) ReviewResult(ctx context.Context, r ExecutionRequest
 		return ErrExecutionGovernance
 	}
 	r.Stage = "output"
-	decision, e := g.Moderator.ReviewExecution(ctx, r)
+	decision, e := g.review(ctx, r)
 	if e != nil || !freshModerationAllow(decision, time.Now()) {
 		return ErrExecutionGovernance
 	}

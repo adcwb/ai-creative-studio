@@ -30137,7 +30137,7 @@
           },
           "reference_asset_id": {
             "type": "string",
-            "description": "Owned project image reference, or for Google video an MP4 editing input. No arbitrary remote URL. OpenAI mask requires a same-size PNG mask, transparent edit area, <=4MiB."
+            "description": "Owned project image reference, or for Google video an MP4 editing input. No arbitrary remote URL. A mask requires a same-size PNG with transparent edit areas and opaque preserved areas. Pixels and decoded format remain validated; there is no application 4 MiB or 32 MiB file quota. Gateway/OpenAI reference and mask bodies stream from owned files."
           },
           "expected_model": {
             "type": "string",
@@ -30312,7 +30312,7 @@
           },
           "reference_asset_id": {
             "type": "string",
-            "description": "Owned project image reference, or for Google video an MP4 editing input. No arbitrary remote URL. OpenAI mask requires a same-size PNG mask, transparent edit area, <=4MiB."
+            "description": "Owned project image reference, or for Google video an MP4 editing input. No arbitrary remote URL. A mask requires a same-size PNG with transparent edit areas and opaque preserved areas. Pixels and decoded format remain validated; there is no application 4 MiB or 32 MiB file quota. Gateway/OpenAI reference and mask bodies stream from owned files."
           },
           "model": {
             "type": "string",

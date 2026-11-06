@@ -3,6 +3,8 @@ package application
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -68,7 +70,22 @@ func TestExecutionSourceAuthorityBeforeInputReviewAndDispatchReceipt(t *testing.
 	}
 }
 
-func (m testExecutionModerator) ReviewExecution(context.Context, ExecutionRequest) (ModerationDecision, error) {
+func (m testExecutionModerator) SupportsStreamingMedia() bool { return true }
+func (m testExecutionModerator) ReviewExecution(ctx context.Context, r ExecutionRequest) (ModerationDecision, error) {
+	for _, media := range r.Media {
+		if media.Stream != nil {
+			f, e := media.Stream.Open()
+			if e != nil {
+				return ModerationDecision{}, e
+			}
+			h := sha256.New()
+			n, e := io.CopyBuffer(h, contextBlobReader{ctx, f}, make([]byte, 64<<10))
+			f.Close()
+			if e != nil || n != media.Stream.Size || hex.EncodeToString(h.Sum(nil)) != media.Stream.SHA256 {
+				return ModerationDecision{}, ErrBlobIntegrity
+			}
+		}
+	}
 	status := "review"
 	if m.allow {
 		status = "allow"

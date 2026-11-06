@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"image"
+	"io"
 	"net/http"
 	"regexp"
 	"time"
@@ -19,9 +20,10 @@ type MiniMaxImageProvider struct {
 }
 type MiniMaxVideoProvider struct {
 	unsupportedCreativeProvider
-	api      *OpenAICreativeProvider
-	model    string
-	download func(context.Context, string) ([]byte, error)
+	api        *OpenAICreativeProvider
+	model      string
+	download   func(context.Context, string) ([]byte, error)
+	downloadTo func(context.Context, string, io.Writer) error
 }
 
 func miniMaxMediaClient() *http.Client {
@@ -36,7 +38,9 @@ func newMiniMaxImageProvider(key, model, endpoint string, client *http.Client) *
 	return &MiniMaxImageProvider{api: newCreativeProvider(key, endpoint, client), model: model}
 }
 func NewMiniMaxVideoProvider(key, model string) *MiniMaxVideoProvider {
-	return newMiniMaxVideoProvider(key, model, "https://api.minimax.io", miniMaxMediaClient(), safeMediaDownload)
+	p := newMiniMaxVideoProvider(key, model, "https://api.minimax.io", miniMaxMediaClient(), safeMediaDownload)
+	p.downloadTo = safeVideoDownloadTo
+	return p
 }
 func newMiniMaxVideoProvider(key, model, endpoint string, client *http.Client, download func(context.Context, string) ([]byte, error)) *MiniMaxVideoProvider {
 	return &MiniMaxVideoProvider{api: newCreativeProvider(key, endpoint, client), model: model, download: download}
@@ -230,21 +234,11 @@ func (p *MiniMaxVideoProvider) PollVideo(ctx context.Context, id string) (VideoJ
 	return VideoJob{ID: id, Status: status, Progress: progress}, nil
 }
 func (p *MiniMaxVideoProvider) DownloadVideo(ctx context.Context, id string) ([]byte, error) {
-	task, err := p.get(ctx, id)
-	if err != nil {
-		return nil, err
+	var out bytes.Buffer
+	if e := p.DownloadVideoTo(ctx, id, &out); e != nil {
+		return nil, e
 	}
-	if task.Status != "succeeded" || task.Content == nil || task.Content.URL == "" {
-		return nil, providerFailure("provider_rejected")
-	}
-	data, err := p.download(ctx, task.Content.URL)
-	if err != nil {
-		return nil, err
-	}
-	if len(data) < 12 || len(data) > 32<<20 || string(data[4:8]) != "ftyp" {
-		return nil, providerFailure("invalid_provider_response")
-	}
-	return data, nil
+	return out.Bytes(), nil
 }
 
 // DELETE also deletes terminal records. Only attempt cancellation after a queued

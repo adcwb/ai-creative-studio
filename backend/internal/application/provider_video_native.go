@@ -45,15 +45,18 @@ func (unsupportedCreativeProvider) DownloadVideo(context.Context, string) ([]byt
 
 type ArkVideoProvider struct {
 	unsupportedCreativeProvider
-	api      *OpenAICreativeProvider
-	model    string
-	download func(context.Context, string) ([]byte, error)
+	api        *OpenAICreativeProvider
+	model      string
+	download   func(context.Context, string) ([]byte, error)
+	downloadTo func(context.Context, string, io.Writer) error
 }
 
 func NewArkVideoProvider(key, model string) *ArkVideoProvider {
 	t := http.DefaultTransport.(*http.Transport).Clone()
 	t.Proxy = nil
-	return newArkVideoProvider(key, model, "https://ark.cn-beijing.volces.com/api/v3", &http.Client{Transport: t, Timeout: 120 * time.Second}, safeMediaDownload)
+	p := newArkVideoProvider(key, model, "https://ark.cn-beijing.volces.com/api/v3", &http.Client{Transport: t, Timeout: 120 * time.Second}, safeMediaDownload)
+	p.downloadTo = safeVideoDownloadTo
+	return p
 }
 func newArkVideoProvider(key, model, endpoint string, client *http.Client, download func(context.Context, string) ([]byte, error)) *ArkVideoProvider {
 	return &ArkVideoProvider{api: newCreativeProvider(key, endpoint, client), model: model, download: download}
@@ -148,21 +151,11 @@ func (p *ArkVideoProvider) PollVideo(ctx context.Context, id string) (VideoJob, 
 	return VideoJob{ID: id, Status: status, Progress: progress}, nil
 }
 func (p *ArkVideoProvider) DownloadVideo(ctx context.Context, id string) ([]byte, error) {
-	v, err := p.get(ctx, id)
-	if err != nil {
-		return nil, err
+	var out bytes.Buffer
+	if e := p.DownloadVideoTo(ctx, id, &out); e != nil {
+		return nil, e
 	}
-	if v.Status != "succeeded" || v.Content.VideoURL == "" {
-		return nil, providerFailure("provider_rejected")
-	}
-	b, err := p.download(ctx, v.Content.VideoURL)
-	if err != nil {
-		return nil, err
-	}
-	if len(b) < 12 || string(b[4:8]) != "ftyp" {
-		return nil, providerFailure("invalid_provider_response")
-	}
-	return b, nil
+	return out.Bytes(), nil
 }
 
 // DELETE on a terminal task deletes its record. Never perform it for cancellation.

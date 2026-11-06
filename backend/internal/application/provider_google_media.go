@@ -24,13 +24,16 @@ type GoogleMediaProvider struct {
 	kind, key, model, voice, endpoint string
 	client                            *http.Client
 	download                          func(context.Context, string) ([]byte, error)
+	downloadTo                        func(context.Context, string, io.Writer) error
 }
 
 func NewGoogleSpeechProvider(key, model, voice string) *GoogleMediaProvider {
 	return newGoogleMediaProvider("gemini-speech", key, model, voice, "https://generativelanguage.googleapis.com", nil, nil)
 }
 func NewGoogleVideoProvider(key, model string) *GoogleMediaProvider {
-	return newGoogleMediaProvider("gemini-video", key, model, "", "https://generativelanguage.googleapis.com", nil, nil)
+	p := newGoogleMediaProvider("gemini-video", key, model, "", "https://generativelanguage.googleapis.com", nil, nil)
+	p.downloadTo = safeVideoDownloadTo
+	return p
 }
 func newGoogleMediaProvider(kind, key, model, voice, endpoint string, client *http.Client, download func(context.Context, string) ([]byte, error)) *GoogleMediaProvider {
 	if client == nil {
@@ -340,33 +343,9 @@ func (p *GoogleMediaProvider) PollVideo(ctx context.Context, id string) (VideoJo
 	}
 }
 func (p *GoogleMediaProvider) DownloadVideo(ctx context.Context, id string) ([]byte, error) {
-	job, err := p.PollVideo(ctx, id)
-	if err != nil {
-		return nil, err
+	var out bytes.Buffer
+	if e := p.DownloadVideoTo(ctx, id, &out); e != nil {
+		return nil, e
 	}
-	if job.Status != "completed" {
-		return nil, providerFailure("provider_rejected")
-	}
-	// Only this canonical Google origin receives the key; ignore arbitrary URI
-	// fields in metadata. A Google redirect is downloaded without any credentials.
-	res, err := p.request(ctx, "GET", "/v1beta/files/"+id+":download?alt=media", nil)
-	if err != nil {
-		return nil, err
-	}
-	var b []byte
-	switch res.StatusCode {
-	case 301, 302, 303, 307, 308:
-		location := res.Header.Get("Location")
-		res.Body.Close()
-		b, err = p.download(ctx, location)
-	default:
-		b, err = googleMediaRead(res, 32<<20)
-	}
-	if err != nil {
-		return nil, err
-	}
-	if len(b) < 12 || len(b) > 32<<20 || string(b[4:8]) != "ftyp" {
-		return nil, providerFailure("invalid_provider_response")
-	}
-	return b, nil
+	return out.Bytes(), nil
 }

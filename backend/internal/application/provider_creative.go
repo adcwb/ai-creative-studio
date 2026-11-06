@@ -303,21 +303,11 @@ func (p *OpenAICreativeProvider) Storyboard(ctx context.Context, in Script) ([]S
 	return shots, nil
 }
 func (p *OpenAICreativeProvider) Speech(ctx context.Context, text string) ([]byte, error) {
-	if p.speechModel == "" {
-		return nil, providerFailure("provider_unavailable")
-	}
-	text, err := normalizeProjectText(text, "speech", 1, 2000)
-	if err != nil {
+	var buffer bytes.Buffer
+	if err := p.SpeechTo(ctx, text, &buffer); err != nil {
 		return nil, err
 	}
-	b, err := p.request(ctx, "POST", "/audio/speech", map[string]string{"model": p.speechModel, "input": text, "voice": "alloy", "response_format": "wav"}, 32<<20)
-	if err != nil {
-		return nil, err
-	}
-	if len(b) < 44 || string(b[:4]) != "RIFF" || string(b[8:12]) != "WAVE" {
-		return nil, providerFailure("invalid_provider_response")
-	}
-	return b, nil
+	return buffer.Bytes(), nil
 }
 
 var videoIDPattern = regexp.MustCompile(`^video_[A-Za-z0-9_-]{1,120}$`)
@@ -364,20 +354,11 @@ func (p *OpenAICreativeProvider) PollVideo(ctx context.Context, id string) (Vide
 	return v, err
 }
 func (p *OpenAICreativeProvider) DownloadVideo(ctx context.Context, id string) ([]byte, error) {
-	if p.videoRetired {
-		return nil, providerFailure("provider_retired")
-	}
-	if !videoIDPattern.MatchString(id) {
-		return nil, providerFailure("provider_rejected")
-	}
-	b, err := p.request(ctx, "GET", "/videos/"+id+"/content", nil, 32<<20)
-	if err != nil {
+	var buffer bytes.Buffer
+	if err := p.DownloadVideoTo(ctx, id, &buffer); err != nil {
 		return nil, err
 	}
-	if len(b) < 12 || string(b[4:8]) != "ftyp" {
-		return nil, providerFailure("invalid_provider_response")
-	}
-	return b, nil
+	return buffer.Bytes(), nil
 }
 
 type creativeScriptAdapter struct{ p CreativeProvider }

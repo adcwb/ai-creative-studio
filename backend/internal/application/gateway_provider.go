@@ -35,21 +35,11 @@ func (p *gatewayCreativeProvider) DescribeImage(ctx context.Context, prompt stri
 	return describeGatewayVision(ctx, p, prompt, data, mime)
 }
 func (p *gatewayCreativeProvider) Speech(ctx context.Context, text string) ([]byte, error) {
-	if !configToken.MatchString(p.voice) {
-		return nil, providerFailure("provider_rejected")
+	var buffer bytes.Buffer
+	if err := p.SpeechTo(ctx, text, &buffer); err != nil {
+		return nil, err
 	}
-	text, e := normalizeProjectText(text, "speech", 1, 2000)
-	if e != nil {
-		return nil, e
-	}
-	raw, e := p.request(ctx, "POST", "/audio/speech", map[string]string{"model": p.model.Model, "input": text, "voice": p.voice, "response_format": "wav"}, 32<<20)
-	if e != nil {
-		return nil, e
-	}
-	if len(raw) < 44 || string(raw[:4]) != "RIFF" || string(raw[8:12]) != "WAVE" {
-		return nil, providerFailure("invalid_provider_response")
-	}
-	return raw, nil
+	return buffer.Bytes(), nil
 }
 
 var gatewayVideoID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$`)
@@ -97,17 +87,11 @@ func (p *gatewayCreativeProvider) PollVideo(ctx context.Context, id string) (Vid
 	return job, e
 }
 func (p *gatewayCreativeProvider) DownloadVideo(ctx context.Context, id string) ([]byte, error) {
-	if !gatewayVideoID.MatchString(id) {
-		return nil, providerFailure("provider_rejected")
+	var buffer bytes.Buffer
+	if err := p.DownloadVideoTo(ctx, id, &buffer); err != nil {
+		return nil, err
 	}
-	raw, e := p.request(ctx, "GET", "/videos/"+id+"/content", nil, 32<<20)
-	if e != nil {
-		return nil, e
-	}
-	if len(raw) < 12 || string(raw[4:8]) != "ftyp" {
-		return nil, providerFailure("invalid_provider_response")
-	}
-	return raw, nil
+	return buffer.Bytes(), nil
 }
 
 type gatewayImageProvider struct {

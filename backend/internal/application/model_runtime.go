@@ -411,18 +411,21 @@ func buildRuntimeProviders(lifetime context.Context, e ModelConfigEntry, secret,
 		guardRuntimeClient(p.client, lifetime, guard, onDispatch)
 		setRuntimeReadOnly(p.client, videoReadOnlyRequest(e.Provider))
 		p.download = guardRuntimeDownload(lifetime, p.download, guard, onDispatch)
+		p.downloadTo = guardRuntimeDownloadTo(lifetime, p.downloadTo, guard, onDispatch)
 		out.Creative = p
 	case "ark-video":
 		p := NewArkVideoProvider(secret, e.Model)
 		guardRuntimeClient(p.api.client, lifetime, guard, onDispatch)
 		setRuntimeReadOnly(p.api.client, videoReadOnlyRequest(e.Provider))
 		p.download = guardRuntimeDownload(lifetime, p.download, guard, onDispatch)
+		p.downloadTo = guardRuntimeDownloadTo(lifetime, p.downloadTo, guard, onDispatch)
 		out.Creative = p
 	case "minimax-video":
 		p := NewMiniMaxVideoProvider(secret, e.Model)
 		guardRuntimeClient(p.api.client, lifetime, guard, onDispatch)
 		setRuntimeReadOnly(p.api.client, videoReadOnlyRequest(e.Provider))
 		p.download = guardRuntimeDownload(lifetime, p.download, guard, onDispatch)
+		p.downloadTo = guardRuntimeDownloadTo(lifetime, p.downloadTo, guard, onDispatch)
 		out.Creative = p
 	case "openai-asr":
 		if e.Model != "whisper-1" && e.Model != "gpt-transcribe" {
