@@ -210,3 +210,26 @@
  .image-page .creation-controls>.runtime-model-picker label{min-width:0;margin:0}
  .image-page .composer textarea{min-height:128px}
 }
+
+/* Keep identity and workspace choice visible while only the menu scrolls. */
+.app-shell .sidebar-inner {overflow:hidden}
+.sidebar-header,.sidebar-account {flex:0 0 auto;min-width:0}
+.sidebar-navigation {flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin;padding-right:2px}
+.app-shell .sidebar-account {margin-top:0;padding-top:12px}
+.sidebar-settings-shortcut {display:flex;align-items:center;gap:10px;color:var(--on-forest);font-size:13px;text-decoration:none;padding:10px 8px;border:1px solid var(--forest-line);border-radius:7px}
+.sidebar-settings-shortcut:hover {background:var(--forest-raised)}
+.sidebar-settings-shortcut .icon {width:18px;height:18px;flex-shrink:0}
+.app-shell .account-profile {padding-top:12px;margin-top:10px}
+.app-shell .account-signout {margin-top:10px}
+.app-nav .nav-subgroup a,.app-nav .group-toggle span:not(.group-chevron) {white-space:normal;overflow-wrap:anywhere}
+.space-guidance {display:flex;align-items:center;gap:24px;flex-wrap:wrap;padding:18px 20px;border:1px solid var(--border-strong);border-radius:10px;background:var(--surface);margin:0 0 20px}
+.space-guidance>div:first-child {flex:1 1 360px;min-width:0}
+.space-guidance h2 {font-size:16px;margin:0 0 6px}
+.space-guidance p,.template-explanation {font-size:13px;color:var(--ink-muted);line-height:1.7;margin:0 0 12px}
+.space-guidance p {margin-bottom:0}
+.space-guidance-actions {display:flex;flex:1 1 420px;align-items:end;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+.space-guidance-actions label {display:grid;gap:6px;font-size:12px;flex:1;max-width:360px;min-width:0}
+.space-guidance-actions button {min-height:42px}
+.space-guidance-actions a {font-size:13px;padding:10px 0}
+@media(min-width:761px){.navigation-collapsed .sidebar-settings-shortcut{justify-content:center;padding:10px 0}.navigation-collapsed .sidebar-settings-shortcut span{display:none}}
+@media(max-width:760px){.space-guidance{padding:16px;gap:12px}.space-guidance-actions{align-items:stretch;justify-content:flex-start}.space-guidance-actions label{flex-basis:100%;max-width:none}}

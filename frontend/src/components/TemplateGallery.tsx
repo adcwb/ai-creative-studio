@@ -12,5 +12,5 @@ export function TemplateGallery({catalog, error, disabled, onChoose, onRetry, sp
       <span className="template-copy"><strong>{t(template.name)}</strong><small>{t(template.description)}</small><span>{template.ratio} <span aria-hidden="true">·</span> {t(catalog.styles.find(style => style.value === template.style)?.label ?? template.style)}</span></span><Icon name="arrow" />
     </button>)}</div>}
   </>
- return <section className="templates" aria-labelledby="templates-title"><div className="section-heading"><h2 id="templates-title">{t("从一个灵感开始")}</h2><span>{t("选用模板，继续写下你的想法")}</span></div><PromptLibrary key={`${space}:${actor}`} space={space} actor={actor} readOnly={readOnly} catalog={catalog} draft={draft} disabled={disabled} builtin={builtin} onChoose={onChooseSaved} /></section>
+ return <section className="templates" aria-labelledby="templates-title"><div className="section-heading"><h2 id="templates-title">{t("从一个灵感开始")}</h2><span>{t("选用模板，继续写下你的想法")}</span></div><p className="template-explanation">{t('模板只填入提示词与参数，不代表已经生成的作品。')}</p><PromptLibrary key={`${space}:${actor}`} space={space} actor={actor} readOnly={readOnly} catalog={catalog} draft={draft} disabled={disabled} builtin={builtin} onChoose={onChooseSaved} /></section>
 }

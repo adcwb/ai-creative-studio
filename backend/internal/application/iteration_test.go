@@ -25,7 +25,7 @@ func TestInputContractAndDefaults(t *testing.T) {
 		if err != nil || got != (Input{Prompt: "三个字", Kind: kind, Ratio: "4:5", Style: "natural"}) {
 			t.Fatalf("legacy %s input: %#v, %v", kind, got, err)
 		}
-		for _, ratio := range []string{"1:1", "4:5", "16:9"} {
+		for _, ratio := range []string{"1:1", "4:5", "16:9", "9:16"} {
 			for _, style := range []string{"natural", "studio", "illustration"} {
 				in := Input{Prompt: "😀😀😀", Kind: kind, Ratio: ratio, Style: style}
 				if got, err := Normalize(in); err != nil || got != in {
@@ -101,7 +101,7 @@ func TestMockSVGUsesSelectedCanvasAndVisualParameters(t *testing.T) {
 	}
 	outputs := map[string]bool{}
 	for _, kind := range []string{"poster", "portrait", "general"} {
-		for _, ratio := range []string{"1:1", "4:5", "16:9"} {
+		for _, ratio := range []string{"1:1", "4:5", "16:9", "9:16"} {
 			for _, style := range []string{"natural", "studio", "illustration"} {
 				result, err := pipeline.Invoke(context.Background(), Input{Prompt: "<script>synthetic</script>", Kind: kind, Ratio: ratio, Style: style})
 				if err != nil {
@@ -500,7 +500,7 @@ func TestTemplateCatalogAndServerSideAssetSearch(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &catalog); err != nil || response.Code != 200 {
 		t.Fatalf("catalog unavailable: %d, %v", response.Code, err)
 	}
-	if len(catalog.Templates) != 3 || len(catalog.Ratios) != 3 || len(catalog.Styles) != 3 {
+	if len(catalog.Templates) != 3 || len(catalog.Ratios) != 4 || len(catalog.Styles) != 3 {
 		t.Fatalf("unexpected backend catalog: %#v", catalog)
 	}
 	wantTemplates := map[string][2]string{"poster": {"4:5", "illustration"}, "portrait": {"4:5", "studio"}, "general": {"1:1", "natural"}}

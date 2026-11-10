@@ -22,8 +22,8 @@ func Normalize(in Parameters) (Parameters, error) {
 	if in.Kind != "poster" && in.Kind != "portrait" && in.Kind != "general" {
 		return in, errors.New("类型必须为 poster、portrait 或 general")
 	}
-	if in.Ratio != "1:1" && in.Ratio != "4:5" && in.Ratio != "16:9" {
-		return in, errors.New("比例必须为 1:1、4:5 或 16:9")
+	if in.Ratio != "1:1" && in.Ratio != "4:5" && in.Ratio != "16:9" && in.Ratio != "9:16" {
+		return in, errors.New("比例必须为 1:1、4:5、16:9 或 9:16")
 	}
 	if in.Style != "natural" && in.Style != "studio" && in.Style != "illustration" {
 		return in, errors.New("风格必须为 natural、studio 或 illustration")

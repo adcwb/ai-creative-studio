@@ -55,7 +55,7 @@ func TestGemini38CandidateThinkingContract(t *testing.T) {
 }
 
 func TestOpenAISunburstCandidateImageContracts(t *testing.T) {
-	for _, ratio := range []string{"1:1", "16:9", "4:5"} {
+	for _, ratio := range []string{"1:1", "16:9", "4:5", "9:16"} {
 		for _, reference := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/reference=%v", ratio, reference), func(t *testing.T) {
 				size, width, height := imageSize(ratio)

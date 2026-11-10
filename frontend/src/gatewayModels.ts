@@ -14,7 +14,7 @@ export function featureModelStatus(report: ModelManagementReport, modelID: strin
   if (!model.capabilities.includes(capability)) return '模型能力不匹配'
   if (gateway.secret_status !== 'encrypted' || !report.secret_storage_available) return '未配置可用凭据'
   if (!report.governance_ready) return '内容审核未就绪'
-  return '可执行'
+  return '配置就绪'
 }
 export function previewFeature(preview?: {operation: string; input: Record<string, unknown>}) {
   if (!preview) return ''

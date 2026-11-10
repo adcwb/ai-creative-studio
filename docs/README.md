@@ -14,6 +14,7 @@
 - [真实服务验收边界](live-evaluation.md)
 
 - [系统设置、空间与 RBAC 操作及迁移](superpowers/specs/2026-11-06-p0-administration/README.md)
+- [创作入口、空间引导与9:16限定修复（本地审查）](superpowers/specs/2026-11-10-consumer-studio/README.md)
 
 ## 需求设计与实施规范
 

@@ -1,5 +1,6 @@
 import {gatewayCreationRequired} from '../creationGateway'
 import { Link } from 'react-router-dom'
+import {SpaceGuidance} from '../components/SpaceGuidance'
 import { Composer } from '../components/Composer'
 import { TaskList } from '../components/TaskList'
 import { TemplateGallery } from '../components/TemplateGallery'
@@ -12,6 +13,7 @@ export function ImagePage() {
   const {t} = useI18n()
   const {space, actor, readOnly, chooseSavedTemplate, studio, capability, capabilityError, refreshCapability, preview, runtimeChoice, setRuntimeChoice, effectiveCapability, draft, setDraft, editing, promptRef, savedIds, running, chooseTemplate, submitDraft, cancelEdit, startNew, openDetail, editTask} = useImageWorkspace()
   return <div className="image-page"><header className="page-heading"><div><h1>{t('图像创作')}</h1><p>{t('描述画面，调整风格，开始下一次创作。')}</p></div><div className="page-stat"><strong>{studio.tasks.length}</strong><span>{t('次创作探索')}{running > 0 && <small>{running} {t('个任务进行中')}</small>}</span></div></header>
+    {!studio.loading && !studio.connectionError && studio.tasks.length === 0 && <SpaceGuidance />}
     <div className="image-continue-actions"><Link className="button-link primary" to="/studio/workspaces">{t("图像编辑与版本")}</Link><span>{t("上传图片、局部修改、比较候选并保留创作过程。")}</span></div>
     {!gatewayCreationRequired && <ProviderBanner capability={capability} error={capabilityError} onRefresh={refreshCapability} />}
     <TemplateGallery space={space} actor={actor} readOnly={readOnly} draft={draft} onChooseSaved={chooseSavedTemplate} catalog={studio.catalog} error={studio.catalogError} disabled={studio.busy} onChoose={chooseTemplate} onRetry={studio.reconnect} />

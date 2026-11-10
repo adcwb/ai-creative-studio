@@ -29,3 +29,11 @@ func TestPlainRecipeAndVisibility(t *testing.T) {
 		t.Fatal("role matrix")
 	}
 }
+
+func TestVerticalRecipeCompilationPreservesChosenDefaults(t *testing.T) {
+	r := prompts.Recipe{Syntax: "plain", Body: "固定角色竖屏对白画面", Defaults: prompts.Defaults{Kind: "general", Ratio: "9:16", Style: "natural"}}
+	compiled, err := prompts.Compile(r, nil)
+	if err != nil || compiled.Text != r.Body || compiled.Defaults != r.Defaults {
+		t.Fatal("vertical recipe changed during preview", compiled, err)
+	}
+}

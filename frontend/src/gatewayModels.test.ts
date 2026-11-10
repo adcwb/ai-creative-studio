@@ -13,7 +13,7 @@ describe('gateway model routing', () => {
     expect(previewFeature({operation: 'alignment', input: {mode: 'asr'}})).toBe('subtitle_alignment')
   })
   it('reports concrete execution blockers instead of assuming configuration is live', () => {
-    expect(featureModelStatus({...report, models:report.models.map(m=>({...m,currency:'',maximum_minor:0,price_source:''}))}, 'model-a', 'text')).toBe('可执行')
+    expect(featureModelStatus({...report, models:report.models.map(m=>({...m,currency:'',maximum_minor:0,price_source:''}))}, 'model-a', 'text')).toBe('配置就绪')
     expect(featureModelStatus(report, 'model-a', 'image')).toBe('模型能力不匹配')
     expect(featureModelStatus({...report, governance_ready: false}, 'model-a', 'text')).toBe('内容审核未就绪')
     expect(featureModelStatus({...report, gateways: report.gateways.map(item => ({...item, enabled: false}))}, 'model-a', 'text')).toBe('网关已停用')

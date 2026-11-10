@@ -5,6 +5,7 @@ import { errorMessage, request } from '../api'
 import { useAppWorkspace } from '../app/workspace'
 import { useI18n } from '../i18n'
 import { generationLabels, type DramaProject } from '../drama'
+import {SpaceGuidance} from '../components/SpaceGuidance'
 import { Icon } from '../components/Icon'
 
 export function ProjectsPage() {
@@ -26,6 +27,7 @@ export function ProjectsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [space?.id, revision,seriesView])
   return <div className="projects-page"><header className="page-heading"><div><h1>{t('短剧创作')}</h1><p>{t('从故事简报到成片发布，按项目推进每一步。')}</p></div>{space?.role!=='viewer'&&<Link className="button-link primary" to={seriesView?'/series/new':'/projects/new/brief'}><Icon name="spark" />{t(seriesView?'新建系列':'新建短剧项目')}</Link>}</header>
+    {!seriesView && !loading && !error && !projects.length && <SpaceGuidance />}
     <nav className="project-steps" aria-label={t('创作目录')}><button aria-pressed={!seriesView} onClick={()=>setParams({})}>{t('独立短剧')}</button><button aria-pressed={seriesView} onClick={()=>setParams({view:'series'})}>{t('系列漫剧')}</button></nav>
     {seriesView?<SeriesList/>:<><div className="project-list-heading"><span>{t('全部项目')} <span className="count">{projects.length}</span></span><span>{t('最近更新')}</span></div>
     {loading && <p className="loading-block" role="status">{t('正在读取项目列表…')}</p>}

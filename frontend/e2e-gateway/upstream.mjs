@@ -7,10 +7,10 @@ const requests = []
 function wav() {
  const raw=Buffer.alloc(44+16000*2);raw.write('RIFF');raw.writeUInt32LE(raw.length-8,4);raw.write('WAVEfmt ',8);raw.writeUInt32LE(16,16);raw.writeUInt16LE(1,20);raw.writeUInt16LE(1,22);raw.writeUInt32LE(8000,24);raw.writeUInt32LE(16000,28);raw.writeUInt16LE(2,32);raw.writeUInt16LE(16,34);raw.write('data',36);raw.writeUInt32LE(raw.length-44,40);return raw
 }
-function png() {
+function png(width=64,height=64) {
  const chunk=(name,data)=>{const tag=Buffer.from(name), payload=Buffer.concat([tag,data]);let crc=0xffffffff;for(const b of payload){crc^=b;for(let i=0;i<8;i++)crc=(crc>>>1)^((crc&1)?0xedb88320:0)}const result=Buffer.alloc(data.length+12);result.writeUInt32BE(data.length);payload.copy(result,4);result.writeUInt32BE((crc^0xffffffff)>>>0,result.length-4);return result}
- const header=Buffer.alloc(13);header.writeUInt32BE(64);header.writeUInt32BE(64,4);header[8]=8;header[9]=2
- return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('IDAT',deflateSync(Buffer.alloc(64*(64*3+1),0))),chunk('IEND',Buffer.alloc(0))]).toString('base64')
+ const header=Buffer.alloc(13);header.writeUInt32BE(width);header.writeUInt32BE(height,4);header[8]=8;header[9]=2
+ return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('IDAT',deflateSync(Buffer.alloc(height*(width*3+1),0))),chunk('IEND',Buffer.alloc(0))]).toString('base64')
 }
 http.createServer(async (req,res)=>{
  res.setHeader('Content-Type','application/json')
@@ -31,6 +31,7 @@ http.createServer(async (req,res)=>{
  if(body.model==='synthetic-reject'){res.writeHead(429);res.end(JSON.stringify({error:'Synthetic upstream refusal'}));return}
  if(req.url==='/v1/audio/speech'&&body.model==='synthetic-speech'){res.setHeader('Content-Type','audio/wav');res.end(wav());return}
  if(req.url==='/v1/images/edits' && body.model==='synthetic-image' && body.image_hashes?.length){res.end(JSON.stringify({data:[{b64_json:png()}]}));return}
+ if(req.url==='/v1/images/generations' && body.model==='synthetic-vertical-image'){if(body.size!=='864x1536'){res.writeHead(400);res.end(JSON.stringify({error:'Synthetic vertical size contract rejected'}));return}res.end(JSON.stringify({data:[{b64_json:png(864,1536)}]}));return}
  if(req.url==='/v1/images/generations' && body.model==='synthetic-image') {res.end(JSON.stringify({data:[{b64_json:png()}]}));return}
  if(req.url==='/v1/responses/input_tokens'&&body.model?.startsWith('synthetic-text')){
   res.end(JSON.stringify({object:'response.input_tokens',input_tokens:body.model.endsWith('-overflow')?4096:700}));return

@@ -145,6 +145,8 @@ func imageSize(ratio string) (string, int, int) {
 		return "1024x1024", 1024, 1024
 	case "16:9":
 		return "1536x864", 1536, 864
+	case "9:16":
+		return "864x1536", 864, 1536
 	default:
 		return "1024x1280", 1024, 1280
 	}

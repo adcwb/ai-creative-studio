@@ -56,7 +56,7 @@ export function RuntimeModelPicker({space, capability, value, onChange, preview,
     {options.length === 0 && <p>{t('此能力尚无启用的组织模型。')}</p>}
     {value?.model.reason_code && <p role="status">{t(readinessNames[value.model.reason_code] ?? value.model.reason_code)}</p>}
     {(error || stale) && <p role="alert">{t('模型目录已失效，请刷新并重新确认。')}</p>}
-    {value && <><p>{t('配置版本：{version}', {version: value.model.version})}</p>
+    {value && <><p>{t('配置版本：{version}', {version: value.model.version})}</p>{value.model.gateway_id && <p>{t('模型能力由管理员声明，实际支持情况以网关返回为准。')}</p>}
       {capability === 'speech' && <label>{t('声音标识')}<input readOnly={fixedVoice} value={value.voice} maxLength={128} autoComplete="off" onChange={event => onChange({...value, voice: event.target.value})} /></label>}
       {!catalog.governance_ready && <p role="status">{t('内容审核尚未就绪，请联系部署管理员。')}</p>}
     </>}

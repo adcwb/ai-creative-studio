@@ -49,6 +49,8 @@ func mockDimensions(ratio string) (int, int) {
 		height = 800
 	case "16:9":
 		width, height = 1600, 900
+	case "9:16":
+		width, height = 900, 1600
 	}
 	return width, height
 }

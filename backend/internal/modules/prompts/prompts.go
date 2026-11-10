@@ -119,7 +119,7 @@ func NormalizeRecipe(r Recipe) (Recipe, error) {
 		return r, ErrInput
 	}
 	d := r.Defaults
-	if (d.Kind != "poster" && d.Kind != "portrait" && d.Kind != "general") || (d.Ratio != "1:1" && d.Ratio != "4:5" && d.Ratio != "16:9") || (d.Style != "natural" && d.Style != "studio" && d.Style != "illustration") {
+	if (d.Kind != "poster" && d.Kind != "portrait" && d.Kind != "general") || (d.Ratio != "1:1" && d.Ratio != "4:5" && d.Ratio != "16:9" && d.Ratio != "9:16") || (d.Style != "natural" && d.Style != "studio" && d.Style != "illustration") {
 		return r, ErrInput
 	}
 	seen := map[string]bool{}

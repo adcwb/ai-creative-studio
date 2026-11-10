@@ -63,5 +63,5 @@
 .user-workspace .sidebar .app-nav a[aria-current=page] {color:var(--accent);background:var(--forest-raised);box-shadow:inset 3px 0 0 var(--accent)}
 .user-workspace .sidebar .group-toggle {color:var(--on-forest);font-size:13px}
 .user-workspace .sidebar .navigation-group[data-active=true]>.group-toggle {color:var(--accent)}
-.user-workspace .sidebar .app-nav a>span,.user-workspace .sidebar .group-toggle>span:not(.group-chevron){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-workspace .sidebar .app-nav a>span,.user-workspace .sidebar .group-toggle>span:not(.group-chevron){min-width:0;white-space:normal;overflow-wrap:anywhere}
 .user-workspace .sidebar .app-nav a>.icon{flex-shrink:0}
