@@ -28,9 +28,17 @@ export async function checkNavigationLayout(page, expect) {
   expect(Math.abs(geometry.top)).toBeLessThanOrEqual(1)
   expect(Math.abs(geometry.height - geometry.viewportHeight)).toBeLessThanOrEqual(1)
   await expect(sidebar.locator('.language-picker')).toHaveCount(0)
-  const preferences = sidebar.locator('a[href="/settings/preferences"]')
+  // The tree entry and the persistent settings shortcut share a destination.
+  // Check both explicitly instead of treating all equal hrefs as one element.
+  const preferences = sidebar.locator('.app-nav a[href="/settings/preferences"]')
+  await expect(preferences).toHaveCount(1)
   await preferences.scrollIntoViewIfNeeded()
   await expect(preferences).toBeInViewport()
+  const settingsShortcut = sidebar.locator('.sidebar-settings-shortcut[href="/settings/preferences"]')
+  await expect(settingsShortcut).toHaveCount(1)
+  await expect(settingsShortcut).toBeInViewport()
+  await expect(sidebar.locator('.sidebar-brand')).toBeInViewport()
+  await expect(sidebar.locator('.space-picker')).toBeInViewport()
   await expect(page.locator('.workspace-page-header')).toHaveCount(1)
   if (mobile) {
     await page.locator('.sidebar-close').click()

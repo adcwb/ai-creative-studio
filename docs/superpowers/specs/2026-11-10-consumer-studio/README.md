@@ -1,6 +1,6 @@
 # 创作入口与空间引导：限定修复规格
 
-日期：2026-11-10。代码基线：master `8019d3ed39d29b6164be9f4c79a4359e0161aea3`。状态：本地实施与验收完成，待统一审查；本轮不推送、不部署。
+日期：2026-11-10。代码基线：master `8019d3ed39d29b6164be9f4c79a4359e0161aea3`。状态：功能提交3ed817405e365474366f4176fda7c5473d93b9da经用户后续授权推送；云端CI及本地修订记录见下方，未部署。
 
 ## 范围与创作者流程
 
@@ -51,3 +51,11 @@
 - [390×844英文导航抽屉](screenshots/navigation-mobile.png)
 
 未执行：真实付费模型/生产网关能力或效果、生产配置/迁移/部署、云端CI、真实PG/S3，以及TestNative前缀的大媒体专项全集。无新数据库迁移；不据合成协议测试声称真实模型支持9:16或具备8类能力。成片画幅本来已支持9:16；本轮增加的是图像及镜头图像参数，原生视频比例仍受现有网关模型视频尺寸与适配器合同约束，不改生产配置。
+
+## 推送后的CI与布局脚本修订
+
+3ed8174已普通快进推送至master，远端SHA核验一致；暂停的02638f2和5be07ef未混入提交历史。[CI 42774800374](https://github.com/adcwb/ai-creative-studio/actions/runs/42774800374)已结束：网关86项、双容器、PostgreSQL workers/restore及完整通用浏览器任务通过；verify失败，镜像发布跳过。本节取代上一节本地阶段的“未执行云端CI/真实PG/Native全集”边界：对应云端测试已执行，真实生产、S3及付费模型仍未验收。
+
+verify的Go竞态、前端及provider_check均通过，失败发生在project_check调用共享layout助手时：旧定位`#app-navigation a[href="/settings/preferences"]`假设同一地址只有一个链接，新增固定设置快捷入口后匹配菜单项与快捷入口两个节点，触发Playwright strict mode。并非应用拒绝访问、依赖下载或真实模型错误。
+
+本地修订仅修改`scripts/support/layout.mjs`的定位及验收：以`.app-nav`限定树菜单项，以`.sidebar-settings-shortcut`单独核对固定入口；两者都必须唯一且在视口内，品牌和空间选择器也必须保持可见，不用first()、不删除入口或跳过断言。语法检查通过，project_check 30状态、storyboard_check 36状态、layout_check 24状态全部通过，覆盖1920桌面、短视口与390手机。追加修订的云端结果以对应CI为准，不能把这些本地通过记为镜像发布成功。
