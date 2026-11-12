@@ -1,3 +1,4 @@
+import {usePolling} from '../../hooks/usePolling'
 import {useCallback,useEffect,useState} from 'react'
 import {Link} from 'react-router-dom'
 import {ApiError,baseURL,errorMessage,request} from '../../api'
@@ -73,9 +74,17 @@ function PreviewPlanner({project,space,disabled,onDirtyChange,onCreated}:{projec
 function PreviewHistory({project,space,disabled}:{project:string;space:string;disabled:boolean}){
  const {t}=useI18n(),[page,setPage]=useState<{items:PreviewSummary[];next_cursor:string}>({items:[],next_cursor:''}),[cursors,setCursors]=useState(['']),[refresh,setRefresh]=useState(0),[error,setError]=useState(''),[loading,setLoading]=useState(true)
  const cursor=cursors.at(-1)??''
- useEffect(()=>{const abort=new AbortController();void request<typeof page>(`/projects/${project}/media/previews?space_id=${space}&limit=20${cursor?'&cursor='+encodeURIComponent(cursor):''}`,{signal:abort.signal}).then(v=>{if(!abort.signal.aborted){setPage(v);setError('');setLoading(false)}}).catch(e=>{if(!abort.signal.aborted){setError(errorMessage(e,t('预演历史读取失败')));setLoading(false)}});return()=>abort.abort()},[project,space,cursor,refresh,t])
- const active=page.items.some(v=>v.status==='queued'||v.status==='running')
- useEffect(()=>{if(!active)return;const timer=setInterval(()=>setRefresh(v=>v+1),2500);return()=>clearInterval(timer)},[active])
+ usePolling(async signal => {
+   try {
+     const value = await request<typeof page>(`/projects/${project}/media/previews?space_id=${space}&limit=20${cursor?'&cursor='+encodeURIComponent(cursor):''}`, {signal})
+     if (signal.aborted) return
+     setPage(value); setError(''); setLoading(false)
+     return value.items.some(item => item.status === 'queued' || item.status === 'running')
+   } catch (failure) {
+     if (!signal.aborted) {setError(errorMessage(failure, t('预演历史读取失败'))); setLoading(false)}
+     throw failure
+   }
+ }, 2500, `${project}:${space}:${cursor}:${refresh}`)
  const changed=useCallback(()=>setRefresh(v=>v+1),[])
  return <section className="media-exports" aria-label={t('已保存的静帧预演')}><div className="section-heading"><h3>{t('已保存的静帧预演')}</h3><button type="button" onClick={()=>setRefresh(v=>v+1)}>{t('刷新预演状态')}</button></div>{error&&<p role="alert" className="error">{error}</p>}{loading&&<p role="status">{t('正在读取预演历史…')}</p>}{!loading&&!error&&!page.items.length&&<p className="page-empty">{t('还没有静帧预演。先安排选片与节奏，再创建一份独立预演。')}</p>}{page.items.map(v=><PreviewCard key={v.id} project={project} space={space} value={v} onChanged={changed} disabled={disabled}/>)}<div className="media-actions"><button type="button" disabled={cursors.length<2} onClick={()=>{setLoading(true);setCursors(v=>v.slice(0,-1))}}>{t('返回较新预演')}</button><button type="button" disabled={!page.next_cursor} onClick={()=>{setLoading(true);setCursors(v=>[...v,page.next_cursor])}}>{t('查看较早预演')}</button></div></section>
 }

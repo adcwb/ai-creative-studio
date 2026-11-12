@@ -1,7 +1,8 @@
+import {usePolling} from './usePolling'
 import {creationReady, creationPath} from '../creationGateway'
 import { runtimeFields, type RuntimeChoice } from '../runtimeSelection'
 import { translate } from '../i18n'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError, errorMessage, request } from '../api'
 import { generationActive, projectDraftError, scriptDraftError, storyboardDraftError, type StoryboardShot, type StoryboardGeneration, type DramaProject, type DramaScript, type ProjectDraft, type ScriptGeneration } from '../drama'
 
@@ -37,8 +38,8 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
   // accepted. Cancellation must use that accepted baseline, not its closure.
   const baselineRef = useRef<DramaProject | null>(null)
   const briefDirty = draft.title !== (baseline?.title ?? '') || draft.brief !== (baseline?.brief ?? '')
-  const scriptDirty = editingScript && JSON.stringify(script) !== JSON.stringify(baseline?.script ?? null)
-  const storyboardDirty = editingStoryboard && JSON.stringify(shots) !== JSON.stringify(baseline?.storyboard?.shots ?? [])
+  const scriptDirty = useMemo(() => editingScript && JSON.stringify(script) !== JSON.stringify(baseline?.script ?? null), [editingScript, script, baseline?.script])
+  const storyboardDirty = useMemo(() => editingStoryboard && JSON.stringify(shots) !== JSON.stringify(baseline?.storyboard?.shots ?? []), [editingStoryboard, shots, baseline?.storyboard?.shots])
   const dirty = briefDirty || scriptDirty || storyboardDirty || uncertain || busy !== null
   const dirtyRef = useRef(false)
   useEffect(() => {dirtyRef.current = briefDirty || scriptDirty || storyboardDirty || uncertain || busy !== null}, [briefDirty, scriptDirty, storyboardDirty, uncertain, busy])
@@ -59,27 +60,21 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
     }
   }, [onProject])
 
-  useEffect(() => {
-    if (!id) return
-    const controller = new AbortController()
-    let timer: ReturnType<typeof setTimeout> | undefined
-    async function load() {
-      const epoch = requestEpoch.current
-      try {
-        const result = await request<DramaProject>(`/projects/${encodeURIComponent(id!)}?${new URLSearchParams({space_id: space})}`, {signal: controller.signal})
-        if (controller.signal.aborted || epoch !== requestEpoch.current) return
-        acceptProject(result, replaceOnLoad.current); replaceOnLoad.current = false
-        setLoading(false); setLoadError('')
-        if (generationActive(result)) timer = setTimeout(() => {void load()}, 1200)
-        else setHistoryRevision(value => value + 1)
-      } catch (failure) {
-        if (controller.signal.aborted) return
-        setLoadError(errorMessage(failure, translate("项目读取失败"))); setLoading(false)
-      }
+  usePolling(async signal => {
+    const epoch = requestEpoch.current
+    try {
+      const result = await request<DramaProject>(`/projects/${encodeURIComponent(id!)}?${new URLSearchParams({space_id: space})}`, {signal})
+      if (signal.aborted || epoch !== requestEpoch.current) return
+      acceptProject(result, replaceOnLoad.current); replaceOnLoad.current = false
+      setLoading(false); setLoadError('')
+      if (generationActive(result)) return
+      setHistoryRevision(value => value + 1)
+      return false
+    } catch (failure) {
+      if (!signal.aborted) {setLoadError(errorMessage(failure, translate('项目读取失败'))); setLoading(false)}
+      throw failure
     }
-    void load()
-    return () => {controller.abort(); clearTimeout(timer)}
-  }, [space, id, revision, acceptProject])
+  }, 1200, `${space}:${id}:${revision}`, !!id)
 
   async function execute(current: Attempt) {
     if (inFlight.current) return

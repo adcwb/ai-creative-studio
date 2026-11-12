@@ -1,7 +1,7 @@
 import { useI18n } from "../i18n"
 import { useEffect, useState, type ReactNode } from 'react'
 import { LanguageButtons } from './LanguagePicker'
-import { errorMessage, request, setCSRFToken, type Space } from '../api'
+import { ApiError, errorMessage, request, setCSRFToken, type Space } from '../api'
 import { UserPreferences } from './UserPreferences'
 import { AuthBrand } from './AuthBrand'
 import './auth.css'
@@ -16,6 +16,7 @@ export function AuthGate({children}: {children: (session: Session, logout: () =>
   const [register, setRegister] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [errorField, setErrorField] = useState('')
   const [revision, setRevision] = useState(0)
   const [showPassword, setShowPassword] = useState(false)
   const [loadingSession, setLoadingSession] = useState(true)
@@ -28,8 +29,8 @@ export function AuthGate({children}: {children: (session: Session, logout: () =>
   }, [revision, t])
   async function authenticate() {
     if (busy) return
-    setBusy(true); setError('')
-    try {const value = await request<Session>(register ? '/auth/register' : '/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email, password})}); setCSRFToken(value.csrf_token ?? ''); setSession(value); setPassword(''); setShowPassword(false)} catch (reason) {setError(errorMessage(reason, register ? t('注册失败，请重试') : t("登录失败")))} finally {setBusy(false)}
+    setBusy(true); setError(''); setErrorField('')
+    try {const value = await request<Session>(register ? '/auth/register' : '/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email, password})}); setCSRFToken(value.csrf_token ?? ''); setSession(value); setPassword(''); setShowPassword(false)} catch (reason) {setErrorField(reason instanceof ApiError ? reason.field ?? '' : ''); setError(errorMessage(reason, register ? t('注册失败，请重试') : t("登录失败")))} finally {setBusy(false)}
   }
   async function startSSO() {
     if (busy) return
@@ -50,19 +51,19 @@ export function AuthGate({children}: {children: (session: Session, logout: () =>
           <h1 id="auth-title">{register ? t('创建映创账户') : t('登录映创')}</h1>
           <p>{register ? t('开启你的创作空间，让第一个想法在这里生长。') : t('欢迎回来，继续你的下一帧创作。')}</p>
         </div>
-        {error && <p role="alert" className="auth-error">{error}</p>}
+        {error && <p id="auth-error" role="alert" className="auth-error">{error}</p>}
         {!session ? <div className="auth-session">
           {loadingSession ? <p role="status"><span className="auth-spinner" aria-hidden="true" />{t('正在准备你的工作室…')}</p> : <button className="auth-submit" onClick={() => {setLoadingSession(true); setError(''); setRevision(value => value + 1)}}>{t('重新读取登录状态')}</button>}
         </div> : <form onSubmit={event => {event.preventDefault(); void authenticate()}} aria-busy={busy}>
           <fieldset disabled={busy}>
             <div className="auth-field">
               <label htmlFor="auth-email">{t('邮箱')}</label>
-              <input id="auth-email" name="email" type="email" autoComplete="username" placeholder={t('输入你的邮箱地址')} required maxLength={254} autoCapitalize="none" spellCheck={false} value={email} onChange={event => setEmail(event.target.value)} />
+              <input id="auth-email" aria-invalid={!!error && errorField === 'email' || undefined} aria-describedby={error ? 'auth-error' : undefined} name="email" type="email" autoComplete="username" placeholder={t('输入你的邮箱地址')} required maxLength={254} autoCapitalize="none" spellCheck={false} value={email} onChange={event => setEmail(event.target.value)} />
             </div>
             <div className="auth-field">
               <label htmlFor="auth-password">{t('密码')}</label>
               <div className="auth-password">
-                <input id="auth-password" name="password" type={showPassword ? 'text' : 'password'} autoComplete={register ? 'new-password' : 'current-password'} placeholder={register ? t('设置你的登录密码') : t('输入你的密码')} required minLength={register ? 12 : undefined} maxLength={128} aria-describedby={register ? 'auth-password-help' : undefined} value={password} onChange={event => setPassword(event.target.value)} />
+                <input id="auth-password" name="password" type={showPassword ? 'text' : 'password'} autoComplete={register ? 'new-password' : 'current-password'} placeholder={register ? t('设置你的登录密码') : t('输入你的密码')} required minLength={register ? 12 : undefined} maxLength={128} aria-invalid={!!error && errorField === 'password' || undefined} aria-describedby={[register ? 'auth-password-help' : '', error ? 'auth-error' : ''].filter(Boolean).join(' ') || undefined} value={password} onChange={event => setPassword(event.target.value)} />
                 <button className="auth-password-toggle" type="button" aria-label={t('显示密码')} aria-pressed={showPassword} aria-controls="auth-password" onClick={() => setShowPassword(value => !value)}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />{showPassword && <path d="m3 3 18 18" />}</svg>
                 </button>

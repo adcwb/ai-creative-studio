@@ -1,3 +1,4 @@
+import {usePolling} from '../hooks/usePolling'
 import {creationPath, creationReady, gatewayCreationRequired} from '../creationGateway'
 import { translate as t, useI18n } from "../i18n"
 import { useEffect, useRef, useState } from 'react'
@@ -48,11 +49,21 @@ export function CreativeTools({project, space, disabled, historyOnly = false, on
   useEffect(() => {const controller = new AbortController(); void request<Revision[]>(`${prefix}/history?${query}`, {signal: controller.signal}).then(setHistory).catch(failure => {if (!controller.signal.aborted) setError(errorMessage(failure, t("历史读取失败")))}); return () => controller.abort()}, [prefix, query, project.version])
   useEffect(() => {
     const controller = new AbortController()
-    void request<Record<string, Capability>>('/creative-media-capabilities', {signal: controller.signal}).then(setCapabilities).catch(() => {})
-    async function poll() {try {const result = await request<CreativeJob[]>(`${prefix}/creative-jobs?${query}`, {signal: controller.signal}); if (!controller.signal.aborted) setJobs(result); const media = await request<{assets: {id: string; name: string; character: string; kind: string}[]}>(`${prefix}/media?${query}`, {signal: controller.signal}); if (!controller.signal.aborted) setReferences(media.assets)} catch (failure) {if (!controller.signal.aborted) setError(errorMessage(failure, t("创作任务读取失败")))}}
-    void poll(); const timer = setInterval(() => {void poll()}, 2000)
-    return () => {controller.abort(); clearInterval(timer)}
+    void request<Record<string, Capability>>('/creative-media-capabilities', {signal: controller.signal}).then(value => {if (!controller.signal.aborted) setCapabilities(value)}).catch(() => {})
+    return () => controller.abort()
   }, [prefix, query])
+  usePolling(async signal => {
+    try {
+      const [result, media] = await Promise.all([
+        request<CreativeJob[]>(`${prefix}/creative-jobs?${query}`, {signal}),
+        request<{assets: {id: string; name: string; character: string; kind: string}[]}>(`${prefix}/media?${query}`, {signal}),
+      ])
+      if (!signal.aborted) {setJobs(result); setReferences(media.assets)}
+    } catch (failure) {
+      if (!signal.aborted) setError(errorMessage(failure, t('创作任务读取失败')))
+      throw failure
+    }
+  }, 2000, `${prefix}?${query}`)
   async function execute() {
     const attempt = pending.current
     if (!attempt || flight.current) return

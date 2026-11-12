@@ -1,4 +1,5 @@
 import { translate, getLocale } from './i18n'
+import {runtimeCatalogCache} from './runtimeCatalogCache'
 export type Kind = 'poster' | 'portrait' | 'general'
 export type Ratio = '1:1' | '4:5' | '16:9' | '9:16'
 export type Style = 'natural' | 'studio' | 'illustration'
@@ -32,7 +33,12 @@ export class ApiError extends Error {
   }
 }
 let csrfToken = ''
-export function setCSRFToken(token: string) { csrfToken = token }
+export function setCSRFToken(token: string) {
+  if (csrfToken !== token) {csrfToken = token; runtimeCatalogCache.clear()}
+}
+export function spaceQuery(space: string, values: Record<string, string> = {}) {
+  return new URLSearchParams({...values, space_id: space}).toString()
+}
 export async function request<T>(path: string, init?: RequestInit & {timeoutMs?: number}): Promise<T> {
   const headers = new Headers(init?.headers)
   if (csrfToken && !['GET', 'HEAD', 'OPTIONS'].includes((init?.method ?? 'GET').toUpperCase())) headers.set('X-CSRF-Token', csrfToken)
@@ -44,7 +50,9 @@ export async function request<T>(path: string, init?: RequestInit & {timeoutMs?:
     const body = await response.json().catch(() => null) as {error?: {message?: string; code?: string; field?: string}} | null
     throw new ApiError(localizedError(body?.error?.message, body?.error?.code ?? String(response.status)), response.status, body?.error?.code, body?.error?.field)
   }
-  return response.json() as Promise<T>
+  const result = await response.json() as T
+  if (!['GET', 'HEAD', 'OPTIONS'].includes((init?.method ?? 'GET').toUpperCase()) && /^\/(ai-gateways|gateway-models|model-features|model-config|model-configs|model-bindings|system-config)([/?]|$)/.test(path)) runtimeCatalogCache.clear()
+  return result
 }
 export function promptError(prompt: string): string | null {
   const size = [...prompt.trim()].length

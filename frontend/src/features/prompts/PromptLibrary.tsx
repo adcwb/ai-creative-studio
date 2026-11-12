@@ -30,7 +30,7 @@ export function PromptLibrary({space, actor, readOnly, catalog, draft, disabled,
   const [history, setHistory] = useState<{item: PromptResult; versions: PromptVersion[]; next: string} | null>(null)
   const historyDialog = useRef<HTMLDialogElement>(null)
   const historyActive = Boolean(history)
-  useEffect(() => {const current = historyDialog.current; if (historyActive) current?.showModal(); return () => {current?.close()}}, [historyActive])
+  useEffect(() => {if (!historyActive) return; const previous = document.activeElement as HTMLElement | null; const current = historyDialog.current; current?.showModal(); return () => {current?.close(); if (previous?.isConnected) previous.focus()}}, [historyActive])
   useEffect(() => {function updated() {setCursor(''); setRevision(value => value + 1)}; window.addEventListener('studio-prompts-updated', updated); return () => window.removeEventListener('studio-prompts-updated', updated)}, [])
   const query = new URLSearchParams({space_id: space}).toString()
   useEffect(() => {

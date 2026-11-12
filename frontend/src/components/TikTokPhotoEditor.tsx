@@ -48,7 +48,7 @@ export function TikTokPhotoEditor({projectId, space, version, reload, sources, i
     <p>{t('已选 {count} / 35 张图片', {count: ids.length})}</p>
     <ol className="tiktok-photo-list">{ids.map((id, index) => {
       const source = photos.find(item => item.id === id), url = socialDownloadPath(source?.file_url)
-      return <li key={id}>{url && <img src={`${baseURL}${url}`} alt={t('图片 {index} 预览：{name}', {index: index + 1, name: source?.name ?? id})} />}<strong>{index + 1}. {source?.name ?? t('素材已不可用')}</strong>
+      return <li key={id}>{url && <img loading="lazy" decoding="async" src={`${baseURL}${url}`} alt={t('图片 {index} 预览：{name}', {index: index + 1, name: source?.name ?? id})} />}<strong>{index + 1}. {source?.name ?? t('素材已不可用')}</strong>
         <label className="social-consent"><input type="radio" name="tiktok-photo-cover" checked={cover === index} onChange={() => onChange(ids, index)} />{t('设为图片 {index} 封面', {index: index + 1})}</label>
         <div className="media-actions"><button type="button" disabled={index === 0} aria-label={t('图片 {index} 前移', {index: index + 1})} onClick={() => move(index, -1)}>{t('前移图片')}</button><button type="button" disabled={index === ids.length - 1} aria-label={t('图片 {index} 后移', {index: index + 1})} onClick={() => move(index, 1)}>{t('后移图片')}</button><button type="button" aria-label={t('移除图片 {index}', {index: index + 1})} onClick={() => remove(index)}>{t('移除图片')}</button></div>
       </li>

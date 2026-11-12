@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { TimelinePreview } from './components/TimelinePreview'
 import { VideoOverlayEditor } from './components/VideoOverlayEditor'
 import { compositionError, maxTransitionDuration, timelineDuration, type ClipTiming, type VideoOverlay, type VisualAsset, overlayAt, clipStarts, splitClip, overlapTransitions } from './mediaTimeline'
-import { getActiveLocale, setActiveLocale } from './i18n'
+import { getActiveLocale, setActiveLocale, loadLocale } from './i18n'
+
+beforeAll(() => loadLocale('en'))
 
 const clips: ClipTiming[] = [{duration: 3, transition: 'crossfade', transition_duration: 1}, {duration: 2}]
 const assets: VisualAsset[] = [{id: 'video', kind: 'video', duration: 10}, {id: 'image', kind: 'image', duration: 0}, {id: 'audio', kind: 'audio', duration: 10}]

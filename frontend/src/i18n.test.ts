@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveLocale, translate } from './i18n'
+import { resolveLocale, translate, loadLocale } from './i18n'
 describe('internationalization', () => {
   it('respects a valid saved choice and otherwise uses browser language', () => {
     expect(resolveLocale('en', ['zh-CN'])).toBe('en')
@@ -8,7 +8,8 @@ describe('internationalization', () => {
     expect(resolveLocale(null, ['fr-FR'])).toBe('en')
     expect(resolveLocale(null, [])).toBe('en')
   })
-  it('translates parameterized accessible labels without modifying user text', () => {
+  it('translates parameterized accessible labels without modifying user text', async () => {
+    await loadLocale('en')
     expect(translate('片段 {p0} 字幕', {p0: 3}, 'en')).toBe('Clip 3 subtitle')
     expect(translate('片段 {p0} 字幕', {p0: 3}, 'zh-CN')).toBe('片段 3 字幕')
     expect(translate('User-provided project name', {}, 'en')).toBe('User-provided project name')

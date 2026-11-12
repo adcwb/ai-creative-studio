@@ -1,7 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
-import { setActiveLocale } from '../i18n'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { setActiveLocale, loadLocale } from '../i18n'
 import { SubtitleAlignment } from './SubtitleAlignment'
+
+beforeAll(() => loadLocale('en'))
 
 describe('text-only transcription', () => {
   it('shows text in both locales without offering timestamp application', () => {

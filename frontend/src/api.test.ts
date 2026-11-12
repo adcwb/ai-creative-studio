@@ -1,7 +1,28 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { promptError, request, setCSRFToken } from './api'
+import { promptError, request, setCSRFToken, spaceQuery } from './api'
+import {runtimeCatalogCache} from './runtimeCatalogCache'
 afterEach(() => {vi.unstubAllGlobals(); setCSRFToken('')})
 describe('input and API errors', () => {
+  it('encodes space-scoped queries without letting extra fields override the scope', () => {
+    const params = new URLSearchParams(spaceQuery('team / A', {feature_key: 'image&edit', space_id: 'wrong'}))
+    expect(params.get('space_id')).toBe('team / A')
+    expect(params.get('feature_key')).toBe('image&edit')
+  })
+  it('invalidates catalogs after configuration writes and session changes, not unrelated reads', async () => {
+    const listener = vi.fn()
+    const unsubscribe = runtimeCatalogCache.subscribe(listener)
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response('{}')))
+    try {
+      await request('/gateway-models/model-1?space_id=team')
+      expect(listener).not.toHaveBeenCalled()
+      await request('/gateway-models/model-1?space_id=team', {method: 'PATCH', body: '{}'})
+      expect(listener).toHaveBeenCalledTimes(1)
+      setCSRFToken('new-session')
+      expect(listener).toHaveBeenCalledTimes(2)
+      setCSRFToken('new-session')
+      expect(listener).toHaveBeenCalledTimes(2)
+    } finally {unsubscribe()}
+  })
   it('counts Unicode code points and trims whitespace', () => {
     expect(promptError('  海报设计  ')).toBeNull()
     expect(promptError('😀😀')).not.toBeNull()

@@ -4,16 +4,16 @@
 .system-config-panel .section-heading p {max-width:70ch;color:var(--ink-muted);line-height:1.7}
 .system-config-panel fieldset {min-width:0;border:0;padding:0;margin:0}
 .system-config-panel details {border-top:1px solid var(--border);padding:18px 0}
-.system-config-panel summary {cursor:pointer;font-weight:600;font-size:15px}
+.system-config-panel summary {cursor:pointer;font-weight:600;font-size:var(--text-md)}
 .system-config-fields {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin-top:22px}
 .system-config-field {min-width:0}
-.system-config-field label {display:flex;align-items:center;gap:10px;font-size:12px;margin-bottom:8px;overflow-wrap:anywhere}
-.system-config-field label span {color:var(--warning-text);font-size:11px;white-space:nowrap}
-.system-config-field input {width:100%;min-width:0;font-size:13px}
+.system-config-field label {display:flex;align-items:center;gap:10px;font-size:var(--text-xs);margin-bottom:8px;overflow-wrap:anywhere}
+.system-config-field label span {color:var(--warning-text);font-size:var(--text-2xs);white-space:nowrap}
+.system-config-field input {width:100%;min-width:0;font-size:var(--text-sm)}
 .config-field-footer {display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:8px;margin-top:8px}
-.config-field-footer small {font-size:11px;color:var(--ink-muted)}
+.config-field-footer small {font-size:var(--text-2xs);color:var(--ink-muted)}
 .config-field-footer>div {display:flex;flex-wrap:wrap;gap:10px}
-.config-field-footer button {border:0;background:transparent;padding:0;font-size:11px;color:var(--primary)}
+.config-field-footer button {border:0;background:transparent;padding:0;font-size:var(--text-2xs);color:var(--link)}
 .system-config-save {display:flex;align-items:center;justify-content:space-between;gap:20px;padding-top:20px;border-top:1px solid var(--border)}
-.system-config-save p {font-size:12px;color:var(--ink-muted);line-height:1.7}
+.system-config-save p {font-size:var(--text-xs);color:var(--ink-muted);line-height:1.7}
 @media(max-width:760px){.system-config-fields{grid-template-columns:minmax(0,1fr)}.system-config-save{align-items:start;flex-direction:column}.system-config-panel .section-heading{flex-wrap:wrap}}

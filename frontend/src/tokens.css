@@ -1,14 +1,16 @@
 :root {
   --font-sans: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   --font-serif: Georgia, serif;
-  --text-micro: 8px;
   --text-2xs: 11px;
-  --text-xs: 11px;
-  --text-sm: 12px;
-  --text-base: 12px;
-  --text-md: 13px;
-  --text-lg: 14px;
-  --text-xl: 16px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 20px;
+  --text-3xl: 24px;
+  --text-page: 28px;
   --canvas: #f7f7f2;
   --surface: #ffffff;
   --surface-soft: #f0f3eb;
@@ -18,13 +20,16 @@
   --ink-placeholder: #63705e;
   --border: #e0e5d9;
   --border-strong: #c5d0b8;
+  --control-border: #7f8d78;
   --forest: #193b2e;
   --forest-raised: #254637;
   --forest-line: #3b5846;
+  --forest-control-border: #8ca18b;
   --on-forest: #f5f5ea;
   --on-forest-muted: #b2c2aa;
   --primary: #244b3b;
   --primary-hover: #35604a;
+  --link: #3f6149;
   --green-soft: #617b50;
   --accent: #d9e4b5;
   --clay: #a2795d;
@@ -40,7 +45,7 @@
   --error-bg: #fff1ec;
   --error-border: #f0d9cf;
   --error-text: #a54837;
-  --focus: #ad853b;
+  --focus: #8a651f;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -60,5 +65,5 @@
   background: var(--canvas);
   font-synthesis: none;
   line-height: 1.6;
-  font-size: 14px;
+  font-size: var(--text-base);
 }

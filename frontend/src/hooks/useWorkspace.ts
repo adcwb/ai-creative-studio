@@ -1,9 +1,10 @@
+import {usePolling} from './usePolling'
 import {creationPath} from '../creationGateway'
 import { translate } from '../i18n'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, errorMessage, request, type Asset, type Capabilities, type Catalog, type Task, type TaskInput } from '../api'
 
-export function useWorkspace(space: string) {
+export function useWorkspace(space: string, reading = true) {
   const [catalog, setCatalog] = useState<Catalog | null>(null)
   const [catalogError, setCatalogError] = useState('')
   const [tasks, setTasks] = useState<Task[]>([])
@@ -31,36 +32,29 @@ export function useWorkspace(space: string) {
   }, [])
 
   useEffect(() => {
+    if (!reading) return
     const controller = new AbortController()
     void request<Catalog>('/templates', {signal: controller.signal})
       .then(value => {if (!controller.signal.aborted) {setCatalog(value); setCatalogError('')}})
       .catch(error => {if (!controller.signal.aborted) setCatalogError(errorMessage(error, translate("模板加载失败")))})
     return () => controller.abort()
-  }, [revision])
+  }, [revision, reading])
 
-  useEffect(() => {
-    if (!space) return
-    const controller = new AbortController()
-    let timer: ReturnType<typeof setTimeout>
-    async function load() {
-      const version = mutation.current
-      try {
-        const [newTasks, newAssets] = await Promise.all([
-          request<Task[]>(`/tasks${query}`, {signal: controller.signal}),
-          request<Asset[]>(`/assets${query}`, {signal: controller.signal}),
-        ])
-        if (!controller.signal.aborted && mutation.current === version) {
-          setTasks(newTasks); setAssets(newAssets); setConnectionError('')
-        }
-      } catch (error) {
-        if (!controller.signal.aborted) setConnectionError(errorMessage(error, translate("服务连接失败")))
-      } finally {
-        if (!controller.signal.aborted) {setLoading(false); timer = setTimeout(() => {void load()}, 1500)}
+  usePolling(async signal => {
+    const version = mutation.current
+    try {
+      const [newTasks, newAssets] = await Promise.all([
+        request<Task[]>(`/tasks${query}`, {signal}),
+        request<Asset[]>(`/assets${query}`, {signal}),
+      ])
+      if (!signal.aborted && mutation.current === version) {
+        setTasks(newTasks); setAssets(newAssets); setConnectionError('')
       }
-    }
-    void load()
-    return () => {controller.abort(); clearTimeout(timer)}
-  }, [space, query, revision])
+    } catch (error) {
+      if (!signal.aborted) setConnectionError(errorMessage(error, translate('服务连接失败')))
+      throw error
+    } finally {if (!signal.aborted) setLoading(false)}
+  }, 1500, `${query}:${revision}`, reading && !!space)
 
   const clearFeedback = useCallback(() => {setActionError(''); setNotice('')}, [])
   const newAttempt = useCallback(() => {attempt.current = null; clearFeedback()}, [clearFeedback])

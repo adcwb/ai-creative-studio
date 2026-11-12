@@ -1,4 +1,8 @@
 const models: Record<string, string> = {
+ "关闭编辑": "Close editor",
+ "放弃未保存的修改？": "Discard unsaved changes?",
+ "关闭后，本次修改将不会保存。": "Your changes will not be saved if you close this editor.",
+ "放弃修改": "Discard changes",
  "账号 ID 与邮箱不匹配": "The account ID does not match the email address.",
  "请通过可信渠道核对成员账号 ID，不能仅凭邮箱授权": "Confirm the member’s account ID through a trusted channel. Email alone cannot authorize access.",
  "认证存储暂不可用，请稍后重试": "Authentication storage is temporarily unavailable. Please try again later.",

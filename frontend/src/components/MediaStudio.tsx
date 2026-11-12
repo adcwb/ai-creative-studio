@@ -1,9 +1,10 @@
+import {usePolling} from '../hooks/usePolling'
 import {MediaLineage} from '../features/library/MediaLineage'
 import {useSeriesEpisode} from '../features/series/episodeContext'
 import {ResumableMediaUpload} from '../features/uploads/ResumableMediaUpload'
 import {uploadMediaBlob} from '../features/uploads/uploadBlob'
 import { translate as t, useI18n } from "../i18n"
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError, baseURL, errorMessage, request } from '../api'
 import { SubtitleAlignment, type AlignmentCapability, type AlignmentTask, type SubtitleFields } from './SubtitleAlignment'
 import { RuntimeModelPicker } from './RuntimeModelPicker'
@@ -79,26 +80,38 @@ function EpisodeMediaStudio({project, space, onDirtyChange, episode, allowSynthe
   const pending = useRef<Attempt | null>(null)
   const inFlight = useRef(false)
   const alive = useRef(true)
-  const dirty = state !== null && JSON.stringify(timeline) !== JSON.stringify(episodeTimeline(state, episode))
+  const readEpoch = useRef(0)
+  const invalidateReads = useCallback(() => {readEpoch.current++}, [])
+  const savedTimeline = state ? episodeTimeline(state, episode) : null
+  const timelineJSON = useMemo(() => JSON.stringify(timeline), [timeline])
+  const savedTimelineJSON = useMemo(() => JSON.stringify(savedTimeline), [savedTimeline])
+  const dirty = state !== null && timelineJSON !== savedTimelineJSON
   const dirtyRef = useRef(false)
   const path = `/projects/${encodeURIComponent(project.id)}/media`
   const query = new URLSearchParams({space_id: space}).toString()
   useEffect(() => {dirtyRef.current = dirty}, [dirty])
   useEffect(() => {onDirtyChange(uploadBusy || dirty || posterDirty || busy || uncertain || maskSource !== null); return () => onDirtyChange(false)}, [uploadBusy, dirty, posterDirty, busy, uncertain, maskSource, onDirtyChange])
-  const load = useCallback(async (replace = false) => {
-    const result = await request<MediaState>(`${path}?${query}`)
-    if (!alive.current) return
+  const load = useCallback(async (replace = false, signal?: AbortSignal) => {
+    const epoch = ++readEpoch.current
+    const result = await request<MediaState>(`${path}?${query}`, {signal})
+    if (!alive.current || signal?.aborted || epoch !== readEpoch.current || (signal && inFlight.current)) return
     setState(result)
     if (replace || !dirtyRef.current) {setTimeline(episodeTimeline(result, episode)); setBaselineVersion(result.version)}
-    try {const tasks = await request<AlignmentTask[]>(`${path}/alignments?${query}`); if (alive.current) {setAlignments(tasks); setAlignmentError('')}} catch (failure) {if (alive.current) setAlignmentError(errorMessage(failure, t("字幕对齐记录读取失败")))}
+    try {const tasks = await request<AlignmentTask[]>(`${path}/alignments?${query}`, {signal}); if (alive.current && !signal?.aborted && epoch === readEpoch.current) {setAlignments(tasks); setAlignmentError('')}} catch (failure) {if (alive.current && !signal?.aborted && epoch === readEpoch.current) setAlignmentError(errorMessage(failure, t("字幕对齐记录读取失败"))); if (signal) throw failure}
   }, [path, query, episode])
   useEffect(() => {
     alive.current = true
-    void request<Partial<Record<'estimate' | 'asr' | 'forced' | 'transcription', AlignmentCapability>>>('/alignment-capabilities').then(result => {if (alive.current) setAlignmentCaps(result)}).catch(() => {if (alive.current) setAlignmentCaps({asr: {provider: 'unavailable', mode: 'unavailable', ready: false, message: t("无法读取识别配置，请刷新后重试")}})})
-    void load().catch(failure => {if (alive.current) setError(errorMessage(failure, t("媒体读取失败")))})
-    const timer = setInterval(() => {if (!inFlight.current) void load().catch(() => {})}, 2000)
-    return () => {alive.current = false; clearInterval(timer)}
-  }, [load])
+    const controller = new AbortController()
+    void request<Partial<Record<'estimate' | 'asr' | 'forced' | 'transcription', AlignmentCapability>>>('/alignment-capabilities', {signal: controller.signal}).then(result => {if (!controller.signal.aborted) setAlignmentCaps(result)}).catch(() => {if (!controller.signal.aborted) setAlignmentCaps({asr: {provider: 'unavailable', mode: 'unavailable', ready: false, message: t('无法读取识别配置，请刷新后重试')}})})
+    return () => {alive.current = false; invalidateReads(); controller.abort()}
+  }, [load, invalidateReads])
+  usePolling(async signal => {
+    if (inFlight.current) return
+    try {await load(false, signal)} catch (failure) {
+      if (!signal.aborted) setError(errorMessage(failure, t('媒体读取失败')))
+      throw failure
+    }
+  }, 2000, `${path}?${query}:${episode}`)
   async function execute(attempt: Attempt) {
     if (inFlight.current) return
     inFlight.current = true; setBusy(true); setError(''); setNotice('')
@@ -181,7 +194,7 @@ function EpisodeMediaStudio({project, space, onDirtyChange, episode, allowSynthe
       </fieldset></details>
       {maskSource && <MaskEditor key={maskSource.id} url={mediaURL(maskSource.file_url)} name={maskSource.name} disabled={locked} onSave={(blob, name) => upload(blob, name, 'reference')} onClose={() => setMaskSource(null)} />}
       {!!state.selections?.length && <section className="adopted-assets"><h3>{t("已采用的镜头")}</h3><p>{t("选择加入剪辑；采用记录不会自动覆盖时间轴。")}</p>{Array.from(new Map(state.selections.map(s => [s.shot_id, s])).values()).map(selection => {const asset = state.assets.find(a => a.id === selection.asset_id); if (!asset || asset.kind === 'audio') return null; return <button key={selection.id} disabled={locked} onClick={() => setTimeline({...timeline, clips: [...timeline.clips, {id: crypto.randomUUID(), asset_id: asset.id, shot_id: selection.shot_id, duration: Math.min(asset.duration || 3, 30), trim_start: 0, subtitle: '', audio_asset_id: '', audio_volume: 1}]})}>{t("加入时间轴")} · {asset.name}</button>})}</section>}
-      <div className="media-assets">{state.assets.map(asset => <article key={asset.id}>{asset.kind === 'image' ? <img src={mediaURL(asset.file_url)} alt={asset.name} loading="lazy" /> : asset.kind === 'video' ? <video src={mediaURL(asset.file_url)} controls preload="metadata" /> : <audio src={mediaURL(asset.file_url)} controls preload="metadata" />}<strong>{asset.name}</strong><p>{asset.role} {asset.character} · {asset.source}</p><MediaLineage key={`${space}:${project.id}:${asset.id}`} space={space} project={project.id} asset={asset.id}/>{asset.shot_id && <p>{t("已关联镜头")}{(project.storyboard?.shots.findIndex(shot => shot.id === asset.shot_id) ?? -1) + 1}</p>}{asset.kind === 'image' && <button disabled={locked} onClick={() => setMaskSource(asset)}>{t("绘制局部编辑遮罩")}</button>}{asset.kind !== 'audio' && <button disabled={locked} onClick={() => setTimeline({...timeline, clips: [...timeline.clips, {id: crypto.randomUUID(), asset_id: asset.id, shot_id: asset.shot_id, duration: Math.min(asset.duration || 3, 30), trim_start: 0, subtitle: '', audio_asset_id: '', audio_volume: 1}]})}>{t("加入时间轴")}</button>}</article>)}</div>
+      <div className="media-assets">{state.assets.map(asset => <article key={asset.id}>{asset.kind === 'image' ? <img loading="lazy" decoding="async" src={mediaURL(asset.file_url)} alt={asset.name}  /> : asset.kind === 'video' ? <video src={mediaURL(asset.file_url)} controls preload="metadata" /> : <audio src={mediaURL(asset.file_url)} controls preload="metadata" />}<strong>{asset.name}</strong><p>{asset.role} {asset.character} · {asset.source}</p><MediaLineage key={`${space}:${project.id}:${asset.id}`} space={space} project={project.id} asset={asset.id}/>{asset.shot_id && <p>{t("已关联镜头")}{(project.storyboard?.shots.findIndex(shot => shot.id === asset.shot_id) ?? -1) + 1}</p>}{asset.kind === 'image' && <button disabled={locked} onClick={() => setMaskSource(asset)}>{t("绘制局部编辑遮罩")}</button>}{asset.kind !== 'audio' && <button disabled={locked} onClick={() => setTimeline({...timeline, clips: [...timeline.clips, {id: crypto.randomUUID(), asset_id: asset.id, shot_id: asset.shot_id, duration: Math.min(asset.duration || 3, 30), trim_start: 0, subtitle: '', audio_asset_id: '', audio_volume: 1}]})}>{t("加入时间轴")}</button>}</article>)}</div>
       {state.assets.length === 0 && <p className="drama-help">{t(allowSyntheticDemo ? "还没有媒体。上传素材，或使用明确标注的合成演示验证本地成片。" : "还没有媒体。上传素材，或在镜头制作中使用网关模型生成。")}</p>}
       {allowSyntheticDemo && <button disabled={locked || dirty || episode !== 1} onClick={() => {if (timeline.clips.length) setConfirmDemo(true); else mutate('/demo', {expected_version: state.version})}}>{t("创建合成演示素材与时间轴")}</button>}
       {alignmentError && <p className="error" role="alert">{t("字幕对齐记录读取失败：")}{alignmentError}{t("。媒体编辑仍可使用，正在自动重试读取。")}</p>}

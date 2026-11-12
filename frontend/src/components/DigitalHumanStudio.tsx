@@ -1,3 +1,4 @@
+import {usePolling} from '../hooks/usePolling'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, baseURL, errorMessage, request } from '../api'
@@ -55,25 +56,21 @@ export function DigitalHumanStudio({project, space, disabled, onDirtyChange}: {p
 
   useEffect(() => {live.current = true; return () => {live.current = false}}, [])
   useEffect(() => {onDirtyChange(busy || uncertain || !!name || !!consent || !!text || !!voiceConsent); return () => onDirtyChange(false)}, [busy, uncertain, name, consent, text, voiceConsent, onDirtyChange])
-  useEffect(() => {
-    const controller = new AbortController()
-    let timer: ReturnType<typeof setTimeout>
-    async function poll() {
-      try {
-        const [people, media, tasks, capabilities] = await Promise.all([
-          request<Avatar[]>(`${prefix}/digital-humans?${query}`, {signal: controller.signal}),
-          request<{assets: Asset[]}>(`${prefix}/media?${query}`, {signal: controller.signal}),
-          request<Job[]>(`${prefix}/creative-jobs?${query}`, {signal: controller.signal}),
-          request<Record<string, Capability>>('/creative-media-capabilities', {signal: controller.signal}),
-        ])
-        if (controller.signal.aborted) return
-        setAvatars(people); setAssets(media.assets); setJobs(tasks); setCaps(capabilities); setLoaded(true); setReadError('')
-      } catch (failure) {if (!controller.signal.aborted) {setLoaded(false); setReadError(errorMessage(failure, t('数字人数据读取失败')))}}
-      finally {if (!controller.signal.aborted) timer = setTimeout(() => void poll(), 2500)}
+  usePolling(async signal => {
+    try {
+      const [people, media, tasks, capabilities] = await Promise.all([
+        request<Avatar[]>(`${prefix}/digital-humans?${query}`, {signal}),
+        request<{assets: Asset[]}>(`${prefix}/media?${query}`, {signal}),
+        request<Job[]>(`${prefix}/creative-jobs?${query}`, {signal}),
+        request<Record<string, Capability>>('/creative-media-capabilities', {signal}),
+      ])
+      if (signal.aborted) return
+      setAvatars(people); setAssets(media.assets); setJobs(tasks); setCaps(capabilities); setLoaded(true); setReadError('')
+    } catch (failure) {
+      if (!signal.aborted) {setLoaded(false); setReadError(errorMessage(failure, t('数字人数据读取失败')))}
+      throw failure
     }
-    void poll()
-    return () => {controller.abort(); clearTimeout(timer)}
-  }, [prefix, query, revision, locale])
+  }, 2500, `${prefix}?${query}:${revision}:${locale}`)
 
   async function execute() {
     const attempt = pending.current

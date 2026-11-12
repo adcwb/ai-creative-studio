@@ -19,7 +19,7 @@ export function ShotNeighbours({board,shot,assets,selections,onCompare}:{board:S
  const sides=[{label:'上一镜',item:board.shots[index-1]},{label:'下一镜',item:board.shots[index+1]}]
  return <details className="reference-controls"><summary>{t('前后镜头的衔接')}</summary><p>{t('对照相邻镜头的已采用画面，检查视线、轴线和动作衔接。比较不改采用记录或剪辑。')}</p><div className="candidate-view is-comparing">{sides.map(({label,item})=>{
   const selection=item?selections.filter(v=>v.shot_id===item.id).at(-1):undefined,asset=assets.find(v=>v.id===selection?.asset_id)
-  return <section key={label}><h4>{t(label)}</h4>{item?<><p>{item.description}</p>{asset?<><figure>{asset.kind==='image'?<img src={`${baseURL}${asset.file_url}`} alt={asset.name}/>:<video controls preload="metadata" src={`${baseURL}${asset.file_url}`}/>}<figcaption>{asset.name}</figcaption></figure><button type="button" onClick={()=>onCompare(asset.id)}>{t('与此镜头采用版对照')}</button></>:<p>{t('相邻镜头尚未采用画面。')}</p>}</>:<p>{t('已到镜头计划的边界。')}</p>}</section>
+  return <section key={label}><h4>{t(label)}</h4>{item?<><p>{item.description}</p>{asset?<><figure>{asset.kind==='image'?<img loading="lazy" decoding="async" src={`${baseURL}${asset.file_url}`} alt={asset.name}/>:<video controls preload="metadata" src={`${baseURL}${asset.file_url}`}/>}<figcaption>{asset.name}</figcaption></figure><button type="button" onClick={()=>onCompare(asset.id)}>{t('与此镜头采用版对照')}</button></>:<p>{t('相邻镜头尚未采用画面。')}</p>}</>:<p>{t('已到镜头计划的边界。')}</p>}</section>
  })}</div></details>
 }
 export function DirectorSource({space,project,job,version}:{space:string;project:string;job:string;version:number}){

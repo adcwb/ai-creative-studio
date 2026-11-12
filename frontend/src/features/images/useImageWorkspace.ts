@@ -8,11 +8,11 @@ import { runtimeFields, type RuntimeChoice } from '../../runtimeSelection'
 
 const blankDraft: TaskInput = {prompt: '', kind: 'poster', ratio: '4:5', style: 'natural'}
 
-export function useImageController() {
+export function useImageController(active = true) {
   const {space: selectedSpace, capability, capabilityError, refreshCapability, setImageDirty, session} = useAppWorkspace()
   const space = selectedSpace?.id ?? ''
   const navigate = useNavigate()
-  const studio = useWorkspace(space)
+  const studio = useWorkspace(space, active)
   const [runtimeChoice, setRuntimeChoice] = useState<RuntimeChoice | null>(null)
   const [draft, setDraft] = useState<TaskInput>(blankDraft)
   const [editing, setEditing] = useState<{task: Task; previous: TaskInput} | null>(null)

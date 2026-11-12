@@ -1,3 +1,4 @@
+import {usePolling} from '../../hooks/usePolling'
 import {DirectorDirection,DirectorSupport,ShotNeighbours,DirectorSource} from './DirectorWorkspace'
 import type {DirectorMode} from '../../director'
 import {LibraryInputPicker} from '../library/LibraryInputPicker'
@@ -69,6 +70,8 @@ export function ProductionBoard({project, space, onDirtyChange, disabled = false
   const pending = useRef<Attempt | null>(null)
   const flight = useRef(false)
   const alive = useRef(true)
+  const readEpoch = useRef(0)
+  const invalidateReads = useCallback(() => {readEpoch.current++}, [])
   const path = `/projects/${encodeURIComponent(project.id)}`
   const query = new URLSearchParams({space_id: space}).toString()
   const storageKey = `production.pending:${space}:${project.id}`
@@ -98,19 +101,25 @@ export function ProductionBoard({project, space, onDirtyChange, disabled = false
     return () => controller.abort()
   }, [path, space, provider, model, kind, controlsKey, choice,controlsRevision])
   useEffect(() => {const controller=new AbortController(); void request<{id:string;name:string}[]>(`${path}/media/review-members?${query}`, {signal:controller.signal}).then(setMembers).catch(() => {}); return () => controller.abort()}, [path,query])
-  const load = useCallback(async () => {
-    const [next, nextJobs] = await Promise.all([request<Media>(`${path}/media?${query}`), request<Job[]>(`${path}/creative-jobs?${query}`)])
-    if (alive.current) {setMedia(next); setJobs(nextJobs)}
+  const load = useCallback(async (signal?: AbortSignal) => {
+    const epoch = ++readEpoch.current
+    const [next, nextJobs] = await Promise.all([request<Media>(`${path}/media?${query}`, {signal}), request<Job[]>(`${path}/creative-jobs?${query}`, {signal})])
+    if (alive.current && !signal?.aborted && epoch === readEpoch.current && (!signal || !flight.current)) {setMedia(next); setJobs(nextJobs)}
   }, [path, query])
   useEffect(() => {
     alive.current = true
     const controller = new AbortController()
     void request<Record<string, Capability>>('/creative-media-capabilities', {signal: controller.signal}).then(setCaps).catch(() => {})
-    void load().catch(e => {if (alive.current) setError(errorMessage(e, t('素材读取失败')))})
     try {const saved = sessionStorage.getItem(storageKey); if (saved) {pending.current = JSON.parse(saved) as Attempt; setUncertain(true)}} catch { /* Recovery remains available during this mount. */ }
-    const timer = setInterval(() => {if (!flight.current) void load().catch(() => {})}, 2500)
-    return () => {alive.current = false; controller.abort(); clearInterval(timer)}
-  }, [load, storageKey, t])
+    return () => {alive.current = false; invalidateReads(); controller.abort()}
+  }, [load, storageKey, t, invalidateReads])
+  usePolling(async signal => {
+    if (flight.current) return
+    try {await load(signal)} catch (failure) {
+      if (!signal.aborted) setError(errorMessage(failure, t('素材读取失败')))
+      throw failure
+    }
+  }, 2500, `${path}?${query}`)
   useEffect(() => {onDirtyChange(uploadBusy || busy || uncertain || !!prompt.trim() || !!note.trim() || maskOpen || advanced || useDirector); return () => onDirtyChange(false)}, [uploadBusy, busy, uncertain, prompt, note, maskOpen, advanced, useDirector, onDirtyChange])
   async function execute(attempt: Attempt) {
     if (flight.current) return
@@ -207,7 +216,7 @@ export function ProductionBoard({project, space, onDirtyChange, disabled = false
       {focused && <div className="production-actions"><button disabled={locked || focused.kind !== 'image'} onClick={() => {setReferences([]);setFirstFrame('');setLastFrame('');setMotion('');setReference(focused.id); setMask(''); setKind('image'); setChoice(null)}}>{t('继续编辑此图')}</button><button disabled={locked || focused.kind === 'audio' || adopted === focused.id} onClick={() => decision('select')}>{t('采用此版本')}</button><button disabled={locked} onClick={() => setCompare(focused.id)}>{t('设为比较基准')}</button><a className="button-link" href={`${baseURL}${focused.file_url}`} download>{t('下载素材')}</a></div>}
       {focused && <MediaLineage key={`${space}:${project.id}:${focused.id}`} space={space} project={project.id} asset={focused.id}/>}
       {maskOpen && referenceAsset && <MaskEditor key={referenceAsset.id} url={`${baseURL}${referenceAsset.file_url}`} name={referenceAsset.name} disabled={locked} onSave={(blob, name) => upload(blob, name, 'mask')} onClose={() => setMaskOpen(false)} />}
-      <div className="candidate-strip" aria-label={t('候选素材')}>{visible.map(a => <button type="button" className={focus === a.id ? 'is-selected' : ''} key={a.id} onClick={() => {setFocus(a.id); setReviewTime(0)}}>{a.kind === 'image' ? <img src={`${baseURL}${a.file_url}`} alt="" /> : <span>{t(a.kind === 'video' ? '视频' : '音频')}</span>}<span>{a.name}</span>{adopted === a.id && <strong>{t('已采用')}</strong>}</button>)}</div>
+      <div className="candidate-strip" aria-label={t('候选素材')}>{visible.map(a => <button type="button" className={focus === a.id ? 'is-selected' : ''} key={a.id} onClick={() => {setFocus(a.id); setReviewTime(0)}}>{a.kind === 'image' ? <img loading="lazy" decoding="async" width="96" height="72" src={`${baseURL}${a.file_url}`} alt="" /> : <span>{t(a.kind === 'video' ? '视频' : '音频')}</span>}<span>{a.name}</span>{adopted === a.id && <strong>{t('已采用')}</strong>}</button>)}</div>
       {focused && <section className="production-review"><h3>{t('审片与返修')}</h3><fieldset disabled={locked}><label>{t('负责人')}<select aria-label={t('负责人')} value={assignee} onChange={e=>setAssignee(e.target.value)}><option value="">{t('未分配')}</option>{members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label><label>{t('优先级')}<select aria-label={t('优先级')} value={priority} onChange={e=>setPriority(e.target.value)}><option value="normal">{t('普通')}</option><option value="high">{t('高')}</option><option value="low">{t('低')}</option></select></label><label>{t('批注或采用理由')}<textarea value={note} maxLength={2000} onChange={e => setNote(e.target.value)} /></label>{focused.kind !== 'image' && <label>{t('素材时间点（秒）')}<input type="number" min="0" max={focused.duration} step="0.1" value={reviewTime} onChange={e => setReviewTime(Number(e.target.value))} /></label>}<button disabled={!note.trim() || !Number.isFinite(reviewTime)} onClick={() => decision('review')}>{t('添加返修批注')}</button></fieldset><label>{t('批注筛选')}<select aria-label={t('批注筛选')} value={reviewFilter} onChange={e=>setReviewFilter(e.target.value)}><option value="all">{t('全部')}</option><option value="open">{t('待返修')}</option><option value="resolved">{t('已处理')}</option><option value="unassigned">{t('未分配')}</option>{members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label><ul>{media?.reviews?.filter(r => r.asset_id === focused.id && (reviewFilter==='all' || (reviewFilter==='open' && !r.resolved) || (reviewFilter==='resolved' && r.resolved) || (reviewFilter==='unassigned' && !r.assignee_id) || r.assignee_id===reviewFilter)).map(r => <li key={r.id}><span>{r.time}s · {r.text}<small>{t('记录人')}：{members.find(m=>m.id===r.created_by)?.name ?? r.created_by ?? t('旧记录')} · {t(r.priority==='high'?'高':r.priority==='low'?'低':'普通')}</small></span><select aria-label={t('批注负责人')} disabled={locked} value={r.assignee_id ?? ''} onChange={e=>decision('assign',{review_id:r.id,assignee_id:e.target.value,priority:r.priority ?? 'normal'})}><option value="">{t('未分配')}</option>{r.assignee_id && !members.some(m=>m.id===r.assignee_id) && <option value={r.assignee_id}>{r.assignee_id}</option>}{members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select><select aria-label={t('批注优先级')} disabled={locked} value={r.priority ?? 'normal'} onChange={e=>decision('assign',{review_id:r.id,assignee_id:r.assignee_id ?? '',priority:e.target.value})}><option value="normal">{t('普通')}</option><option value="high">{t('高')}</option><option value="low">{t('低')}</option></select><button disabled={locked} onClick={() => decision('resolve', {review_id: r.id, resolved: !r.resolved})}>{t(r.resolved ? '重新打开批注' : '标记已处理')}</button><strong>{t(r.resolved ? '已处理' : '待返修')}</strong></li>)}</ul></section>}
       <details><summary>{t('采用与生成记录')}</summary><ul>{[...selections].reverse().map(s => <li key={s.id}>{assets.find(a => a.id === s.asset_id)?.name} · {s.note} · {formatDate(s.created_at)}</li>)}</ul><ul>{jobs.filter(j => !shot || j.shot_id === shot).map(j => <li key={j.id}>{t(({queued:'等待生成',running:'正在生成',succeeded:'已完成',failed:'生成失败',cancelled:'已取消',canceled:'已取消'} as Record<string,string>)[j.status]??'状态待核对')} · {j.prompt}{j.reference_asset_id && <span> · {t('源素材')}：{assets.find(a => a.id === j.reference_asset_id)?.name}</span>}{(j.library_inputs?.length || j.reference_asset_ids?.length || j.first_frame_asset_id || j.motion_reference_asset_id) ? <button disabled={locked} onClick={()=>{const libraryMedia=new Set(j.library_inputs?.flatMap(pin=>pin.choice.media_asset_ids??[])??[]);setLibraryInputs(j.library_inputs?.map(pin=>pin.choice)??[]);setKind(j.kind);setShot(j.shot_id??'');setChoice(null);setReference(j.reference_asset_id&&!libraryMedia.has(j.reference_asset_id)?j.reference_asset_id:'');setMask('');setReferences(j.reference_asset_ids?.filter(id=>!libraryMedia.has(id))??[]);setFirstFrame(j.first_frame_asset_id ?? '');setLastFrame(j.last_frame_asset_id ?? '');setMotion(j.motion_reference_asset_id ?? '');setPrompt(j.prompt);setImageParameters(j.image_parameters ?? {kind:'general',ratio:'16:9',style:'natural'});setPromptSource(j.prompt_source ? {template_id:j.prompt_source.template_id,version_id:j.prompt_source.version_id,variables:j.prompt_source.variables,application_id:j.prompt_source.application_id,edited:true} : undefined)}}>{t('复用参考与提示')}</button> : null}{j.director_source_version&&<DirectorSource key={j.id} space={space} project={project.id} job={j.id} version={j.director_source_version}/>}
 {j.library_inputs?.length&&<details><summary>{t('本次创作资产')}</summary>{j.library_inputs.map(pin=><p key={pin.choice.binding_id}>{pin.name} · {t('版本')} {pin.version_number} · {t(({prompt_only:'只传入文字意图',reference:'参考图与文字意图',native_preset:'原生音色（仅音色标识）'} as Record<string,string>)[pin.choice.mode]??pin.choice.mode)}{pin.omitted_fields.length>0&&` · ${t('未作为模型参数发送：{p0}',{p0:pin.omitted_fields.map(field=>t(({voice_notes:'声音描述',timbre:'音色意图',performance:'表演与情绪',pace:'语速与停顿',pronunciation:'发音与专名',description:'描述',prohibited_changes:'禁止变化项'} as Record<string,string>)[field]??field)).join('、')})}`}</p>)}</details>}{j.analysis && <details><summary>{j.analysis.summary}</summary><p>{j.analysis.provider}</p><ul>{j.analysis.questions.map((q, i) => <li key={i}>{q}</li>)}{j.analysis.suggestions.map((q, i) => <li key={i}>{q}</li>)}</ul></details>}{j.error && <p className="error">{j.error}</p>}</li>)}</ul></details>

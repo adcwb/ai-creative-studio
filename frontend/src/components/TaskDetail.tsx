@@ -1,3 +1,4 @@
+import {usePolling} from '../hooks/usePolling'
 import { useI18n } from '../i18n'
 import { useEffect, useRef, useState } from 'react'
 import { baseURL, errorMessage, request, type Catalog, type Task } from '../api'
@@ -21,20 +22,17 @@ export function TaskDetail({id, space, catalog, saved, saving, busy, actionError
     dialog?.showModal()
     return () => {dialog?.close(); previousFocus?.focus()}
   }, [])
-  useEffect(() => {
-    const controller = new AbortController()
-    let timer: ReturnType<typeof setTimeout>
-    async function load() {
-      try {
-        const result = await request<Task>(`/tasks/${encodeURIComponent(id)}?${new URLSearchParams({space_id: space})}`, {signal: controller.signal})
-        if (controller.signal.aborted) return
-        setTask(result); setError(''); onUpdate(result)
-        if (result.status === 'queued' || result.status === 'running') timer = setTimeout(() => {void load()}, 1500)
-      } catch (failure) {if (!controller.signal.aborted) setError(errorMessage(failure, "无法读取任务详情"))}
+  usePolling(async signal => {
+    try {
+      const result = await request<Task>(`/tasks/${encodeURIComponent(id)}?${new URLSearchParams({space_id: space})}`, {signal})
+      if (signal.aborted) return
+      setTask(result); setError(''); onUpdate(result)
+      return result.status === 'queued' || result.status === 'running'
+    } catch (failure) {
+      if (!signal.aborted) setError(errorMessage(failure, t('无法读取任务详情')))
+      throw failure
     }
-    void load()
-    return () => {controller.abort(); clearTimeout(timer)}
-  }, [id, space, revision, onUpdate])
+  }, 1500, `${space}:${id}:${revision}`)
 
   return <dialog ref={dialogRef} className="detail-dialog" aria-labelledby="detail-title" onCancel={event => {event.preventDefault(); onClose()}} onKeyDown={event => {
     if (event.key !== 'Tab') return
@@ -50,7 +48,7 @@ export function TaskDetail({id, space, catalog, saved, saving, busy, actionError
     {!task && !error && <div className="loading-block" role="status">{t("正在加载任务详情…")}</div>}
     {task && <>
       {task.status === 'succeeded' && task.result_mime !== 'image/svg+xml' && <ContinueImage task={task} space={space} onClose={onClose} />}
-      <div className="detail-grid"><div className="detail-preview">{task.result_url ? <img src={`${baseURL}${task.result_url}`} alt={resultImageAlt(task)} /> : <div className="empty"><Icon name={task.status === 'failed' ? 'image' : 'spark'} /><p>{task.status === 'failed' ? t("本地暂无可用结果") : t("画面正在准备中")}</p></div>}<span>{task.result_url ? resultOriginLabel(task) : resultProviderLabel(task)}</span></div>
+      <div className="detail-grid"><div className="detail-preview">{task.result_url ? <img decoding="async" width={task.result_width} height={task.result_height} src={`${baseURL}${task.result_url}`} alt={resultImageAlt(task)} /> : <div className="empty"><Icon name={task.status === 'failed' ? 'image' : 'spark'} /><p>{task.status === 'failed' ? t("本地暂无可用结果") : t("画面正在准备中")}</p></div>}<span>{task.result_url ? resultOriginLabel(task) : resultProviderLabel(task)}</span></div>
       <div className="detail-information" data-provider={task.provider}><span className={`status ${task.status}`}><span />{taskStatusLabel(task)}</span><h3>{t("画面描述")}</h3><p className="detail-prompt">{task.prompt}</p><TaskMetadata task={task} catalog={catalog} />
  {task.prompt_source && <p className="prompt-source-note">{t("来源提示词版本")} <code>{task.prompt_source.version_id}</code> · {t(task.prompt_source.edited ? "已修改后生成" : "按保存版本生成")}</p>}
  {task.status === "succeeded" && onSavePrompt && <button type="button" onClick={() => onSavePrompt(task)}>{t("将此描述存为提示词")}</button>}
