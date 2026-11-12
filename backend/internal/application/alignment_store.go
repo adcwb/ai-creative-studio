@@ -548,6 +548,7 @@ func (a *AlignmentStore) runTask(ctx context.Context, m *MediaStore, id string, 
 		task.Transcript = ""
 		task.Cues = []SubtitleCue{}
 		task.ErrorCode, task.Error = creativeFailure(err)
+		logTaskFailure(task.TraceParent, "alignment", task.ID, task.ErrorCode)
 	} else {
 		task.Status = "succeeded"
 	}

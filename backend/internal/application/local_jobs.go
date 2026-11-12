@@ -1,6 +1,10 @@
 package application
 
-import "sync"
+import (
+	"context"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
+	"sync"
+)
 
 // localJobs bounds execution, not admission. The owning store commits each job
 // before submitting it here; queued work never starts its execution timeout
@@ -43,7 +47,7 @@ func newLocalJobs(workers int) *localJobs {
 					}
 				}
 				if run != nil {
-					run()
+					_ = diagnostics.Invoke(context.Background(), "worker_panic", func() error { run(); return nil })
 					q.settled.Done()
 					continue
 				}

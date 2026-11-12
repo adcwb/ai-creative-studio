@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
 	"image/png"
 	"io"
 	"net/http"
@@ -61,7 +62,8 @@ func (unavailableProvider) Generate(context.Context, Input) (GenerationResult, e
 // transport errors must never become task messages, logs, or wrapped errors.
 type ProviderError struct{ Code string }
 
-func (e *ProviderError) Error() string { return providerMessage(e.Code) }
+func (e *ProviderError) Error() string          { return providerMessage(e.Code) }
+func (e *ProviderError) DiagnosticCode() string { return diagnostics.SafeCode(e.Code) }
 
 func providerFailure(code string) error { return &ProviderError{Code: code} }
 
@@ -112,6 +114,9 @@ func safeFailure(err error, provider string) (string, string) {
 		}
 	} else if provider == "mock-svg" {
 		code = "mock_failed"
+	}
+	if errors.Is(err, diagnostics.ErrPanic) {
+		code = "execution_interrupted"
 	}
 	return code, providerMessage(code)
 }

@@ -172,7 +172,8 @@ func libraryGuardedRequest(client *http.Client, req *http.Request) (*http.Respon
 			return nil, e
 		}
 	}
-	return client.Do(req)
+	res, err := client.Do(req)
+	return observeProviderResponse(req, res, err)
 }
 
 // Native Jimeng status queries use POST. Only the exact signed query envelope

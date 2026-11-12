@@ -113,7 +113,7 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 	}
 	next := Handler(repo, origin)
 	trusted, originError := deployconfig.TrustedOrigins(origin, options.AllowedOrigins)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return WithDiagnostics(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		// Signed media grants are deliberately public reads, never credentialed CORS.
@@ -358,7 +358,7 @@ func SecureHandler(repo Repository, origin string, auth *AuthStore, options Auth
 			}
 			return auth.can(user.ID, space, "workspace.write")
 		}})))
-	})
+	}))
 }
 func (s *AuthStore) createOrganization(w http.ResponseWriter, r *http.Request, user AuthUser) {
 	var in struct {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/tracing"
 	"github.com/cloudwego/eino/compose"
 )
@@ -24,6 +25,9 @@ func (e *StoryboardError) Error() string {
 	return "模拟分镜生成失败；请移除剧本动作中的 [mock-fail] 并保存后重试，已保存的计划仍保留。"
 }
 func safeStoryboardFailure(err error) (string, string) {
+	if errors.Is(err, diagnostics.ErrPanic) {
+		return creativeFailure(err)
+	}
 	var pe *ProviderError
 	if errors.As(err, &pe) {
 		return creativeFailure(err)
@@ -67,7 +71,9 @@ type StoryboardPipeline struct {
 }
 
 func NewStoryboardPipeline(ctx context.Context, provider StoryboardProvider) (*StoryboardPipeline, error) {
-	chain := compose.NewChain[Script, []StoryboardShot]().AppendLambda(compose.InvokableLambda(func(_ context.Context, in Script) (Script, error) { return NormalizeScript(in) })).AppendLambda(compose.InvokableLambda(provider.Generate)).AppendLambda(compose.InvokableLambda(func(_ context.Context, shots []StoryboardShot) ([]StoryboardShot, error) {
+	chain := compose.NewChain[Script, []StoryboardShot]().AppendLambda(compose.InvokableLambda(func(_ context.Context, in Script) (Script, error) { return NormalizeScript(in) })).AppendLambda(compose.InvokableLambda(func(ctx context.Context, in Script) ([]StoryboardShot, error) {
+		return guardResult(ctx, func() ([]StoryboardShot, error) { return provider.Generate(ctx, in) })
+	})).AppendLambda(compose.InvokableLambda(func(_ context.Context, shots []StoryboardShot) ([]StoryboardShot, error) {
 		out, err := NormalizeStoryboardShots(shots)
 		if err != nil {
 			return nil, &StoryboardError{Code: "invalid_storyboard_output"}
@@ -89,7 +95,8 @@ func NewStoryboardPipeline(ctx context.Context, provider StoryboardProvider) (*S
 func (p *StoryboardPipeline) Invoke(ctx context.Context, in Script) ([]StoryboardShot, error) {
 	return p.run.Invoke(ctx, in)
 }
-func RunStoryboardWorker(ctx context.Context, repo StoryboardRepository, pipeline *StoryboardPipeline) error {
+func RunStoryboardWorker(ctx context.Context, repo StoryboardRepository, pipeline *StoryboardPipeline) (workerErr error) {
+	defer recoverFileWorker(ctx, &workerErr)
 	tick := time.NewTicker(200 * time.Millisecond)
 	defer tick.Stop()
 	for {

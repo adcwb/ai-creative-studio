@@ -2,9 +2,7 @@ package application
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -174,55 +172,52 @@ func (w *observedResponse) Write(data []byte) (int, error) {
 }
 func (w *observedResponse) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 func (o *Operations) Wrap(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		parent := ""
-		if values := r.Header.Values("traceparent"); len(values) == 1 {
-			parent = values[0]
-		}
-		traceCtx, span := tracing.Start(tracing.WithParent(r.Context(), parent), "http.server", tracing.Attributes{Method: r.Method})
-		r = r.WithContext(traceCtx)
+	return WithDiagnostics(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		state, _ := r.Context().Value(diagnosticKey{}).(*requestDiagnostic)
+		span := state.span
 		defer span.End("error")
 		start := time.Now()
 		identity := &auditIdentity{operations: o, start: start, method: r.Method}
 		r = r.WithContext(context.WithValue(r.Context(), auditIdentityKey{}, identity))
-		var id [16]byte
-		if _, err := rand.Read(id[:]); err != nil {
-			span.HTTPStatus(503)
-			http.Error(w, "request identity unavailable", 503)
-			return
-		}
-		requestID := hex.EncodeToString(id[:])
+		requestID := state.id
 		identity.requestID = requestID
 		mutation := authWrite(r) || r.URL.Path == "/api/v1/auth/sso/callback"
 		w.Header().Set("X-Request-ID", requestID)
 		if err := o.available(); err != nil && mutation {
 			span.HTTPStatus(503)
-			http.Error(w, "audit unavailable", 503)
+			problem(w, 503, "audit_unavailable", "审计暂不可用，已拒绝本次写入")
 			return
 		}
 		response := &observedResponse{ResponseWriter: w}
+		panicked := true
+		defer func() {
+			status := response.status
+			if panicked {
+				status = 500
+			}
+			if status == 0 {
+				status = 200
+			}
+			span.HTTPStatus(status)
+			if response.writeFailed || status >= 500 {
+				span.End("error")
+			} else if status >= 400 {
+				span.End("denied")
+			} else {
+				span.End("ok")
+			}
+			elapsed := time.Since(start)
+			if mutation && (identity.began || identity.Actor != "" && status < 400) {
+				_ = o.append(auditRecord{At: time.Now().UTC(), RequestID: requestID, Method: r.Method, Phase: "finished", Actor: identity.Actor, Tenant: identity.Tenant, Role: identity.Role, Status: status, DurationMS: elapsed.Milliseconds()})
+			}
+			o.mu.Lock()
+			o.counts[status/100]++
+			o.duration += elapsed
+			o.mu.Unlock()
+		}()
 		next.ServeHTTP(response, r)
-		status := response.status
-		if status == 0 {
-			status = 200
-		}
-		span.HTTPStatus(status)
-		if response.writeFailed || status >= 500 {
-			span.End("error")
-		} else if status >= 400 {
-			span.End("denied")
-		} else {
-			span.End("ok")
-		}
-		elapsed := time.Since(start)
-		if mutation && (identity.began || identity.Actor != "" && status < 400) {
-			_ = o.append(auditRecord{At: time.Now().UTC(), RequestID: requestID, Method: r.Method, Phase: "finished", Actor: identity.Actor, Tenant: identity.Tenant, Role: identity.Role, Status: status, DurationMS: elapsed.Milliseconds()})
-		}
-		o.mu.Lock()
-		o.counts[status/100]++
-		o.duration += elapsed
-		o.mu.Unlock()
-	})
+		panicked = false
+	}))
 }
 
 // MetricsHandler must be served on a separate operator-only listener. Do not

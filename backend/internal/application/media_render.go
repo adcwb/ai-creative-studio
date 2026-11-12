@@ -10,7 +10,6 @@ import (
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
-	"log/slog"
 	"math"
 	"os"
 	"os/exec"
@@ -19,6 +18,7 @@ import (
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/media"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/tracing"
 )
@@ -296,7 +296,7 @@ func (m *MediaStore) scheduleExportLocked(space, project string, p MediaState, e
 		renderCtx := context.WithValue(ctx, renderScopeKey{}, renderScope{Space: space, Project: project})
 		err = m.exportInputs(space, project, p, e)
 		if err == nil {
-			err = m.render(renderCtx, p, e)
+			err = diagnostics.Invoke(renderCtx, "worker_panic", func() error { return m.render(renderCtx, p, e) })
 		}
 		if err == nil && m.blobs != nil {
 			for _, ext := range []string{".mp4", ".srt", ".vtt"} {
@@ -316,7 +316,7 @@ func (m *MediaStore) finishExport(k, id, space, project string, renderErr error,
 	}
 	delete(m.attempts, id)
 	if err := m.finishExportLocked(k, id, space, project, renderErr); err != nil {
-		slog.Error("media export state persistence failed; restart required", "export_id", id)
+		diagnostics.Event(context.Background(), "task_error", "storage_error", id, nil)
 	}
 }
 func (m *MediaStore) finishExportLocked(k, id, space, project string, renderErr error) error {
@@ -329,6 +329,7 @@ func (m *MediaStore) finishExportLocked(k, id, space, project string, renderErr 
 			continue
 		}
 		if renderErr != nil {
+			logTaskFailure(e.TraceParent, "export", e.ID, "execution_interrupted")
 			e.Status = "failed"
 			e.ResumeAvailable = e.RenderVersion == 1 && !errors.Is(renderErr, errRenderInputsChanged)
 			e.Error = "本地合成失败或超时；请检查素材与 FFmpeg"

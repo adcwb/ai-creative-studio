@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/tracing"
 	"io"
 	"net"
 	"net/http"
@@ -92,12 +94,15 @@ func safeGatewayRequestID(s string) string {
 			return ""
 		}
 	}
-	return s
+	return diagnostics.SafeID(s)
 }
 func (o *gatewayObservation) response(status int, requestID string, raw []byte) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.call.HTTPStatus = status
+	metadata := upstreamMetadata(status, requestID, raw)
+	o.call.UpstreamErrorCode = metadata.Code
+	o.call.RequestID = metadata.RequestID
 	if id := safeGatewayRequestID(requestID); id != "" {
 		o.call.RequestID = id
 	}
@@ -163,11 +168,17 @@ func (o *gatewayObservation) finish(runErr error) error {
 		o.call.ErrorCode = "provider_error"
 		var p *ProviderError
 		if errors.As(runErr, &p) {
-			o.call.ErrorCode = p.Code
+			o.call.ErrorCode = diagnostics.SafeCode(p.Code)
 		}
-		if o.ambiguous || errors.Is(runErr, context.Canceled) || errors.Is(runErr, context.DeadlineExceeded) {
+		if code := diagnostics.ErrorCode(runErr); code != "internal_error" {
+			o.call.ErrorCode = code
+		}
+		if o.ambiguous || errors.Is(runErr, diagnostics.ErrPanic) || errors.Is(runErr, context.Canceled) || errors.Is(runErr, context.DeadlineExceeded) {
 			o.call.State = "unknown"
 		}
+		upstream := diagnostics.Upstream{HTTPStatus: o.call.HTTPStatus, Code: o.call.UpstreamErrorCode, RequestID: o.call.RequestID}
+		ctx := tracing.WithParent(context.Background(), "00-"+o.call.CorrelationID+"-0000000000000001-00")
+		diagnostics.Event(ctx, "gateway_error", o.call.ErrorCode, o.call.ID, &upstream)
 	}
 	return o.store.save(o.call)
 }
@@ -197,7 +208,7 @@ func (t gatewayObservedTransport) RoundTrip(req *http.Request) (*http.Response, 
 		return nil, e
 	}
 	if t.observation != nil {
-		res.Body = &gatewayObservedBody{ReadCloser: res.Body, observation: t.observation, status: res.StatusCode, requestID: res.Header.Get("x-request-id")}
+		res.Body = &gatewayObservedBody{ReadCloser: res.Body, observation: t.observation, status: res.StatusCode, requestID: upstreamRequestID(res.Header)}
 	}
 	return res, nil
 }

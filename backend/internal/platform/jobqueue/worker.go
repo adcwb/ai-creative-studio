@@ -3,6 +3,7 @@ package jobqueue
 import (
 	"context"
 	"errors"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/tracing"
@@ -13,7 +14,16 @@ import (
 // Dispatch must preserve unknown cost; Run never retries a dispatched job.
 type Handler func(context.Context, Queue, Job) error
 
-func Run(ctx context.Context, q Queue, kind string, handler Handler) error {
+func Run(ctx context.Context, q Queue, kind string, handler Handler) (resultErr error) {
+	activeCtx := ctx
+	defer func() {
+		if recover() != nil {
+			resultErr = diagnostics.ErrPanic
+			diagnostics.Event(activeCtx, "worker_panic", "execution_interrupted", "", nil)
+		} else if resultErr != nil {
+			diagnostics.Event(activeCtx, "worker_error", diagnostics.ErrorCode(resultErr), "", nil)
+		}
+	}()
 	if handler == nil {
 		return errors.New("job handler required")
 	}
@@ -25,6 +35,7 @@ func Run(ctx context.Context, q Queue, kind string, handler Handler) error {
 			return nil
 		case <-tick.C:
 		}
+		activeCtx = ctx
 		j, ok, err := q.Claim(ctx, kind)
 		if ctx.Err() != nil {
 			return nil
@@ -38,6 +49,13 @@ func Run(ctx context.Context, q Queue, kind string, handler Handler) error {
 		runCtx, cancel := context.WithCancel(ctx)
 		done := make(chan error, 1)
 		go func() {
+			defer func() {
+				if recover() != nil {
+					cancel()
+					diagnostics.Event(tracing.WithParent(runCtx, j.TraceParent), "worker_panic", "execution_interrupted", "", nil)
+					done <- diagnostics.ErrPanic
+				}
+			}()
 			timer := time.NewTicker(q.lease() / 3)
 			defer timer.Stop()
 			for {
@@ -64,7 +82,8 @@ func Run(ctx context.Context, q Queue, kind string, handler Handler) error {
 		}
 		if q.Slots == nil || acquired {
 			traceCtx, span := tracing.Start(tracing.WithParent(WithLeaseFence(runCtx, q, j), j.TraceParent), "worker.execute", tracing.Attributes{Kind: j.Kind})
-			err = handler(traceCtx, q, j)
+			activeCtx = traceCtx
+			err = diagnostics.Invoke(traceCtx, "worker_panic", func() error { return handler(traceCtx, q, j) })
 			outcome := "ok"
 			if err != nil {
 				outcome = "unknown"

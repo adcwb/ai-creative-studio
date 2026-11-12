@@ -28032,6 +28032,14 @@
           },
           "prompt_source": {
             "$ref": "#/components/schemas/PromptSource"
+          },
+          "correlation_id": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "Origin trace correlation for the accepted operation; omitted for historical tasks without context."
+          },
+          "diagnostics": {
+            "$ref": "#/components/schemas/ErrorDiagnostic"
           }
         },
         "additionalProperties": false,
@@ -28374,6 +28382,38 @@
               "field": {
                 "type": "string",
                 "description": "The invalid variable name or input field; never includes private recipe body."
+              },
+              "request_id": {
+                "type": "string",
+                "maxLength": 32
+              },
+              "correlation_id": {
+                "type": "string",
+                "maxLength": 32
+              },
+              "category": {
+                "type": "string",
+                "enum": [
+                  "internal",
+                  "interrupted",
+                  "upstream",
+                  "storage",
+                  "configuration",
+                  "access",
+                  "conflict",
+                  "input"
+                ]
+              },
+              "suggestion": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "cause_known": {
+                "type": "boolean",
+                "description": "False when metadata/classification cannot establish the actual internal cause."
+              },
+              "upstream": {
+                "$ref": "#/components/schemas/UpstreamDiagnostic"
               }
             }
           }
@@ -28976,6 +29016,14 @@
             "type": "string",
             "pattern": "^[a-f0-9]{64}$",
             "readOnly": true
+          },
+          "correlation_id": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "Origin trace correlation for the accepted operation; omitted for historical tasks without context."
+          },
+          "diagnostics": {
+            "$ref": "#/components/schemas/ErrorDiagnostic"
           }
         },
         "description": "持久化执行尝试及不可变需求快照。只保留尝试状态和来源，不提供历史剧本版本恢复。mock 执行中重启重新排队，不创建新 attempt；失败保留项目既有稿件。",
@@ -29570,6 +29618,14 @@
             "readOnly": true,
             "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$",
             "description": "Optional server-captured correlation context; never authorization."
+          },
+          "correlation_id": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "Origin trace correlation for the accepted operation; omitted for historical tasks without context."
+          },
+          "diagnostics": {
+            "$ref": "#/components/schemas/ErrorDiagnostic"
           }
         },
         "description": "持久化模拟分镜执行记录；来源是提交时已保存剧本的不可变快照，内部 source_script 不对外返回。运行中重启重新排队；失败保留旧计划。",
@@ -30033,6 +30089,14 @@
           },
           "preview_source": {
             "$ref": "#/components/schemas/AnimaticSource"
+          },
+          "correlation_id": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "Origin trace correlation for the accepted operation; omitted for historical tasks without context."
+          },
+          "diagnostics": {
+            "$ref": "#/components/schemas/ErrorDiagnostic"
           }
         },
         "required": [
@@ -30528,6 +30592,14 @@
           "director_source_sha256": {
             "type": "string",
             "pattern": "^[a-f0-9]{64}$"
+          },
+          "correlation_id": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "Origin trace correlation for the accepted operation; omitted for historical tasks without context."
+          },
+          "diagnostics": {
+            "$ref": "#/components/schemas/ErrorDiagnostic"
           }
         },
         "required": [
@@ -30827,6 +30899,14 @@
             },
             "readOnly": true,
             "description": "Immutable ancestor versions and current authorization revisions captured at acceptance. audio_analysis only, not voice cloning or generation permission."
+          },
+          "correlation_id": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "Origin trace correlation for the accepted operation; omitted for historical tasks without context."
+          },
+          "diagnostics": {
+            "$ref": "#/components/schemas/ErrorDiagnostic"
           }
         },
         "required": [
@@ -34604,7 +34684,8 @@
             "type": "string"
           },
           "request_id": {
-            "type": "string"
+            "type": "string",
+            "description": "Sanitized upstream request ID. Conventional UUID/hex/req_hex formats remain readable; other formats use a stable fingerprint."
           },
           "http_calls": {
             "type": "integer",
@@ -34663,6 +34744,15 @@
           },
           "task_id": {
             "type": "string"
+          },
+          "correlation_id": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "upstream_error_code": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Recognized public provider code or a fingerprint for an unrecognized value; no raw message."
           }
         }
       },
@@ -41218,6 +41308,67 @@
           "items",
           "next_cursor"
         ]
+      },
+      "UpstreamDiagnostic": {
+        "type": "object",
+        "description": "Bounded sanitized provider metadata, never raw response text. Unknown codes/identifier formats are fingerprinted; the metadata does not prove root cause.",
+        "properties": {
+          "http_status": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599
+          },
+          "error_code": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "request_id": {
+            "type": "string",
+            "maxLength": 200
+          }
+        }
+      },
+      "ErrorDiagnostic": {
+        "type": "object",
+        "required": [
+          "category",
+          "suggestion",
+          "cause_known"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "correlation_id": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "internal",
+              "interrupted",
+              "upstream",
+              "storage",
+              "configuration",
+              "access",
+              "conflict",
+              "input"
+            ]
+          },
+          "suggestion": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "cause_known": {
+            "type": "boolean",
+            "description": "False when metadata/classification cannot establish the actual internal cause."
+          },
+          "upstream": {
+            "$ref": "#/components/schemas/UpstreamDiagnostic"
+          }
+        }
       }
     },
     "securitySchemes": {

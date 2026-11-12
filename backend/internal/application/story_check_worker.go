@@ -11,6 +11,7 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/story"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/storyrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/tracing"
 )
 
 func (s *FileStore) acceptStoryCheck(ctx context.Context, a story.Actor, episode, key string, in story.CheckInput, model ModelRequest) (story.Check, error) {
@@ -43,8 +44,11 @@ func (s *FileStore) acceptStoryCheck(ctx context.Context, a story.Actor, episode
 	out = story.Check{ID: storyrepo.CheckID(a, q.Series, episode, key), Space: a.Space, SeriesID: q.Series, EpisodeID: episode, Input: in, State: "queued", Provider: model.selectedCaps.Provider, Model: model.selectedCaps.Model, Actor: a.User, CreatedAt: now, UpdatedAt: now}
 	return s.story.CreateCheck(ctx, a, key, out, *model.selection, model.traceParent)
 }
-func (s *FileStore) executeStoryCheck(ctx context.Context, r storyrepo.CheckRecord, dispatch func(context.Context) error) (story.CheckResult, string, string) {
-	var result story.CheckResult
+func (s *FileStore) executeStoryCheck(ctx context.Context, r storyrepo.CheckRecord, dispatch func(context.Context) error) (result story.CheckResult, state string, errorCode string) {
+	if tracing.Parent(ctx) == "" {
+		ctx = tracing.WithParent(ctx, r.TraceParent)
+	}
+	defer func() { logTaskFailure(r.TraceParent, "story_check", r.Check.ID, errorCode) }()
 	c := r.Check
 	q := storyrepo.Scope{Space: c.Space, Series: c.SeriesID}
 	sent := false

@@ -15,20 +15,28 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/application"
 	"github.com/adcwb/ai-creative-studio/backend/internal/bootstrap"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/deployconfig"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 func main() {
-	if err := run(); err != nil {
-		slog.Error("worker stopped; inspect private database availability and configuration")
+	diagnostics.Configure("worker")
+	if err := diagnostics.Invoke(context.Background(), "startup_error", run); err != nil {
 		os.Exit(1)
 	}
 }
-func run() error {
+func run() (resultErr error) {
+	component := "deployment_config"
+	defer func() {
+		if resultErr != nil {
+			diagnostics.StartupFailure(component)
+		}
+	}()
 	if err := deployconfig.Load(); err != nil {
 		return err
 	}
+	component = "tracing"
 	flushTraces, traceErr := application.ConfigureTracingFromEnv("worker")
 	if traceErr != nil {
 		return traceErr
@@ -38,6 +46,7 @@ func run() error {
 			slog.Warn("trace export incomplete")
 		}
 	}()
+	component = "worker_config"
 	if os.Getenv("STORAGE_BACKEND") != "postgres" || os.Getenv("QUEUE_BACKEND") != "postgres" {
 		return errors.New("worker requires postgres storage and queue")
 	}
@@ -51,6 +60,7 @@ func run() error {
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	component = "storage"
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return err
@@ -79,20 +89,25 @@ func run() error {
 		return err
 	}
 	defer store.Close()
+	component = "blob_storage"
 	if err = application.ConfigureBlobStorageFromEnv(store); err != nil {
 		return err
 	}
+	component = "execution"
 	if err = application.ConfigureExecutionFromEnv(store); err != nil {
 		return err
 	}
+	component = "worker_runtime"
 	if err = application.ConfigureWorkerRuntimeFromEnv(store, dir); err != nil {
 		return err
 	}
 	provider, caps := application.ConfigureImageFromEnv()
+	component = "providers"
 	_, err = bootstrap.ConfigureProviders(store, provider, caps)
 	if err != nil {
 		return err
 	}
+	component = "pipeline"
 	pipeline, err := application.NewPipeline(ctx, provider, caps)
 	if err != nil {
 		return err
@@ -105,6 +120,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	component = "serve"
 	slog.Info("durable worker started", "kinds", "image,script,storyboard,export,alignment,creative,story_check", "default_provider", caps.Provider)
 	results := make(chan error, 9)
 	go func() { results <- application.RunQueuedImageWorker(ctx, queue, store, pipeline) }()

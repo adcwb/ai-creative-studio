@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
@@ -136,7 +135,7 @@ func Handler(repo Repository, origin string) http.Handler {
 		}
 		respond(w, 200, a)
 	})
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return WithDiagnostics(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Cache-Control", "no-store")
 		if o := r.Header.Get("Origin"); o != "" {
@@ -150,8 +149,14 @@ func Handler(repo Repository, origin string) http.Handler {
 			w.WriteHeader(204)
 			return
 		}
+		_, pattern := mux.Handler(r)
+		if state, ok := r.Context().Value(diagnosticKey{}).(*requestDiagnostic); ok {
+			state.mu.Lock()
+			state.route = pattern
+			state.mu.Unlock()
+		}
 		mux.ServeHTTP(w, r)
-	})
+	}))
 }
 
 func createTask(w http.ResponseWriter, r *http.Request, repo Repository, parentID string) {
@@ -277,6 +282,9 @@ func decodeLimited(w http.ResponseWriter, r *http.Request, v any, limit int64) b
 	return true
 }
 func respond(w http.ResponseWriter, status int, v any) {
+	if status >= 400 {
+		v = diagnoseErrorResponse(w, status, v)
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(publicExecutionResponse(v))
@@ -296,7 +304,7 @@ func storeError(w http.ResponseWriter, err error) {
 	}
 	switch {
 	case errors.Is(err, ErrInvalidProjectInput):
-		problem(w, 400, "invalid_input", err.Error())
+		problem(w, 400, "invalid_input", projectInputMessage(err))
 	case errors.Is(err, ErrIdempotencyConflict):
 		problem(w, 409, "idempotency_conflict", ErrIdempotencyConflict.Error())
 	case errors.Is(err, ErrVersionConflict):
@@ -308,15 +316,14 @@ func storeError(w http.ResponseWriter, err error) {
 	case errors.Is(err, ErrScriptMissing):
 		problem(w, 409, "script_missing", ErrScriptMissing.Error())
 	case errors.Is(err, ErrNotFound):
-		problem(w, 404, "not_found", err.Error())
+		problem(w, 404, "not_found", ErrNotFound.Error())
 	case errors.Is(err, ErrConflict):
-		problem(w, 409, "conflict", err.Error())
+		problem(w, 409, "conflict", ErrConflict.Error())
 	case errors.Is(err, ErrProviderNotReady):
 		problem(w, 503, "provider_not_ready", ErrProviderNotReady.Error())
 	case errors.Is(err, ErrProviderChanged):
 		problem(w, 409, "provider_changed", ErrProviderChanged.Error())
 	default:
-		slog.Error("storage operation failed", "error", err)
 		problem(w, 500, "storage_error", "存储暂不可用，请稍后重试")
 	}
 }

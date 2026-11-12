@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
 	"net"
 	"net/http"
 	"time"
@@ -26,5 +27,5 @@ func metricsServer(address string, handler http.Handler) (*http.Server, net.List
 	}
 	mux := http.NewServeMux()
 	mux.Handle("GET /metrics", handler)
-	return &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second}, listener, nil
+	return &http.Server{Handler: mux, ErrorLog: diagnostics.ServerErrorLogger(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second}, listener, nil
 }

@@ -46,6 +46,8 @@ type persistenceResponse struct {
 	wrote, failed bool
 }
 
+func (w *persistenceResponse) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
 func (w *persistenceResponse) WriteHeader(code int) {
 	if w.wrote {
 		return

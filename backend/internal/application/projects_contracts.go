@@ -28,6 +28,7 @@ var ErrScriptMissing = projects.ErrScriptMissing
 var ErrStoryboardMissing = projects.ErrStoryboardMissing
 
 func projectInputError(message string) error { return projects.InputError(message) }
+func projectInputMessage(err error) string   { return projects.InputMessage(err) }
 func normalizeProjectText(value, label string, minimum, maximum int) (string, error) {
 	return projects.NormalizeText(value, label, minimum, maximum)
 }

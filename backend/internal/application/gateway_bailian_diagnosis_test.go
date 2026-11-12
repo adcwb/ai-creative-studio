@@ -83,7 +83,7 @@ func TestBailianNativeRejectionRetainsStatusAndRequestIDWithoutPrivateBody(t *te
 				}
 				io.Copy(io.Discard, r.Body)
 				w.WriteHeader(spec.status)
-				fmt.Fprintf(w, `{"code":"InvalidParameter","message":%q,"request_id":"synthetic-rejection-id"}`, privateBody)
+				fmt.Fprintf(w, `{"code":"InvalidParameter","message":%q,"request_id":"f63f4568-9026-4b82-b076-05f92f92f711"}`, privateBody)
 			}))
 			defer srv.Close()
 			u, _ := url.Parse(srv.URL)
@@ -114,7 +114,7 @@ func TestBailianNativeRejectionRetainsStatusAndRequestIDWithoutPrivateBody(t *te
 				t.Fatal("missing diagnostic call", err)
 			}
 			call := report.Items[0]
-			if call.HTTPStatus != spec.status || call.RequestID != "synthetic-rejection-id" || call.ErrorCode != spec.code || call.HTTPCalls != 1 || call.State != "failed" {
+			if call.HTTPStatus != spec.status || call.RequestID != "f63f4568-9026-4b82-b076-05f92f92f711" || call.ErrorCode != spec.code || call.HTTPCalls != 1 || call.State != "failed" {
 				t.Fatal("lost bounded rejection diagnostics", call)
 			}
 			raw, _ := json.Marshal(report)

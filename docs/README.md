@@ -8,6 +8,7 @@
 
 - [项目入口与运行方式](../README.md)
 - [架构与模块边界](architecture.md)
+- [后端错误诊断、关联编号与安全日志](backend-error-diagnostics.md)
 - [认证与组织](authentication.md)
 - [网关模型与功能绑定](gateway-model-management.md)
 - [运行时模型选择与成本管理兼容](runtime-model-selection.md)

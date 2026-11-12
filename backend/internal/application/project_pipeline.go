@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/tracing"
 	"github.com/cloudwego/eino/compose"
 )
@@ -24,6 +25,9 @@ func (e *ScriptError) Error() string {
 }
 
 func safeScriptFailure(err error) (string, string) {
+	if errors.Is(err, diagnostics.ErrPanic) {
+		return creativeFailure(err)
+	}
 	var pe *ProviderError
 	if errors.As(err, &pe) {
 		return creativeFailure(err)
@@ -83,7 +87,9 @@ type ScriptPipeline struct {
 func NewScriptPipeline(ctx context.Context, provider ScriptProvider) (*ScriptPipeline, error) {
 	chain := compose.NewChain[ProjectInput, Script]().
 		AppendLambda(compose.InvokableLambda(func(_ context.Context, in ProjectInput) (ProjectInput, error) { return NormalizeProjectInput(in) })).
-		AppendLambda(compose.InvokableLambda(provider.Generate)).
+		AppendLambda(compose.InvokableLambda(func(ctx context.Context, in ProjectInput) (Script, error) {
+			return guardResult(ctx, func() (Script, error) { return provider.Generate(ctx, in) })
+		})).
 		AppendLambda(compose.InvokableLambda(func(_ context.Context, script Script) (Script, error) {
 			normalized, err := NormalizeScript(script)
 			if err != nil {
@@ -108,7 +114,8 @@ func (p *ScriptPipeline) Invoke(ctx context.Context, in ProjectInput) (Script, e
 	return p.run.Invoke(ctx, in)
 }
 
-func RunScriptWorker(ctx context.Context, repo ProjectRepository, pipeline *ScriptPipeline) error {
+func RunScriptWorker(ctx context.Context, repo ProjectRepository, pipeline *ScriptPipeline) (workerErr error) {
+	defer recoverFileWorker(ctx, &workerErr)
 	tick := time.NewTicker(200 * time.Millisecond)
 	defer tick.Stop()
 	for {

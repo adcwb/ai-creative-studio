@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	"io"
 	"net/http"
@@ -71,7 +72,10 @@ func creativeFailure(err error) (string, string) {
 	code := "provider_error"
 	var e *ProviderError
 	if errors.As(err, &e) {
-		code = e.Code
+		code = diagnostics.SafeCode(e.Code)
+	}
+	if errors.Is(err, diagnostics.ErrPanic) {
+		code = "execution_interrupted"
 	}
 	if code == "provider_inline_capacity" || code == "writing_context_changed" || code == "library_use_denied" || code == "provider_input_capacity" || code == "provider_input_count_unavailable" || code == "alignment_source_unpinned" || code == "alignment_source_changed" {
 		return code, providerMessage(code)

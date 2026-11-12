@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
 	"net/http"
 	"net/url"
 	"strings"
@@ -43,6 +44,7 @@ func (r *ModelRuntime) executeGateway(ctx context.Context, q RuntimeSelection, d
 		permit.mu.Unlock()
 	}
 	observer := &gatewayObservation{store: s.usage, call: ModelCall{ID: authRandom(16), TaskID: taskID, Tenant: q.TenantID, GatewayID: g.Gateway.ID, GatewayName: g.Gateway.Name, ModelConfigID: m.ID, ModelName: m.Name, Model: m.Model, FeatureKey: q.FeatureKey, Capability: q.Capability, State: "unknown", StartedAt: time.Now().UTC()}}
+	observer.call.CorrelationID = diagnostics.Correlation(ctx)
 	defer func() {
 		if e := observer.finish(resultErr); e != nil {
 			resultErr = errRuntimeUnavailable
@@ -82,7 +84,7 @@ func (r *ModelRuntime) executeGateway(ctx context.Context, q RuntimeSelection, d
 		if e := guard(ctx); e != nil {
 			return e
 		}
-		return dispatch(ctx, providers)
+		return diagnostics.Invoke(ctx, "worker_panic", func() error { return dispatch(ctx, providers) })
 	}
 	providers := RuntimeProviders{}
 	switch q.Capability {
@@ -110,7 +112,7 @@ func (r *ModelRuntime) executeGateway(ctx context.Context, q RuntimeSelection, d
 	if e := guard(ctx); e != nil {
 		return e
 	}
-	return dispatch(ctx, providers)
+	return diagnostics.Invoke(ctx, "worker_panic", func() error { return dispatch(ctx, providers) })
 }
 
 func operationFeature(operation string, in *CreativeJobInput) string {

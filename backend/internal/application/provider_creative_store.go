@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/prompts"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/tracing"
 )
@@ -591,6 +592,9 @@ func (s *FileStore) cancelCreativeJob(space, id, jid, key string) (CreativeJob, 
 	return cloneCreativeJob(job), nil
 }
 func (c *creativeStore) updateJob(job CreativeJob) error {
+	if job.Status == "failed" {
+		logTaskFailure(job.TraceParent, "creative", job.ID, job.ErrorCode)
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	old := c.data.Jobs[job.ID]
@@ -661,7 +665,8 @@ func syntheticCreativePNG() []byte {
 	_ = png.Encode(&b, im)
 	return b.Bytes()
 }
-func RunCreativeWorker(ctx context.Context, s *FileStore) error {
+func RunCreativeWorker(ctx context.Context, s *FileStore) (workerErr error) {
+	defer recoverFileWorker(ctx, &workerErr)
 	tick := time.NewTicker(200 * time.Millisecond)
 	defer tick.Stop()
 	c := s.creative
@@ -694,7 +699,7 @@ func RunCreativeWorker(ctx context.Context, s *FileStore) error {
 		runCtx, cancel := context.WithTimeout(tracing.WithParent(ctx, job.TraceParent), 10*time.Minute)
 		c.cancels[job.ID] = cancel
 		c.mu.Unlock()
-		err := s.executeCreativeJob(runCtx, &job)
+		err := diagnostics.Invoke(runCtx, "worker_panic", func() error { return s.executeCreativeJob(runCtx, &job) })
 		cancel()
 		c.mu.Lock()
 		cancelled := c.data.Jobs[job.ID].Status == "cancelled"

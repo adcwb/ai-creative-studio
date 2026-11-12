@@ -614,6 +614,7 @@ func (s *FileStore) finishLocked(t Task, result GenerationResult, runErr error) 
 	if runErr != nil {
 		t.Status = "failed"
 		t.ErrorCode, t.Error = safeFailure(runErr, t.Provider)
+		logTaskFailure(t.TraceParent, "image", t.ID, t.ErrorCode)
 	} else {
 		if realImageProvider(t.Provider) {
 			name, err := resultName(t.ID)

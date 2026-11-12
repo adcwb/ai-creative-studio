@@ -459,6 +459,7 @@ func (s *FileStore) finishScriptLocked(generation ScriptGeneration, script Scrip
 		if current.RuntimeSelection != nil {
 			current.ErrorCode, current.Error = managedGenerationFailure(runErr)
 		}
+		logTaskFailure(current.TraceParent, "script", current.ID, current.ErrorCode)
 	} else {
 		current.Status = "succeeded"
 		if current.CandidateOnly {

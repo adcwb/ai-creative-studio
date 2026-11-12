@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/media"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/tracing"
 )
 
@@ -28,7 +29,7 @@ func mediaError(w http.ResponseWriter, err error) {
 	case errors.Is(err, ErrNotFound):
 		problem(w, 404, "not_found", "媒体不存在")
 	case errors.Is(err, errMediaInput):
-		problem(w, 400, "invalid_media", err.Error())
+		problem(w, 400, "invalid_media", media.InputMessage(err))
 	default:
 		problem(w, 500, "media_storage_error", "媒体操作结果不确定，请使用原请求键重试，不要重新生成")
 	}

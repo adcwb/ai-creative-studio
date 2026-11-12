@@ -113,7 +113,9 @@ func NewPipeline(ctx context.Context, provider ImageProvider, options ...Capabil
 	if len(options) > 0 {
 		caps = options[0]
 	}
-	chain := compose.NewChain[Input, GenerationResult]().AppendLambda(compose.InvokableLambda(func(_ context.Context, in Input) (Input, error) { return Normalize(in) })).AppendLambda(compose.InvokableLambda(provider.Generate))
+	chain := compose.NewChain[Input, GenerationResult]().AppendLambda(compose.InvokableLambda(func(_ context.Context, in Input) (Input, error) { return Normalize(in) })).AppendLambda(compose.InvokableLambda(func(ctx context.Context, in Input) (GenerationResult, error) {
+		return guardResult(ctx, func() (GenerationResult, error) { return provider.Generate(ctx, in) })
+	}))
 	run, err := chain.Compile(ctx)
 	if err != nil {
 		return nil, err
@@ -125,7 +127,8 @@ func (p *Pipeline) Invoke(ctx context.Context, in Input) (GenerationResult, erro
 }
 
 // RunWorker polls durable queued records; fatal persistence errors stop the process.
-func RunWorker(ctx context.Context, repo Repository, p *Pipeline) error {
+func RunWorker(ctx context.Context, repo Repository, p *Pipeline) (workerErr error) {
+	defer recoverFileWorker(ctx, &workerErr)
 	tick := time.NewTicker(200 * time.Millisecond)
 	defer tick.Stop()
 	for {

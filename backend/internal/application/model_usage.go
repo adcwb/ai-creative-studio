@@ -3,6 +3,7 @@ package application
 import (
 	"encoding/json"
 	"errors"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,30 +13,32 @@ import (
 )
 
 type ModelCall struct {
-	TaskID          string     `json:"task_id,omitempty"`
-	ID              string     `json:"id"`
-	Tenant          string     `json:"tenant"`
-	GatewayID       string     `json:"gateway_id"`
-	GatewayName     string     `json:"gateway_name"`
-	ModelConfigID   string     `json:"model_config_id"`
-	ModelName       string     `json:"model_name"`
-	Model           string     `json:"model"`
-	FeatureKey      string     `json:"feature_key"`
-	Capability      string     `json:"capability"`
-	State           string     `json:"state"`
-	ErrorCode       string     `json:"error_code,omitempty"`
-	RequestID       string     `json:"request_id,omitempty"`
-	HTTPCalls       int64      `json:"http_calls"`
-	HTTPStatus      int        `json:"http_status"`
-	InputTokens     *int64     `json:"input_tokens"`
-	OutputTokens    *int64     `json:"output_tokens"`
-	CachedTokens    *int64     `json:"cached_tokens"`
-	ReasoningTokens *int64     `json:"reasoning_tokens"`
-	DurationMS      int64      `json:"duration_ms"`
-	StartedAt       time.Time  `json:"started_at"`
-	FinishedAt      *time.Time `json:"finished_at,omitempty"`
-	Currency        string     `json:"currency"`
-	MaximumMinor    int64      `json:"maximum_minor"`
+	CorrelationID     string     `json:"correlation_id,omitempty"`
+	UpstreamErrorCode string     `json:"upstream_error_code,omitempty"`
+	TaskID            string     `json:"task_id,omitempty"`
+	ID                string     `json:"id"`
+	Tenant            string     `json:"tenant"`
+	GatewayID         string     `json:"gateway_id"`
+	GatewayName       string     `json:"gateway_name"`
+	ModelConfigID     string     `json:"model_config_id"`
+	ModelName         string     `json:"model_name"`
+	Model             string     `json:"model"`
+	FeatureKey        string     `json:"feature_key"`
+	Capability        string     `json:"capability"`
+	State             string     `json:"state"`
+	ErrorCode         string     `json:"error_code,omitempty"`
+	RequestID         string     `json:"request_id,omitempty"`
+	HTTPCalls         int64      `json:"http_calls"`
+	HTTPStatus        int        `json:"http_status"`
+	InputTokens       *int64     `json:"input_tokens"`
+	OutputTokens      *int64     `json:"output_tokens"`
+	CachedTokens      *int64     `json:"cached_tokens"`
+	ReasoningTokens   *int64     `json:"reasoning_tokens"`
+	DurationMS        int64      `json:"duration_ms"`
+	StartedAt         time.Time  `json:"started_at"`
+	FinishedAt        *time.Time `json:"finished_at,omitempty"`
+	Currency          string     `json:"currency"`
+	MaximumMinor      int64      `json:"maximum_minor"`
 }
 type modelUsageSnapshot struct {
 	Version int                  `json:"version"`
@@ -186,6 +189,11 @@ func (s *ModelUsageStore) report(tenant string, r *http.Request) (ModelUsageRepo
 		if c.Tenant != tenant || !from.IsZero() && c.StartedAt.Before(from) || !to.IsZero() && !c.StartedAt.Before(to) || q.Get("gateway_id") != "" && c.GatewayID != q.Get("gateway_id") || q.Get("model_config_id") != "" && c.ModelConfigID != q.Get("model_config_id") || q.Get("feature_key") != "" && c.FeatureKey != q.Get("feature_key") || q.Get("state") != "" && c.State != q.Get("state") {
 			continue
 		}
+		c.RequestID = diagnostics.SafeID(c.RequestID)
+		if c.ErrorCode != "" {
+			c.ErrorCode = diagnostics.SafeCode(c.ErrorCode)
+		}
+		c.UpstreamErrorCode = diagnostics.SafeUpstreamCode(c.UpstreamErrorCode)
 		out.Items = append(out.Items, c)
 		key := c.GatewayID + ":" + c.ModelConfigID + ":" + c.Capability
 		g := groups[key]

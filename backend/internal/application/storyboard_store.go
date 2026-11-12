@@ -256,6 +256,7 @@ func (s *FileStore) finishStoryboardLocked(g StoryboardGeneration, shots []Story
 		if current.RuntimeSelection != nil {
 			current.ErrorCode, current.Error = managedGenerationFailure(runErr)
 		}
+		logTaskFailure(current.TraceParent, "storyboard", current.ID, current.ErrorCode)
 	} else {
 		current.Status = "succeeded"
 		p.Storyboard = &Storyboard{Provider: current.Provider, SourceScriptVersion: current.SourceScriptVersion, Shots: shots}

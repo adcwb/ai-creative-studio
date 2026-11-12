@@ -2,7 +2,6 @@ package projects
 
 import (
 	"errors"
-	"fmt"
 )
 
 var (
@@ -13,8 +12,17 @@ var (
 	ErrScriptMissing       = errors.New("请先成功生成一版模拟剧本")
 )
 
-func InputError(message string) error {
-	return fmt.Errorf("%w：%s", ErrInvalidProjectInput, message)
+type inputError struct{ message string }
+
+func (e *inputError) Error() string   { return ErrInvalidProjectInput.Error() + "：" + e.message }
+func (*inputError) Unwrap() error     { return ErrInvalidProjectInput }
+func InputError(message string) error { return &inputError{message: message} }
+func InputMessage(err error) string {
+	var e *inputError
+	if errors.As(err, &e) {
+		return e.Error()
+	}
+	return ErrInvalidProjectInput.Error()
 }
 
 var ErrStoryboardMissing = errors.New("请先成功生成一份模拟分镜计划")

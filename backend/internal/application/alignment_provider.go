@@ -295,6 +295,9 @@ func alignmentMultipartResponse(ctx context.Context, p *OpenAIAlignmentProvider,
 	return res, nil
 }
 func runAlignmentFile(ctx context.Context, p AlignmentProvider, task AlignmentTask, path, mime string) (AlignmentResult, error) {
+	return guardResult(ctx, func() (AlignmentResult, error) { return runAlignmentFileUnchecked(ctx, p, task, path, mime) })
+}
+func runAlignmentFileUnchecked(ctx context.Context, p AlignmentProvider, task AlignmentTask, path, mime string) (AlignmentResult, error) {
 	if task.Mode != "forced" {
 		if file, ok := p.(fileAlignmentProvider); ok {
 			return file.TranscribeFile(ctx, path, mime, task.AudioDuration)

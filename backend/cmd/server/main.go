@@ -13,6 +13,7 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/application"
 	"github.com/adcwb/ai-creative-studio/backend/internal/bootstrap"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/deployconfig"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
 )
 
 func env(key, fallback string) string {
@@ -22,15 +23,22 @@ func env(key, fallback string) string {
 	return fallback
 }
 func main() {
-	if err := run(); err != nil {
-		slog.Error("server stopped", "error", err)
+	diagnostics.Configure("api")
+	if err := diagnostics.Invoke(context.Background(), "startup_error", run); err != nil {
 		os.Exit(1)
 	}
 }
-func run() error {
+func run() (resultErr error) {
+	component := "deployment_config"
+	defer func() {
+		if resultErr != nil {
+			diagnostics.StartupFailure(component)
+		}
+	}()
 	if err := deployconfig.Load(); err != nil {
 		return err
 	}
+	component = "tracing"
 	flushTraces, traceErr := application.ConfigureTracingFromEnv("api")
 	if traceErr != nil {
 		return traceErr
@@ -40,7 +48,9 @@ func run() error {
 			slog.Warn("trace export incomplete")
 		}
 	}()
+	component = "providers"
 	provider, capabilities := application.ConfigureImageFromEnv()
+	component = "storage"
 	store, db, err := openStorage(capabilities)
 	if err != nil {
 		return err
@@ -49,14 +59,17 @@ func run() error {
 		defer db.Close()
 	}
 	defer store.Close()
+	component = "blob_storage"
 	if err := application.ConfigureBlobStorageFromEnv(store); err != nil {
 		return err
 	}
+	component = "execution"
 	if err := application.ConfigureExecutionFromEnv(store); err != nil {
 		return err
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	component = "pipeline"
 	pipeline, err := application.NewPipeline(ctx, provider, capabilities)
 	if err != nil {
 		return err
@@ -74,11 +87,13 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	component = "authentication"
 	handler, err := application.HandlerFromEnv(store, env("FRONTEND_ORIGIN", "http://localhost:5173"), env("DATA_DIR", "./data"))
 	if err != nil {
 		return err
 	}
 	go application.RunGatewayModelSync(ctx, store)
+	component = "audit"
 	var ops *application.Operations
 	if db != nil {
 		ops, err = application.OpenPostgresOperations(db)
@@ -90,7 +105,8 @@ func run() error {
 	}
 	defer ops.Close()
 	handler = ops.Wrap(store.GuardPersistence(handler))
-	srv := &http.Server{Addr: env("HTTP_ADDR", "127.0.0.1:8080"), Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
+	srv := &http.Server{Addr: env("HTTP_ADDR", "127.0.0.1:8080"), Handler: handler, ErrorLog: diagnostics.ServerErrorLogger(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
+	component = "metrics"
 	metrics, listener, err := metricsServer(os.Getenv("METRICS_ADDR"), ops.MetricsHandler())
 	if err != nil {
 		return err
@@ -98,6 +114,7 @@ func run() error {
 	if metrics != nil {
 		defer metrics.Close()
 	}
+	component = "serve"
 	errs := make(chan error, 6)
 	if metrics != nil {
 		go func() { errs <- metrics.Serve(listener) }()
