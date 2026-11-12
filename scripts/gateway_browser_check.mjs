@@ -8,6 +8,10 @@ import {join} from 'node:path'
 const frontend=fileURLToPath(new URL('../frontend/',import.meta.url))
 const cli=fileURLToPath(new URL('../frontend/node_modules/@playwright/test/cli.js',import.meta.url))
 const args=process.argv.slice(2)
+const selectedDevice=process.env.STUDIO_GATEWAY_DEVICE
+if(selectedDevice && !['desktop','mobile'].includes(selectedDevice)){
+ console.error('STUDIO_GATEWAY_DEVICE must be desktop or mobile.');process.exit(2)
+}
 if(args.some(a=>a==='--project'||a.startsWith('--project='))){
  console.error('This command isolates both device projects. Use Playwright directly to select one project.')
  process.exit(2)
@@ -17,7 +21,7 @@ if(args.some(a=>a==='--project'||a.startsWith('--project='))){
 // Explicit selectors retain normal Playwright filtering for focused runs.
 const groups=args.length?[args]:readdirSync(join(frontend,'e2e-gateway')).filter(file=>file.endsWith('.spec.ts')).sort().map(file=>[file])
 if(!groups.length){console.error('No gateway browser specs found.');process.exit(1)}
-for(const project of ['desktop','mobile']){
+for(const project of selectedDevice ? [selectedDevice] : ['desktop','mobile']){
  for(const group of groups){
   console.log(`Gateway browser suite: ${project} / ${group.join(' ')}, with a fresh temporary backend.`)
   const result=spawnSync(process.execPath,[cli,'test','--config','playwright.gateway.config.ts',`--project=${project}`,...group],{cwd:frontend,stdio:'inherit'})

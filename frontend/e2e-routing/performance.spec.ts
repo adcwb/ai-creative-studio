@@ -105,3 +105,16 @@ test('multiple clip pickers share a catalog and one refresh updates all consumer
   await expect.poll(() => catalogs).toBe(2)
   await expect(page.getByRole('button', {name: '刷新模型目录', exact: true})).toHaveCount(3)
 })
+
+test('a failed English switch preserves the current draft and offers a safe Chinese fallback', async ({page}) => {
+  await page.goto('/studio')
+  await page.locator('#prompt').fill('英文加载失败后仍保留的创作草稿')
+  await page.route(/englishDictionary/, route => route.abort())
+  await navigateTo(page, '/settings/preferences')
+  await page.locator('.preferences-page').getByRole('button', {name: 'English', exact: true}).click()
+  await expect(page.getByRole('alert')).toContainText('Save your work, then reload')
+  await expect(page.getByRole('button', {name: 'Retry English', exact: true})).toHaveCount(0)
+  await page.locator('.preferences-page').getByRole('button', {name: '简体中文', exact: true}).click()
+  await navigateTo(page, '/studio')
+  await expect(page.locator('#prompt')).toHaveValue('英文加载失败后仍保留的创作草稿')
+})

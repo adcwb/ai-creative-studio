@@ -3,6 +3,7 @@ on:
   push:
     branches: ['**']
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 # A newer commit on the same branch supersedes older builds and mutable tags.
@@ -10,40 +11,29 @@ concurrency:
   group: checks-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  verify:
-    timeout-minutes: 30
-    env:
-      PLAYWRIGHT_BROWSER_CHANNEL: chrome
-    # Pin the OS to match the locked Playwright browser dependencies.
+  quality:
+    name: Static and frontend checks
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1; Node 24 action runtime
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0; Node 24 action runtime
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0; Node 24 action runtime
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Prepare local media dependencies
-        timeout-minutes: 8
-        uses: ./.github/actions/ci-dependencies
-      - name: Go checks
+      - name: Go format, vet and command builds
         working-directory: backend
         run: |
           test -z "$(gofmt -l cmd internal)"
           go vet ./...
-          # Complementary groups: every test still runs, with native/large-media
-          # protocol acceptance isolated from the already long database suite.
-          go test -race ./... -run '^Test[A-M]'
-          go test -race ./... -skip '^(TestNative|Test[A-M])'
-          go test -race ./... -run '^TestNative'
-          go build -o bin/server ./cmd/server
-          go build -o bin/bootstrap-user ./cmd/bootstrap-user
-      - name: Process crash and recovery smoke test
-        run: python3 scripts/smoke.py
+          go build ./cmd/...
       - name: Frontend checks
         working-directory: frontend
         run: |
@@ -53,6 +43,73 @@ jobs:
           npm test
           npm run build
           node ../scripts/i18n_check.cjs
+      - name: Validate CI partition contracts
+        run: python3 -m unittest discover -s scripts/tests -p 'test_ci_*.py' -v
+  go-race:
+    name: Go race / ${{ matrix.storage }} / ${{ matrix.group }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        storage: [file, postgres]
+        group: [a-m, other, native]
+    env:
+      PGPASSFILE: /dev/null
+      PGSERVICEFILE: /dev/null
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Prepare local media dependencies
+        timeout-minutes: 8
+        uses: ./.github/actions/ci-dependencies
+        with:
+          postgres: ${{ matrix.storage == 'postgres' && 'true' || 'false' }}
+      - name: Start disposable local PostgreSQL
+        if: matrix.storage == 'postgres'
+        run: bash scripts/ci_postgres.sh start
+      - name: Race tests (complementary groups, fresh results)
+        env:
+          STUDIO_CI_TEST_GROUP: ${{ matrix.group }}
+        run: bash scripts/ci_go_tests.sh
+      - name: Stop disposable PostgreSQL
+        if: always() && matrix.storage == 'postgres'
+        run: bash scripts/ci_postgres.sh stop
+  integrations:
+    name: API, media, recovery and layout contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PLAYWRIGHT_BROWSER_CHANNEL: chrome
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Prepare local media dependencies
+        timeout-minutes: 8
+        uses: ./.github/actions/ci-dependencies
+      - name: Build isolated services
+        working-directory: backend
+        run: go build -o bin/ ./cmd/server ./cmd/bootstrap-user
+      - name: Process crash and recovery smoke test
+        run: python3 scripts/smoke.py
+      - name: Install browser test dependencies
+        working-directory: frontend
+        run: npm ci
       - name: Check runner browser for integration scripts
         working-directory: frontend
         run: node ../scripts/ci_browser_check.mjs
@@ -63,13 +120,18 @@ jobs:
       - name: Storyboard integration and layout
         run: node scripts/storyboard_check.mjs
       - name: Responsive layout regression
-        run: node scripts/layout_check.mjs
+        timeout-minutes: 5
+        run: |
+          node --test scripts/layout_images_test.mjs
+          node scripts/layout_check.mjs
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0; Node 24 action runtime
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: scripts/ci-requirements.txt
       - name: Validate OpenAPI
         run: |
-          pip install openapi-spec-validator==0.7.2
+          pip install -r scripts/ci-requirements.txt
           python -m openapi_spec_validator api/openapi.json
           python scripts/contract_check.py
           python scripts/secure_contract_check.py
@@ -86,19 +148,26 @@ jobs:
         run: python scripts/media_check.py
       - name: Audio, subtitle and video alignment
         run: python scripts/alignment_check.py
-  browser-smoke:
-    name: Browser acceptance
+  browser-tests:
+    name: Browser acceptance / ${{ matrix.suite }} / ${{ matrix.device }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [e2e, routing, auth]
+        device: [desktop, mobile]
     env:
       PLAYWRIGHT_BROWSER_CHANNEL: chrome
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: '24'
           cache: npm
@@ -108,23 +177,27 @@ jobs:
         uses: ./.github/actions/ci-dependencies
       - name: Build isolated browser services
         working-directory: backend
-        run: |
-          go build -o bin/server ./cmd/server
-          go build -o bin/bootstrap-user ./cmd/bootstrap-user
-      - name: Browser tests
+        run: go build -o bin/ ./cmd/server ./cmd/bootstrap-user
+      - name: Browser tests with an isolated backend per runner
         working-directory: frontend
+        env:
+          STUDIO_CI_BROWSER_SUITE: ${{ matrix.suite }}
+          STUDIO_CI_BROWSER_DEVICE: ${{ matrix.device }}
         run: |
           npm ci
           node ../scripts/ci_browser_check.mjs
-          npm run test:e2e
-          npm run test:routing
-          npx playwright test -c playwright.auth.config.ts
-  gateway-smoke:
-    name: Gateway creation workflows
+          bash ../scripts/ci_browser_tests.sh
+  gateway-tests:
+    name: Gateway creation workflows / ${{ matrix.device }}
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [desktop, mobile]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       PLAYWRIGHT_BROWSER_CHANNEL: chrome
+      STUDIO_GATEWAY_DEVICE: ${{ matrix.device }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -160,8 +233,30 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Build both local images without credentials
-        run: docker compose --env-file /dev/null -p studio-docker-check -f compose.yaml build
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build local backend image without registry credentials
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          build-args: BUILD_REVISION=${{ github.sha }}
+          load: true
+          push: false
+          tags: studio-docker-check-backend:latest
+          cache-from: type=gha,scope=studio-backend,timeout=2m
+          cache-to: type=gha,scope=studio-backend,mode=max,ignore-error=true,timeout=2m
+      - name: Build local frontend image without registry credentials
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          build-args: BUILD_REVISION=${{ github.sha }}
+          load: true
+          push: false
+          tags: studio-docker-check-frontend:latest
+          cache-from: type=gha,scope=studio-frontend,timeout=2m
+          cache-to: type=gha,scope=studio-frontend,mode=max,ignore-error=true,timeout=2m
       - name: Verify proxy, persistence and synthetic media in containers
         run: >-
           python3 scripts/docker_check.py --no-build
@@ -195,33 +290,9 @@ jobs:
         with:
           postgres: 'true'
       - name: Start disposable local PostgreSQL
-        run: |
-          mkdir -m 700 /tmp/studio-ci-pg-socket
-          /usr/lib/postgresql/16/bin/initdb -D /tmp/studio-ci-pg-data --encoding=UTF8 --auth-local=trust --auth-host=reject
-          /usr/lib/postgresql/16/bin/pg_ctl -D /tmp/studio-ci-pg-data -l /tmp/studio-ci-pg.log -o '-k /tmp/studio-ci-pg-socket -p 55439 -h 127.0.0.1' start
-          /usr/lib/postgresql/16/bin/createdb -h /tmp/studio-ci-pg-socket -p 55439 studio_ci
-          /usr/lib/postgresql/16/bin/createdb -h /tmp/studio-ci-pg-socket -p 55439 studio_backup_source
-          /usr/lib/postgresql/16/bin/createdb -h /tmp/studio-ci-pg-socket -p 55439 studio_backup_target
-      - name: Real database transactions, leases, isolation and native restore
-        working-directory: backend
-        run: |
-          export STUDIO_POSTGRES_TEST_DSN="host=/tmp/studio-ci-pg-socket port=55439 user=$(id -un) dbname=studio_ci sslmode=disable passfile=/dev/null"
-          export JOBQUEUE_TEST_DSN="$STUDIO_POSTGRES_TEST_DSN"
-          export STUDIO_BLOB_TEST_DSN="$STUDIO_POSTGRES_TEST_DSN"
-          export STUDIO_WORKER_TEST_DSN="$STUDIO_POSTGRES_TEST_DSN"
-          export STUDIO_AUDIT_TEST_DSN="$STUDIO_POSTGRES_TEST_DSN"
-          export STUDIO_POSTGRES_BIN_DIR=/usr/lib/postgresql/16/bin
-          export STUDIO_BACKUP_TEST_DSN="postgresql://$(id -un)@/studio_backup_source?host=/tmp/studio-ci-pg-socket&port=55439&sslmode=disable"
-          export STUDIO_BACKUP_TARGET_DSN="postgresql://$(id -un)@/studio_backup_target?host=/tmp/studio-ci-pg-socket&port=55439&sslmode=disable"
-          export STUDIO_TEST_PG_DUMP=/usr/lib/postgresql/16/bin/pg_dump
-          export STUDIO_TEST_PG_RESTORE=/usr/lib/postgresql/16/bin/pg_restore
-          # Complementary groups: every test still runs, with native/large-media
-          # protocol acceptance isolated from the already long database suite.
-          go test -race ./... -run '^Test[A-M]'
-          go test -race ./... -skip '^(TestNative|Test[A-M])'
-          go test -race ./... -run '^TestNative'
-          go build ./cmd/...
-          python3 ../scripts/test_scheduled_backup.py
+        run: bash scripts/ci_postgres.sh start
+      - name: Scheduled backup acceptance
+        run: python3 scripts/test_scheduled_backup.py
       - name: Two APIs, two workers and actual media
         run: >-
           python3 scripts/multiservice_check.py --pg-bin /usr/lib/postgresql/16/bin
@@ -240,10 +311,67 @@ jobs:
           --pg-socket /tmp/studio-ci-pg-socket --pg-port 55439 --pg-user "$(id -un)"
       - name: Stop disposable PostgreSQL
         if: always()
-        run: /usr/lib/postgresql/16/bin/pg_ctl -D /tmp/studio-ci-pg-data -m fast stop || true
+        run: bash scripts/ci_postgres.sh stop
+  browser-smoke:
+    name: Browser acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    if: always()
+    needs: [browser-tests]
+    steps:
+      - name: Require all validation jobs
+        env:
+          VALIDATION_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PYCODE'
+          import json, os
+          results = json.loads(os.environ['VALIDATION_RESULTS'])
+          for name, result in results.items():
+              print(f"{name}: {result['result']}")
+          if not results or any(r['result'] != 'success' for r in results.values()):
+              raise SystemExit('Required validation failed, was cancelled or was skipped')
+          PYCODE
+  gateway-smoke:
+    name: Gateway creation workflows
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    if: always()
+    needs: [gateway-tests]
+    steps:
+      - name: Require all validation jobs
+        env:
+          VALIDATION_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PYCODE'
+          import json, os
+          results = json.loads(os.environ['VALIDATION_RESULTS'])
+          for name, result in results.items():
+              print(f"{name}: {result['result']}")
+          if not results or any(r['result'] != 'success' for r in results.values()):
+              raise SystemExit('Required validation failed, was cancelled or was skipped')
+          PYCODE
+  verify:
+    name: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    if: always()
+    needs: [quality, go-race, integrations, browser-smoke, gateway-smoke, container-smoke, durable-smoke]
+    steps:
+      - name: Require all validation jobs
+        env:
+          VALIDATION_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PYCODE'
+          import json, os
+          results = json.loads(os.environ['VALIDATION_RESULTS'])
+          for name, result in results.items():
+              print(f"{name}: {result['result']}")
+          if not results or any(r['result'] != 'success' for r in results.values()):
+              raise SystemExit('Required validation failed, was cancelled or was skipped')
+          PYCODE
   docker:
     name: Docker / ${{ matrix.component }}
-    needs: [verify, browser-smoke, gateway-smoke, container-smoke, durable-smoke]
+    needs: [verify]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -301,6 +429,8 @@ jobs:
           push: ${{ env.PUBLISH_IMAGE == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=studio-${{ matrix.component }},timeout=2m
+          cache-to: type=gha,scope=studio-${{ matrix.component }},mode=max,ignore-error=true,timeout=2m
       - name: Record published image digest
         if: env.PUBLISH_IMAGE == 'true'
         env:

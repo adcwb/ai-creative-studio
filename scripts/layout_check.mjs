@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
-import { checkNavigationLayout } from './support/layout.mjs'
+import { checkNavigationLayout, loadLayoutImages } from './support/layout.mjs'
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(join(repo, 'frontend/package.json'))
@@ -124,10 +124,10 @@ try {
         // Flush that focus before resetting scroll for stable geometry/screenshots.
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
         await document.fonts.ready
-        await Promise.all([...document.images].map(image => image.decode().catch(() => {})))
         if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
         window.scrollTo(0, 0)
       })
+      await loadLayoutImages(page)
       await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
       const geometry = await page.evaluate(() => {
         const rect = selector => {

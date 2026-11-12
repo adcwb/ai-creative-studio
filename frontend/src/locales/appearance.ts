@@ -1,4 +1,5 @@
 export default {
+ '偏好保存状态': 'Preference storage status',
  '制作工作台': 'Production workspace',
  '规划中': 'Planned',
  '创作灵感画廊': 'A gallery of creative possibilities', '轮播': 'carousel', '平台创作能力': 'Creative possibilities',

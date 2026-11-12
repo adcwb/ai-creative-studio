@@ -1,4 +1,27 @@
 // Layout contracts shared by the standalone real-browser CI checks.
+export async function loadLayoutImages(page, timeout = 10000) {
+  // Full-page screenshots include offscreen images. Lazy images must be requested
+  // explicitly before waiting: decode() alone does not start a deferred request.
+  await page.locator('img').evaluateAll(images => images.forEach(image => {image.loading = 'eager'}))
+  try {
+    await page.waitForFunction(() => [...document.images].every(image => image.complete && image.naturalWidth > 0), null, {timeout})
+    await page.evaluate(async timeout => {
+      let timer
+      try {
+        await Promise.race([
+          Promise.all([...document.images].map(image => image.decode())),
+          new Promise((_, reject) => {timer = setTimeout(() => reject(new Error('Image decode deadline exceeded')), timeout)}),
+        ])
+      } finally {clearTimeout(timer)}
+    }, timeout)
+  } catch (error) {
+    const images = await page.locator('img').evaluateAll(images => images.map(image => ({
+      src: image.getAttribute('src')?.slice(0, 160), complete: image.complete, width: image.naturalWidth,
+    })))
+    throw new Error(`Layout images did not load/decode: ${JSON.stringify(images)}`, {cause: error})
+  }
+}
+
 export async function settleLayout(page) {
   await page.evaluate(async () => {
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
