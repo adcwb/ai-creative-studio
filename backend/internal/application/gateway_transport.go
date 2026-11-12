@@ -102,7 +102,8 @@ func (o *gatewayObservation) response(status int, requestID string, raw []byte) 
 		o.call.RequestID = id
 	}
 	var v struct {
-		Usage struct {
+		RequestID string `json:"request_id"`
+		Usage     struct {
 			Prompt        *int64 `json:"prompt_tokens"`
 			Completion    *int64 `json:"completion_tokens"`
 			Input         *int64 `json:"input_tokens"`
@@ -117,6 +118,9 @@ func (o *gatewayObservation) response(status int, requestID string, raw []byte) 
 	}
 	if json.Unmarshal(raw, &v) != nil {
 		return
+	}
+	if o.call.RequestID == "" {
+		o.call.RequestID = safeGatewayRequestID(v.RequestID)
 	}
 	valid := func(n *int64) *int64 {
 		if n != nil && (*n < 0 || *n > 1_000_000_000) {
@@ -172,10 +176,12 @@ type gatewayObservedTransport struct {
 	base        http.RoundTripper
 	origin      *url.URL
 	observation *gatewayObservation
+	// A vendor may use an additional, exact same-origin text endpoint.
+	extraPaths map[string]bool
 }
 
 func (t gatewayObservedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if req.URL.Scheme != t.origin.Scheme || req.URL.Host != t.origin.Host || !strings.HasPrefix(req.URL.Path, t.origin.Path+"/") || req.URL.User != nil || req.URL.Fragment != "" {
+	if req.URL.Scheme != t.origin.Scheme || req.URL.Host != t.origin.Host || (!strings.HasPrefix(req.URL.Path, t.origin.Path+"/") && !t.extraPaths[req.URL.Path]) || req.URL.User != nil || req.URL.Fragment != "" {
 		return nil, providerFailure("gateway_target_denied")
 	}
 	if t.observation != nil {
@@ -252,6 +258,9 @@ func (s *ModelConfigStore) checkGateway(ctx context.Context, tenant, id string, 
 	ctx, cancel := context.WithTimeout(ctx, 7*time.Second)
 	defer cancel()
 	client := newGatewayClient(g.Gateway)
+	if gatewayVendor(g.Gateway.Vendor) == gatewayBailian {
+		return checkBailianCatalog(ctx, client, g.Gateway.BaseURL, string(plain)), nil
+	}
 	req, e := http.NewRequestWithContext(ctx, "GET", g.Gateway.BaseURL+"/models", nil)
 	if e != nil {
 		return nil, errModelInput

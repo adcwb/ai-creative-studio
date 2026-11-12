@@ -34231,6 +34231,14 @@
           "sync_error": {
             "type": "string",
             "readOnly": true
+          },
+          "vendor": {
+            "type": "string",
+            "enum": [
+              "openai-compatible",
+              "aliyun-bailian"
+            ],
+            "description": "Gateway vendor selects all upstream protocols. Omitted on create: openai-compatible; omitted on update: retain current vendor. Bailian uses an /api/v1 base URL, deriving its /compatible-mode/v1 endpoint for text; media uses native DashScope APIs."
           }
         }
       },
@@ -34913,6 +34921,14 @@
                 "maximum": 10080
               }
             ]
+          },
+          "vendor": {
+            "type": "string",
+            "enum": [
+              "openai-compatible",
+              "aliyun-bailian"
+            ],
+            "description": "Gateway vendor selects all upstream protocols. Omitted on create: openai-compatible; omitted on update: retain current vendor. Bailian uses an /api/v1 base URL, deriving its /compatible-mode/v1 endpoint for text; media uses native DashScope APIs."
           }
         }
       },

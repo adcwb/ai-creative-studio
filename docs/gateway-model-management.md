@@ -7,7 +7,7 @@
 
 ## 配置顺序
 
-1. 在“AI 网关”添加名称、完整 Base URL 和请求超时。Base URL 包含实际 API 前缀，例如 `https://gateway.example.com/v1`；只有根地址时自动补 `/v1`，已有前缀不重复添加。
+1. 在“AI 网关”选择厂商（通用 OpenAI 兼容／阿里云百炼），添加名称、完整 Base URL 和请求超时。通用网关根地址自动补 `/v1`；百炼使用 `/api/v1` 原生前缀。旧记录默认通用 OpenAI 兼容，旧客户端更新省略厂商时保留当前值。
 2. 部署方配置凭据加密密钥后，新建网关直接输入 API Key；编辑已有网关时选择“设置 API Key”。所有模型共用该网关的加密凭据。更换服务地址须重新设置密钥，页面和接口均不返回明文。
 3. 在“网关模型”选择所属网关，填写网关实际接受的模型 ID，例如 `vendor/model-alias`，再选择已确认的能力。一个模型可以同时具有文本和视觉等多种能力。
 4. 为模型设置最大输出、JSON 输出模式及需要的视频参数。无需填写价格、费用上限或依据。
@@ -16,9 +16,11 @@
 
 分镜规划使用文本推理模型；镜头图片和镜头视频分别使用图像、视频模型。普通语音转写和需要时间戳的字幕识别分别配置，网关需实现对应 JSON／verbose JSON 协议。能力声明并不证明模型权限或质量，需通过真实小样核对。
 
-旧供应商编辑页面已移除，旧 PUT 接口返回 410；历史配置／凭据不会被删除，保留读取、执行兼容与管理员显式撤销。新维护统一使用网关，不自动转换原生协议。详见 [配置迁移](settings-configuration.md)。
+旧供应商编辑页面已移除，旧 PUT 接口返回 410；历史配置／凭据不会被删除，保留读取、执行兼容与管理员显式撤销。新维护统一使用网关，由管理员明确选择厂商，后端按厂商分派协议。详见 [配置迁移](settings-configuration.md)。
 
 ## 支持的网关操作
+
+下表仅适用于“通用 OpenAI 兼容”。“阿里云百炼”由厂商适配器选择各项接口：文本使用百炼的 OpenAI 兼容协议，媒体使用原生协议，不会在失败后切换协议。
 
 | 能力 | 兼容协议 |
 | --- | --- |
@@ -33,6 +35,26 @@
 模型 ID 作为请求字段发送，允许包含 `/`；不用于拼接任意请求地址。图片结果转换为受校验的 PNG 并进入现有素材库。视频采用原网关返回的任务 ID 进行查询与内容获取，支持的创建规格为 4／8／12 秒、1280×720 或 720×1280，实际网关必须支持相同合同。
 
 网关检查只执行显式的 `GET /models`，返回最多 200 个模型 ID 供核对。新增“同步模型”和定时同步可将目录导入为停用的待配置条目，不覆盖现有配置或发起生成，详见 [后端配置与模型同步](backend-settings.md)。没有此接口的网关可以手动配置模型。目录检查成功不代表生成成功。
+
+## 阿里云百炼
+
+选择厂商“阿里云百炼”，服务地址填写账号及地域对应的 `/api/v1` 地址。例如 Token Plan 为 `https://token-plan.cn-beijing.maas.aliyuncs.com/api/v1`；普通百炼可使用业务空间域名或 `https://dashscope.aliyuncs.com/api/v1`。根地址及 `/compatible-mode/v1` 输入会规范化为 `/api/v1`。修改已有网关的实际地址须重新输入凭据；不要将普通百炼和套餐凭据混用。
+
+| 能力 | 百炼原生路径（相对于 /api/v1） |
+| --- | --- |
+| 目录及连接检查 | `GET /models?page_no=…&page_size=100`，分页读取 `output.models` |
+| 文本、剧本、分镜、连续性检查 | 同源 `/compatible-mode/v1/chat/completions`；按模型配置可使用 Responses |
+| 视觉理解、图像生成及参考图编辑 | `POST /services/aigc/multimodal-generation/generation` |
+| 文生视频 | `POST /services/aigc/video-generation/video-synthesis`，带 `X-DashScope-Async: enable` |
+| 视频查询及下载地址 | `GET /tasks/{task_id}` |
+| 语音合成 | `POST /services/audio/tts/SpeechSynthesizer`，请求 WAV，音色取功能绑定 |
+| 纯文本语音转写 | `POST /services/aigc/multimodal-generation/generation`，音频 Data URI |
+
+图片通过 `input.messages` 与 `parameters` 提交，尺寸使用 `*`，只接收单张输出并通过现有安全下载器保存为 PNG。图像遮罩、参考视频生成和字幕时间戳未适配，明确拒绝，不伪造结果或改走 OpenAI。模型实际支持的参数、音色和输入限制以该模型官方文档为准；Chat Completions 使用 `max_tokens`，JSON 模式会关闭思考，强制思考模型请关闭 JSON 模式并验证结构化回答。
+
+Token Plan 文本按官方兼容接口实现。套餐域名对原生目录的权限尚未真实验证；目录不可用时可手工添加模型，但不代表生成已验证。测试使用本地合成上游，不证明真实账号权限、费用或模型效果。
+
+协议依据：[原生模型目录](https://help.aliyun.com/zh/model-studio/list-models)、[原生文本 API](https://help.aliyun.com/zh/model-studio/qwen-api-via-dashscope)、[Token Plan 多模态接口](https://help.aliyun.com/zh/model-studio/token-plan-integration-overview)。
 
 ## 部署准备
 

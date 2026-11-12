@@ -1,4 +1,9 @@
 const models: Record<string, string> = {
+ '厂商': 'Vendor',
+ '百炼视频使用原生异步生成与任务查询接口。': 'Bailian video uses native asynchronous generation and task polling.',
+ '通用 OpenAI 兼容': 'Generic OpenAI compatible',
+ '阿里云百炼': 'Alibaba Cloud Model Studio',
+ '百炼文本使用官方 OpenAI 兼容协议，图像、视频和语音使用原生接口。服务地址填写 /api/v1 前缀，并匹配账号套餐及地域。': 'Bailian text uses its official OpenAI-compatible protocol; images, video, and audio use native APIs. Include /api/v1 in the base URL and match your plan and region.',
  "关闭编辑": "Close editor",
  "放弃未保存的修改？": "Discard unsaved changes?",
  "关闭后，本次修改将不会保存。": "Your changes will not be saved if you close this editor.",

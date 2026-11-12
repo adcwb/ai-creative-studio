@@ -50,7 +50,12 @@ func (r *ModelRuntime) executeGateway(ctx context.Context, q RuntimeSelection, d
 	}()
 	client := newGatewayClient(g.Gateway)
 	origin, _ := url.Parse(g.Gateway.BaseURL)
-	client.Transport = gatewayObservedTransport{base: client.Transport, origin: origin, observation: observer}
+	var extraPaths map[string]bool
+	if gatewayVendor(g.Gateway.Vendor) == gatewayBailian && q.Capability == "text" {
+		prefix := strings.TrimSuffix(origin.Path, "/api/v1") + "/compatible-mode/v1"
+		extraPaths = map[string]bool{prefix + "/chat/completions": true, prefix + "/responses": true, prefix + "/responses/input_tokens": true}
+	}
+	client.Transport = gatewayObservedTransport{base: client.Transport, origin: origin, observation: observer, extraPaths: extraPaths}
 	guard := func(requestCtx context.Context) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -69,6 +74,16 @@ func (r *ModelRuntime) executeGateway(ctx context.Context, q RuntimeSelection, d
 	api.contextWindowTokens = m.ContextWindowTokens
 	api.nativeInputCounting = m.NativeInputCounting
 	api.jsonOutput = &m.JSONOutput
+	if gatewayVendor(g.Gateway.Vendor) == gatewayBailian {
+		providers := newBailianRuntimeProviders(api, m, q,
+			guardRuntimeDownloadTo(ctx, safeImageDownloadTo, guard, onDispatch),
+			guardRuntimeDownloadTo(ctx, safeVideoDownloadTo, guard, onDispatch),
+			guardRuntimeDownloadTo(ctx, safeBailianAudioDownloadTo, guard, onDispatch))
+		if e := guard(ctx); e != nil {
+			return e
+		}
+		return dispatch(ctx, providers)
+	}
 	providers := RuntimeProviders{}
 	switch q.Capability {
 	case "text":

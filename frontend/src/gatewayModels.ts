@@ -1,4 +1,13 @@
-export interface AIGateway {id: string; name: string; base_url: string; enabled: boolean; timeout_seconds: number; version: number; secret_status: string; updated_at?: string; sync_interval_minutes?: number; last_synced_at?: string; sync_error?: string}
+export type GatewayVendor = 'openai-compatible' | 'aliyun-bailian'
+export const gatewayVendorNames: Record<GatewayVendor, string> = {'openai-compatible': '通用 OpenAI 兼容', 'aliyun-bailian': '阿里云百炼'}
+export function bailianBaseURL(raw: string) {
+  try {
+    const url = new URL(raw)
+    if (['', '/', '/v1', '/v1/', '/compatible-mode/v1', '/compatible-mode/v1/'].includes(url.pathname)) url.pathname = '/api/v1'
+    return url.toString().replace(/\/$/, '')
+  } catch { return raw }
+}
+export interface AIGateway {vendor?: GatewayVendor; id: string; name: string; base_url: string; enabled: boolean; timeout_seconds: number; version: number; secret_status: string; updated_at?: string; sync_interval_minutes?: number; last_synced_at?: string; sync_error?: string}
 export interface GatewayModel {text_protocol?: ''|'chat_completions'|'responses';context_window_tokens?:number;native_input_counting?:boolean;max_reference_images?: number;pending?: boolean; id: string; gateway_id: string; name: string; model: string; capabilities: string[]; enabled: boolean; version: number; max_output_tokens: number; json_output: boolean; video_seconds: number; video_size: string; currency: string; maximum_minor: number; price_source: string; updated_at?: string}
 export interface FeatureDefinition {key: string; name: string; capability: string}
 export interface FeatureBinding {feature_key: string; model_config_id: string; enabled: boolean; allow_override: boolean; voice?: string; version: number; updated_by?: string; updated_at?: string}

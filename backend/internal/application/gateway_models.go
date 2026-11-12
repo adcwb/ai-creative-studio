@@ -14,6 +14,7 @@ import (
 
 // Gateway credentials belong to the connection, never to individual models.
 type AIGateway struct {
+	Vendor              string     `json:"vendor,omitempty"`
 	SyncIntervalMinutes int        `json:"sync_interval_minutes"`
 	LastSyncedAt        *time.Time `json:"last_synced_at,omitempty"`
 	SyncError           string     `json:"sync_error,omitempty"`
@@ -160,12 +161,12 @@ func gatewayModelEntry(m GatewayModel, g AIGateway, capability string) ModelConf
 	if capability == "image" {
 		provider = "gateway-images"
 	}
-	return ModelConfigEntry{ID: m.ID, Provider: provider, Model: m.Model, Capability: capability, Region: "gateway", Endpoint: g.BaseURL, Protocol: "openai-compatible", Enabled: m.Enabled && g.Enabled, Lifecycle: "active", SecretStatus: g.SecretStatus}
+	return ModelConfigEntry{ID: m.ID, Provider: provider, Model: m.Model, Capability: capability, Region: "gateway", Endpoint: g.BaseURL, Protocol: gatewayVendor(g.Vendor), Enabled: m.Enabled && g.Enabled, Lifecycle: "active", SecretStatus: g.SecretStatus}
 }
 func validateGatewaySnapshot(d modelSnapshot) error {
 	for tenant, t := range d.Tenants {
 		for id, g := range t.Gateways {
-			u, e := normalizeGatewayURL(g.Gateway.BaseURL)
+			u, e := normalizeVendorGatewayURL(g.Gateway.Vendor, g.Gateway.BaseURL)
 			if tenant == "" || id != g.Gateway.ID || id == "" || e != nil || u != g.Gateway.BaseURL || g.Gateway.Version < 1 || g.Gateway.TimeoutSeconds < 5 || g.Gateway.TimeoutSeconds > 600 || !validSyncInterval(g.Gateway.SyncIntervalMinutes) {
 				return errModelInput
 			}
@@ -260,6 +261,7 @@ func (s *ModelConfigStore) managementReportLocked(tenant string) ModelManagement
 	t := s.data.Tenants[tenant]
 	out := ModelManagementReport{Version: t.Version, Gateways: []AIGateway{}, Models: []GatewayModel{}, Bindings: []FeatureBinding{}, Features: modelFeatures(), SecretStorageAvailable: s.aead != nil, GovernanceReady: s.runtimeReady != nil && s.runtimeReady(), LegacyModels: len(t.Entries)}
 	for _, g := range t.Gateways {
+		g.Gateway.Vendor = gatewayVendor(g.Gateway.Vendor)
 		out.Gateways = append(out.Gateways, g.Gateway)
 	}
 	for _, m := range t.Models {
@@ -288,7 +290,10 @@ func (s *ModelConfigStore) saveGateway(tenant string, expected int64, in AIGatew
 	if old.Gateway.Version != expected {
 		return ModelManagementReport{}, errModelConflict
 	}
-	u, e := normalizeGatewayURL(in.BaseURL)
+	if in.Vendor == "" {
+		in.Vendor = gatewayVendor(old.Gateway.Vendor)
+	}
+	u, e := normalizeVendorGatewayURL(in.Vendor, in.BaseURL)
 	if e != nil || utf8.RuneCountInString(strings.TrimSpace(in.Name)) < 1 || utf8.RuneCountInString(in.Name) > 80 || in.TimeoutSeconds < 5 || in.TimeoutSeconds > 600 || !validSyncInterval(in.SyncIntervalMinutes) {
 		return ModelManagementReport{}, errModelInput
 	}

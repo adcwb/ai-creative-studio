@@ -190,16 +190,21 @@ func (p *gatewayImageProvider) decodeImageReader(ctx context.Context, reader io.
 	if env.Data[0].URL == "" {
 		return GenerationResult{}, providerFailure("invalid_provider_response")
 	}
+	return p.downloadImage(ctx, env.Data[0].URL)
+}
+
+// Share guarded URL download and image validation across vendor response formats.
+func (p *gatewayImageProvider) downloadImage(ctx context.Context, url string) (GenerationResult, error) {
 	f, e := os.CreateTemp("", "studio-gateway-image-*")
 	if e != nil {
 		return GenerationResult{}, e
 	}
 	defer func() { name := f.Name(); f.Close(); os.Remove(name) }()
 	if p.downloadTo != nil {
-		e = p.downloadTo(ctx, env.Data[0].URL, f)
+		e = p.downloadTo(ctx, url, f)
 	} else if p.download != nil {
 		var b []byte
-		b, e = p.download(ctx, env.Data[0].URL)
+		b, e = p.download(ctx, url)
 		if e == nil {
 			_, e = f.Write(b)
 		}
