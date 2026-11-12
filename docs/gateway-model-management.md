@@ -54,6 +54,20 @@
 
 Token Plan 文本按官方兼容接口实现。套餐域名对原生目录的权限尚未真实验证；目录不可用时可手工添加模型，但不代表生成已验证。测试使用本地合成上游，不证明真实账号权限、费用或模型效果。
 
+### Token Plan 图像生成报 provider_rejected
+
+官方 [Token Plan 图像接入文档](https://help.aliyun.com/zh/model-studio/token-plan-image-generation) 明确列出 `wan2.7-image` 与 `wan2.7-image-pro`。不能只根据 `provider_rejected` 判定套餐不支持该模型。
+
+首先只读核对网关的**厂商字段**为 `aliyun-bailian`（界面显示“阿里云百炼”），地址为 `https://token-plan.cn-beijing.maas.aliyuncs.com/api/v1`，模型 ID 为 `wan2.7-image`，使用账号对应的套餐 Key。网关名称和模型名称不会自动选择厂商协议；通用 OpenAI 兼容厂商仍发送 `/images/generations`，与 Token Plan 文档的原生图像接口不同。不要为排查而直接切换生产凭据或重发生成。
+
+当前标签的含义：HTTP 400、404、413、422 均映射为 `provider_rejected`；原生响应 HTTP 成功但含顶层 `code` 时也显示该标签。HTTP 401/403 通常映射为 `provider_auth_failed`，429 通常为 `provider_rate_limited`。上游具体 code/message 仍需阿里云调用记录确认，不能把通用标签当成确定根因。
+
+从已失败调用取证，无需重新生成：在有权访问当前空间的会话中，查看 `GET /api/v1/model-usage/calls?space_id=<当前空间>` 的响应，仅取该条记录的 `model`、`http_status`、`request_id`、`error_code`、`http_calls`。服务保存这些字段，但当前调用表格未展示全部诊断字段。用 `request_id` 关联阿里云记录，核实参数、模型权限、套餐状态及地域。不要提供 Key、Cookie、完整提示词、带签名结果 URL 或原始错误回显。接口仍受原有认证、空间及角色权限控制。
+
+当前四种画幅发送 `1024*1024`、`1536*864`、`864*1536`、`1024*1280`，均在 [Wan 2.7 图像文档](https://help.aliyun.com/zh/model-studio/wan-image-generation-and-editing-api-reference) 的文生图尺寸范围内。若带参考图片，还需核实供应商对格式、透明通道、图像尺寸及文件大小的要求；这些是上游协议条件。没有现场参数时，不应先认定是图片尺寸或内容问题。
+
+最新排查证据和限制见 [2026-11-12 百炼图像调查](superpowers/specs/2026-11-12-bailian-image-diagnosis.md)。
+
 协议依据：[原生模型目录](https://help.aliyun.com/zh/model-studio/list-models)、[原生文本 API](https://help.aliyun.com/zh/model-studio/qwen-api-via-dashscope)、[Token Plan 多模态接口](https://help.aliyun.com/zh/model-studio/token-plan-integration-overview)。
 
 ## 部署准备

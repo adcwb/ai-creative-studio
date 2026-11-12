@@ -35,6 +35,7 @@ docs/
 
 | 规格 | 状态与用途 |
 | --- | --- |
+| [Token Plan 图像拒绝调查](specs/2026-11-12-bailian-image-diagnosis.md) | 本地请求与错误映射核验；生产根因须由失败记录确认，不把合成响应当成账号验证 |
 | [CI 故障修复与并行检查](specs/2026-11-12-ci-performance/README.md) | 语言、懒加载布局与最新 Actions 故障；保持完整覆盖并拆分隔离 runner，实测与提速估算分开记录 |
 | [自定义提示词与长篇漫剧](specs/2026-11-04-creative-series/README.md) | Implementing，2026-11-06修订32；提示词、恢复基础、系列迁移、故事/资产实际输入、编剧与T41导演预演已实现，准确证据见包内阶段记录；T42–T45、剩余P0A和长期容量仍未完成 |
 | [多网关模型管理](specs/2026-10-30-multi-gateway-model-management-design.md) | 历史目标设计；当前合同见专题使用说明 |
