@@ -137,6 +137,11 @@ func validValue(key, value string) bool {
 		case "AUTH_ALLOWED_ORIGINS":
 			_, err := TrustedOrigins("", strings.Split(value, ","))
 			return err == nil
+		case "DIGITAL_HUMAN_PHOTO_PROTOCOL", "LIP_SYNC_PROTOCOL":
+			return value == "json-v1" || value == "files-v1"
+		case "DIGITAL_HUMAN_PHOTO_TIMEOUT_SECONDS", "LIP_SYNC_TIMEOUT_SECONDS":
+			n, err := strconv.ParseInt(value, 10, 32)
+			return err == nil && n >= 1
 		case "CONTENT_MODERATION_MODE":
 			return value == "disabled" || value == "required"
 		case "TRACE_MODE":
@@ -153,7 +158,7 @@ func validValue(key, value string) bool {
 			return err == nil && u.Host != "" && (u.Scheme == "https" || u.Scheme == "http") && u.User == nil
 		}
 	}
-	if value != "" && (strings.HasSuffix(key, "_ENABLED") || strings.HasSuffix(key, "_SECURE") || key == "AUTH_ALLOW_REGISTRATION" || key == "STORAGE_AUTO_MIGRATE" || key == "MUSIC_EXISTING_ACCOUNT_ACK" || key == "BLOB_S3_ALLOW_LOOPBACK_HTTP") {
+	if value != "" && (strings.HasSuffix(key, "_ENABLED") || strings.HasSuffix(key, "_SECURE") || key == "AUTH_ALLOW_REGISTRATION" || key == "STORAGE_AUTO_MIGRATE" || key == "MUSIC_EXISTING_ACCOUNT_ACK" || key == "DIGITAL_HUMAN_LICENSE_ACK" || key == "BLOB_S3_ALLOW_LOOPBACK_HTTP") {
 		return value == "true" || value == "false"
 	}
 	return true

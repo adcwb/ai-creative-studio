@@ -74,3 +74,5 @@ LIP_SYNC_TIMEOUT_SECONDS=120
 ## 验收边界
 
 回归测试用合成图像、音频及测试模型帧验证授权、幂等、隔离、撤销、两条路由和真实 FFmpeg 编码。没有调用商业模型或验证真实人物权重。上线前仍需经授权的真实短样片，人工检查人物一致性、中文口型、音画同步、生成耗时及单位成本。实时对话、3D 驱动、自动人脸检测、手势生成和多人物不在本次实现范围。
+
+部署管理员也可在“系统设置 → 后端配置 → 模型与本地服务”保存 DIGITAL_HUMAN_PHOTO_COMMAND/MODEL/PROTOCOL/TIMEOUT_SECONDS、LIP_SYNC_PROTOCOL/TIMEOUT_SECONDS 与 DIGITAL_HUMAN_LICENSE_ACK（界面分组名称以当前语言显示为准）。只接受已实现的 json-v1/files-v1 协议及正整数截止时间，保存不改变正在运行的执行器；协调重启所有 API/worker 后生效。命令仍须指向部署方信任、实际安装的绝对可执行文件，普通团队管理员和创作者不能设置命令，勾选许可声明不代表已取得商业许可。
