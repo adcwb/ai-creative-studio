@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 func configStore(t *testing.T) *Store {
@@ -41,7 +43,7 @@ func TestPatchRedactionCASAndRestore(t *testing.T) {
 		t.Fatal("save failed", err)
 	}
 	info, err := os.Stat(s.path)
-	if err != nil || info.Mode().Perm() != 0600 {
+	if err != nil || info.Mode().IsRegular() == false || !nativefs.Private(s.path) {
 		t.Fatal("configuration file is not private", err)
 	}
 	raw, _ := json.Marshal(saved)

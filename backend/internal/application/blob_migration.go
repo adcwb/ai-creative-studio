@@ -10,7 +10,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 type BlobMigrationReport struct {
@@ -36,15 +37,15 @@ func MigrateBlobStorage(ctx context.Context, dir string, store BlobStore, toFile
 			return report, errors.New("migration requires regular data directories")
 		}
 	}
-	lock, e := os.OpenFile(filepath.Join(dir, "store.lock"), os.O_RDWR|syscall.O_NOFOLLOW, 0600)
+	lock, e := nativefs.OpenFile(filepath.Join(dir, "store.lock"), os.O_RDWR|nativefs.NoFollow, 0600)
 	if e != nil {
 		return report, e
 	}
 	defer lock.Close()
-	if e = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); e != nil {
+	if e = nativefs.Flock(int(lock.Fd()), nativefs.LOCK_EX|nativefs.LOCK_NB); e != nil {
 		return report, errors.New("stop API and workers before blob migration")
 	}
-	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	defer nativefs.Flock(int(lock.Fd()), nativefs.LOCK_UN)
 	if remote, ok := store.(*S3BlobStore); ok {
 		if e = remote.configureMultipart(filepath.Join(dir, "s3-multipart"), nil); e != nil {
 			return report, e
@@ -158,7 +159,7 @@ func MigrateBlobStorage(ctx context.Context, dir string, store BlobStore, toFile
 				e = copyBlobBytes(ctx, tmp, r, info)
 				r.Close()
 				if e == nil {
-					e = tmp.Sync()
+					e = nativefs.SyncFile(tmp)
 				}
 				e = errors.Join(e, tmp.Close())
 				if e == nil {
@@ -189,7 +190,7 @@ func MigrateBlobStorage(ctx context.Context, dir string, store BlobStore, toFile
 		if e != nil {
 			return report, e
 		}
-		e = f.Sync()
+		e = nativefs.SyncFile(f)
 		f.Close()
 		if e != nil {
 			return report, e

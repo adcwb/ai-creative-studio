@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/library"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 // Never expose a partially written immutable reference after process failure.
@@ -55,17 +57,17 @@ func writePreparedLibraryCopy(path string, data []byte) error {
 	defer os.Remove(f.Name())
 	_, err = f.Write(data)
 	if err == nil {
-		err = f.Sync()
+		err = nativefs.SyncFile(f)
 	}
 	if err = errors.Join(err, f.Close()); err != nil {
 		return err
 	}
-	if err = os.Rename(f.Name(), path); err != nil {
+	if err = nativefs.Rename(f.Name(), path); err != nil {
 		return err
 	}
 	dir, err := os.Open(dirName)
 	if err != nil {
 		return err
 	}
-	return errors.Join(dir.Sync(), dir.Close())
+	return errors.Join(nativefs.SyncFile(dir), dir.Close())
 }

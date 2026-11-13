@@ -17,6 +17,8 @@ import (
 	"syscall"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/application"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 func main() {
@@ -84,7 +86,7 @@ func run() error {
 				os.Unsetenv(name)
 			}
 		}
-		private, e := os.MkdirTemp("", "studio-backup-connect-")
+		private, e := nativefs.MkdirTemp("", "studio-backup-connect-")
 		if e != nil {
 			return e
 		}

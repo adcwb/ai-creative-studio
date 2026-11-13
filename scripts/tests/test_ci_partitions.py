@@ -101,7 +101,7 @@ class CIPartitionsTest(unittest.TestCase):
         gate = workflow.split('  verify:\n', 1)[1].split('  docker:\n', 1)[0]
         code = gate.split("python3 - <<'PYCODE'\n", 1)[1].split('          PYCODE', 1)[0]
         code = '\n'.join(line[10:] for line in code.splitlines())
-        required = ('quality', 'go-race', 'integrations', 'browser-smoke', 'gateway-smoke', 'container-smoke', 'durable-smoke')
+        required = ('quality', 'go-race', 'integrations', 'browser-smoke', 'gateway-smoke', 'container-smoke', 'durable-smoke', 'windows-native')
         results = {name: {'result': 'success'} for name in required}
         def check(values):
             return subprocess.run(['python3', '-c', code], env=dict(self.env, VALIDATION_RESULTS=json.dumps(values)), capture_output=True, text=True, timeout=10)

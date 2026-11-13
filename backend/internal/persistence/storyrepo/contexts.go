@@ -10,10 +10,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/story"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 const contextSchema = `CREATE TABLE IF NOT EXISTS studio_story_contexts (
@@ -63,7 +64,7 @@ func (s *Store) readContext(q Scope, ep, id string) (contextRecord, error) {
 			return contextRecord{}, ErrStorage
 		}
 	}
-	f, e := os.OpenFile(filepath.Join(p, id+".json"), os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, e := nativefs.OpenFile(filepath.Join(p, id+".json"), os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 	if os.IsNotExist(e) {
 		return contextRecord{}, story.ErrNotFound
 	}
@@ -102,7 +103,7 @@ func (s *Store) appendContext(q Scope, r contextRecord) error {
 	defer os.Remove(f.Name())
 	e = json.NewEncoder(f).Encode(r)
 	if e == nil {
-		e = f.Sync()
+		e = nativefs.SyncFile(f)
 	}
 	e = errors.Join(e, f.Close())
 	if e != nil {

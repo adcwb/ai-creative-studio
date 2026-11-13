@@ -16,6 +16,8 @@ import (
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/tracing"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 type AlignmentInput struct {
@@ -162,13 +164,13 @@ func (a *AlignmentStore) commitLocked(d alignmentDisk) (err error) {
 	}
 	defer os.Remove(f.Name())
 	if _, err = f.Write(b); err == nil {
-		err = f.Sync()
+		err = nativefs.SyncFile(f)
 	}
 	err = errors.Join(err, f.Close())
 	if err != nil {
 		return err
 	}
-	if err = os.Rename(f.Name(), a.path); err != nil {
+	if err = nativefs.Rename(f.Name(), a.path); err != nil {
 		return err
 	}
 	var committed alignmentDisk

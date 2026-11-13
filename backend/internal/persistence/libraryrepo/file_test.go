@@ -11,12 +11,14 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/library"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/testsupport"
 )
 
 func TestLibraryFileCrashHelper(t *testing.T) {
@@ -280,15 +282,15 @@ func TestReferenceInventoryReadsLegacyAndEntitiesWithoutChangingSource(t *testin
 func TestFileLockWaitHonorsCancellation(t *testing.T) {
 	dir := t.TempDir()
 	s, _ := libraryrepo.Open(dir, nil)
-	f, err := os.OpenFile(filepath.Join(dir, ".lock-space"), os.O_RDWR|os.O_CREATE, 0600)
+	f, err := nativefs.OpenFile(filepath.Join(dir, ".lock-space"), os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	if err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+	if err = nativefs.Flock(int(f.Fd()), nativefs.LOCK_EX); err != nil {
 		t.Fatal(err)
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer nativefs.Flock(int(f.Fd()), nativefs.LOCK_UN)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
 	defer cancel()
 	if _, err = s.Get(ctx, "space", "actor"); !errors.Is(err, context.DeadlineExceeded) {
@@ -357,12 +359,12 @@ func TestIncompleteUpgradeSymlinksAndInterruptedRecordsFailClosed(t *testing.T) 
 			case "fifo-marker":
 				path := filepath.Join(dir, "space.entities", ".format")
 				if err = os.Remove(path); err == nil {
-					err = syscall.Mkfifo(path, 0600)
+					err = testsupport.FIFO(t, path)
 				}
 			case "fifo-lock":
 				path := filepath.Join(dir, ".lock-space")
 				if err = os.Remove(path); err == nil {
-					err = syscall.Mkfifo(path, 0600)
+					err = testsupport.FIFO(t, path)
 				}
 			case "symlink-record":
 				target := filepath.Join(dir, "target")
@@ -374,7 +376,7 @@ func TestIncompleteUpgradeSymlinksAndInterruptedRecordsFailClosed(t *testing.T) 
 					err = os.Symlink(target, record)
 				}
 			case "trailing-data":
-				f, e := os.OpenFile(record, os.O_APPEND|os.O_WRONLY, 0)
+				f, e := nativefs.OpenFile(record, os.O_APPEND|os.O_WRONLY, 0)
 				if e != nil {
 					t.Fatal(e)
 				}

@@ -17,16 +17,17 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/deployconfig"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/servicehost"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 func main() {
 	diagnostics.Configure("worker")
-	if err := diagnostics.Invoke(context.Background(), "startup_error", run); err != nil {
+	if err := diagnostics.Invoke(context.Background(), "startup_error", func() error { return servicehost.Run("CreativeStudioWorker", run) }); err != nil {
 		os.Exit(1)
 	}
 }
-func run() (resultErr error) {
+func run(parent context.Context) (resultErr error) {
 	component := "deployment_config"
 	defer func() {
 		if resultErr != nil {
@@ -58,7 +59,7 @@ func run() (resultErr error) {
 	if dir == "" {
 		return errors.New("private DATA_DIR required")
 	}
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, cancel := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	component = "storage"
 	db, err := sql.Open("pgx", dsn)

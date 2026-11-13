@@ -350,12 +350,52 @@ jobs:
           if not results or any(r['result'] != 'success' for r in results.values()):
               raise SystemExit('Required validation failed, was cancelled or was skipped')
           PYCODE
+  windows-native:
+    name: Windows native / ${{ matrix.storage }}
+    runs-on: windows-2025
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        storage: [file, postgres]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Parse PowerShell before execution
+        shell: pwsh
+        run: |
+          Get-ChildItem scripts/windows*.ps1 | ForEach-Object {
+            $tokens=$null; $errors=$null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName,[ref]$tokens,[ref]$errors) | Out-Null
+            if ($errors.Count) { throw ($errors | Out-String) }
+          }
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+        with:
+          path: ${{ runner.temp }}/studio-ffmpeg.zip
+          key: ffmpeg-windows-${{ hashFiles('scripts/windows-tools.json') }}
+      - name: Prepare verified media tools and isolated database
+        shell: pwsh
+        run: ./scripts/windows_ci_setup.ps1 -Storage '${{ matrix.storage }}'
+      - name: Native tests, console and actual SCM acceptance
+        shell: pwsh
+        run: ./scripts/windows_ci_tests.ps1 -Storage '${{ matrix.storage }}'
+      - name: Remove only fixture services
+        if: always()
+        shell: pwsh
+        run: |
+          ./scripts/windows_service_fixture.ps1 -Action remove -Name CreativeStudioAPI
+          ./scripts/windows_service_fixture.ps1 -Action remove -Name CreativeStudioWorker
   verify:
     name: verify
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     if: always()
-    needs: [quality, go-race, integrations, browser-smoke, gateway-smoke, container-smoke, durable-smoke]
+    needs: [quality, go-race, integrations, browser-smoke, gateway-smoke, container-smoke, durable-smoke, windows-native]
     steps:
       - name: Require all validation jobs
         env:

@@ -13,10 +13,11 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/library"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 // An immutable record commits a head, an optional new version and its receipt
@@ -47,7 +48,7 @@ func (s *Store) withFileLock(ctx context.Context, space string, fn func() error)
 	if !library.IDPattern.MatchString(space) {
 		return library.ErrInput
 	}
-	f, err := os.OpenFile(filepath.Join(s.dir, ".lock-"+space), os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
+	f, err := nativefs.OpenFile(filepath.Join(s.dir, ".lock-"+space), os.O_CREATE|os.O_RDWR|nativefs.NoFollow, 0600)
 	if err != nil {
 		return ErrStorage
 	}
@@ -59,11 +60,11 @@ func (s *Store) withFileLock(ctx context.Context, space string, fn func() error)
 		if err = ctx.Err(); err != nil {
 			return err
 		}
-		err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		err = nativefs.Flock(int(f.Fd()), nativefs.LOCK_EX|nativefs.LOCK_NB)
 		if err == nil {
 			break
 		}
-		if !errors.Is(err, syscall.EWOULDBLOCK) {
+		if !errors.Is(err, nativefs.ErrWouldBlock) {
 			return ErrStorage
 		}
 		select {
@@ -72,7 +73,7 @@ func (s *Store) withFileLock(ctx context.Context, space string, fn func() error)
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer nativefs.Flock(int(f.Fd()), nativefs.LOCK_UN)
 	if err = s.ensureFileSpace(space); err != nil {
 		return err
 	}
@@ -89,7 +90,7 @@ func syncDirectory(path string) error {
 	if err != nil {
 		return ErrStorage
 	}
-	if errors.Join(f.Sync(), f.Close()) != nil {
+	if errors.Join(nativefs.SyncFile(f), f.Close()) != nil {
 		return ErrStorage
 	}
 	return nil
@@ -111,7 +112,7 @@ func writeFileRecord(dir string, r fileRecord) error {
 	defer os.Remove(f.Name())
 	_, err = f.Write(data)
 	if err == nil {
-		err = f.Sync()
+		err = nativefs.SyncFile(f)
 	}
 	err = errors.Join(err, f.Close())
 	if err != nil {
@@ -197,7 +198,7 @@ func validFileResult(space, id string, r Result) bool {
 
 func (s *Store) readFileRecord(space, asset, name string) (fileRecord, error) {
 	path := filepath.Join(s.fileSpace(space), asset, name)
-	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, err := nativefs.OpenFile(path, os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 	if err != nil {
 		return fileRecord{}, ErrStorage
 	}
@@ -425,7 +426,7 @@ func (s *Store) ensureFileSpace(space string) error {
 		if !st.IsDir() || st.Mode()&os.ModeSymlink != 0 {
 			return ErrStorage
 		}
-		f, err := os.OpenFile(filepath.Join(path, ".format"), os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+		f, err := nativefs.OpenFile(filepath.Join(path, ".format"), os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 		if err != nil {
 			return ErrStorage
 		}
@@ -449,7 +450,7 @@ func (s *Store) ensureFileSpace(space string) error {
 }
 
 func (s *Store) publishFileSpace(space string, d disk) error {
-	stage, err := os.MkdirTemp(s.dir, ".library-upgrade-")
+	stage, err := nativefs.MkdirTemp(s.dir, ".library-upgrade-")
 	if err != nil {
 		return ErrStorage
 	}
@@ -499,18 +500,18 @@ func (s *Store) publishFileSpace(space string, d disk) error {
 	if err = os.WriteFile(filepath.Join(stage, ".format"), []byte("2\n"), 0600); err != nil {
 		return ErrStorage
 	}
-	f, err := os.OpenFile(filepath.Join(stage, ".format"), os.O_RDWR, 0)
+	f, err := nativefs.OpenFile(filepath.Join(stage, ".format"), os.O_RDWR, 0)
 	if err != nil {
 		return ErrStorage
 	}
-	err = errors.Join(f.Sync(), f.Close())
+	err = errors.Join(nativefs.SyncFile(f), f.Close())
 	if err != nil {
 		return ErrStorage
 	}
 	if err = syncDirectory(stage); err != nil {
 		return err
 	}
-	if err = os.Rename(stage, s.fileSpace(space)); err != nil {
+	if err = nativefs.Rename(stage, s.fileSpace(space)); err != nil {
 		return ErrStorage
 	}
 	return syncDirectory(s.dir)

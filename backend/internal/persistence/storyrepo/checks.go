@@ -10,12 +10,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/governance"
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/story"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 const checkSchema = `CREATE TABLE IF NOT EXISTS studio_story_checks (
@@ -69,7 +70,7 @@ func (s *Store) readCheck(q Scope, ep, id string) (CheckRecord, error) {
 			return CheckRecord{}, ErrStorage
 		}
 	}
-	f, e := os.OpenFile(filepath.Join(dir, id+".json"), os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, e := nativefs.OpenFile(filepath.Join(dir, id+".json"), os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 	if os.IsNotExist(e) {
 		return CheckRecord{}, story.ErrNotFound
 	}
@@ -108,7 +109,7 @@ func (s *Store) writeCheck(q Scope, r CheckRecord, create bool) error {
 	defer os.Remove(f.Name())
 	e = json.NewEncoder(f).Encode(r)
 	if e == nil {
-		e = f.Sync()
+		e = nativefs.SyncFile(f)
 	}
 	e = errors.Join(e, f.Close())
 	if e != nil {
@@ -118,7 +119,7 @@ func (s *Store) writeCheck(q Scope, r CheckRecord, create bool) error {
 	if create {
 		e = os.Link(f.Name(), target)
 	} else {
-		e = os.Rename(f.Name(), target)
+		e = nativefs.Rename(f.Name(), target)
 	}
 	if e != nil {
 		return ErrStorage

@@ -18,6 +18,8 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/tracing"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 type CreativeJobInput struct {
@@ -186,7 +188,7 @@ func (c *creativeStore) saveLocked() error {
 	name := f.Name()
 	defer os.Remove(name)
 	if _, err = f.Write(b); err == nil {
-		err = f.Sync()
+		err = nativefs.SyncFile(f)
 	}
 	closeErr := f.Close()
 	if err != nil {
@@ -195,7 +197,7 @@ func (c *creativeStore) saveLocked() error {
 	if closeErr != nil {
 		return closeErr
 	}
-	return os.Rename(name, c.path)
+	return nativefs.Rename(name, c.path)
 }
 
 // Configuration is set once, before workers/HTTP start; it never probes remote services.
@@ -1107,7 +1109,7 @@ func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob
 	}
 	var resultMedia ExecutionMedia
 	if resultFile != nil {
-		if err = errors.Join(resultFile.Sync(), resultFile.Close()); err != nil {
+		if err = errors.Join(nativefs.SyncFile(resultFile), resultFile.Close()); err != nil {
 			return err
 		}
 		if err = validateProviderMediaFile(ctx, resultFile.Name(), mime); err != nil {

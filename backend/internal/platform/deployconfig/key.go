@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 // Never replace a missing encryption key when an existing file has ciphertext.
@@ -29,6 +31,9 @@ func ModelKey(dir string) ([]byte, error) {
 		}
 		path = filepath.Join(dir, "model-config.key")
 	}
+	if err := nativefs.CheckPrivateFile(path); err != nil {
+		return nil, err
+	}
 	raw, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		data, readErr := os.ReadFile(filepath.Join(dir, "model-config.json"))
@@ -43,7 +48,7 @@ func ModelKey(dir string) ([]byte, error) {
 			return nil, err
 		}
 		defer clear(key)
-		if err = os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		if err = nativefs.EnsurePrivateDirectory(filepath.Dir(path)); err != nil {
 			return nil, err
 		}
 		f, createErr := os.CreateTemp(filepath.Dir(path), ".model-key-*")
@@ -55,7 +60,7 @@ func ModelKey(dir string) ([]byte, error) {
 			}
 			_, err = f.WriteString(base64.StdEncoding.EncodeToString(key))
 			if err == nil {
-				err = f.Sync()
+				err = nativefs.SyncFile(f)
 			}
 			closeErr := f.Close()
 			if err == nil {

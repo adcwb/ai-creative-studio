@@ -14,6 +14,9 @@ import (
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/governance"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativeproc"
 )
 
 type ExecutionPriceRule struct {
@@ -112,11 +115,11 @@ func policyCommandInput(ctx context.Context, path string, input io.Reader, out a
 	cmd.Stdin = input
 	// Explicitly empty inherited environment prevents accidental platform secret
 	// exposure. Commands needing services must use operator-controlled references.
-	cmd.Env = []string{"PATH=/usr/bin:/bin"}
+	cmd.Env = nativeproc.PrivateEnvironment(path, os.TempDir())
 	buf := &limitedCommandBuffer{limit: 16 << 10}
 	cmd.Stdout = buf
 	cmd.Stderr = io.Discard
-	if cmd.Run() != nil {
+	if nativeproc.Run(cmd) != nil {
 		return ErrExecutionGovernance
 	}
 	d := json.NewDecoder(&buf.Buffer)
@@ -181,7 +184,7 @@ func validatePolicyCommand(path string) error {
 		return ErrExecutionGovernance
 	}
 	f, e := os.Stat(path)
-	if e != nil || !f.Mode().IsRegular() || f.Mode().Perm()&0111 == 0 {
+	if e != nil || !f.Mode().IsRegular() || !nativefs.IsExecutable(path) {
 		return ErrExecutionGovernance
 	}
 	return nil

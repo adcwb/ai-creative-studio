@@ -11,9 +11,11 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
-	"syscall"
 	"testing"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/testsupport"
 )
 
 func realStore(t *testing.T, dir string) *FileStore {
@@ -61,7 +63,7 @@ func TestPNGResultPersistenceOwnershipAndSafeFiles(t *testing.T) {
 	}
 	path := filepath.Join(dir, "results", task.ID+".png")
 	info, e := os.Stat(path)
-	if e != nil || info.Mode().Perm() != 0600 {
+	if e != nil || info.Mode().IsRegular() == false || !nativefs.Private(path) {
 		t.Fatal("permissions", e)
 	}
 	s.Close()
@@ -86,19 +88,22 @@ func TestPNGResultPersistenceOwnershipAndSafeFiles(t *testing.T) {
 		t.Fatal("followed symlink")
 	}
 	os.Remove(path)
-	if e = syscall.Mkfifo(path, 0600); e != nil {
-		t.Fatal(e)
-	}
-	done := make(chan error, 1)
-	go func() { _, e := s.ReadResult("personal-demo", task.ID); done <- e }()
-	select {
-	case e = <-done:
-		if e == nil {
-			t.Fatal("FIFO accepted")
+	t.Run("POSIX FIFO", func(t *testing.T) {
+		if e = testsupport.FIFO(t, path); e != nil {
+			t.Fatal(e)
 		}
-	case <-time.After(time.Second):
-		t.Fatal("FIFO blocked")
-	}
+		done := make(chan error, 1)
+		go func() { _, e := s.ReadResult("personal-demo", task.ID); done <- e }()
+		select {
+		case e = <-done:
+			if e == nil {
+				t.Fatal("FIFO accepted")
+			}
+		case <-time.After(time.Second):
+			t.Fatal("FIFO blocked")
+		}
+
+	})
 	os.Remove(path)
 	os.WriteFile(path, result.Data, 0600)
 	s.mu.Lock()

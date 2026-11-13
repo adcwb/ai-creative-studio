@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 
 	"github.com/cloudwego/eino/compose"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 // PhotoAvatarProvider drives a still image using supplied speech. It must return
@@ -224,7 +226,7 @@ func composeAvatarVideo(ctx context.Context, work *avatarWork) ([]byte, error) {
 	if len(work.video) < 12 || len(work.video) > 32<<20 {
 		return nil, providerFailure("invalid_provider_response")
 	}
-	dir, err := os.MkdirTemp("", "studio-avatar-*")
+	dir, err := nativefs.MkdirTemp("", "studio-avatar-*")
 	if err != nil {
 		return nil, err
 	}

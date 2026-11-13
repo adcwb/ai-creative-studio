@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/media"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 func frameSeconds(n int64) string  { return strconv.FormatFloat(float64(n)/24, 'f', 9, 64) }
@@ -228,7 +230,7 @@ func subtitleText(cues []SubtitleCue) (string, string) {
 	return srt.String(), vtt.String()
 }
 func subtitleFilter(path string) string {
-	escaped := strings.NewReplacer("\\", "\\\\", "'", "'\\''", ":", "\\:", ",", "\\,", "[", "\\[", "]", "\\]").Replace(path)
+	escaped := strings.NewReplacer("\\", "\\\\", "'", "'\\''", ":", "\\:", ",", "\\,", "[", "\\[", "]", "\\]").Replace(filepath.ToSlash(path))
 	return "subtitles=filename='" + escaped + "'"
 }
 func (m *MediaStore) renderVideoBlock(ctx context.Context, p MediaState, t MediaTimeline, plan media.RenderPlan, block media.RenderBlock, cues []SubtitleCue, w, h int, rate, dir, out string) error {
@@ -307,7 +309,7 @@ func (m *MediaStore) renderAudioBlock(ctx context.Context, p MediaState, t Media
 }
 func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) error {
 	return m.withRenderSession(ctx, p, e, func(s *renderSession) error {
-		scratch, err := os.MkdirTemp(s.dir, ".assemble-")
+		scratch, err := nativefs.MkdirTemp(s.dir, ".assemble-")
 		if err != nil {
 			return err
 		}
@@ -333,7 +335,7 @@ func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) er
 			frames := block.End - block.Start
 			prefix := fmt.Sprintf("block-%d-%d-%d", block.Index, block.Start, block.End)
 			video, err := s.artifact(prefix+"-video", "video", frames, func(out string) error {
-				dir, err := os.MkdirTemp(scratch, "video-")
+				dir, err := nativefs.MkdirTemp(scratch, "video-")
 				if err != nil {
 					return err
 				}
@@ -344,7 +346,7 @@ func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) er
 				return err
 			}
 			audio, err := s.artifact(prefix+"-audio", "pcm", frames, func(out string) error {
-				dir, err := os.MkdirTemp(scratch, "audio-")
+				dir, err := nativefs.MkdirTemp(scratch, "audio-")
 				if err != nil {
 					return err
 				}
@@ -363,7 +365,7 @@ func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) er
 		if err != nil {
 			return err
 		}
-		if err = errors.Join(videoFile.Sync(), audioFile.Sync()); err != nil {
+		if err = errors.Join(nativefs.SyncFile(videoFile), nativefs.SyncFile(audioFile), videoFile.Close(), audioFile.Close()); err != nil {
 			return err
 		}
 
@@ -403,11 +405,11 @@ func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) er
 			}
 			_, err = f.WriteString(data)
 			if err == nil {
-				err = f.Sync()
+				err = nativefs.SyncFile(f)
 			}
 			err = errors.Join(err, f.Close())
 			if err == nil {
-				err = os.Rename(f.Name(), filepath.Join(m.dir, e.ID+ext))
+				err = nativefs.Rename(f.Name(), filepath.Join(m.dir, e.ID+ext))
 			}
 			os.Remove(f.Name())
 			if err != nil {
@@ -418,7 +420,7 @@ func (m *MediaStore) render(ctx context.Context, p MediaState, e MediaExport) er
 		if err = copyRenderFile(output, temp); err != nil {
 			return err
 		}
-		if err = os.Rename(temp, filepath.Join(m.dir, e.ID+".mp4")); err != nil {
+		if err = nativefs.Rename(temp, filepath.Join(m.dir, e.ID+".mp4")); err != nil {
 			return err
 		}
 		return syncMultipartDir(m.dir)
@@ -436,7 +438,7 @@ func copyRenderFile(from, to string) error {
 	}
 	_, e = io.CopyBuffer(out, in, make([]byte, 64<<10))
 	if e == nil {
-		e = out.Sync()
+		e = nativefs.SyncFile(out)
 	}
 	return errors.Join(e, out.Close())
 }
@@ -446,5 +448,5 @@ func copyRenderFile(from, to string) error {
 // timebase then recovers exact frame timestamps without cumulative drift.
 func renderConcatEntry(path string, start, end int64) string {
 	micros := (end/24-start/24)*1000000 + (end%24*1000000+12)/24 - (start%24*1000000+12)/24
-	return fmt.Sprintf("file '%s'\nduration %d.%06d\n", strings.ReplaceAll(path, "'", "'\\''"), micros/1000000, micros%1000000)
+	return fmt.Sprintf("file '%s'\nduration %d.%06d\n", strings.ReplaceAll(filepath.ToSlash(path), "'", "'\\''"), micros/1000000, micros%1000000)
 }

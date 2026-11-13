@@ -11,10 +11,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/application"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 func run() error {
@@ -67,12 +68,12 @@ func run() error {
 		if err != nil || !info.IsDir() {
 			return errors.New("existing DATA_DIR required")
 		}
-		lock, err := os.OpenFile(filepath.Join(*dir, "store.lock"), os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
+		lock, err := nativefs.OpenFile(filepath.Join(*dir, "store.lock"), os.O_CREATE|os.O_RDWR|nativefs.NoFollow, 0600)
 		if err != nil {
 			return err
 		}
 		defer lock.Close()
-		if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		if err = nativefs.Flock(int(lock.Fd()), nativefs.LOCK_EX|nativefs.LOCK_NB); err != nil {
 			return errors.New("stop every server/worker before offline budget administration")
 		}
 		ledger, err := application.OpenBudgetLedger(*dir)

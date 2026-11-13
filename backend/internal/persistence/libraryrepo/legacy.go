@@ -5,9 +5,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"syscall"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/library"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 // Legacy decoding is an upgrade/offline operation only. It has no cumulative
@@ -16,7 +17,7 @@ func (s *Store) readLegacy(space string) (disk, error) {
 	if !library.IDPattern.MatchString(space) {
 		return disk{}, library.ErrInput
 	}
-	f, err := os.OpenFile(filepath.Join(s.dir, space+".json"), os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, err := nativefs.OpenFile(filepath.Join(s.dir, space+".json"), os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 	if os.IsNotExist(err) {
 		return fresh(), nil
 	}

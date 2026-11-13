@@ -9,8 +9,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"syscall"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 // StreamingBlobStore handles complete media independently of inline request
@@ -104,7 +105,7 @@ func (s *FileBlobStore) PutStream(ctx context.Context, info BlobInfo, r io.Reade
 	defer s.root.Remove(tmp)
 	err = copyBlobBytes(ctx, f, r, info)
 	if err == nil {
-		err = f.Sync()
+		err = nativefs.SyncFile(f)
 	}
 	err = errors.Join(err, f.Close())
 	if err != nil {
@@ -124,7 +125,7 @@ func (s *FileBlobStore) PutStream(ctx context.Context, info BlobInfo, r io.Reade
 		return BlobInfo{}, err
 	}
 	defer dir.Close()
-	return info, dir.Sync()
+	return info, nativefs.SyncFile(dir)
 }
 
 func (s *S3BlobStore) PutStream(ctx context.Context, info BlobInfo, r io.Reader) (BlobInfo, error) {
@@ -187,7 +188,7 @@ func (s *S3BlobStore) PutStream(ctx context.Context, info BlobInfo, r io.Reader)
 }
 
 func openLocalBlob(path string) (*os.File, error) {
-	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, err := nativefs.OpenFile(path, os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 	if err != nil {
 		return nil, err
 	}

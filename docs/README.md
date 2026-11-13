@@ -61,3 +61,5 @@
 [制作修订快照/分支](superpowers/specs/2026-11-04-creative-series/revision-implementation.md)：T42当前子集；完整影响分析/恢复、批量和容量仍未完成。按[当前任务清单](superpowers/specs/2026-11-04-creative-series/README.md#current-task-list)优先完成单集真实制作—审片—合成，再推进批量及200集；完整Spec通过前不推送。
 
 最新发布以[收紧后的本次范围](superpowers/specs/2026-11-04-creative-series/README.md#focused-release)为准：提示词、现有系列集管理、单集真实生成—人工审片—合成；画布、批量DAG和长期容量专项延期。聚焦验收后推送并核验CI，下方/历史记录中的旧完整Spec推送门槛不再适用于本次范围。
+
+- [Windows 原生后端运行与迁移](windows-native.md)

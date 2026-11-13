@@ -15,7 +15,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
@@ -27,6 +26,8 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 // stateMutex preserves the existing domain critical sections. PostgreSQL scopes
@@ -485,6 +486,9 @@ func (p *postgresScope) save(value any) (result error) {
 // imports existing local snapshots implicitly: migration is an explicit command.
 // Multiple processes use distinct cache directories until BlobStore is enabled.
 func OpenPostgresStore(dir string, db *sql.DB, options ...Capabilities) (*FileStore, error) {
+	if err := nativefs.EnsurePrivateDirectory(dir); err != nil {
+		return nil, err
+	}
 	if db == nil {
 		return nil, errors.New("postgres database required")
 	}
@@ -516,20 +520,20 @@ func OpenPostgresStore(dir string, db *sql.DB, options ...Capabilities) (*FileSt
 	if err := os.MkdirAll(filepath.Join(dir, "results"), 0700); err != nil {
 		return nil, err
 	}
-	cacheLock, err := os.OpenFile(filepath.Join(dir, "store.lock"), os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
+	cacheLock, err := nativefs.OpenFile(filepath.Join(dir, "store.lock"), os.O_CREATE|os.O_RDWR|nativefs.NoFollow, 0600)
 	if err != nil {
 		return nil, err
 	}
-	if err = syscall.Flock(int(cacheLock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if err = nativefs.Flock(int(cacheLock.Fd()), nativefs.LOCK_EX|nativefs.LOCK_NB); err != nil {
 		cacheLock.Close()
 		return nil, errors.New("PostgreSQL cache already in use; each process requires a private cache")
 	}
-	marker, err := os.OpenFile(filepath.Join(dir, ".postgres-cache"), os.O_CREATE|os.O_WRONLY|syscall.O_NOFOLLOW, 0600)
+	marker, err := nativefs.OpenFile(filepath.Join(dir, ".postgres-cache"), os.O_CREATE|os.O_WRONLY|nativefs.NoFollow, 0600)
 	if err != nil {
 		cacheLock.Close()
 		return nil, err
 	}
-	if err = marker.Sync(); err != nil {
+	if err = nativefs.SyncFile(marker); err != nil {
 		marker.Close()
 		cacheLock.Close()
 		return nil, err

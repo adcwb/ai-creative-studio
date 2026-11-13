@@ -11,7 +11,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"syscall"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 var recordPattern = regexp.MustCompile(`^[0-9]{20}-[vm]-[a-f0-9]{32}-[a-f0-9]{64}\.json$`)
@@ -26,24 +27,24 @@ func (s *Store) withLock(space string, write bool, fn func() error) error {
 	if e := os.MkdirAll(dir, 0700); e != nil {
 		return ErrStorage
 	}
-	f, e := os.OpenFile(filepath.Join(dir, ".lock"), os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
+	f, e := nativefs.OpenFile(filepath.Join(dir, ".lock"), os.O_CREATE|os.O_RDWR|nativefs.NoFollow, 0600)
 	if e != nil {
 		return ErrStorage
 	}
 	defer f.Close()
-	mode := syscall.LOCK_SH
+	mode := nativefs.LOCK_SH
 	if write {
-		mode = syscall.LOCK_EX
+		mode = nativefs.LOCK_EX
 	}
-	if syscall.Flock(int(f.Fd()), mode) != nil {
+	if nativefs.Flock(int(f.Fd()), mode) != nil {
 		return ErrStorage
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer nativefs.Flock(int(f.Fd()), nativefs.LOCK_UN)
 	root, e := os.Open(s.dir)
 	if e != nil {
 		return ErrStorage
 	}
-	e = errors.Join(root.Sync(), root.Close())
+	e = errors.Join(nativefs.SyncFile(root), root.Close())
 	if e != nil {
 		return ErrStorage
 	}
@@ -158,20 +159,20 @@ func atomicFile(dir, name string, value any) error {
 	defer os.Remove(f.Name())
 	_, e = f.Write(b)
 	if e == nil {
-		e = f.Sync()
+		e = nativefs.SyncFile(f)
 	}
 	e = errors.Join(e, f.Close())
 	if e != nil {
 		return ErrStorage
 	}
-	if e = os.Rename(f.Name(), filepath.Join(dir, name)); e != nil {
+	if e = nativefs.Rename(f.Name(), filepath.Join(dir, name)); e != nil {
 		return ErrStorage
 	}
 	d, e := os.Open(dir)
 	if e != nil {
 		return ErrStorage
 	}
-	e = errors.Join(d.Sync(), d.Close())
+	e = errors.Join(nativefs.SyncFile(d), d.Close())
 	if e != nil {
 		return ErrStorage
 	}
@@ -179,7 +180,7 @@ func atomicFile(dir, name string, value any) error {
 	if e != nil {
 		return ErrStorage
 	}
-	e = errors.Join(parent.Sync(), parent.Close())
+	e = errors.Join(nativefs.SyncFile(parent), parent.Close())
 	if e != nil {
 		return ErrStorage
 	}
@@ -208,7 +209,7 @@ type favorite struct {
 
 func (s *Store) favoriteFile(a prompts.Actor, id string) bool {
 	dir, name := s.favoritePath(a, id)
-	f, e := os.OpenFile(filepath.Join(dir, name), os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	f, e := nativefs.OpenFile(filepath.Join(dir, name), os.O_RDONLY|nativefs.NoFollow, 0)
 	if e != nil {
 		return false
 	}

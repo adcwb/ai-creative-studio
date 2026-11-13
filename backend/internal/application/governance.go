@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 // ValidateRuntimeFromEnv prevents unsupported production settings from silently
@@ -147,13 +149,13 @@ func (l *BudgetLedger) persist(data costSnapshot) error {
 	name := f.Name()
 	defer os.Remove(name)
 	if _, err = f.Write(raw); err == nil {
-		err = f.Sync()
+		err = nativefs.SyncFile(f)
 	}
 	err = errors.Join(err, f.Close())
 	if err != nil {
 		return err
 	}
-	if err = os.Rename(name, l.path); err != nil {
+	if err = nativefs.Rename(name, l.path); err != nil {
 		return err
 	}
 	l.data = data
@@ -161,7 +163,7 @@ func (l *BudgetLedger) persist(data costSnapshot) error {
 	if err != nil {
 		return err
 	}
-	return errors.Join(d.Sync(), d.Close())
+	return errors.Join(nativefs.SyncFile(d), d.Close())
 }
 func exposure(data costSnapshot, tenant, currency string) (int64, error) {
 	var total int64

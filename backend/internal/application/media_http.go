@@ -12,6 +12,8 @@ import (
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/media"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/tracing"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 func mediaError(w http.ResponseWriter, err error) {
@@ -162,7 +164,7 @@ func registerMediaRoutes(mux *http.ServeMux, s *FileStore) {
 		defer os.Remove(f.Name())
 		_, err = io.CopyBuffer(f, contextBlobReader{ctx, r.Body}, make([]byte, 64<<10))
 		if err == nil {
-			err = f.Sync()
+			err = nativefs.SyncFile(f)
 		}
 		err = errors.Join(err, f.Close())
 		if err != nil {

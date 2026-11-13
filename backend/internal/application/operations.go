@@ -10,10 +10,11 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/tracing"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 // Operations is a local append-only request audit and aggregate telemetry sink.
@@ -94,8 +95,15 @@ type auditRecord struct {
 }
 
 func OpenOperations(dir string) (*Operations, error) {
-	file, err := os.OpenFile(filepath.Join(dir, "audit.jsonl"), os.O_CREATE|os.O_WRONLY|os.O_APPEND|syscall.O_NOFOLLOW, 0600)
+	if err := nativefs.EnsurePrivateDirectory(dir); err != nil {
+		return nil, err
+	}
+	file, err := nativefs.OpenFile(filepath.Join(dir, "audit.jsonl"), os.O_CREATE|os.O_WRONLY|os.O_APPEND|nativefs.NoFollow, 0600)
 	if err != nil {
+		return nil, err
+	}
+	if err = nativefs.CheckPrivateFile(file.Name()); err != nil {
+		file.Close()
 		return nil, err
 	}
 	return &Operations{file: file, counts: map[int]uint64{}, started: time.Now()}, nil
@@ -126,7 +134,7 @@ func (o *Operations) append(record auditRecord) error {
 			_, err = o.file.Write(data)
 		}
 		if err == nil {
-			err = o.file.Sync()
+			err = nativefs.SyncFile(o.file)
 		}
 	}
 	if err != nil {

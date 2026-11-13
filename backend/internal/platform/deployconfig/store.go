@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 //go:embed schema.env
@@ -88,6 +90,9 @@ func Path() string {
 }
 
 func read(path string) (map[string]string, string, error) {
+	if err := nativefs.CheckPrivateFile(path); err != nil {
+		return nil, "", err
+	}
 	raw, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		raw = []byte("{}")
@@ -251,7 +256,7 @@ func (s *Store) Save(expected string, changes map[string]*string) (Report, error
 			values[k] = *v
 		}
 	}
-	if err = os.MkdirAll(filepath.Dir(s.path), 0700); err != nil {
+	if err = nativefs.EnsurePrivateDirectory(filepath.Dir(s.path)); err != nil {
 		return Report{}, err
 	}
 	raw, err := json.MarshalIndent(values, "", "  ")
@@ -271,14 +276,14 @@ func (s *Store) Save(expected string, changes map[string]*string) (Report, error
 		_, err = f.Write(raw)
 	}
 	if err == nil {
-		err = f.Sync()
+		err = nativefs.SyncFile(f)
 	}
 	closeErr := f.Close()
 	if err == nil {
 		err = closeErr
 	}
 	if err == nil {
-		err = os.Rename(name, s.path)
+		err = nativefs.Rename(name, s.path)
 	}
 	if err == nil {
 		err = syncDirectory(filepath.Dir(s.path))
@@ -296,7 +301,7 @@ func syncDirectory(path string) error {
 		return err
 	}
 	defer dir.Close()
-	return dir.Sync()
+	return nativefs.SyncFile(dir)
 }
 
 func ReservedEmails() []string {

@@ -17,6 +17,8 @@ import (
 	m "github.com/adcwb/ai-creative-studio/backend/internal/modules/seriesmigration"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/migrationrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/seriesrepo"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 // Preserve the exact source records and immutable revisions. The general clone
@@ -270,7 +272,7 @@ func (s *FileStore) copyMigrationAsset(ctx context.Context, j m.Job, copy m.Asse
 	h := sha256.New()
 	size, e := io.CopyBuffer(io.MultiWriter(temp, h), contextBlobReader{ctx, source}, make([]byte, 64<<10))
 	if e == nil {
-		e = temp.Sync()
+		e = nativefs.SyncFile(temp)
 	}
 	e = errors.Join(e, temp.Close())
 	if e != nil {

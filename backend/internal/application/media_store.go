@@ -14,6 +14,8 @@ import (
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/media"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 type mediaReceipt struct {
@@ -163,11 +165,11 @@ func (m *MediaStore) commit(d mediaDisk) (resultErr error) {
 	}
 	defer os.Remove(f.Name())
 	if _, err = f.Write(b); err == nil {
-		err = f.Sync()
+		err = nativefs.SyncFile(f)
 	}
 	err = errors.Join(err, f.Close())
 	if err == nil {
-		err = os.Rename(f.Name(), filepath.Join(m.dir, "state.json"))
+		err = nativefs.Rename(f.Name(), filepath.Join(m.dir, "state.json"))
 	}
 	if err == nil {
 		// Admission/receipts must survive a directory-entry flush as well as the
@@ -244,7 +246,7 @@ func (m *MediaStore) addAssetContext(ctx context.Context, project, space, key, n
 	defer os.Remove(f.Name())
 	_, err = f.Write(data)
 	if err == nil {
-		err = f.Sync()
+		err = nativefs.SyncFile(f)
 	}
 	err = errors.Join(err, f.Close())
 	if err != nil {

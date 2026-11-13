@@ -8,6 +8,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 func importPostgresAudit(ctx context.Context, tx *sql.Tx, dir string) (int, error) {
@@ -61,5 +63,5 @@ func exportPostgresAudit(ctx context.Context, tx *sql.Tx, dir string) (int, erro
 	if err = rows.Err(); err != nil {
 		return n, err
 	}
-	return n, f.Sync()
+	return n, nativefs.SyncFile(f)
 }

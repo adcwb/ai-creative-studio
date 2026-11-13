@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 type ModelCall struct {
@@ -78,14 +80,14 @@ func atomicGatewayJSON(path string, data any) error {
 		_, e = f.Write(raw)
 	}
 	if e == nil {
-		e = f.Sync()
+		e = nativefs.SyncFile(f)
 	}
 	closeErr := f.Close()
 	if e == nil {
 		e = closeErr
 	}
 	if e == nil {
-		e = os.Rename(f.Name(), path)
+		e = nativefs.Rename(f.Name(), path)
 	}
 	if e != nil {
 		return e
@@ -95,7 +97,7 @@ func atomicGatewayJSON(path string, data any) error {
 		return e
 	}
 	defer dir.Close()
-	return dir.Sync()
+	return nativefs.SyncFile(dir)
 }
 func (s *ModelUsageStore) save(call ModelCall) error {
 	s.mu.Lock()

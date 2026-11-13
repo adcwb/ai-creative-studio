@@ -20,8 +20,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 // MaxBlobBytes bounds legacy in-memory callers, not complete objects. Video
@@ -83,7 +84,7 @@ func readVerifiedBlob(ctx context.Context, store BlobStore, info BlobInfo) ([]by
 type FileBlobStore struct{ root *os.Root }
 
 func NewFileBlobStore(dir string) (*FileBlobStore, error) {
-	if e := os.MkdirAll(dir, 0700); e != nil {
+	if e := nativefs.EnsurePrivateDirectory(dir); e != nil {
 		return nil, e
 	}
 	r, e := os.OpenRoot(dir)
@@ -116,7 +117,7 @@ func (s *FileBlobStore) Put(ctx context.Context, key string, b []byte) (BlobInfo
 	defer s.root.Remove(tmp)
 	_, e = f.Write(b)
 	if e == nil {
-		e = f.Sync()
+		e = nativefs.SyncFile(f)
 	}
 	e = errors.Join(e, f.Close())
 	if e != nil {
@@ -135,7 +136,7 @@ func (s *FileBlobStore) Put(ctx context.Context, key string, b []byte) (BlobInfo
 	if e != nil {
 		return BlobInfo{}, e
 	}
-	e = dir.Sync()
+	e = nativefs.SyncFile(dir)
 	dir.Close()
 	return info, e
 }
@@ -143,7 +144,7 @@ func (s *FileBlobStore) open(key string) (*os.File, error) {
 	if e := checkBlobKey(key); e != nil {
 		return nil, e
 	}
-	f, e := s.root.OpenFile(key, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, e := nativefs.OpenRootFile(s.root, key, os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 	if errors.Is(e, os.ErrNotExist) {
 		return nil, ErrBlobNotFound
 	}

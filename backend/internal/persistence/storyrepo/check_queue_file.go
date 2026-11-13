@@ -8,10 +8,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/story"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 // The pending index is disposable scheduling metadata. The accepted job file
@@ -34,7 +35,7 @@ func (s *Store) readIntent(id string) (checkIntent, error) {
 	if !story.ID.MatchString(id) || realDir(s.checkQueueDir()) != nil {
 		return r, ErrStorage
 	}
-	f, e := os.OpenFile(filepath.Join(s.checkQueueDir(), id+".json"), os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, e := nativefs.OpenFile(filepath.Join(s.checkQueueDir(), id+".json"), os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 	if e != nil {
 		return r, e
 	}
@@ -80,7 +81,7 @@ func (s *Store) ensureCheckIntent(c story.Check) error {
 	defer os.Remove(f.Name())
 	e = json.NewEncoder(f).Encode(expected)
 	if e == nil {
-		e = f.Sync()
+		e = nativefs.SyncFile(f)
 	}
 	e = errors.Join(e, f.Close())
 	if e != nil {

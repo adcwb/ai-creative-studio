@@ -11,8 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 // The manifest is committed before application metadata can reference a blob.
@@ -55,18 +56,18 @@ func (m *managedBlobs) commit() error {
 	defer os.Remove(f.Name())
 	_, e = f.Write(b)
 	if e == nil {
-		e = f.Sync()
+		e = nativefs.SyncFile(f)
 	}
 	e = errors.Join(e, f.Close())
 	if e == nil {
-		e = os.Rename(f.Name(), filepath.Join(m.dir, "blobs.json"))
+		e = nativefs.Rename(f.Name(), filepath.Join(m.dir, "blobs.json"))
 	}
 	if e == nil {
 		d, err := os.Open(m.dir)
 		if err != nil {
 			return err
 		}
-		e = d.Sync()
+		e = nativefs.SyncFile(d)
 		d.Close()
 	}
 	return e
@@ -129,7 +130,7 @@ func (m *managedBlobs) has(key string) bool {
 	return e == nil
 }
 func safeReadLocal(path string, limit int64) ([]byte, error) {
-	f, e := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, e := nativefs.OpenFile(path, os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 	if e != nil {
 		return nil, e
 	}
@@ -165,11 +166,11 @@ func (m *managedBlobs) materialize(ctx context.Context, key, path string) (strin
 	defer os.Remove(f.Name())
 	e = copyBlobBytes(ctx, f, r, info)
 	if e == nil {
-		e = f.Sync()
+		e = nativefs.SyncFile(f)
 	}
 	e = errors.Join(e, f.Close())
 	if e == nil {
-		e = os.Rename(f.Name(), path)
+		e = nativefs.Rename(f.Name(), path)
 	}
 	if e != nil {
 		return "", e

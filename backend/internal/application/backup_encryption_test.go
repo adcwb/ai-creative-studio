@@ -10,11 +10,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/securebackup"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/testsupport"
 )
 
 func syntheticBackupBundle(t *testing.T) string {
@@ -40,7 +42,9 @@ func TestEncryptedBackupRoundTripAndWrongKey(t *testing.T) {
 	key := bytes.Repeat([]byte{3}, 32)
 	source := syntheticBackupBundle(t)
 	root := t.TempDir()
-	os.Chmod(root, 0700)
+	if e := nativefs.EnsurePrivateDirectory(root); e != nil {
+		t.Fatal(e)
+	}
 	r, e := SealBackup(ctx, source, root, key)
 	if e != nil || !r.Verified {
 		t.Fatal(r, e)
@@ -66,7 +70,7 @@ func TestEncryptedBackupRoundTripAndWrongKey(t *testing.T) {
 		t.Fatal("source removed")
 	}
 	st, e := os.Stat(path)
-	if e != nil || st.Mode().Perm() != 0600 {
+	if e != nil || st.Mode().IsRegular() == false || !nativefs.Private(path) {
 		t.Fatal("permissions", e)
 	}
 }
@@ -84,7 +88,9 @@ func writeEncryptedFixture(t *testing.T, root, name string, key []byte, at time.
 }
 func TestEncryptedRetentionDryRunHashAndForeignSafety(t *testing.T) {
 	root := t.TempDir()
-	os.Chmod(root, 0700)
+	if e := nativefs.EnsurePrivateDirectory(root); e != nil {
+		t.Fatal(e)
+	}
 	key := bytes.Repeat([]byte{6}, 32)
 	old := time.Now().Add(-72 * time.Hour)
 	names := []string{"studio-backup-" + strings.Repeat("1", 32) + ".sbk", "studio-backup-" + strings.Repeat("2", 32) + ".sbk"}
@@ -118,7 +124,9 @@ func TestEncryptedRetentionDryRunHashAndForeignSafety(t *testing.T) {
 func TestEncryptedBackupRejectsPathsAndRetentionSymlink(t *testing.T) {
 	key := bytes.Repeat([]byte{5}, 32)
 	root := t.TempDir()
-	os.Chmod(root, 0700)
+	if e := nativefs.EnsurePrivateDirectory(root); e != nil {
+		t.Fatal(e)
+	}
 	name := "studio-backup-" + strings.Repeat("a", 32) + ".sbk"
 	os.Symlink(filepath.Join(t.TempDir(), "other"), filepath.Join(root, name))
 	if _, e := RetainBackups(context.Background(), root, key, 1, 24, ""); e == nil {
@@ -155,7 +163,9 @@ func TestEncryptedBackupRejectsPathsAndRetentionSymlink(t *testing.T) {
 }
 func TestEncryptedBackupStreamFailureDoesNotPublish(t *testing.T) {
 	root := t.TempDir()
-	os.Chmod(root, 0700)
+	if e := nativefs.EnsurePrivateDirectory(root); e != nil {
+		t.Fatal(e)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if _, e := SealBackup(ctx, syntheticBackupBundle(t), root, bytes.Repeat([]byte{1}, 32)); e == nil {
@@ -196,7 +206,7 @@ func TestEncryptedBackupChecksBytesAgainstInitialManifest(t *testing.T) {
 
 func TestEncryptedBackupRefusesFIFOWithoutBlocking(t *testing.T) {
 	fifo := filepath.Join(t.TempDir(), "fifo")
-	if e := syscall.Mkfifo(fifo, 0600); e != nil {
+	if e := testsupport.FIFO(t, fifo); e != nil {
 		t.Fatal(e)
 	}
 	if _, e := OpenBackup(context.Background(), fifo, filepath.Join(t.TempDir(), "target"), bytes.Repeat([]byte{1}, 32)); e == nil {

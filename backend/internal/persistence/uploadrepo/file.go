@@ -11,10 +11,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/uploads"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 type fileHeader struct {
@@ -36,7 +37,7 @@ func syncDir(dir string) error {
 		return ErrStorage
 	}
 	defer f.Close()
-	if f.Sync() != nil {
+	if nativefs.SyncFile(f) != nil {
 		return ErrStorage
 	}
 	return nil
@@ -57,7 +58,7 @@ func atomicRecord(dir, name string, h fileHeader, data []byte) error {
 		_, e = f.Write(data)
 	}
 	if e == nil {
-		e = f.Sync()
+		e = nativefs.SyncFile(f)
 	}
 	e = errors.Join(e, f.Close())
 	if e != nil {
@@ -70,7 +71,7 @@ func atomicRecord(dir, name string, h fileHeader, data []byte) error {
 }
 func readHeader(path string) (fileHeader, *os.File, *bufio.Reader, error) {
 	var h fileHeader
-	f, e := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, e := nativefs.OpenFile(path, os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 	if os.IsNotExist(e) {
 		return h, nil, nil, uploads.ErrNotFound
 	}
@@ -144,7 +145,7 @@ func (s *Store) withFile(ctx context.Context, i Identity, create *uploads.Sessio
 	if e != nil || !st.IsDir() || st.Mode()&os.ModeSymlink != 0 {
 		return ErrStorage
 	}
-	f, e := os.OpenFile(filepath.Join(dir, ".lock"), os.O_RDWR|os.O_CREATE|syscall.O_NOFOLLOW, 0600)
+	f, e := nativefs.OpenFile(filepath.Join(dir, ".lock"), os.O_RDWR|os.O_CREATE|nativefs.NoFollow, 0600)
 	if e != nil {
 		return ErrStorage
 	}
@@ -157,11 +158,11 @@ func (s *Store) withFile(ctx context.Context, i Identity, create *uploads.Sessio
 		if e = ctx.Err(); e != nil {
 			return e
 		}
-		e = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		e = nativefs.Flock(int(f.Fd()), nativefs.LOCK_EX|nativefs.LOCK_NB)
 		if e == nil {
 			break
 		}
-		if !errors.Is(e, syscall.EWOULDBLOCK) {
+		if !errors.Is(e, nativefs.ErrWouldBlock) {
 			return ErrStorage
 		}
 		select {
@@ -170,7 +171,7 @@ func (s *Store) withFile(ctx context.Context, i Identity, create *uploads.Sessio
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer nativefs.Flock(int(f.Fd()), nativefs.LOCK_UN)
 	u, e := sessionRecord(filepath.Join(dir, "session.json"))
 	if errors.Is(e, uploads.ErrNotFound) && create != nil {
 		if e = atomicRecord(dir, "session.json", fileHeader{Format: 1, Session: *create}, nil); e != nil {

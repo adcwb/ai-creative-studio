@@ -8,9 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/story"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 // Rejected/intentional decisions have their own immutable file. Accepted ones
@@ -89,7 +90,7 @@ func eachDecisionFile(ctx context.Context, dir string, fn func(Scope, string, De
 		}
 		// Resolve the real space from the related scoped check, rather than trusting
 		// a client-supplied filename or introducing a reversible tenant directory.
-		file, e := os.OpenFile(filepath.Join(dir, parts[0], parts[1], ".checks", parts[3], parts[4]+".json"), os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+		file, e := nativefs.OpenFile(filepath.Join(dir, parts[0], parts[1], ".checks", parts[3], parts[4]+".json"), os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 		if e != nil {
 			return ErrStorage
 		}

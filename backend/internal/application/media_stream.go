@@ -13,6 +13,8 @@ import (
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/media"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 // Match mediaDigest([]byte) from earlier releases without allocating the JSON
@@ -104,7 +106,7 @@ func (m *MediaStore) addAssetFile(ctx context.Context, project, space, key, name
 	if e != nil {
 		return p, e
 	}
-	err = errors.Join(directory.Sync(), directory.Close())
+	err = errors.Join(nativefs.SyncFile(directory), directory.Close())
 	if err != nil {
 		return p, err
 	}

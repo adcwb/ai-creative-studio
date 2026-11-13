@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"syscall"
 	"testing"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/testsupport"
 )
 
 func rotationKeys() ([]byte, []byte) {
@@ -40,6 +42,9 @@ func seedRotationModels(t *testing.T, s *ModelConfigStore) map[string]string {
 func rotationFileFixture(t *testing.T) (string, map[string]string) {
 	t.Helper()
 	dir := t.TempDir()
+	if e := nativefs.EnsurePrivateDirectory(dir); e != nil {
+		t.Fatal(e)
+	}
 	old, _ := rotationKeys()
 	raw, e := json.Marshal(emptySnapshot())
 	if e != nil {
@@ -200,15 +205,15 @@ func TestModelRotationFileRequiresExclusiveRegularPrivateState(t *testing.T) {
 			path := filepath.Join(dir, "model-config.json")
 			switch kind {
 			case "locked":
-				f, e := os.OpenFile(filepath.Join(dir, "store.lock"), os.O_CREATE|os.O_RDWR, 0600)
+				f, e := nativefs.OpenFile(filepath.Join(dir, "store.lock"), os.O_CREATE|os.O_RDWR, 0600)
 				if e != nil {
 					t.Fatal(e)
 				}
 				defer f.Close()
-				if e = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); e != nil {
+				if e = nativefs.Flock(int(f.Fd()), nativefs.LOCK_EX|nativefs.LOCK_NB); e != nil {
 					t.Fatal(e)
 				}
-				defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+				defer nativefs.Flock(int(f.Fd()), nativefs.LOCK_UN)
 			case "model-symlink":
 				if e := os.Rename(path, path+".source"); e != nil {
 					t.Fatal(e)
@@ -223,7 +228,7 @@ func TestModelRotationFileRequiresExclusiveRegularPrivateState(t *testing.T) {
 			case "missing-core":
 				os.Remove(filepath.Join(dir, "state.json"))
 			case "public-config":
-				os.Chmod(path, 0644)
+				testsupport.MakePublic(t, path)
 			case "unknown-field":
 				raw, _ := os.ReadFile(path)
 				raw = append([]byte(`{"unexpected":true,`), raw[1:]...)

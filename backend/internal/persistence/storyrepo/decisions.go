@@ -9,10 +9,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/story"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 const decisionSchema = `CREATE TABLE IF NOT EXISTS studio_story_decisions (
@@ -72,7 +73,7 @@ func (s *Store) readDecisionFile(q Scope, ep, check, id string) (DecisionRecord,
 			return DecisionRecord{}, ErrStorage
 		}
 	}
-	f, e := os.OpenFile(p, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, e := nativefs.OpenFile(p, os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 	if os.IsNotExist(e) {
 		return DecisionRecord{}, story.ErrNotFound
 	}
@@ -111,7 +112,7 @@ func (s *Store) appendDecisionFile(q Scope, ep string, r DecisionRecord) error {
 	defer os.Remove(f.Name())
 	e = json.NewEncoder(f).Encode(r)
 	if e == nil {
-		e = f.Sync()
+		e = nativefs.SyncFile(f)
 	}
 	e = errors.Join(e, f.Close())
 	if e != nil {

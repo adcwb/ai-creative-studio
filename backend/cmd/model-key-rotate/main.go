@@ -17,6 +17,8 @@ import (
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/application"
 	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 func run() error {
@@ -106,7 +108,7 @@ func rotationConnection(raw string) (string, func(), error) {
 	if user == "" || (u.Hostname() == "" && q.Get("host") == "") || strings.Trim(u.Path, "/") == "" || q.Get("sslmode") == "" {
 		return fail()
 	}
-	private, e := os.MkdirTemp("", "studio-key-rotate-connect-")
+	private, e := nativefs.MkdirTemp("", "studio-key-rotate-connect-")
 	if e != nil {
 		return fail()
 	}

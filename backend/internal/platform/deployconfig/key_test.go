@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 func TestModelKeyPersistsAndHonorsExplicitKey(t *testing.T) {
@@ -20,7 +22,7 @@ func TestModelKeyPersistsAndHonorsExplicitKey(t *testing.T) {
 		t.Fatal("initialization failed", err)
 	}
 	info, err := os.Stat(filepath.Join(dir, "model-config.key"))
-	if err != nil || info.Mode().Perm() != 0600 {
+	if err != nil || info.Mode().IsRegular() == false || !nativefs.Private(filepath.Join(dir, "model-config.key")) {
 		t.Fatal("key file is not private", err)
 	}
 	second, err := ModelKey(dir)

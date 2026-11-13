@@ -13,11 +13,12 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/series"
 	m "github.com/adcwb/ai-creative-studio/backend/internal/modules/seriesmigration"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 var ErrStorage = errors.New("episode migration storage unavailable")
@@ -73,7 +74,7 @@ func readFile(path string) (m.Job, error) {
 	} else if e != nil {
 		return m.Job{}, ErrStorage
 	}
-	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, err := nativefs.OpenFile(path, os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 	if os.IsNotExist(err) {
 		return m.Job{}, m.ErrNotFound
 	}
@@ -105,7 +106,7 @@ func syncDir(path string) error {
 	if e != nil {
 		return e
 	}
-	return errors.Join(f.Sync(), f.Close())
+	return errors.Join(nativefs.SyncFile(f), f.Close())
 }
 func writeFile(path string, j m.Job) error {
 	if !m.ValidJob(j) {
@@ -125,11 +126,11 @@ func writeFile(path string, j m.Job) error {
 	defer os.Remove(f.Name())
 	err = json.NewEncoder(f).Encode(j)
 	if err == nil {
-		err = f.Sync()
+		err = nativefs.SyncFile(f)
 	}
 	err = errors.Join(err, f.Close())
 	if err == nil {
-		err = os.Rename(f.Name(), path)
+		err = nativefs.Rename(f.Name(), path)
 	}
 	if err == nil {
 		err = syncDir(dir)
@@ -189,7 +190,7 @@ func (s *Store) With(ctx context.Context, i Identity, create *m.Job, fn func(*Lo
 	}
 	l := &Locked{store: s, id: i, ctx: ctx}
 	if s.db == nil {
-		f, e := os.OpenFile(filepath.Join(s.dir, ".lock-"+series.SHA(i.Space+":"+i.ID)), os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
+		f, e := nativefs.OpenFile(filepath.Join(s.dir, ".lock-"+series.SHA(i.Space+":"+i.ID)), os.O_CREATE|os.O_RDWR|nativefs.NoFollow, 0600)
 		if e != nil {
 			return ErrStorage
 		}
@@ -201,11 +202,11 @@ func (s *Store) With(ctx context.Context, i Identity, create *m.Job, fn func(*Lo
 			if e = ctx.Err(); e != nil {
 				return e
 			}
-			e = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+			e = nativefs.Flock(int(f.Fd()), nativefs.LOCK_EX|nativefs.LOCK_NB)
 			if e == nil {
 				break
 			}
-			if !errors.Is(e, syscall.EWOULDBLOCK) {
+			if !errors.Is(e, nativefs.ErrWouldBlock) {
 				return ErrStorage
 			}
 			select {
@@ -214,7 +215,7 @@ func (s *Store) With(ctx context.Context, i Identity, create *m.Job, fn func(*Lo
 			case <-time.After(10 * time.Millisecond):
 			}
 		}
-		defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		defer nativefs.Flock(int(f.Fd()), nativefs.LOCK_UN)
 		j, e := readFile(s.path(i))
 		if errors.Is(e, m.ErrNotFound) && create != nil {
 			j = *create

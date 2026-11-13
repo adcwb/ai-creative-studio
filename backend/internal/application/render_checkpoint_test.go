@@ -11,12 +11,13 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/media"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/testsupport"
 )
 
 type renderHelperInput struct {
@@ -114,7 +115,7 @@ func TestRenderCheckpointProcessKillResumeAndIdempotency(t *testing.T) {
 	}
 	tools := t.TempDir()
 	counter, marker, fifo := filepath.Join(tools, "count"), filepath.Join(tools, "blocked"), filepath.Join(tools, "gate")
-	if e = syscall.Mkfifo(fifo, 0600); e != nil {
+	if e = testsupport.FIFO(t, fifo); e != nil {
 		t.Fatal(e)
 	}
 	shim := fmt.Sprintf("#!/bin/sh\nfor render_arg do\n case \"$render_arg\" in */left.mp4)\n render_count=0\n if [ -f \"$STUDIO_RENDER_COUNT\" ]; then read -r render_count < \"$STUDIO_RENDER_COUNT\"; fi\n render_count=$((render_count+1))\n printf '%%s\\n' \"$render_count\" > \"$STUDIO_RENDER_COUNT\"\n if [ \"$render_count\" = 2 ]; then : > \"$STUDIO_RENDER_MARKER\"; read -r render_gate < \"$STUDIO_RENDER_FIFO\"; fi\n ;; esac\ndone\nexec %q \"$@\"\n", real)
@@ -126,7 +127,7 @@ func TestRenderCheckpointProcessKillResumeAndIdempotency(t *testing.T) {
 	os.WriteFile(input, b, 0600)
 	cmd := exec.Command(os.Args[0], "-test.run=^TestRenderCheckpointCrashHelper$", "-test.v")
 	cmd.Env = []string{"PATH=" + tools + ":" + os.Getenv("PATH"), "STUDIO_RENDER_HELPER_INPUT=" + input, "STUDIO_RENDER_COUNT=" + counter, "STUDIO_RENDER_MARKER=" + marker, "STUDIO_RENDER_FIFO=" + fifo}
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	testsupport.ProcessGroup(cmd)
 	var output bytes.Buffer
 	cmd.Stdout = &output
 	cmd.Stderr = &output
@@ -138,7 +139,7 @@ func TestRenderCheckpointProcessKillResumeAndIdempotency(t *testing.T) {
 	running := true
 	defer func() {
 		if running {
-			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			testsupport.KillGroup(cmd)
 			<-done
 		}
 	}()
@@ -176,7 +177,7 @@ wait:
 		}
 		times[name] = st.ModTime()
 	}
-	if e = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); e != nil {
+	if e = testsupport.KillGroup(cmd); e != nil {
 		t.Fatal(e)
 	}
 	if e := <-done; e == nil {

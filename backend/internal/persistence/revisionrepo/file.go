@@ -12,10 +12,11 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/revisions"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 func Open(dir string, db *sql.DB) (*Store, error) {
@@ -44,7 +45,7 @@ func syncDir(p string) error {
 	if e != nil {
 		return e
 	}
-	return errors.Join(f.Sync(), f.Close())
+	return errors.Join(nativefs.SyncFile(f), f.Close())
 }
 func decode(raw []byte) (Record, error) {
 	var r Record
@@ -60,7 +61,7 @@ func decode(raw []byte) (Record, error) {
 	return r, nil
 }
 func read(p string) (Record, error) {
-	f, e := os.OpenFile(p, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, e := nativefs.OpenFile(p, os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 	if os.IsNotExist(e) {
 		return Record{}, ErrNotFound
 	}
@@ -96,7 +97,7 @@ func (s *Store) withFile(ctx context.Context, q Scope, write bool, fn func(*file
 	if directory(s.dir) != nil {
 		return ErrStorage
 	}
-	f, e := os.OpenFile(filepath.Join(s.dir, ".lock-"+Hash(q.Space+":"+q.Project)), os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
+	f, e := nativefs.OpenFile(filepath.Join(s.dir, ".lock-"+Hash(q.Space+":"+q.Project)), os.O_CREATE|os.O_RDWR|nativefs.NoFollow, 0600)
 	if e != nil {
 		return ErrStorage
 	}
@@ -105,19 +106,19 @@ func (s *Store) withFile(ctx context.Context, q Scope, write bool, fn func(*file
 	if e != nil || !st.Mode().IsRegular() {
 		return ErrStorage
 	}
-	mode := syscall.LOCK_SH
+	mode := nativefs.LOCK_SH
 	if write {
-		mode = syscall.LOCK_EX
+		mode = nativefs.LOCK_EX
 	}
 	for {
 		if e = ctx.Err(); e != nil {
 			return e
 		}
-		e = syscall.Flock(int(f.Fd()), mode|syscall.LOCK_NB)
+		e = nativefs.Flock(int(f.Fd()), mode|nativefs.LOCK_NB)
 		if e == nil {
 			break
 		}
-		if !errors.Is(e, syscall.EWOULDBLOCK) {
+		if !errors.Is(e, nativefs.ErrWouldBlock) {
 			return ErrStorage
 		}
 		select {
@@ -126,7 +127,7 @@ func (s *Store) withFile(ctx context.Context, q Scope, write bool, fn func(*file
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer nativefs.Flock(int(f.Fd()), nativefs.LOCK_UN)
 	return fn(&files{s, q, ctx, filepath.Join(s.dir, Hash(q.Space), q.Project)})
 }
 func (f *files) dirs(branch string, create bool) error {
@@ -251,7 +252,7 @@ func (f *files) append(r Record) error {
 	defer os.Remove(tmp.Name())
 	e = json.NewEncoder(tmp).Encode(r)
 	if e == nil {
-		e = tmp.Sync()
+		e = nativefs.SyncFile(tmp)
 	}
 	e = errors.Join(e, tmp.Close())
 	if e != nil {

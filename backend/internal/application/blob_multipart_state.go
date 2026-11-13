@@ -10,8 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
-	"syscall"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 var errMultipartState = errors.New("S3 multipart checkpoint unavailable; retain the source and retry")
@@ -86,13 +87,13 @@ func writeS3State(dir, name string, v s3MultipartState) error {
 	defer os.Remove(f.Name())
 	_, e = f.Write(b)
 	if e == nil {
-		e = f.Sync()
+		e = nativefs.SyncFile(f)
 	}
 	e = errors.Join(e, f.Close())
 	if e != nil {
 		return errMultipartState
 	}
-	if e = os.Rename(f.Name(), filepath.Join(dir, name+".json")); e != nil {
+	if e = nativefs.Rename(f.Name(), filepath.Join(dir, name+".json")); e != nil {
 		return errMultipartState
 	}
 	return syncMultipartDir(dir)
@@ -103,7 +104,7 @@ func syncMultipartDir(dir string) error {
 		return errMultipartState
 	}
 	defer f.Close()
-	if f.Sync() != nil {
+	if nativefs.SyncFile(f) != nil {
 		return errMultipartState
 	}
 	return nil
@@ -118,7 +119,7 @@ func (j *s3MultipartJournal) withMode(ctx context.Context, initial s3MultipartSt
 	name := s3StateName(initial.Scope, initial.Info.Key)
 	// Fixed lock stripes avoid one permanent lock inode per historical upload.
 	// Lock files themselves must not be unlinked while another process waits.
-	f, e := os.OpenFile(filepath.Join(j.dir, name[:2]+".lock"), os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
+	f, e := nativefs.OpenFile(filepath.Join(j.dir, name[:2]+".lock"), os.O_CREATE|os.O_RDWR|nativefs.NoFollow, 0600)
 	if e != nil {
 		return errMultipartState
 	}
@@ -130,11 +131,11 @@ func (j *s3MultipartJournal) withMode(ctx context.Context, initial s3MultipartSt
 		if e = ctx.Err(); e != nil {
 			return e
 		}
-		e = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		e = nativefs.Flock(int(f.Fd()), nativefs.LOCK_EX|nativefs.LOCK_NB)
 		if e == nil {
 			break
 		}
-		if !errors.Is(e, syscall.EWOULDBLOCK) {
+		if !errors.Is(e, nativefs.ErrWouldBlock) {
 			return errMultipartState
 		}
 		if !wait {
@@ -146,7 +147,7 @@ func (j *s3MultipartJournal) withMode(ctx context.Context, initial s3MultipartSt
 		case <-time.After(20 * time.Millisecond):
 		}
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer nativefs.Flock(int(f.Fd()), nativefs.LOCK_UN)
 	v := initial
 	b, e := safeReadLocal(filepath.Join(j.dir, name+".json"), 2<<20)
 	if e == nil {

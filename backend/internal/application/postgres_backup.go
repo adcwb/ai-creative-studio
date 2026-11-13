@@ -16,6 +16,9 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativeproc"
 )
 
 const maxDatabaseBackupBytes int64 = 1 << 30
@@ -86,7 +89,7 @@ func backupPostgresEnv(dsn, privateDir, libraryPath string) ([]string, error) {
 			values[name] = filepath.Join(privateDir, "absent-"+name)
 		}
 	}
-	env := []string{"PATH=/usr/bin:/bin", "PGPASSFILE=" + passfile, "PGSERVICEFILE=" + servicefile, "PGSYSCONFDIR=" + privateDir}
+	env := append(nativeproc.PrivateEnvironment(os.Args[0], privateDir), []string{"PGPASSFILE=" + passfile, "PGSERVICEFILE=" + servicefile, "PGSYSCONFDIR=" + privateDir}...)
 	if libraryPath != "" {
 		env = append(env, "LD_LIBRARY_PATH="+libraryPath)
 	}
@@ -165,12 +168,12 @@ func BackupPostgresObjects(ctx context.Context, db *sql.DB, dsn string, store Bl
 	if _, e := os.Lstat(destination); !os.IsNotExist(e) {
 		return report, errors.New("backup destination must be new")
 	}
-	stage, e := os.MkdirTemp(filepath.Dir(destination), ".postgres-backup-")
+	stage, e := nativefs.MkdirTemp(filepath.Dir(destination), ".postgres-backup-")
 	if e != nil {
 		return report, e
 	}
 	defer os.RemoveAll(stage)
-	private, e := os.MkdirTemp("", "studio-pg-tools-")
+	private, e := nativefs.MkdirTemp("", "studio-pg-tools-")
 	if e != nil {
 		return report, e
 	}
@@ -247,8 +250,8 @@ func BackupPostgresObjects(ctx context.Context, db *sql.DB, dsn string, store Bl
 	cmd.Env = env
 	cmd.Stdout = &boundedBackupWriter{writer: file, remaining: maxDatabaseBackupBytes}
 	cmd.Stderr = io.Discard
-	runErr := cmd.Run()
-	e = errors.Join(file.Sync(), file.Close())
+	runErr := nativeproc.Run(cmd)
+	e = errors.Join(nativefs.SyncFile(file), file.Close())
 	if runErr != nil || e != nil {
 		return report, errors.New("pg_dump failed or exceeded backup bound")
 	}
@@ -391,7 +394,7 @@ func RestorePostgresBackup(ctx context.Context, db *sql.DB, dsn, source, destina
 	if e = conn.QueryRowContext(ctx, "SELECT count(*) FROM pg_stat_activity WHERE datid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND pid<>pg_backend_pid()").Scan(&n); e != nil || n != 0 {
 		return report, errors.New("restore database has other connections")
 	}
-	stage, e := os.MkdirTemp(filepath.Dir(destination), ".postgres-restore-")
+	stage, e := nativefs.MkdirTemp(filepath.Dir(destination), ".postgres-restore-")
 	if e != nil {
 		return report, e
 	}
@@ -422,7 +425,7 @@ func RestorePostgresBackup(ctx context.Context, db *sql.DB, dsn, source, destina
 	if e = os.Mkdir(filepath.Join(stage, "cache"), 0700); e != nil {
 		return report, e
 	}
-	private, e := os.MkdirTemp("", "studio-pg-tools-")
+	private, e := nativefs.MkdirTemp("", "studio-pg-tools-")
 	if e != nil {
 		return report, e
 	}
@@ -442,7 +445,7 @@ func RestorePostgresBackup(ctx context.Context, db *sql.DB, dsn, source, destina
 	// Preserve the private staged objects if restoring/publishing has an uncertain
 	// outcome; never drop or retry a possibly committed database automatically.
 	preserve = true
-	if e = cmd.Run(); e != nil {
+	if e = nativeproc.Run(cmd); e != nil {
 		return report, errors.New("pg_restore failed; inspect new database and retained .postgres-restore staging before retry")
 	}
 	if e = verifyRestoredBackup(ctx, conn, manifest); e != nil {

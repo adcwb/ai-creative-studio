@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
@@ -24,7 +23,8 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/storyrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
-	"golang.org/x/sys/unix"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 type MigrationReport struct {
@@ -99,15 +99,15 @@ func ImportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 	if info, e := os.Lstat(dir); e != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return report, errors.New("source must be a real directory")
 	}
-	lock, err := os.OpenFile(filepath.Join(dir, "store.lock"), os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	lock, err := nativefs.OpenFile(filepath.Join(dir, "store.lock"), os.O_RDONLY|nativefs.NoFollow, 0)
 	if err != nil {
 		return report, errors.New("source store lock unavailable")
 	}
 	defer lock.Close()
-	if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if err = nativefs.Flock(int(lock.Fd()), nativefs.LOCK_EX|nativefs.LOCK_NB); err != nil {
 		return report, errors.New("source store is running")
 	}
-	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	defer nativefs.Flock(int(lock.Fd()), nativefs.LOCK_UN)
 	report.MediaFiles, err = migrationMediaInventory(dir)
 	if err != nil {
 		return report, err
@@ -117,7 +117,7 @@ func ImportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 	values := map[string]json.RawMessage{}
 	// Validate using an isolated copy of ONLY metadata. Constructors may normalize
 	// their copy for validation; the source is not opened by a mutating store.
-	validation, err := os.MkdirTemp("", "studio-migrate-validate-")
+	validation, err := nativefs.MkdirTemp("", "studio-migrate-validate-")
 	if err != nil {
 		return report, err
 	}
@@ -339,7 +339,7 @@ func ExportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 		return report, errors.New("export target must not exist")
 	}
 	parent := filepath.Dir(dir)
-	stage, err := os.MkdirTemp(parent, ".studio-export-")
+	stage, err := nativefs.MkdirTemp(parent, ".studio-export-")
 	if err != nil {
 		return report, err
 	}
@@ -462,7 +462,7 @@ func ExportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 }
 
 func renameDirectoryNoReplace(source, target string) error {
-	return unix.Renameat2(unix.AT_FDCWD, source, unix.AT_FDCWD, target, unix.RENAME_NOREPLACE)
+	return nativefs.RenameNoReplace(source, target)
 }
 func importQueuedTasks(ctx context.Context, tx *sql.Tx, values map[string]json.RawMessage) error {
 	var core snapshot
@@ -526,11 +526,11 @@ func syncMigrationDirectory(dir string) error {
 			dirs = append(dirs, path)
 			return nil
 		}
-		f, e := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+		f, e := nativefs.OpenFile(path, os.O_RDONLY|nativefs.NoFollow, 0)
 		if e != nil {
 			return e
 		}
-		return errors.Join(f.Sync(), f.Close())
+		return errors.Join(nativefs.SyncFile(f), f.Close())
 	}); err != nil {
 		return err
 	}
@@ -539,7 +539,7 @@ func syncMigrationDirectory(dir string) error {
 		if err != nil {
 			return err
 		}
-		if err = errors.Join(f.Sync(), f.Close()); err != nil {
+		if err = errors.Join(nativefs.SyncFile(f), f.Close()); err != nil {
 			return err
 		}
 	}

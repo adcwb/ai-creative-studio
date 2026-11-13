@@ -17,8 +17,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 const maxRotationBytes = 64 << 20
@@ -191,7 +192,7 @@ func RotateFileModelKey(dir string, oldKey, newKey, confirmation []byte, stopped
 		return report, ErrModelRotation
 	}
 	info, e := os.Lstat(dir)
-	if e != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm()&0022 != 0 {
+	if e != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || !nativefs.PrivateDirectoryMode(dir) {
 		return report, ErrModelRotation
 	}
 	for _, name := range []string{"state.json", "model-config.json"} {
@@ -200,26 +201,26 @@ func RotateFileModelKey(dir string, oldKey, newKey, confirmation []byte, stopped
 			return report, ErrModelRotation
 		}
 	}
-	lock, e := os.OpenFile(filepath.Join(dir, "store.lock"), os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
+	lock, e := nativefs.OpenFile(filepath.Join(dir, "store.lock"), os.O_CREATE|os.O_RDWR|nativefs.NoFollow, 0600)
 	if e != nil {
 		return report, ErrModelRotation
 	}
 	defer lock.Close()
-	if syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) != nil {
+	if nativefs.Flock(int(lock.Fd()), nativefs.LOCK_EX|nativefs.LOCK_NB) != nil {
 		return report, ErrModelRotation
 	}
-	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	defer nativefs.Flock(int(lock.Fd()), nativefs.LOCK_UN)
 	lockedInfo, e := lock.Stat()
 	if e != nil || !lockedInfo.Mode().IsRegular() {
 		return report, ErrModelRotation
 	}
-	f, e := os.OpenFile(filepath.Join(dir, "model-config.json"), os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	f, e := nativefs.OpenFile(filepath.Join(dir, "model-config.json"), os.O_RDONLY|nativefs.NoFollow, 0)
 	if e != nil {
 		return report, ErrModelRotation
 	}
 	defer f.Close()
 	st, e := f.Stat()
-	if e != nil || !st.Mode().IsRegular() || st.Mode().Perm()&0077 != 0 || st.Size() > maxRotationBytes {
+	if e != nil || !st.Mode().IsRegular() || !nativefs.Private(filepath.Join(dir, "model-config.json")) || st.Size() > maxRotationBytes {
 		return report, ErrModelRotation
 	}
 	raw, e := io.ReadAll(io.LimitReader(f, maxRotationBytes+1))

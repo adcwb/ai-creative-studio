@@ -9,9 +9,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
-	"syscall"
 	"testing"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/testsupport"
 )
 
 func TestAnimaticProcessCrashResumesOriginalCheckpoint(t *testing.T) {
@@ -36,7 +37,7 @@ func TestAnimaticProcessCrashResumesOriginalCheckpoint(t *testing.T) {
 	}
 	tools := t.TempDir()
 	counter, marker, fifo := filepath.Join(tools, "count"), filepath.Join(tools, "blocked"), filepath.Join(tools, "gate")
-	if e = syscall.Mkfifo(fifo, 0600); e != nil {
+	if e = testsupport.FIFO(t, fifo); e != nil {
 		t.Fatal(e)
 	}
 	shim := fmt.Sprintf(`#!/bin/sh
@@ -60,7 +61,7 @@ exec %q "$@"
 	}
 	child := exec.Command(os.Args[0], "-test.run=^TestRenderCheckpointCrashHelper$", "-test.v")
 	child.Env = []string{"PATH=" + tools + ":" + os.Getenv("PATH"), "STUDIO_RENDER_HELPER_INPUT=" + input, "STUDIO_RENDER_COUNT=" + counter, "STUDIO_RENDER_MARKER=" + marker, "STUDIO_RENDER_FIFO=" + fifo}
-	child.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	testsupport.ProcessGroup(child)
 	var output bytes.Buffer
 	child.Stdout = &output
 	child.Stderr = &output
@@ -72,7 +73,7 @@ exec %q "$@"
 	running := true
 	defer func() {
 		if running {
-			syscall.Kill(-child.Process.Pid, syscall.SIGKILL)
+			testsupport.KillGroup(child)
 			<-done
 		}
 	}()
@@ -110,7 +111,7 @@ wait:
 		}
 		times[name] = st.ModTime()
 	}
-	if e = syscall.Kill(-child.Process.Pid, syscall.SIGKILL); e != nil {
+	if e = testsupport.KillGroup(child); e != nil {
 		t.Fatal(e)
 	}
 	if e = <-done; e == nil {

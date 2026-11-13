@@ -21,6 +21,8 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/tracing"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativeproc"
 )
 
 type mediaProbe struct {
@@ -46,7 +48,7 @@ func probeMedia(path string) (mediaProbe, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "ffprobe", "-v", "error", "-protocol_whitelist", "file,pipe", "-show_streams", "-show_format", "-of", "json", path)
-	out, err := cmd.Output()
+	out, err := nativeproc.Output(cmd)
 	var p mediaProbe
 	if err != nil || len(out) > 1<<20 {
 		return p, mediaInvalid("无法探测媒体")
@@ -120,7 +122,7 @@ func ffmpeg(ctx context.Context, args ...string) error {
 	cmd := exec.CommandContext(ctx, "ffmpeg", append(base, args...)...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	if err := nativeproc.Run(cmd); err != nil {
 		return fmt.Errorf("local encoder failed: %w", err)
 	}
 	return nil

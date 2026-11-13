@@ -14,6 +14,7 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/bootstrap"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/deployconfig"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/servicehost"
 )
 
 func env(key, fallback string) string {
@@ -24,11 +25,11 @@ func env(key, fallback string) string {
 }
 func main() {
 	diagnostics.Configure("api")
-	if err := diagnostics.Invoke(context.Background(), "startup_error", run); err != nil {
+	if err := diagnostics.Invoke(context.Background(), "startup_error", func() error { return servicehost.Run("CreativeStudioAPI", run) }); err != nil {
 		os.Exit(1)
 	}
 }
-func run() (resultErr error) {
+func run(parent context.Context) (resultErr error) {
 	component := "deployment_config"
 	defer func() {
 		if resultErr != nil {
@@ -67,7 +68,7 @@ func run() (resultErr error) {
 	if err := application.ConfigureExecutionFromEnv(store); err != nil {
 		return err
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	component = "pipeline"
 	pipeline, err := application.NewPipeline(ctx, provider, capabilities)

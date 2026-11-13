@@ -13,6 +13,8 @@ import (
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/uploads"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 func uploadError(w http.ResponseWriter, e error) {
@@ -235,7 +237,7 @@ func registerUploadRoutes(mux *http.ServeMux, s *FileStore, slots chan struct{})
 				f.Close()
 				return uploads.ErrInput
 			}
-			e = f.Sync()
+			e = nativefs.SyncFile(f)
 			e = errors.Join(e, f.Close())
 			if e != nil {
 				return e

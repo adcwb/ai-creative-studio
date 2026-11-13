@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 func ModelAdapters() []ModelAdapter {
@@ -85,6 +87,9 @@ var errModelInput = errors.New("invalid model configuration")
 var errModelKey = errors.New("credential encryption key unavailable")
 
 func OpenModelConfigStore(dir string, key []byte) (*ModelConfigStore, error) {
+	if err := nativefs.EnsurePrivateDirectory(dir); err != nil {
+		return nil, err
+	}
 	s := &ModelConfigStore{path: filepath.Join(dir, "model-config.json"), data: modelSnapshot{Version: 1, Tenants: map[string]modelTenant{}}}
 	if len(key) > 0 {
 		if len(key) != 32 {
@@ -98,6 +103,9 @@ func OpenModelConfigStore(dir string, key []byte) (*ModelConfigStore, error) {
 		if err != nil {
 			return nil, err
 		}
+	}
+	if err := nativefs.CheckPrivateFile(s.path); err != nil {
+		return nil, err
 	}
 	raw, err := os.ReadFile(s.path)
 	if err == nil {
@@ -235,7 +243,7 @@ func (s *ModelConfigStore) commit(d modelSnapshot) error {
 	name := f.Name()
 	defer os.Remove(name)
 	if _, err = f.Write(b); err == nil {
-		err = f.Sync()
+		err = nativefs.SyncFile(f)
 	}
 	closed := f.Close()
 	if err == nil {
@@ -244,12 +252,12 @@ func (s *ModelConfigStore) commit(d modelSnapshot) error {
 	if err != nil {
 		return err
 	}
-	if err = os.Rename(name, s.path); err != nil {
+	if err = nativefs.Rename(name, s.path); err != nil {
 		return err
 	}
 	dir, err := os.Open(filepath.Dir(s.path))
 	if err == nil {
-		err = dir.Sync()
+		err = nativefs.SyncFile(dir)
 		_ = dir.Close()
 	}
 	if err != nil {

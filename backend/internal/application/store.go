@@ -12,7 +12,6 @@ import (
 	"reflect"
 	"sort"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
@@ -22,6 +21,8 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/seriesrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/storyrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 type snapshot struct {
@@ -83,14 +84,14 @@ func OpenStore(dir string, options ...Capabilities) (*FileStore, error) {
 	} else if !os.IsNotExist(err) {
 		return nil, err
 	}
-	if err := os.MkdirAll(dir, 0700); err != nil {
+	if err := nativefs.EnsurePrivateDirectory(dir); err != nil {
 		return nil, err
 	}
-	lock, err := os.OpenFile(filepath.Join(dir, "store.lock"), os.O_CREATE|os.O_RDWR, 0600)
+	lock, err := nativefs.OpenFile(filepath.Join(dir, "store.lock"), os.O_CREATE|os.O_RDWR|nativefs.NoFollow, 0600)
 	if err != nil {
 		return nil, err
 	}
-	if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if err = nativefs.Flock(int(lock.Fd()), nativefs.LOCK_EX|nativefs.LOCK_NB); err != nil {
 		lock.Close()
 		return nil, fmt.Errorf("data directory already in use: %w", err)
 	}
@@ -421,14 +422,14 @@ func (s *FileStore) commit(d snapshot) error {
 		f.Close()
 		return err
 	}
-	if err = f.Sync(); err != nil {
+	if err = nativefs.SyncFile(f); err != nil {
 		f.Close()
 		return err
 	}
 	if err = f.Close(); err != nil {
 		return err
 	}
-	if err = os.Rename(f.Name(), s.path); err != nil {
+	if err = nativefs.Rename(f.Name(), s.path); err != nil {
 		return err
 	}
 	// Atomic rename protects process-crash recovery; see docs for power-loss limits.
@@ -670,7 +671,7 @@ func (s *FileStore) writePNG(name string, data []byte) error {
 		f.Close()
 		return err
 	}
-	if err = f.Sync(); err != nil {
+	if err = nativefs.SyncFile(f); err != nil {
 		f.Close()
 		return err
 	}
@@ -685,7 +686,7 @@ func (s *FileStore) writePNG(name string, data []byte) error {
 		return err
 	}
 	defer dir.Close()
-	return dir.Sync()
+	return nativefs.SyncFile(dir)
 }
 
 func (s *FileStore) ReadResult(space, id string) (GenerationResult, error) {
@@ -710,7 +711,7 @@ func (s *FileStore) ReadResult(space, id string) (GenerationResult, error) {
 			return GenerationResult{}, err
 		}
 	}
-	f, err := s.results.OpenFile(name, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, err := nativefs.OpenRootFile(s.results, name, os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 	if err != nil {
 		return GenerationResult{}, err
 	}

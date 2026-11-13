@@ -10,8 +10,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativeproc"
 )
 
 // LocalTransform is an operator-installed executable, never a browser-supplied
@@ -30,7 +32,7 @@ func configureLocalTransform(prefix, provider string) (*LocalTransform, Capabili
 	c.Model = model
 	c.Mode = "real"
 	stat, err := os.Stat(command)
-	if !filepath.IsAbs(command) || err != nil || !stat.Mode().IsRegular() || stat.Mode().Perm()&0111 == 0 || !configToken.MatchString(model) {
+	if !filepath.IsAbs(command) || err != nil || !stat.Mode().IsRegular() || !nativefs.IsExecutable(command) || !configToken.MatchString(model) {
 		c.ReasonCode = "invalid_local_transform_configuration"
 		return nil, c
 	}
@@ -49,22 +51,15 @@ func (t *LocalTransform) run(ctx context.Context, input any, maxOutput int) ([]b
 	}
 	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
-	dir, err := os.MkdirTemp("", "studio-transform-*")
+	dir, err := nativefs.MkdirTemp("", "studio-transform-*")
 	if err != nil {
 		return nil, err
 	}
 	defer os.RemoveAll(dir)
 	cmd := exec.CommandContext(ctx, t.command)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error {
-		if cmd.Process == nil {
-			return os.ErrProcessDone
-		}
-		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	}
 	cmd.WaitDelay = 2 * time.Second
 	cmd.Dir = dir
-	cmd.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8", "HOME=" + dir}
+	cmd.Env = nativeproc.PrivateEnvironment(t.command, dir)
 	cmd.Stdin = bytes.NewReader(data)
 	cmd.Stderr = io.Discard
 	stdout, err := cmd.StdoutPipe()
@@ -74,9 +69,11 @@ func (t *LocalTransform) run(ctx context.Context, input any, maxOutput int) ([]b
 	if err = checkLibraryDispatch(ctx); err != nil {
 		return nil, err
 	}
-	if err = cmd.Start(); err != nil {
+	cleanup, err := nativeproc.Start(cmd)
+	if err != nil {
 		return nil, providerFailure("local_transform_failed")
 	}
+	defer cleanup()
 	out, readErr := io.ReadAll(io.LimitReader(stdout, int64(maxOutput)+1))
 	if readErr != nil || len(out) > maxOutput {
 		cancel()

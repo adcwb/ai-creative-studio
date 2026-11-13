@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 type collector struct {
@@ -138,7 +140,7 @@ func TestJSONBoundsAndNoOverwrite(t *testing.T) {
 		t.Fatal("overwrote existing")
 	}
 	fi, _ := os.Stat(path)
-	if fi.Mode().Perm() != 0600 {
+	if fi.Mode().IsRegular() == false || !nativefs.Private(path) {
 		t.Fatal("not private")
 	}
 	if err = sink.Export(context.Background(), []Record{{Operation: strings.Repeat("x", 2048)}}); err == nil {

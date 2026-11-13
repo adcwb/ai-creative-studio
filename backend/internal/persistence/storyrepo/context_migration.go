@@ -8,9 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/story"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 func eachContext(ctx context.Context, dir string, fn func(contextRecord) error) error {
@@ -76,7 +77,7 @@ func eachContext(ctx context.Context, dir string, fn func(contextRecord) error) 
 		}
 		// The shared reader checks parent directories, identity, digest and strict JSON.
 		store := Store{dir: dir}
-		f, e := os.OpenFile(p, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+		f, e := nativefs.OpenFile(p, os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 		if e != nil {
 			return ErrStorage
 		}

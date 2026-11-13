@@ -13,11 +13,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/media"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativeproc"
 )
 
 const RenderSchema = `CREATE TABLE IF NOT EXISTS studio_render_checkpoints (
@@ -72,7 +74,9 @@ func renderEncoder() (string, error) {
 	renderEncoderOnce.Do(func() {
 		var b strings.Builder
 		for _, tool := range []string{"ffmpeg", "ffprobe"} {
-			out, e := exec.Command(tool, "-version").Output()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			out, e := nativeproc.Output(exec.CommandContext(ctx, tool, "-version"))
+			cancel()
 			if e != nil {
 				return
 			}
@@ -98,13 +102,13 @@ func atomicRenderJSON(path string, value any) error {
 	defer os.Remove(f.Name())
 	_, e = f.Write(b)
 	if e == nil {
-		e = f.Sync()
+		e = nativefs.SyncFile(f)
 	}
 	e = errors.Join(e, f.Close())
 	if e != nil {
 		return e
 	}
-	if e = os.Rename(f.Name(), path); e != nil {
+	if e = nativefs.Rename(f.Name(), path); e != nil {
 		return e
 	}
 	return syncMultipartDir(filepath.Dir(path))
@@ -200,17 +204,17 @@ func (m *MediaStore) withRenderSession(ctx context.Context, p MediaState, e Medi
 		return err
 	}
 	if m.pg == nil {
-		f, err := os.OpenFile(filepath.Join(dir, ".lock"), os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
+		f, err := nativefs.OpenFile(filepath.Join(dir, ".lock"), os.O_CREATE|os.O_RDWR|nativefs.NoFollow, 0600)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
 		for {
-			err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+			err = nativefs.Flock(int(f.Fd()), nativefs.LOCK_EX|nativefs.LOCK_NB)
 			if err == nil {
 				break
 			}
-			if !errors.Is(err, syscall.EWOULDBLOCK) {
+			if !errors.Is(err, nativefs.ErrWouldBlock) {
 				return err
 			}
 			select {
@@ -219,7 +223,7 @@ func (m *MediaStore) withRenderSession(ctx context.Context, p MediaState, e Medi
 			case <-time.After(20 * time.Millisecond):
 			}
 		}
-		defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		defer nativefs.Flock(int(f.Fd()), nativefs.LOCK_UN)
 	}
 	s := &renderSession{m: m, scope: scope, manifest: v, hash: mediaDigest(v), dir: dir, ctx: ctx}
 	b, err := s.read("manifest")
@@ -329,7 +333,7 @@ func (s *renderSession) artifact(step, kind string, frames int64, produce func(s
 	} else if !os.IsNotExist(e) && !errors.Is(e, sql.ErrNoRows) {
 		return "", e
 	}
-	scratch, e := os.MkdirTemp(s.dir, ".work-")
+	scratch, e := nativefs.MkdirTemp(s.dir, ".work-")
 	if e != nil {
 		return "", e
 	}
@@ -359,7 +363,7 @@ func (s *renderSession) artifact(step, kind string, frames int64, produce func(s
 	if e != nil {
 		return "", e
 	}
-	e = errors.Join(f.Sync(), f.Close())
+	e = errors.Join(nativefs.SyncFile(f), f.Close())
 	if e != nil {
 		return "", e
 	}

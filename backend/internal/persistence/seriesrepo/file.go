@@ -14,8 +14,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 type fileRef struct{ Kind, ID, File, SHA string }
@@ -62,13 +63,13 @@ func syncDir(path string) error {
 	if e != nil {
 		return ErrStorage
 	}
-	if errors.Join(f.Sync(), f.Close()) != nil {
+	if errors.Join(nativefs.SyncFile(f), f.Close()) != nil {
 		return ErrStorage
 	}
 	return nil
 }
 func read(path string) ([]byte, error) {
-	f, e := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, e := nativefs.OpenFile(path, os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 	if e != nil {
 		return nil, e
 	}
@@ -99,14 +100,14 @@ func atomicJSON(path string, v any, replace bool) error {
 	defer os.Remove(f.Name())
 	_, e = f.Write(b)
 	if e == nil {
-		e = f.Sync()
+		e = nativefs.SyncFile(f)
 	}
 	e = errors.Join(e, f.Close())
 	if e != nil {
 		return ErrStorage
 	}
 	if replace {
-		e = os.Rename(f.Name(), path)
+		e = nativefs.Rename(f.Name(), path)
 	} else {
 		e = os.Link(f.Name(), path)
 	}
@@ -120,7 +121,7 @@ func (s *Store) withFile(ctx context.Context, space string, fn func(*fileAccess)
 		return series.ErrInput
 	}
 	hash := series.SHA(space)
-	f, e := os.OpenFile(filepath.Join(s.dir, ".lock-"+hash), os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
+	f, e := nativefs.OpenFile(filepath.Join(s.dir, ".lock-"+hash), os.O_CREATE|os.O_RDWR|nativefs.NoFollow, 0600)
 	if e != nil {
 		return ErrStorage
 	}
@@ -132,11 +133,11 @@ func (s *Store) withFile(ctx context.Context, space string, fn func(*fileAccess)
 		if e = ctx.Err(); e != nil {
 			return e
 		}
-		e = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		e = nativefs.Flock(int(f.Fd()), nativefs.LOCK_EX|nativefs.LOCK_NB)
 		if e == nil {
 			break
 		}
-		if !errors.Is(e, syscall.EWOULDBLOCK) {
+		if !errors.Is(e, nativefs.ErrWouldBlock) {
 			return ErrStorage
 		}
 		select {
@@ -145,7 +146,7 @@ func (s *Store) withFile(ctx context.Context, space string, fn func(*fileAccess)
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer nativefs.Flock(int(f.Fd()), nativefs.LOCK_UN)
 	base := filepath.Join(s.dir, hash)
 	if e = privateDirectory(base); e != nil {
 		return e

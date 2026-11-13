@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 // AuthStore is intentionally local and protected by the enclosing FileStore lock.
@@ -51,7 +53,13 @@ type authSnapshot struct {
 }
 
 func OpenAuthStore(dir string) (*AuthStore, error) {
+	if err := nativefs.EnsurePrivateDirectory(dir); err != nil {
+		return nil, err
+	}
 	s := &AuthStore{path: filepath.Join(dir, "auth.json"), attempts: map[string]authAttempt{}, data: authSnapshot{Version: 1, Users: map[string]authAccount{}, Organizations: map[string]AuthOrganization{}, Sessions: map[string]authSession{}}}
+	if err := nativefs.CheckPrivateFile(s.path); err != nil {
+		return nil, err
+	}
 	b, err := os.ReadFile(s.path)
 	if err == nil {
 		var restored authSnapshot
@@ -133,7 +141,7 @@ func (s *AuthStore) commit(d authSnapshot) error {
 	name := f.Name()
 	defer os.Remove(name)
 	if _, err = f.Write(b); err == nil {
-		err = f.Sync()
+		err = nativefs.SyncFile(f)
 	}
 	closeErr := f.Close()
 	if err == nil {
@@ -142,12 +150,12 @@ func (s *AuthStore) commit(d authSnapshot) error {
 	if err != nil {
 		return err
 	}
-	if err = os.Rename(name, s.path); err != nil {
+	if err = nativefs.Rename(name, s.path); err != nil {
 		return err
 	}
 	dir, err := os.Open(filepath.Dir(s.path))
 	if err == nil {
-		err = dir.Sync()
+		err = nativefs.SyncFile(dir)
 		_ = dir.Close()
 	}
 	if err != nil {

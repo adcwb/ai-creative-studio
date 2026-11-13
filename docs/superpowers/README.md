@@ -45,3 +45,5 @@ docs/
 | [可控创作总体设计](specs/2026-10-28-creative-production-design.md) | 历史长期提案，不能当成现有功能清单 |
 | [可控创作首期](specs/2026-10-28-controlled-creation-phase1-design.md) | 历史首期设计，部分结构仅有领域规则 |
 | [前端路由](specs/2026-10-28-frontend-routing-design.md) | 历史路由设计 |
+
+- [Windows 原生后端重建规格与验收](specs/2026-11-13-windows-native-rebuild.md)

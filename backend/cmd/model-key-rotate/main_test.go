@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/application"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 func TestRotationConnectionRequiresExplicitIsolatedParameters(t *testing.T) {
@@ -36,7 +38,7 @@ func TestRotationConnectionRequiresExplicitIsolatedParameters(t *testing.T) {
 		t.Fatal("empty private passfile missing", e)
 	}
 	st, e := os.Stat(path)
-	if e != nil || st.Mode().Perm() != 0600 {
+	if e != nil || st.Mode().IsRegular() == false || !nativefs.Private(path) {
 		t.Fatal("passfile permissions", e)
 	}
 	cleanup()

@@ -15,10 +15,11 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/securebackup"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 var ErrEncryptedBackup = errors.New("encrypted backup operation refused or incomplete; verify private staging before retry")
@@ -36,24 +37,24 @@ type EncryptedBackupReport struct {
 
 func lockEncryptedBackups(root string) (*os.File, error) {
 	st, e := os.Lstat(root)
-	if e != nil || !st.IsDir() || st.Mode()&os.ModeSymlink != 0 || st.Mode().Perm()&0077 != 0 {
+	if e != nil || !st.IsDir() || st.Mode()&os.ModeSymlink != 0 || !nativefs.Private(root) {
 		return nil, ErrEncryptedBackup
 	}
-	f, e := os.OpenFile(filepath.Join(root, ".studio-backup.lock"), os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
+	f, e := nativefs.OpenFile(filepath.Join(root, ".studio-backup.lock"), os.O_CREATE|os.O_RDWR|nativefs.NoFollow, 0600)
 	if e != nil {
 		return nil, ErrEncryptedBackup
 	}
 	st, e = f.Stat()
-	if e != nil || !st.Mode().IsRegular() || syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) != nil {
+	if e != nil || !st.Mode().IsRegular() || nativefs.Flock(int(f.Fd()), nativefs.LOCK_EX|nativefs.LOCK_NB) != nil {
 		f.Close()
 		return nil, ErrEncryptedBackup
 	}
 	return f, nil
 }
-func unlockEncryptedBackups(f *os.File) { syscall.Flock(int(f.Fd()), syscall.LOCK_UN); f.Close() }
+func unlockEncryptedBackups(f *os.File) { nativefs.Flock(int(f.Fd()), nativefs.LOCK_UN); f.Close() }
 func encryptedBackupInfo(ctx context.Context, path string, key []byte) (EncryptedBackupReport, error) {
 	report := EncryptedBackupReport{File: filepath.Base(path)}
-	f, e := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, e := nativefs.OpenFile(path, os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 	if e != nil {
 		return report, ErrEncryptedBackup
 	}
@@ -112,7 +113,7 @@ func SealBackup(ctx context.Context, source, root string, key []byte) (Encrypted
 	if e != nil || producerErr != nil {
 		return report, ErrEncryptedBackup
 	}
-	if e = f.Sync(); e != nil {
+	if e = nativefs.SyncFile(f); e != nil {
 		return report, ErrEncryptedBackup
 	}
 	if e = f.Close(); e != nil {
@@ -196,7 +197,7 @@ func writeBackupTar(ctx context.Context, w io.Writer, source string, inventory m
 			return ErrEncryptedBackup
 		}
 		seen[filepath.ToSlash(rel)] = true
-		f, err := root.OpenFile(rel, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+		f, err := nativefs.OpenRootFile(root, rel, os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 		if err != nil {
 			return err
 		}
@@ -241,7 +242,7 @@ func OpenBackup(ctx context.Context, source, destination string, key []byte) (Po
 	if _, e := os.Lstat(destination); !os.IsNotExist(e) {
 		return report, ErrEncryptedBackup
 	}
-	f, e := os.OpenFile(source, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, e := nativefs.OpenFile(source, os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 	if e != nil {
 		return report, ErrEncryptedBackup
 	}
@@ -250,7 +251,7 @@ func OpenBackup(ctx context.Context, source, destination string, key []byte) (Po
 	if e != nil || !st.Mode().IsRegular() || st.Size() > securebackup.MaxPlainBytes+(1<<30) {
 		return report, ErrEncryptedBackup
 	}
-	stage, e := os.MkdirTemp(filepath.Dir(destination), ".decrypting-")
+	stage, e := nativefs.MkdirTemp(filepath.Dir(destination), ".decrypting-")
 	if e != nil {
 		return report, e
 	}
@@ -327,7 +328,7 @@ func readBackupTar(ctx context.Context, r io.Reader, destination string) error {
 		}
 		n, err := io.CopyN(file, tr, h.Size)
 		if err == nil {
-			err = file.Sync()
+			err = nativefs.SyncFile(file)
 		}
 		closeErr := file.Close()
 		if err != nil {

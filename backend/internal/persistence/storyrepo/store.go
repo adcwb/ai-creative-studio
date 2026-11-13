@@ -16,10 +16,11 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/story"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 var ErrStorage = errors.New("story storage unavailable")
@@ -111,7 +112,7 @@ func read(p string) (record, error) {
 	if realDir(filepath.Dir(p)) != nil {
 		return record{}, ErrStorage
 	}
-	f, e := os.OpenFile(p, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, e := nativefs.OpenFile(p, os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 	if e != nil {
 		return record{}, ErrStorage
 	}
@@ -132,7 +133,7 @@ func syncDir(p string) error {
 	if e != nil {
 		return e
 	}
-	return errors.Join(f.Sync(), f.Close())
+	return errors.Join(nativefs.SyncFile(f), f.Close())
 }
 func (s *Store) makeDirs(q Scope, id string) error {
 	p := s.dir
@@ -165,7 +166,7 @@ func (s *Store) appendFile(q Scope, r record) error {
 	defer os.Remove(f.Name())
 	e = json.NewEncoder(f).Encode(r)
 	if e == nil {
-		e = f.Sync()
+		e = nativefs.SyncFile(f)
 	}
 	e = errors.Join(e, f.Close())
 	if e != nil {
@@ -183,7 +184,7 @@ func (s *Store) withFile(ctx context.Context, q Scope, write bool, fn func() err
 	if realDir(s.dir) != nil {
 		return ErrStorage
 	}
-	f, e := os.OpenFile(filepath.Join(s.dir, ".lock-"+story.TextHash(q.Space+":"+q.Series)), os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
+	f, e := nativefs.OpenFile(filepath.Join(s.dir, ".lock-"+story.TextHash(q.Space+":"+q.Series)), os.O_CREATE|os.O_RDWR|nativefs.NoFollow, 0600)
 	if e != nil {
 		return ErrStorage
 	}
@@ -192,19 +193,19 @@ func (s *Store) withFile(ctx context.Context, q Scope, write bool, fn func() err
 	if e != nil || !st.Mode().IsRegular() {
 		return ErrStorage
 	}
-	mode := syscall.LOCK_SH
+	mode := nativefs.LOCK_SH
 	if write {
-		mode = syscall.LOCK_EX
+		mode = nativefs.LOCK_EX
 	}
 	for {
 		if e = ctx.Err(); e != nil {
 			return e
 		}
-		e = syscall.Flock(int(f.Fd()), mode|syscall.LOCK_NB)
+		e = nativefs.Flock(int(f.Fd()), mode|nativefs.LOCK_NB)
 		if e == nil {
 			break
 		}
-		if !errors.Is(e, syscall.EWOULDBLOCK) {
+		if !errors.Is(e, nativefs.ErrWouldBlock) {
 			return ErrStorage
 		}
 		select {
@@ -213,7 +214,7 @@ func (s *Store) withFile(ctx context.Context, q Scope, write bool, fn func() err
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer nativefs.Flock(int(f.Fd()), nativefs.LOCK_UN)
 	return fn()
 }
 func (s *Store) entries(q Scope, id string) ([]string, error) {
