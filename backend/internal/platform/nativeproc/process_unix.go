@@ -26,3 +26,7 @@ func Start(c *exec.Cmd) (func(), error) {
 func PrivateEnvironment(command, dir string) []string {
 	return []string{"PATH=/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8", "HOME=" + dir}
 }
+
+// Ordinary Linux tools retain their inherited process group, including existing
+// supervisor/crash semantics. Start remains isolated for the local model adapter.
+func Run(c *exec.Cmd) error { return c.Run() }

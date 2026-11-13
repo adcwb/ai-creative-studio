@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -82,6 +83,10 @@ func streamReviewPolicy(t *testing.T, sha string, allow bool) *ExecutionPolicy {
 	status := "allow"
 	if !allow {
 		status = "review"
+	}
+	if runtime.GOOS == "windows" {
+		path = nativeStreamReviewExecutable(t, sha, status)
+		return &ExecutionPolicy{ModerationCommand: path, ModerationContract: "local-or-free-v1", ModerationSource: "synthetic local test", ModerationExpiresAt: time.Now().Add(time.Hour)}
 	}
 	program := `#!/usr/bin/python3
 import base64,datetime,hashlib,json,sys

@@ -42,9 +42,7 @@ func TestEncryptedBackupRoundTripAndWrongKey(t *testing.T) {
 	key := bytes.Repeat([]byte{3}, 32)
 	source := syntheticBackupBundle(t)
 	root := t.TempDir()
-	if e := nativefs.EnsurePrivateDirectory(root); e != nil {
-		t.Fatal(e)
-	}
+	testsupport.MakePrivateDirectory(t, root)
 	r, e := SealBackup(ctx, source, root, key)
 	if e != nil || !r.Verified {
 		t.Fatal(r, e)
@@ -88,9 +86,7 @@ func writeEncryptedFixture(t *testing.T, root, name string, key []byte, at time.
 }
 func TestEncryptedRetentionDryRunHashAndForeignSafety(t *testing.T) {
 	root := t.TempDir()
-	if e := nativefs.EnsurePrivateDirectory(root); e != nil {
-		t.Fatal(e)
-	}
+	testsupport.MakePrivateDirectory(t, root)
 	key := bytes.Repeat([]byte{6}, 32)
 	old := time.Now().Add(-72 * time.Hour)
 	names := []string{"studio-backup-" + strings.Repeat("1", 32) + ".sbk", "studio-backup-" + strings.Repeat("2", 32) + ".sbk"}
@@ -124,9 +120,7 @@ func TestEncryptedRetentionDryRunHashAndForeignSafety(t *testing.T) {
 func TestEncryptedBackupRejectsPathsAndRetentionSymlink(t *testing.T) {
 	key := bytes.Repeat([]byte{5}, 32)
 	root := t.TempDir()
-	if e := nativefs.EnsurePrivateDirectory(root); e != nil {
-		t.Fatal(e)
-	}
+	testsupport.MakePrivateDirectory(t, root)
 	name := "studio-backup-" + strings.Repeat("a", 32) + ".sbk"
 	os.Symlink(filepath.Join(t.TempDir(), "other"), filepath.Join(root, name))
 	if _, e := RetainBackups(context.Background(), root, key, 1, 24, ""); e == nil {
@@ -163,9 +157,7 @@ func TestEncryptedBackupRejectsPathsAndRetentionSymlink(t *testing.T) {
 }
 func TestEncryptedBackupStreamFailureDoesNotPublish(t *testing.T) {
 	root := t.TempDir()
-	if e := nativefs.EnsurePrivateDirectory(root); e != nil {
-		t.Fatal(e)
-	}
+	testsupport.MakePrivateDirectory(t, root)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if _, e := SealBackup(ctx, syntheticBackupBundle(t), root, bytes.Repeat([]byte{1}, 32)); e == nil {

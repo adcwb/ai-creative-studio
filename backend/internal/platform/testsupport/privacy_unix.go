@@ -13,3 +13,10 @@ func MakePublic(t *testing.T, p string) {
 		t.Fatal(e)
 	}
 }
+
+func MakePrivateDirectory(t *testing.T, p string) {
+	t.Helper()
+	if e := os.Chmod(p, 0700); e != nil {
+		t.Fatal(e)
+	}
+}

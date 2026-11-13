@@ -186,8 +186,7 @@ func rotateModelSnapshot(d modelSnapshot, oldKey, newKey, confirmation []byte) (
 	return result, report, nil
 }
 
-// RotateFileModelKey requires all processes stopped; the exclusive application
-// lock protects against ordinary writers. No backup is overwritten or revived.
+// rotationFileError emits only a constant stage and an optional OS error number.
 func rotationFileError(stage string, cause error) error {
 	var errno syscall.Errno
 	if errors.As(cause, &errno) {
@@ -196,6 +195,8 @@ func rotationFileError(stage string, cause error) error {
 	return fmt.Errorf("%w: %s", ErrModelRotation, stage)
 }
 
+// RotateFileModelKey requires all processes stopped; the exclusive application
+// lock protects against ordinary writers. No backup is overwritten or revived.
 func RotateFileModelKey(dir string, oldKey, newKey, confirmation []byte, stopped, apply bool) (ModelRotationReport, error) {
 	report := ModelRotationReport{}
 	if !stopped {

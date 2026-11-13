@@ -87,3 +87,5 @@ func PrivateEnvironment(command, dir string) []string {
 	root, _ := windows.GetWindowsDirectory()
 	return []string{"SystemRoot=" + root, "WINDIR=" + root, "PATH=" + filepath.Dir(command) + ";" + system, "TEMP=" + dir, "TMP=" + dir, "HOME=" + dir, "USERPROFILE=" + dir}
 }
+
+func Run(c *exec.Cmd) error { return runIsolated(c) }

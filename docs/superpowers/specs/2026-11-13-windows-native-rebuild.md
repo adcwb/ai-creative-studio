@@ -1,7 +1,7 @@
 # Windows 原生后端重建规格与验收
 
 日期：2026-11-13。基线：`be2116e13139c6eeea767734aad2714c2c487c1c`。
-状态：实现与本地验证中；实际 Windows CI 尚待提交后执行。
+状态：实现已推送；实际 Windows 原生 CI 的修复与复验中。
 
 ## 范围与证据
 
@@ -31,7 +31,7 @@
 - [x] 23 项 Python 脚本测试通过。
 - [x] Go vet、格式、差异与 actionlint 通过；最终 Windows 命令及全部测试包交叉编译通过。
 - [ ] Linux 文件与 PG 全量竞态：基础平台/持久化/命令及受影响锁/轮换/加密备份专项已通过。文件模式单次全套触发默认 10 分钟总超时，超时前无断言失败，正在 `TestGatewayLargeVideoDownloadsIntoReviewedAssetWithoutGenerationRetry`；改用仓库原有三组继续，未修改 CI 超时或跳过覆盖。PG 全套仍在运行。
-- [ ] 合并/推送并核验远端精确 SHA。
+- [x] 已安全快进合并到 master 并推送、核验 SHA；持续跟踪对应 HEAD 的 CI。
 - [ ] Windows 实际文件/PG、SCM、ACL、工具验证和全套云端 CI 终态。
 
 ## 风险与兼容
@@ -43,3 +43,17 @@
 Windows 文件 job 已实际通过 nativefs（内核锁/长路径/ACL/继承授权拒绝）、nativeproc（Job 子树取消）、servicehost、持久化和领域基础竞态；随后 CLI 密钥轮换失败，尚未执行应用及 SCM 全链路，不能声称原生验收成功。补充离线轮换安全阶段诊断和发布前关闭读取句柄，保留独占锁与所有隐私校验。
 
 PostgreSQL job 在 runner 预装服务启动失败；改用预装工具初始化全新 RUNNER_TEMP 测试集群，限定 loopback:55439，并在 always 步骤停止，不依赖预装服务账号/状态。PowerShell AST 和固定 SHA256 FFmpeg 安装已在 Windows 实际通过。补齐 SCM 运行 goroutine 的安全 panic 捕获和测试。
+
+首轮 Linux file/PG 的 A–M 两组失败于加密备份 fixture：测试目录的显式 Unix chmod 被误替换为 MkdirAll（已有目录不会更改权限），在 runner 的 0022 umask 下仍为 0755。本地 0077 umask 隐藏了问题。恢复测试专用、按 OS 实际设置隐私的 helper；生产 Unix 的目录权限策略不变，补做 0022 umask 的轮换/备份回归。
+
+本地 PostgreSQL 全套 `-race -count=1` 已通过（application 936.233 秒），文件原分组 A–M / other 已通过（application 316.714 / 213.077 秒）；最终 native 组仍在运行。0022 umask 下轮换与加密备份专项已通过。Windows 原生应用选择增加现有可恢复上传、系列、媒体、合成本地 S3 multipart、加密备份测试，不替代原有 Linux 全量检查，不将合成 S3 当作真实服务验收。
+
+Linux 普通编码器/数据库工具保留原继承进程组，避免改变既有 supervisor/崩溃测试的整组终止语义；本地模型适配器仍使用原有的独立进程组取消。Windows 工具统一受 Job Object 管理。新增真实派生子进程取消测试覆盖显式隔离启动。
+
+本地文件三组竞态全部通过（A–M 316.714、other 213.077、native 226.326 秒），PG 全套通过。0022 专项与新增进程测试已通过。Windows CI 将便宜的控制台/真实 SCM 纵向验收放在长竞态套件之前，便于尽早暴露服务/编码器错误，保留所有已有检查。
+
+### 第二轮 Windows CI（43346610768）
+
+独立 PostgreSQL 集群、轮换 CLI 和基础竞态均已实际通过。应用测试剩余三项失败来自旧测试内嵌 `/usr/bin/python3` 脚本，Windows 无法原生执行。保留 Linux 原 Python fixture；为 Windows 增加测试二进制的原生子进程入口，独立用 stdlib 流式解码并核对真实媒体 SHA、元数据、允许/拒绝及篡改拒绝，不调用生产 parser 来验证自身，不删除或跳过断言。新增便携 fixture 正反向合同测试。SCM 端到端仍需下一轮先执行。
+
+原生审核 fixture 正反向与三个原失败路径在 Linux 本地竞态复验通过（52.970 秒），Windows 编译通过；保留内容、哈希、拒绝、无重试与清理断言。SCM fixture 对创建的服务写入当前 run/attempt 所有权标记，清理拒绝删除不属于该运行的同名服务。最终原生运行结果需看后续 CI，不从这些编译结果推导成功。

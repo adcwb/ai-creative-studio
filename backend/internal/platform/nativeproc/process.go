@@ -5,7 +5,7 @@ import (
 	"os/exec"
 )
 
-func Run(c *exec.Cmd) error {
+func runIsolated(c *exec.Cmd) error {
 	done, e := Start(c)
 	if e != nil {
 		return e

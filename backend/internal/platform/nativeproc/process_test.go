@@ -33,7 +33,7 @@ func TestProcessTreeCancellation(t *testing.T) {
 	c := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestProcessTreeCancellation$")
 	c.Env = append(os.Environ(), "STUDIO_NATIVE_CHILD=parent", "STUDIO_NATIVE_HEARTBEAT="+path)
 	result := make(chan error, 1)
-	go func() { result <- Run(c) }()
+	go func() { result <- runIsolated(c) }()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		if _, e := os.Stat(path); e == nil {

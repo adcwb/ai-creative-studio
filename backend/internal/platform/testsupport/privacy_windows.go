@@ -3,6 +3,7 @@
 package testsupport
 
 import (
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 	"testing"
 
 	"golang.org/x/sys/windows"
@@ -20,6 +21,13 @@ func MakePublic(t *testing.T, p string) {
 	}
 	d, _, _ := sd.DACL()
 	if e = windows.SetNamedSecurityInfo(p, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION, nil, nil, d, nil); e != nil {
+		t.Fatal(e)
+	}
+}
+
+func MakePrivateDirectory(t *testing.T, p string) {
+	t.Helper()
+	if e := nativefs.EnsurePrivateDirectory(p); e != nil {
 		t.Fatal(e)
 	}
 }
