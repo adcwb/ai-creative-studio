@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/media"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/libraryrepo"
 	"net/http"
 )
@@ -26,14 +27,15 @@ func (s *FileStore) checkBindingVersions(ctx context.Context, space, project str
 	out := []bindingVersionCheck{}
 	for _, b := range state.LibraryBindings {
 		item := bindingVersionCheck{BindingID: b.ID, AssetID: b.AssetID, Pinned: b.VersionID, Status: "current"}
-		asset, e := s.library.Get(ctx, space, b.AssetID)
-		if errors.Is(e, libraryrepo.ErrNotFound) {
+		asset, e := s.sharedLibraryAsset(ctx, space, media.LibrarySource{ShareID: b.ShareID, AssetID: b.AssetID, VersionID: b.VersionID})
+		var pf *ProviderError
+		if errors.Is(e, libraryrepo.ErrNotFound) || (errors.As(e, &pf) && pf.Code == "library_use_denied") {
 			item.Status = "unavailable"
 		} else if e != nil {
 			return nil, 0, e
 		} else {
 			item.Current = asset.Asset.HeadVersionID
-			_, e = s.library.Version(ctx, space, b.AssetID, b.VersionID)
+			_, e = s.sharedLibraryVersion(ctx, space, media.LibrarySource{ShareID: b.ShareID, AssetID: b.AssetID, VersionID: b.VersionID})
 			if errors.Is(e, libraryrepo.ErrNotFound) {
 				item.Status = "unavailable"
 			} else if e != nil {

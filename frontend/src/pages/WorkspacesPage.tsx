@@ -1,3 +1,4 @@
+import {hasPermission} from '../permissions'
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, errorMessage, request } from '../api'
@@ -72,14 +73,14 @@ function WorkspaceContent() {
   return <div className="creative-workspace"><header className="page-heading"><div>{workspaceId && <Link to={root}>{t('返回作品列表')}</Link>}<h1>{workspaceId ? project?.title : t(publishing ? '发布中心' : digital ? '视频型数字人' : '图像作品')}</h1><p>{t(publishing ? '选择作品，检查成品并准备发布。' : digital ? '独立管理形象、声音、口播视频和成片。' : '保存参考、编辑过程与候选版本，持续打磨同一张图。')}</p></div>{!digital && !publishing && <Link to="/studio">{t('快速图像生成')}</Link>}</header>
     {error && <div role="alert" className="error">{error}<button onClick={() => setRevision(v => v + 1)}>{t('重新加载')}</button></div>}
     {!workspaceId && <>
-      {!publishing && space?.role !== 'viewer' && <form className="workspace-create" onSubmit={e => {e.preventDefault(); void create()}}><label>{t('作品名称')}<input value={title} maxLength={80} disabled={busy || pending.current !== null} onChange={e => setTitle(e.target.value)} placeholder={t(digital ? '例如：产品介绍口播' : '例如：人物定妆与海报')} /></label><button className="primary" disabled={busy || !title.trim()}>{t(pending.current ? '核对创建结果' : '新建作品')}</button></form>}
+      {!publishing && hasPermission(space,'workspace.write') && <form className="workspace-create" onSubmit={e => {e.preventDefault(); void create()}}><label>{t('作品名称')}<input value={title} maxLength={80} disabled={busy || pending.current !== null} onChange={e => setTitle(e.target.value)} placeholder={t(digital ? '例如：产品介绍口播' : '例如：人物定妆与海报')} /></label><button className="primary" disabled={busy || !title.trim()}>{t(pending.current ? '核对创建结果' : '新建作品')}</button></form>}
       {!projects.length && <p className="panel">{t(publishing ? '还没有可交付作品，请先完成创作。' : '还没有作品，从新建作品开始。')}</p>}
       <div className="project-grid">{projects.map(p => <Link className="project-card" key={p.id} to={`${root}/${p.id}`}><h2>{p.title}</h2><p>{p.brief}</p><time>{formatDate(p.updated_at)}</time></Link>)}</div>
     </>}
     {workspaceId&&project&&!publishing&&<p><Link className="button-link" to={`/workflows/${project.id}`}>{t('创作流程')}</Link></p>}
     {workspaceId && project && <Suspense fallback={<p role="status">{t('正在读取作品…')}</p>}>{(publishing ? <SocialPublishCenter key={project.id} projectId={project.id} space={space!.id} /> : <>
       {digital && <nav className="workspace-tabs"><button className={tab === 'create' ? 'active' : ''} onClick={() => requestLeave(() => setTab('create'))}>{t('形象与口播制作')}</button><button className={tab === 'edit' ? 'active' : ''} onClick={() => requestLeave(() => setTab('edit'))}>{t('剪辑与交付')}</button><Link to={`/publish/${project.id}`}>{t('准备发布')}</Link></nav>}
-      {digital ? tab === 'create' ? <DigitalHumanStudio project={project} space={space!.id} disabled={space?.role === 'viewer'} onDirtyChange={setDirty} /> : <MediaStudio project={project} space={space!.id} onDirtyChange={setDirty} /> : <ProductionBoard project={project} space={space!.id} disabled={space?.role === 'viewer'} onDirtyChange={setDirty} />}
+      {digital ? tab === 'create' ? <DigitalHumanStudio project={project} space={space!.id} disabled={!hasPermission(space,'workspace.write')} onDirtyChange={setDirty} /> : <MediaStudio project={project} space={space!.id} onDirtyChange={setDirty} /> : <ProductionBoard project={project} space={space!.id} disabled={!hasPermission(space,'workspace.write')} onDirtyChange={setDirty} />}
     </>)}</Suspense>}
   </div>
 }

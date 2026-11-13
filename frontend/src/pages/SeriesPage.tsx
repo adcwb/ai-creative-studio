@@ -1,4 +1,6 @@
+import {hasPermission} from '../permissions'
 import {WritingWorkspace} from '../features/series/WritingWorkspace'
+import {SeasonDelivery} from '../features/series/SeasonDelivery'
 import {useEffect,useState} from 'react'
 import {Link,useNavigate,useParams} from 'react-router-dom'
 import {useAppWorkspace} from '../app/workspace'
@@ -30,7 +32,7 @@ function SeriesWorkspace({id}:{id:string}){
  const close=()=>setMode('')
  const onSaved=()=>{setMode('');refresh()}
  const season=seasons.items.find(n=>n.id===selected)??seasons.items[0]
- const writable=space?.role!=='viewer'
+ const writable=hasPermission(space,'workspace.write')
 
  return <div className="projects-page series-page"><Link className="project-back" to="/projects?view=series">{t('返回系列目录')}</Link>
  {error&&<div className="error" role="alert">{error}<button onClick={refresh}>{t('重新读取目录')}</button></div>}
@@ -50,6 +52,7 @@ function SeriesWorkspace({id}:{id:string}){
  {mode==='season'&&season&&<SeriesForm key={season.id} kind="season" item={season} onCancel={close} onSaved={onSaved} onRefresh={refresh}/>}
  {mode==='move-season'&&season&&<SeriesMoveForm item={season} parent={root} onCancel={close} onSaved={onSaved}/>}
  {season&&<WritingWorkspace root={root.id} season={season}/>}
+ {season&&<SeasonDelivery key={`${space!.id}:${season.id}`} space={space!.id} season={season.id}/>}
  {season&&<EpisodeDirectory key={`${season.id}:${mode!==''}`} root={root} season={season} revision={revision} refresh={refresh} disabled={mode!==''}/>}
  </>}
  </div>
@@ -58,7 +61,7 @@ function EpisodeDirectory({root,season,revision,refresh,disabled}:{root:SeriesEn
  const {t}=useI18n();const {space,requestLeave}=useAppWorkspace();const navigate=useNavigate()
  const list=useDirectory(`/seasons/${season.id}/episodes?include_production=true`,space!.id,revision)
  const [mode,setMode]=useState(''),[selected,setSelected]=useState('')
- const writable=space?.role!=='viewer'
+ const writable=hasPermission(space,'workspace.write')
  const item=list.items.find(n=>n.id===selected)
  const close=()=>setMode('')
  const saved=()=>{setMode('');refresh()}

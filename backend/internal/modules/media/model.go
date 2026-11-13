@@ -13,6 +13,7 @@ var shotIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,40}$`)
 
 // LibrarySource is trusted server-written lineage; no grant is embedded here.
 type LibrarySource struct {
+	ShareID   string `json:"share_id,omitempty"`
 	AssetID   string `json:"asset_id"`
 	VersionID string `json:"version_id"`
 }
@@ -119,22 +120,24 @@ type MediaExport struct {
 }
 
 type MediaState struct {
-	PromptApplications []prompts.Application `json:"prompt_applications,omitempty"`
-	EpisodeTimelines   map[int]MediaTimeline `json:"episode_timelines,omitempty"`
-	Selections         []Selection           `json:"selections,omitempty"`
-	Reviews            []ReviewNote          `json:"reviews,omitempty"`
-	LibraryBindings    []LibraryBinding      `json:"library_bindings,omitempty"`
-	Poster             *PosterDocument       `json:"poster,omitempty"`
-	Social             *SocialState          `json:"social,omitempty"`
-	Version            int                   `json:"version"`
-	Assets             []MediaAsset          `json:"assets"`
-	Timeline           MediaTimeline         `json:"timeline"`
-	Exports            []MediaExport         `json:"exports"`
+	DeliveryMetadata   []publishing.DeliveryMetadata `json:"delivery_metadata,omitempty"`
+	PromptApplications []prompts.Application         `json:"prompt_applications,omitempty"`
+	EpisodeTimelines   map[int]MediaTimeline         `json:"episode_timelines,omitempty"`
+	Selections         []Selection                   `json:"selections,omitempty"`
+	Reviews            []ReviewNote                  `json:"reviews,omitempty"`
+	LibraryBindings    []LibraryBinding              `json:"library_bindings,omitempty"`
+	Poster             *PosterDocument               `json:"poster,omitempty"`
+	Social             *SocialState                  `json:"social,omitempty"`
+	Version            int                           `json:"version"`
+	Assets             []MediaAsset                  `json:"assets"`
+	Timeline           MediaTimeline                 `json:"timeline"`
+	Exports            []MediaExport                 `json:"exports"`
 }
 
 // LibraryBinding records the exact library version copied into this project.
 // Later library edits cannot alter these project-owned media references.
 type LibraryBinding struct {
+	ShareID       string   `json:"share_id,omitempty"`
 	ID            string   `json:"id"`
 	AssetID       string   `json:"library_asset_id"`
 	VersionID     string   `json:"asset_version_id"`

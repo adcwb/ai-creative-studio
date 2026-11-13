@@ -1,3 +1,4 @@
+import {hasPermission} from '../../permissions'
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react'
 import {Link} from 'react-router-dom'
 import {ReactFlow,Background,Controls,Handle,Position,type NodeProps,type Node,type Connection,type NodeChange} from '@xyflow/react'
@@ -51,7 +52,7 @@ function Editor({project,space,detail,projectVersion,saved}:{project:string;spac
  const initialGraph=useRef(graph)
  const dirty=JSON.stringify(graph)!==JSON.stringify(initialGraph.current)||name!==(detail?.name??'')
  useNavigationTask(dirty||write.busy||write.uncertain||run.busy||run.uncertain)
- const readOnly=workspace.space?.role==='viewer',locked=readOnly||write.busy||write.uncertain||run.busy||run.uncertain
+ const readOnly=!hasPermission(workspace.space,'workspace.write'),locked=readOnly||write.busy||write.uncertain||run.busy||run.uncertain
  useEffect(()=>{const abort=new AbortController();void request<{assets:Asset[]}>(`/projects/${project}/media?space_id=${space}`,{signal:abort.signal}).then(v=>{if(!abort.signal.aborted)setAssets(v.assets)}).catch(e=>{if(!abort.signal.aborted)setError(errorMessage(e,t('项目素材读取失败')))});return()=>abort.abort()},[project,space,t])
  function commit(next:Graph){setPast(v=>[...v,structuredClone(graph)]);setFuture([]);setGraph(next);setError('');setNotice('')}
  function patch(next:Partial<Step>){commit({...graph,nodes:graph.nodes.map(n=>n.id===selected?{...n,...next}:n)})}
@@ -107,10 +108,10 @@ function RunView({project,space,id,observe}:{project:string;space:string;id:stri
 }
 function ReviewDecision({project,space,run,node,saved}:{project:string;space:string;run:Run;node:string;saved:(v:Run)=>void}){
  const {t}=useI18n(),workspace=useAppWorkspace(),[confirmed,setConfirmed]=useState(false),write=useSeriesWrite<Run>(`workflow-review:${run.id}:${node}`,`/projects/${project}/workflow-runs/${run.id}/nodes/${node}/decision`,'POST',saved,definite)
- return <div data-space={space}><label><input type="checkbox" checked={confirmed} disabled={write.busy||write.uncertain||workspace.space?.role==='viewer'} onChange={e=>setConfirmed(e.target.checked)}/>{t('我已检查此素材，继续后续步骤')}</label><button disabled={write.busy||workspace.space?.role==='viewer'||!confirmed&&!write.uncertain} onClick={()=>void write.save({expected_version:run.version,approved:true})}>{t(write.uncertain?'核对原审片决定':'确认采用并继续')}</button>{write.error&&<p role="alert">{write.error}</p>}{write.storageNotice&&<p role="status">{write.storageNotice}</p>}</div>
+ return <div data-space={space}><label><input type="checkbox" checked={confirmed} disabled={write.busy||write.uncertain||!hasPermission(workspace.space,'workspace.write')} onChange={e=>setConfirmed(e.target.checked)}/>{t('我已检查此素材，继续后续步骤')}</label><button disabled={write.busy||!hasPermission(workspace.space,'workspace.write')||!confirmed&&!write.uncertain} onClick={()=>void write.save({expected_version:run.version,approved:true})}>{t(write.uncertain?'核对原审片决定':'确认采用并继续')}</button>{write.error&&<p role="alert">{write.error}</p>}{write.storageNotice&&<p role="status">{write.storageNotice}</p>}</div>
 }
 function RunAction({project,run,saved}:{project:string;space:string;run:Run;saved:(v:Run)=>void}){
  const {t}=useI18n(),workspace=useAppWorkspace(),action=run.status==='unknown'?'reconcile':'cancel',write=useSeriesWrite<Run>(`workflow-action:${run.id}:${action}`,`/projects/${project}/workflow-runs/${run.id}/${action}`,'POST',saved,definite)
  if(run.status==='succeeded'||run.status==='failed'||run.status==='cancelled')return null
- return <div><p>{t('停止只阻止后续派发，不能保证上游已开始的计算被撤回。核对沿用原任务，不创建新的模型请求。')}</p><button disabled={write.busy||workspace.space?.role==='viewer'} onClick={()=>void write.save({expected_version:run.version})}>{t(write.uncertain?'核对原运行操作':action==='reconcile'?'核对原任务结果':'停止后续步骤')}</button>{write.error&&<p role="alert">{write.error}</p>}</div>
+ return <div><p>{t('停止只阻止后续派发，不能保证上游已开始的计算被撤回。核对沿用原任务，不创建新的模型请求。')}</p><button disabled={write.busy||!hasPermission(workspace.space,'workspace.write')} onClick={()=>void write.save({expected_version:run.version})}>{t(write.uncertain?'核对原运行操作':action==='reconcile'?'核对原任务结果':'停止后续步骤')}</button>{write.error&&<p role="alert">{write.error}</p>}</div>
 }

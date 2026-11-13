@@ -1,3 +1,4 @@
+import {hasPermission} from '../../permissions'
 import {StoryContextSourcePicker} from './StoryContextSourcePicker'
 import {StoryEvidenceEditor} from './StoryEvidenceEditor'
 import {StoryCastPanel} from './StoryCastPanel'
@@ -35,7 +36,7 @@ function StoryTab({root,space,kind,revision,episodes,characters,refresh}:{root:s
  const controller=useRef<AbortController|null>(null);useEffect(()=>()=>controller.current?.abort(),[])
  async function edit(summary:StorySummary){controller.current?.abort();const abort=new AbortController();controller.current=abort;setLoading(true);setError('');try{const v=await request<StoryVersion>(directoryURL(`/series/${root}/story-records/${summary.id}`,space),{signal:abort.signal});if(!abort.signal.aborted){setItem(v);setMode(summary.id)}}catch(e){if(!abort.signal.aborted)setError(errorMessage(e,t('故事资料读取失败')))}finally{if(!abort.signal.aborted)setLoading(false)}}
  const saved=useCallback(()=>{setMode('');setItem(null);refresh()},[refresh])
- const writable=currentSpace?.role!=='viewer'
+ const writable=hasPermission(currentSpace,'workspace.write')
  return <div className="story-tab"><div className="series-heading"><h2>{t(storyLabels[kind])}</h2>{writable&&(!list.items.length||kind!=='bible')&&!mode&&<button type="button" disabled={list.loading||loading} onClick={()=>{setItem(null);setMode('new')}}>{t(kind==='bible'?'建立故事圣经':'添加正式资料')}</button>}</div>
  <p className="drama-help">{t(kind==='bible'?'正式规则与人物弧线保留版本；在本集上下文中核对资料后，可发起AI检查并逐条决定是否采纳。':kind==='fact'?'客观设定、角色所信和待证信息分开保存，避免把误认当成客观真相。':kind==='event'?'叙事出现的集数与故事中的时间分别记录，闪回不会被自动排到第一集。':'记录埋设与回收的创作意图，调整剧集顺序后需要重新核对。')}</p>
  {(error||list.error)&&<div className="error" role="alert">{error||list.error}<button type="button" onClick={refresh}>{t('重新读取资料')}</button></div>}{(loading||list.loading)&&<p role="status">{t('正在读取故事资料…')}</p>}
@@ -51,7 +52,7 @@ export function StoryEditor({root,kind,item,space,characters,episodes,onSaved,on
  const[history,setHistory]=useState<StoryHistory>({items:[],next_cursor:''}),[historyError,setHistoryError]=useState(''),[historyBusy,setHistoryBusy]=useState(false),[shown,setShown]=useState<StoryVersion|null>(null)
  const alive=useRef(true),historyController=useRef<AbortController|null>(null)
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;historyController.current?.abort()}},[])
- const writable=currentSpace?.role!=='viewer';const locked=!writable||write.busy||write.uncertain
+ const writable=hasPermission(currentSpace,'workspace.write');const locked=!writable||write.busy||write.uncertain
  const change=(f:()=>void)=>{write.markDirty();f()}
  async function loadHistory(more=false){if(!item||historyBusy)return;setHistoryBusy(true);setHistoryError('');const abort=new AbortController();historyController.current=abort;try{const page=await request<StoryHistory>(directoryURL(path+'/versions',space,more?history.next_cursor:''),{signal:abort.signal});if(alive.current&&!abort.signal.aborted)setHistory(old=>more?{items:[...old.items,...page.items.filter(x=>!old.items.some(v=>v.version_id===x.version_id))],next_cursor:page.next_cursor}:page)}catch(e){if(alive.current&&!abort.signal.aborted)setHistoryError(errorMessage(e,t('资料历史读取失败')))}finally{if(alive.current&&!abort.signal.aborted)setHistoryBusy(false)}}
  async function refreshExpected(){if(!item||locked)return;const abort=new AbortController();historyController.current?.abort();historyController.current=abort;setComparisonError('');try{const v=await request<StoryVersion>(directoryURL(path,space),{signal:abort.signal});if(alive.current&&!abort.signal.aborted){setComparison(v);setExpectedVersion(v.number)}}catch(e){if(alive.current&&!abort.signal.aborted)setComparisonError(errorMessage(e,t('故事资料读取失败')))}}
@@ -74,7 +75,7 @@ function ContextPanel({root,space,episodes,refresh}:{root:string;space:string;ep
  const names=new Map(preview?.included.flatMap(v=>v.body.bible?.characters.map(c=>[c.id,c.name] as const)??[])??[])
  const sources=new Map(preview?.sources.map(s=>[s.id,s])??[])
  const reasons:Record<string,string>={archived:'资料已归档',outside_episode_range:'不在本集适用范围',future_event:'叙事尚未出现的事件',other_episode_cast:'其他剧集的选角',input_capacity:'超过本次输入容量',not_retrieved:'未命中本次检索条件'}
- return <section className="series-form"><h2>{t('本集上下文')}</h2><p className="drama-help">{t('核对本集会使用哪些正式资料。这不是AI连续性检查，也不会生成剧本。')}</p>{!episodes.length&&<p>{t('先在季与剧集中添加一集，再来核对资料。')}</p>}<EpisodeField label="选择要核对的剧集" value={episode} episodes={episodes} optional={false} onChange={v=>requestLeave(()=>{setEpisode(v);setPreview(null)})}/><button type="button" disabled={!episode||busy||currentSpace?.role==='viewer'} onClick={()=>void build()}>{busy?t('正在核对资料…'):t('预览本集资料')}</button>{error&&<p className="error" role="alert">{error}</p>}
+ return <section className="series-form"><h2>{t('本集上下文')}</h2><p className="drama-help">{t('核对本集会使用哪些正式资料。这不是AI连续性检查，也不会生成剧本。')}</p>{!episodes.length&&<p>{t('先在季与剧集中添加一集，再来核对资料。')}</p>}<EpisodeField label="选择要核对的剧集" value={episode} episodes={episodes} optional={false} onChange={v=>requestLeave(()=>{setEpisode(v);setPreview(null)})}/><button type="button" disabled={!episode||busy||!hasPermission(currentSpace,'workspace.write')} onClick={()=>void build()}>{busy?t('正在核对资料…'):t('预览本集资料')}</button>{error&&<p className="error" role="alert">{error}</p>}
  {preview&&<section aria-label={t('本集资料预览')}><p>{t('本集纳入 {p0} 份资料，省略 {p1} 份。',{p0:preview.included.length,p1:preview.omitted.length})}</p>{preview.problems.map((p,i)=><p className="error" key={i}>{t(p.message)}</p>)}{preview.included.map(v=><article className="story-card" key={v.id}><div><h3>{v.title}</h3><p>{t('版本 {p0}',{p0:v.number})}</p><ReadBody body={v.body} names={names}/>{v.body.fact&&<><p>{v.audience_knows?t('观众在本集已知'):t('观众在本集尚未知情')}</p><p>{t('本集知情角色')} · {v.known_by.length?v.known_by.map(id=>names.get(id)??t('未找到的系列人物')).join('、'):t('尚无知情角色')}</p></>}</div></article>)}{!!preview.omitted.length&&<details><summary>{t('查看省略原因')}</summary>{preview.omitted.map(v=><p key={v.id}>{sources.get(v.id)?.title} · {t(reasons[v.reason]??'资料未纳入本集')} · {t('版本 {p0}',{p0:sources.get(v.id)?.number??''})}</p>)}</details>}<p className="drama-help">{t('预览固定了本次来源版本。资料或剧集顺序修改后，请重新核对。')}</p></section>}
  {episode&&<ContextSnapshots key={episode} root={root} episode={episode} space={space} sources={preview?.sources??[]} refresh={refresh}/>}
  </section>
@@ -95,7 +96,7 @@ function ContextSnapshots({root,episode,space,sources,refresh}:{root:string;epis
  async function check(){if(!shown)return;abort.current?.abort();const next=new AbortController();abort.current=next;setLoading(true);setError('');setFreshness(null);try{const v=await request<StoryContextFreshness>(directoryURL(path+'/'+shown.id+'/freshness',space),{signal:next.signal});if(!next.signal.aborted)setFreshness(v)}catch(e){if(!next.signal.aborted)setError(errorMessage(e,t('当前来源核对失败')))}finally{if(!next.signal.aborted)setLoading(false)}}
 
  const available=sources.length?sources:shown?.context.sources??[]
- const locked=write.busy||write.uncertain||currentSpace?.role==='viewer'
+ const locked=write.busy||write.uncertain||!hasPermission(currentSpace,'workspace.write')
  const names=new Map(shown?.context.included.flatMap(v=>v.body.bible?.characters.map(c=>[c.id,c.name] as const)??[])??[])
  const titles=new Map(shown?.context.sources.map(v=>[v.id,v.title])??[])
  const reasons:Record<string,string>={archived:'资料已归档',outside_episode_range:'不在本集适用范围',future_event:'叙事尚未出现的事件',other_episode_cast:'其他剧集的选角',input_capacity:'超过本次输入容量',not_retrieved:'未命中本次检索条件'}
@@ -103,7 +104,7 @@ function ContextSnapshots({root,episode,space,sources,refresh}:{root:string;epis
  <form onSubmit={e=>{e.preventDefault();const save=()=>void write.save({query,record_ids:selected});if(checkPending&&!write.uncertain)requestLeave(save);else save()}}><fieldset disabled={locked}><label>{t('本次关注的关键词')}<input value={query} onChange={e=>{setQuery(e.target.value);write.markDirty()}} placeholder={t('例如：雨夜 误认 父亲')}/></label><p className="drama-help">{t('任一关键词命中即纳入；留空时按叙事范围准备资料。超出本次输入容量会列出原因，不会限制项目资料总量。')}</p>
  <StoryContextSourcePicker root={root} space={space} known={available} selected={selected} disabled={locked} onChange={ids=>{setSelected(ids);write.markDirty()}}/></fieldset>
  {write.error&&<p className="error" role="alert">{write.error}</p>}{write.storageNotice&&<p role="status">{write.storageNotice}</p>}{write.uncertain&&<p className="editing-note">{t('上次保存结果尚未确认。请用原请求核对，避免重复创建。')}</p>}
- {currentSpace?.role!=='viewer'&&<button type="submit" className="primary" disabled={write.busy}>{write.busy?t('正在保存…'):write.uncertain?t('核对并重试保存'):t('保存本集资料快照')}</button>}</form>
+ {hasPermission(currentSpace,'workspace.write')&&<button type="submit" className="primary" disabled={write.busy}>{write.busy?t('正在保存…'):write.uncertain?t('核对并重试保存'):t('保存本集资料快照')}</button>}</form>
  <div className="series-heading"><h3>{t('已保存的上下文')}</h3><button type="button" onClick={()=>setRevision(n=>n+1)}>{t('刷新快照列表')}</button></div>
  {(error||list.error)&&<p role="alert" className="error">{error||list.error}</p>}{(list.loading||loading)&&<p role="status">{t('正在读取上下文…')}</p>}{!list.loading&&!list.error&&!list.items.length&&<p className="page-empty">{t('还没有本集快照。保存后可核对当时的资料和剧本。')}</p>}
  {list.items.map(v=><article className="story-card" key={v.id}><div><h4>{v.script_version>0?t('剧本版本 {p0}',{p0:v.script_version}):t('尚未保存剧本')}</h4><p>{t('纳入 {p0} 份资料，待处理 {p1} 项。',{p0:v.included_count,p1:v.problem_count})}</p><time dateTime={v.created_at}>{new Date(v.created_at).toLocaleString()}</time></div><button type="button" disabled={loading} onClick={()=>requestLeave(()=>void read(v.id))}>{t('查看当时资料')}</button></article>)}{list.next_cursor&&<button type="button" disabled={list.more} onClick={()=>void list.loadMore()}>{t('加载更多快照')}</button>}

@@ -1,3 +1,4 @@
+import {hasPermission} from '../permissions'
 import {usePolling} from '../hooks/usePolling'
 import {MediaLineage} from '../features/library/MediaLineage'
 import {useSeriesEpisode} from '../features/series/episodeContext'
@@ -14,6 +15,7 @@ import { useAppWorkspace } from '../app/workspace'
 import { ConfirmDialog } from './ConfirmDialog'
 import { TimelinePreview } from './TimelinePreview'
 import { PosterEditor } from './PosterEditor'
+import {DeliveryMetadata} from './DeliveryMetadata'
 import { VideoOverlayEditor } from './VideoOverlayEditor'
 import { compositionError, maxTransitionDuration, timelineDuration, clipStarts, splitClip, replaceClipVisual, type Transition, type VideoOverlay } from '../mediaTimeline'
 import type { DramaProject } from '../drama'
@@ -45,7 +47,7 @@ export function MediaStudio(props: StudioProps) {
 }
 function EpisodeMediaStudio({project, space, onDirtyChange, episode, allowSyntheticDemo = true}: StudioProps & {episode: number}) {
  const {space:currentSpace}=useAppWorkspace()
- const canWrite=currentSpace?.role!=='viewer'
+ const canWrite=hasPermission(currentSpace,'workspace.write')
   const {formatNumber} = useI18n()
 
   const [alignmentError, setAlignmentError] = useState('')
@@ -62,6 +64,9 @@ function EpisodeMediaStudio({project, space, onDirtyChange, episode, allowSynthe
   }
 
   const [posterDirty, setPosterDirty] = useState(false)
+  const [metadataLocks,setMetadataLocks]=useState<Record<string,boolean>>({})
+  const metadataBusy=Object.values(metadataLocks).some(Boolean)
+  const metadataLock=useCallback((id:string,value:boolean)=>setMetadataLocks(old=>old[id]===value?old:{...old,[id]:value}),[])
   const [playhead, setPlayhead] = useState(0)
   const [timeline, setTimeline] = useState<Timeline>(emptyTimeline)
   const [error, setError] = useState('')
@@ -170,7 +175,8 @@ function EpisodeMediaStudio({project, space, onDirtyChange, episode, allowSynthe
     const parts = splitClip(clip, playhead - clipStarts(timeline.clips)[index], visual.find(asset => asset.id === clip.asset_id)?.kind === 'video', crypto.randomUUID())
     if (parts) setTimeline({...timeline, clips: [...timeline.clips.slice(0, index), ...parts, ...timeline.clips.slice(index + 1)]})
   }
-  const locked = uploadBusy || busy || uncertain
+  const metadataSaved=useCallback(()=>{void load(true)},[load])
+  const locked = metadataBusy || uploadBusy || busy || uncertain
   const visual = state?.assets.filter(asset => asset.kind !== 'audio') ?? []
   const audio = state?.assets.filter(asset => asset.kind === 'audio') ?? []
   const duration = timelineDuration(timeline.clips)
@@ -184,11 +190,11 @@ function EpisodeMediaStudio({project, space, onDirtyChange, episode, allowSynthe
     {error && <div className="error" role="alert">{error}{uncertain ? <button disabled={busy} onClick={() => {if (pending.current) void execute(pending.current)}}>{t("原请求重试")}</button> : <button disabled={busy} onClick={() => {void load().then(() => setError('')).catch(failure => setError(errorMessage(failure, t("读取失败"))))}}>{t("重新读取媒体")}</button>}</div>}
     {notice && <p className="notice" role="status">{notice}</p>}
     {!state ? <p role="status">{t("正在读取媒体…")}</p> : <>
-      <details className="media-upload" open><summary>{t("上传与照片编辑")}</summary><fieldset disabled={busy||uncertain}>
+      <details className="media-upload" open><summary>{t("上传与照片编辑")}</summary><fieldset disabled={metadataBusy||busy||uncertain}>
         <div className="storyboard-fields"><div><label htmlFor="media-role">{t("素材用途")}</label><select id="media-role" value={role} onChange={event => setRole(event.target.value)}><option value="shot">{t("镜头素材")}</option><option value="reference">{t("角色参考")}</option><option value="voice">{t("配音")}</option><option value="music">{t("音乐")}</option><option value="sfx">{t("音效")}</option></select></div>
         <div><label htmlFor="media-character">{t("关联角色")}</label><select id="media-character" value={character} onChange={event => setCharacter(event.target.value)}><option value="">{t("不关联角色")}</option>{project.script?.characters.map(item => <option key={item.name}>{item.name}</option>)}</select></div>
         <div><label htmlFor="media-shot">{t("关联镜头")}</label><select id="media-shot" value={shotId} onChange={event => setShotId(event.target.value)}><option value="">{t("不关联镜头")}</option>{project.storyboard?.shots.map((shot, index) => <option key={shot.id} value={shot.id}>{t("第")}{index + 1} {t("镜 ·")}{shot.description.slice(0, 25)}</option>)}</select></div>
-        <div><ResumableMediaUpload key={`${space}:${project.id}`} space={space} project={project.id} inputID="media-file" label={t("上传素材（PNG/JPEG/WAV/MP3/MP4）")} role={role} character={character} shotID={shotId} disabled={busy||uncertain||!canWrite} onBusy={setUploadBusy} onComplete={async()=>{await load();setNotice(t('素材已上传并保存'))}} /></div></div>
+        <div><ResumableMediaUpload key={`${space}:${project.id}`} space={space} project={project.id} inputID="media-file" label={t("上传素材（PNG/JPEG/WAV/MP3/MP4）")} role={role} character={character} shotID={shotId} disabled={metadataBusy||busy||uncertain||!canWrite} onBusy={setUploadBusy} onComplete={async()=>{await load();setNotice(t('素材已上传并保存'))}} /></div></div>
         <label htmlFor="photo-edit">{t("选择待编辑照片")}</label><input id="photo-edit" type="file" accept="image/png,image/jpeg" onChange={event => {setPhoto(event.target.files?.[0] ?? null); setRotation(0)}} />
         {photo && <div className="media-actions"><span>{photo.name}</span><label>{t("旋转")}<select aria-label={t("照片旋转")} value={rotation} onChange={event => setRotation(Number(event.target.value))}>{[0, 90, 180, 270].map(value => <option key={value} value={value}>{value}°</option>)}</select></label><label><input type="checkbox" checked={square} onChange={event => setSquare(event.target.checked)} /> {t("居中裁剪为正方形")}</label><button onClick={() => void editPhoto()}>{t("保存编辑照片为新素材")}</button></div>}
       </fieldset></details>
@@ -224,7 +230,7 @@ function EpisodeMediaStudio({project, space, onDirtyChange, episode, allowSynthe
       {compositionProblem && <p className="error" role="alert">{compositionProblem === 'transition' ? t('转场或镜头时长无效。重叠转场需要下一镜，时长0.1–2秒且不超过相邻镜头各自一半；移除或调整镜头后请检查转场。') : compositionProblem === 'audio' ? t('附加音轨超出成片或素材范围，请根据交叉溶解后的时长调整。') : t('画面叠层无效。请检查素材、0–1位置和大小、原音设置，以及缩短后成片中的起点和时长。')}</p>}
       <div className="media-actions"><button disabled={locked || !dirty} onClick={() => {setTimeline(episodeTimeline(state, episode)); setBaselineVersion(state.version)}}>{t("取消时间轴编辑")}</button><button disabled={locked || !dirty || !!compositionProblem || outputInvalid || timeline.clips.length === 0} onClick={() => mutate('/timeline', {expected_version: baselineVersion, timeline}, 'PUT')}>{t("保存时间轴")}</button><button className="primary" disabled={locked || dirty || !!compositionProblem || outputInvalid || timeline.clips.length === 0} onClick={() => mutate('/exports', {expected_version: state.version, ...(episode>1 ? {episode_number: episode} : {})})}>{t("合成并导出 MP4")}</button></div>
       {dirty && <p className="drama-help">{t("时间轴有未保存修改。切换前请先保存或取消。")}</p>}
-      <div className="media-exports">{state.exports.filter(item => !item.purpose && (item.episode_number ?? 1) === episode).map(item => <article key={item.id}>{item.series_episode&&<p className="drama-help">{t('导出时：第 {season} 季 · 第 {episode} 集',{season:item.series_episode.season_ordinal,episode:item.series_episode.ordinal})}{item.timeline?.output_resolution?` · ${item.timeline.output_resolution}`:''}</p>}<h3>{t("成片 ·")}{{queued: t("等待合成"), running: t("正在合成"), succeeded: t("导出完成"), failed: t("导出失败"), cancelled: t("已取消")}[item.status]}</h3>{item.render_progress && item.status === 'running' && <p className="drama-help" role="status">{item.render_progress.phase === 'rendering' ? t('已完成 {completed}/{total} 段画面与声音', {completed: item.render_progress.completed, total: item.render_progress.total}) : t('正在整理成片，请稍候')}{' '}{t('无需停留在此页，合成会在后台继续。')}</p>}{item.error && <p className="error">{t(item.error)}</p>}{item.status === 'succeeded' && item.file_url && <><video controls crossOrigin="use-credentials" src={mediaURL(item.file_url)} preload="metadata" aria-label={t("成片预览")}>{item.subtitle_vtt_url && (!item.timeline?.subtitle_mode || item.timeline.subtitle_mode === 'soft') && <track kind="subtitles" src={mediaURL(item.subtitle_vtt_url)} srcLang="zh" label={t("中文字幕")} default />}</video><a href={mediaURL(item.file_url)} download>{t("下载 MP4 成片")}</a><a href={mediaURL(`/api/v1/projects/${project.id}/media/exports/${item.id}/delivery.zip?${query}`)} download>{t("下载发布交付包")}</a>{item.subtitle_url && <a href={mediaURL(item.subtitle_url)} download>{t("下载 SRT 字幕")}</a>}<p>{formatNumber(item.duration ?? 0)} {t("秒 · 本地合成；素材来源见素材列表")}</p></>}{item.resume_available && (item.status === 'failed' || item.status === 'cancelled') && <><p className="drama-help">{t('继续会沿用这次导出的原时间轴，不重新生成模型内容。')}</p><button disabled={locked} onClick={() => mutate(`/exports/${item.id}/resume`, {})}>{t('继续合成')}</button></>}{(item.status === 'queued' || item.status === 'running') && <button disabled={locked} onClick={() => mutate(`/exports/${item.id}/cancel`, {})}>{t("取消成片合成")}</button>}</article>)}</div>
+      <div className="media-exports">{state.exports.filter(item => !item.purpose && (item.episode_number ?? 1) === episode).map(item => <article key={item.id}>{item.series_episode&&<p className="drama-help">{t('导出时：第 {season} 季 · 第 {episode} 集',{season:item.series_episode.season_ordinal,episode:item.series_episode.ordinal})}{item.timeline?.output_resolution?` · ${item.timeline.output_resolution}`:''}</p>}<h3>{t("成片 ·")}{{queued: t("等待合成"), running: t("正在合成"), succeeded: t("导出完成"), failed: t("导出失败"), cancelled: t("已取消")}[item.status]}</h3>{item.render_progress && item.status === 'running' && <p className="drama-help" role="status">{item.render_progress.phase === 'rendering' ? t('已完成 {completed}/{total} 段画面与声音', {completed: item.render_progress.completed, total: item.render_progress.total}) : t('正在整理成片，请稍候')}{' '}{t('无需停留在此页，合成会在后台继续。')}</p>}{item.error && <p className="error">{t(item.error)}</p>}{item.status === 'succeeded' && item.file_url && <><video controls crossOrigin="use-credentials" src={mediaURL(item.file_url)} preload="metadata" aria-label={t("成片预览")}>{item.subtitle_vtt_url && (!item.timeline?.subtitle_mode || item.timeline.subtitle_mode === 'soft') && <track kind="subtitles" src={mediaURL(item.subtitle_vtt_url)} srcLang="zh" label={t("中文字幕")} default />}</video><a href={mediaURL(item.file_url)} download>{t("下载 MP4 成片")}</a><a href={mediaURL(`/api/v1/projects/${project.id}/media/exports/${item.id}/delivery.zip?${query}`)} download>{t("下载发布交付包")}</a><DeliveryMetadata project={project.id} exportID={item.id} space={space} assets={state.assets} disabled={dirty||busy||uploadBusy||uncertain||Object.entries(metadataLocks).some(([id,value])=>id!==item.id&&value)} onSaved={metadataSaved} onBusy={metadataLock}/>{item.subtitle_url && <a href={mediaURL(item.subtitle_url)} download>{t("下载 SRT 字幕")}</a>}<p>{formatNumber(item.duration ?? 0)} {t("秒 · 本地合成；素材来源见素材列表")}</p></>}{item.resume_available && (item.status === 'failed' || item.status === 'cancelled') && <><p className="drama-help">{t('继续会沿用这次导出的原时间轴，不重新生成模型内容。')}</p><button disabled={locked} onClick={() => mutate(`/exports/${item.id}/resume`, {})}>{t('继续合成')}</button></>}{(item.status === 'queued' || item.status === 'running') && <button disabled={locked} onClick={() => mutate(`/exports/${item.id}/cancel`, {})}>{t("取消成片合成")}</button>}</article>)}</div>
     </>}
     {allowSyntheticDemo && confirmDemo && state && <ConfirmDialog title={t("替换当前时间轴为合成演示？")} message={t("此操作创建合成图片和音轨，并用演示镜头替换已保存时间轴。原媒体素材仍保留。")} confirmLabel={t("确认创建合成演示")} onCancel={() => setConfirmDemo(false)} onConfirm={() => {setConfirmDemo(false); mutate('/demo', {expected_version: state.version})}} />}
   </section>

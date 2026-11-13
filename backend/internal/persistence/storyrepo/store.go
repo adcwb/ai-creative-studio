@@ -281,6 +281,18 @@ func apply(a story.Actor, q Scope, id, key string, in story.Input, old *story.Ve
 	return r, nil
 }
 func (s *Store) Save(ctx context.Context, a story.Actor, series, id, key string, in story.Input) (story.Version, error) {
+	return s.saveGuarded(ctx, a, series, id, key, in, "", nil)
+}
+
+// SaveWithHeads atomically checks the fixed source material before appending an
+// approved candidate. Original receipts replay before freshness checks.
+func (s *Store) SaveWithHeads(ctx context.Context, a story.Actor, series, id, key string, in story.Input, heads string, guard func(context.Context, *sql.Tx) error) (story.Version, error) {
+	if !story.Hash.MatchString(heads) {
+		return story.Version{}, story.ErrInput
+	}
+	return s.saveGuarded(ctx, a, series, id, key, in, heads, guard)
+}
+func (s *Store) saveGuarded(ctx context.Context, a story.Actor, series, id, key string, in story.Input, heads string, guard func(context.Context, *sql.Tx) error) (story.Version, error) {
 	q := Scope{a.Space, series}
 	if !a.Writable {
 		return story.Version{}, story.ErrDenied
@@ -296,7 +308,7 @@ func (s *Store) Save(ctx context.Context, a story.Actor, series, id, key string,
 		return story.Version{}, story.ErrInput
 	}
 	if s.db != nil {
-		return s.saveSQL(ctx, a, q, id, key, in)
+		return s.saveSQL(ctx, a, q, id, key, in, heads, guard)
 	}
 	var out story.Version
 	e = s.withFile(ctx, q, true, func() error {
@@ -319,6 +331,20 @@ func (s *Store) Save(ctx context.Context, a story.Actor, series, id, key string,
 				}
 				out = r.Version
 				return nil
+			}
+		}
+		if heads != "" {
+			current, err := s.fileHeads(q)
+			if err != nil {
+				return err
+			}
+			if current != heads {
+				return story.ErrConflict
+			}
+		}
+		if guard != nil {
+			if err := guard(ctx, nil); err != nil {
+				return err
 			}
 		}
 		var old *story.Version

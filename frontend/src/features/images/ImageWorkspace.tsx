@@ -1,3 +1,4 @@
+import {hasPermission} from '../../permissions'
 import {useState} from 'react'
 import type {Task} from '../../api'
 import {PromptEditor} from '../prompts/PromptEditor'
@@ -22,7 +23,7 @@ export function ImageWorkspace() {
     {active && studio.actionError && !detailId && <div role="alert" className="error">{studio.actionError}</div>}
     {active && studio.notice && !detailId && <p role="status" className="notice"><Icon name="check" />{studio.notice}</p>}
     <Outlet context={{...workspace, image}} />
-    {active && detailId && <TaskDetail key={detailId} id={detailId} space={space} catalog={studio.catalog} saved={savedIds.has(detailId)} saving={studio.saving} busy={studio.busy} actionError={studio.actionError} notice={studio.notice} onClose={() => setDetailId(null)} onUpdate={studio.updateTask} onSave={task => {void studio.save(task)}} onEdit={editTask} onResume={studio.resume} onSavePrompt={workspace.space?.role === "viewer" ? undefined : task => {setDetailId(null); setPromptTask(task)}} />}
+    {active && detailId && <TaskDetail key={detailId} id={detailId} space={space} catalog={studio.catalog} saved={savedIds.has(detailId)} saving={studio.saving} busy={studio.busy} actionError={studio.actionError} notice={studio.notice} onClose={() => setDetailId(null)} onUpdate={studio.updateTask} onSave={task => {void studio.save(task)}} onEdit={editTask} onResume={studio.resume} onSavePrompt={!hasPermission(workspace.space,'workspace.write') ? undefined : task => {setDetailId(null); setPromptTask(task)}} />}
     {promptTask && <PromptEditor space={space} actor={image.actor} initial={null} seed={promptTask} catalog={studio.catalog} recovery={readPending(space, image.actor)} onSaved={() => {setPromptTask(null); window.dispatchEvent(new Event("studio-prompts-updated"))}} onClose={() => setPromptTask(null)} />}
   </>
 }

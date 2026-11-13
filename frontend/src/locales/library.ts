@@ -1,4 +1,23 @@
 export default {
+ "资产引用与影响":"References and impact",
+ "记录道具外观、剧情用途和状态，按每集需要固定版本；新版本不会自动修复旧镜头中的磨损。":"Record a prop’s appearance, story function and condition, and pin versions for each episode. New versions do not automatically repair wear in earlier shots.",
+ "整理角色、商品、道具、场景、风格与声音意图，保留每一次版本选择。":"Organize characters, products, props, scenes, styles and voice direction while preserving every version choice.",
+
+ "第 {number} 集":"Episode {number}","返回系列":"Back to series",
+ "资产影响范围":"Asset impact","哪些作品引用了这份资产":"Which projects use this asset",
+ "按已记录的固定绑定和素材来源核对，不会自动替换版本或重新生成。旧素材缺少来源时不会猜测关联。":"Inspect recorded pinned bindings and media ancestry. Nothing is replaced or regenerated automatically; missing legacy ancestry is not guessed.",
+ "正在核对影响范围…":"Checking affected projects…","重新核对影响范围":"Refresh affected projects","查看影响范围":"View affected projects",
+ "资产或授权已更新，请重新核对影响范围。":"The asset or its authorization changed. Refresh the affected projects.","影响范围读取失败，请重试。":"Could not read affected projects. Try again.",
+ "资产已归档，或使用声明已撤销、已过期；已有作品保留，新的使用仍须通过当前授权检查。":"The asset is archived, or its use declaration was revoked or expired. Existing work is retained; new use still requires current authorization.",
+ "当前空间尚未记录这份资产的作品引用。":"No project references to this asset are recorded in this workspace.",
+ "固定绑定 {bindings} 处，记录来源素材 {media} 份":"{bindings} pinned bindings and {media} media assets with recorded ancestry",
+ "部分引用仍固定旧版本，请按作品需要决定是否重做。":"Some references pin older versions. Decide whether each project needs rework.","已记录引用与当前资产版本一致。":"Recorded references match the current asset version.",
+ "核对作品引用":"Inspect project references","查看素材与剪辑":"View media and editing","查看更多引用作品":"More affected projects",
+
+ "道具卡":"Prop card","道具外形与标记":"Prop appearance and markings","道具尺寸比例":"Prop dimensions and scale","道具材质":"Prop materials","剧情用途":"Story function","道具当前状态":"Prop condition","道具连续性备注":"Prop continuity notes",
+ "创作资产与声音":"Creative assets and voices",
+ "先在角色与美术中绑定角色、场景、道具、商品、画风或声音卡；也可以继续自由创作。":"Bind character, scene, prop, product, style or voice cards in Cast and art, or keep creating freely.",
+
  "已保存原生音色":"Native preset saved",
  "声音意图，尚无原生音色":"Voice intent without a native preset",
  "声音版本已固定，使用时核对原生音色模型":"Voice version pinned; check the matching native preset model before use",

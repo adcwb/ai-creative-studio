@@ -49,10 +49,21 @@ test('season overview separates observed production facts from manually selected
  await f.write(`/episodes/${episode.id}`,{expected_version:episode.row_version,profile:episode.profile,status:'released'},'PATCH')
  await page.goto(`/series/${root.id}`);await expect(page.getByRole('heading',{name:'初遇',exact:true})).toBeVisible();await expect(page.getByText('等待剧本',{exact:false})).toBeVisible();await expect(page.getByText('尚无正式成片',{exact:true})).toBeVisible();await expect(page.getByRole('link',{name:'审片与成片',exact:true})).toHaveAttribute('href',`/projects/${episode.project_id}/media`);await screenshot(page,'season',info.project.name)
 })
-test('completed real local render exposes a delivery ZIP without publishing',async({page})=>{
+test('completed real local render exposes versioned release metadata and a delivery ZIP without publishing',async({page},info)=>{
  const f=await fixture(page),exported=await f.write(`/projects/${f.project.id}/media/exports`,{expected_version:f.media.version})
  await expect.poll(async()=>{const state=await(await page.request.get(api+`/projects/${f.project.id}/media`+f.query)).json();return state.exports.find((v:{id:string})=>v.id===exported.id)?.status},{timeout:30000,message:'The synthetic frame must finish an actual local FFmpeg render'}).toBe('succeeded')
  await page.goto(`/projects/${f.project.id}/media`);const link=page.getByRole('link',{name:'下载发布交付包',exact:true});await expect(link).toBeVisible();const r=await page.request.get((await link.getAttribute('href'))!);expect(r.status()).toBe(200);expect(r.headers()['content-type']).toBe('application/zip');expect((await r.body()).subarray(0,2).toString()).toBe('PK')
+ await page.getByText('发布资料与版本',{exact:true}).click();const preparation=page.getByRole('region',{name:'成片发布资料',exact:true})
+ await preparation.getByRole('textbox',{name:'发布标题',exact:true}).fill('门前的停顿 · 正式发布')
+ await preparation.getByRole('textbox',{name:'发布简介',exact:true}).fill('本次固定成片与封面；不会自动外部发布。')
+ await preparation.getByRole('textbox',{name:'标签 · 每行一个',exact:true}).fill('短剧\n雨夜')
+ const cover=preparation.getByRole('combobox',{name:'交付封面',exact:true});await cover.selectOption({index:1})
+ await expect(preparation.getByRole('button',{name:'保存发布资料版本',exact:true})).toBeDisabled();await preparation.getByRole('checkbox').check()
+ let sent:unknown,key='';await page.route('**/delivery-metadata?*',async route=>{if(route.request().method()!=='POST'){await route.continue();return}sent=route.request().postDataJSON();key=route.request().headers()['idempotency-key'];const response=await route.fetch();expect(response.status()).toBe(200);await route.abort('failed')},{times:1})
+ await preparation.getByRole('button',{name:'保存发布资料版本',exact:true}).click();await expect(preparation.getByRole('button',{name:'使用原请求核对结果',exact:true})).toBeVisible();await page.reload();await page.getByText('发布资料与版本',{exact:true}).click()
+ const retry=page.getByRole('region',{name:'成片发布资料',exact:true}).getByRole('button',{name:'使用原请求核对结果',exact:true});await expect(retry).toBeVisible();const response=page.waitForResponse(r=>r.url().includes('/delivery-metadata?')&&r.request().method()==='POST');await retry.click();const replay=await response;expect(replay.status()).toBe(200);expect(replay.request().postDataJSON()).toEqual(sent);expect(replay.request().headers()['idempotency-key']).toBe(key)
+ await page.getByText('已保存的发布版本',{exact:true}).click();const fixed=page.getByRole('link',{name:'下载此发布版本交付包',exact:true});await expect(fixed).toHaveCount(1);await expect(fixed).toHaveAttribute('href',/metadata_version=1/);const packed=await page.request.get((await fixed.getAttribute('href'))!);expect(packed.status()).toBe(200);expect((await packed.body()).subarray(0,2).toString()).toBe('PK');await screenshot(page,'publishing-metadata',info.project.name);await preparation.screenshot({path:`/tmp/creator-publishing-panel-${info.project.name}.png`})
+
 })
 test('team rename requires confirmation and owners cannot abandon the team',async({page},info)=>{
  const f=await account(page),team=await f.write('/organizations',{name:'共同创作团队'},'POST',false)

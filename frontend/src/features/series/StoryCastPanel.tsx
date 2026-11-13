@@ -1,3 +1,4 @@
+import {hasPermission} from '../../permissions'
 import {useCallback,useEffect,useRef,useState} from 'react'
 import {errorMessage,request} from '../../api'
 import {useAppWorkspace} from '../../app/workspace'
@@ -32,7 +33,7 @@ function CastEditor({root,space,episode,initial,onChanged}:{root:string;space:st
  const[assetsRevision,setAssetsRevision]=useState(0)
  const assets=useDirectory<{id:string;name:string;head_version_id:string}>(`/library/assets?kind=character&status=active`,space,assetsRevision)
  const chars=options.bible?.body.bible?.characters??[],script=(options.script?.characters??[]).filter(c=>Boolean(c.id))
- const locked=currentSpace?.role==='viewer'||busy||write.busy||write.uncertain
+ const locked=!hasPermission(currentSpace,'workspace.write')||busy||write.busy||write.uncertain
  const change=(fn:()=>void)=>{write.markDirty();setSaved(null);fn()}
  const entries=new Map(cast.characters.map(c=>[c.script_character_id,c]))
  const rows=[...script,...cast.characters.filter(c=>!script.some(s=>s.id===c.script_character_id)).map(c=>({id:c.script_character_id,name:c.script_character_name,description:''}))]
@@ -59,7 +60,7 @@ function CastEditor({root,space,episode,initial,onChanged}:{root:string;space:st
  </fieldset>
  {options.current&&<details><summary>{t('对照已读取的选角版本 {p0}',{p0:options.current.number})}</summary><StoryBodyView body={options.current.body}/></details>}
  {(write.error||error)&&<p className="error" role="alert">{write.error||error}</p>}{write.storageNotice&&<p role="status">{write.storageNotice}</p>}{write.uncertain&&<p className="editing-note">{t('选角保存结果尚未确认，请核对原请求，避免重复追加版本。')}</p>}{saved&&<p role="status">{t('选角已保存为版本 {p0}',{p0:saved.number})}</p>}
- {currentSpace?.role!=='viewer'&&<button className="primary" disabled={busy||write.busy||(!write.uncertain&&invalid)}>{write.busy?t('正在保存…'):write.uncertain?t('核对原选角请求'):t('保存本集选角')}</button>}
+ {hasPermission(currentSpace,'workspace.write')&&<button className="primary" disabled={busy||write.busy||(!write.uncertain&&invalid)}>{write.busy?t('正在保存…'):write.uncertain?t('核对原选角请求'):t('保存本集选角')}</button>}
  </form>
  {(saved??options.current)&&<CastHistory space={space} root={root} id={(saved??options.current)!.id} revision={(saved??options.current)!.number}/>}
  </section>

@@ -53,6 +53,7 @@ type Repository interface {
 	Finish(Task, GenerationResult, error) error
 }
 type FileStore struct {
+	personalCopies    *personalCopyStore
 	storyWorkerMu     sync.Mutex
 	storyWorkerClosed bool
 	storyRunner       *storyCheckRunner

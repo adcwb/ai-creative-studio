@@ -1,3 +1,4 @@
+import {hasPermission} from '../../permissions'
 import {useAppWorkspace} from '../../app/workspace'
 import {creationReady, gatewayCreationRequired} from '../../creationGateway'
 import { useEffect, useState } from 'react'
@@ -25,7 +26,7 @@ export function useProjectEditor({space, id, onDirtyChange, requestLeave}: {
 
   const currentWorkspace = useAppWorkspace()
   const projectEditor = useDramaProject(space, id, ignoreProjectUpdate, creative?.provider, creative?.model, runtimeChoice, storyboardChoice)
-  const editor = {...projectEditor, locked: projectEditor.locked || currentWorkspace.space?.role === 'viewer'}
+  const editor = {...projectEditor, locked: projectEditor.locked || !hasPermission(currentWorkspace.space,'workspace.write')}
   const scriptPreview = {operation: 'script' as const, project_id: id ?? '', input: {expected_version: editor.baseline?.version, candidate_only: true}}
   const storyboardPreview = {operation: 'storyboard' as const, project_id: id ?? '', input: {expected_version: editor.baseline?.version}}
   const effectiveCreative = runtimeChoice ? {provider: runtimeChoice.model.provider, model: runtimeChoice.model.model, mode: 'real', ready: creationReady(runtimeChoice, scriptPreview)} : gatewayCreationRequired ? {provider: 'unavailable', mode: 'real', ready: false} : creative

@@ -52,4 +52,5 @@ docs/
 
 - [创作者返修、连续制作与团队交付](specs/2026-11-13-creator-workflow/README.md)
 
+- [第6–10项补齐实施](specs/2026-11-13-creator-completion/README.md)（实施中；画布与数字人保留独立本地分支，先完成创作者功能）
 - [可视化创作流程与数字人（本地阶段实现，完整规格未完成）](specs/2026-11-13-workflow-canvas-digital-human/README.md)

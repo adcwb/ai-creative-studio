@@ -56,7 +56,7 @@ func saveSQL(ctx context.Context, tx *sql.Tx, r record) error {
 	}
 	return nil
 }
-func (s *Store) saveSQL(ctx context.Context, a story.Actor, q Scope, id, key string, in story.Input) (story.Version, error) {
+func (s *Store) saveSQL(ctx context.Context, a story.Actor, q Scope, id, key string, in story.Input, heads string, guard func(context.Context, *sql.Tx) error) (story.Version, error) {
 	tx, e := s.db.BeginTx(ctx, nil)
 	if e != nil {
 		return story.Version{}, ErrStorage
@@ -78,6 +78,20 @@ func (s *Store) saveSQL(ctx context.Context, a story.Actor, q Scope, id, key str
 	}
 	if !errors.Is(e, story.ErrNotFound) {
 		return story.Version{}, e
+	}
+	if heads != "" {
+		current, err := sqlHeads(ctx, tx, q)
+		if err != nil {
+			return story.Version{}, err
+		}
+		if current != heads {
+			return story.Version{}, story.ErrConflict
+		}
+	}
+	if guard != nil {
+		if err := guard(ctx, tx); err != nil {
+			return story.Version{}, err
+		}
 	}
 	current, e := scan(tx.QueryRowContext(ctx, headSelect+` AND v.id=$3`, q.Space, q.Series, id), q, id)
 	var old *story.Version

@@ -1,3 +1,4 @@
+import {hasPermission} from '../../permissions'
 import {useCallback,useEffect,useState} from 'react'
 import {ApiError,errorMessage,request} from '../../api'
 import {useAppWorkspace} from '../../app/workspace'
@@ -37,7 +38,7 @@ function RevisionEditor({project,space,branch,choose,disabled,onDirtyChange,onRe
  const [branches,setBranches]=useState<{items:Branch[];next_cursor:string}>({items:[],next_cursor:''}),[branchCursors,setBranchCursors]=useState([''])
  const [history,setHistory]=useState<{items:Summary[];next_cursor:string}>({items:[],next_cursor:''}),[historyCursors,setHistoryCursors]=useState([''])
  const [detail,setDetail]=useState<Detail|null>(null),[reading,setReading]=useState(false)
- const locked=disabled||workspace.space?.role==='viewer'||loading||captured.busy||captured.uncertain||fork.busy||fork.uncertain
+ const locked=disabled||!hasPermission(workspace.space,'workspace.write')||loading||captured.busy||captured.uncertain||fork.busy||fork.uncertain
  useEffect(()=>{const abort=new AbortController();void request<Basis>(`${base}/revision-options?space_id=${space}&branch_id=${branch}`,{signal:abort.signal}).then(v=>{if(!abort.signal.aborted){setBasis(v);setLoading(false);setError('');if(refresh)setRefreshed(true)}}).catch(e=>{if(!abort.signal.aborted){setError(errorMessage(e,t('制作修订读取失败')));setLoading(false)}});return()=>abort.abort()},[base,space,branch,refresh,t])
  const branchCursor=branchCursors.at(-1)??'',historyCursor=historyCursors.at(-1)??''
  useEffect(()=>{const abort=new AbortController();void request<typeof branches>(`${base}/revision-branches?space_id=${space}${branchCursor?'&cursor='+encodeURIComponent(branchCursor):''}`,{signal:abort.signal}).then(v=>{if(!abort.signal.aborted)setBranches(v)}).catch(e=>{if(!abort.signal.aborted)setError(errorMessage(e,t('制作分支读取失败')))});return()=>abort.abort()},[base,space,branchCursor,refresh,t])
@@ -57,8 +58,8 @@ function RevisionEditor({project,space,branch,choose,disabled,onDirtyChange,onRe
  {basis&&<p>{t('来源：项目版本 {project} · 素材版本 {media}',{project:basis.project_version,media:basis.media_version})} · {t('分支修订 {version}',{version:current?.version??0})}</p>}
  <button type="button" disabled={captured.busy||captured.uncertain||fork.busy||fork.uncertain||disabled} onClick={()=>{setLoading(true);setRefresh(v=>v+1)}}>{t('重新核对制作版本')}</button>{refreshed&&<p role="status">{t('已核对最新版本，保留了你的修订说明。保存前请确认当前作品。')}</p>}
  {(captured.error||fork.error)&&<p role="alert" className="error">{captured.error||fork.error}</p>}{(captured.storageNotice||fork.storageNotice)&&<p role="status">{captured.storageNotice||fork.storageNotice}</p>}
- {captured.uncertain&&<p className="editing-note">{t('上次修订结果待核对，请沿用原请求。当前作品后来有改动也不会替换原快照。')} <button type="button" disabled={disabled||captured.busy||workspace.space?.role==='viewer'} onClick={()=>void captured.save(body)}>{t('核对原修订请求')}</button></p>}
- {fork.uncertain&&<p className="editing-note">{t('上次分支结果待核对，请沿用原名称和起点核对。')} <button type="button" disabled={disabled||fork.busy||workspace.space?.role==='viewer'} onClick={()=>void fork.save({source_revision_id:source,name})}>{t('核对原分支请求')}</button></p>}
+ {captured.uncertain&&<p className="editing-note">{t('上次修订结果待核对，请沿用原请求。当前作品后来有改动也不会替换原快照。')} <button type="button" disabled={disabled||captured.busy||!hasPermission(workspace.space,'workspace.write')} onClick={()=>void captured.save(body)}>{t('核对原修订请求')}</button></p>}
+ {fork.uncertain&&<p className="editing-note">{t('上次分支结果待核对，请沿用原名称和起点核对。')} <button type="button" disabled={disabled||fork.busy||!hasPermission(workspace.space,'workspace.write')} onClick={()=>void fork.save({source_revision_id:source,name})}>{t('核对原分支请求')}</button></p>}
  <fieldset disabled={locked}><label>{t('修订说明')}<input aria-label={t('修订说明')} maxLength={80} value={label} onChange={e=>{setLabel(e.target.value);captured.markDirty()}} placeholder={t('例如：保留留白，缩短门前停顿')}/></label><button type="button" className="primary" disabled={!basis||!label.trim()||Boolean(error)} onClick={()=>void captured.save(body)}>{t('保存当前制作修订')}</button></fieldset>
  <h3>{t('这个分支的记录')}</h3>{!loading&&!history.items.length&&<p className="page-empty">{current?.head_revision_id?t('此分支保留了起点，保存当前制作后会增加独立修订。'):t('还没有制作修订，可以先留住当前方向。')}</p>}
  {current?.head_revision_id&&<button type="button" disabled={reading} onClick={()=>workspace.requestLeave(()=>void read(current.head_revision_id))}>{t('查看分支当前起点')}</button>}

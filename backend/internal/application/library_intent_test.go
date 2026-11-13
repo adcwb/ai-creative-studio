@@ -239,7 +239,7 @@ func TestPostgresLibraryKindUpgradeIsExplicitAndPreservesOldRows(t *testing.T) {
 	old := libraryWrite{Kind: "character", Card: library.Card{Name: "旧资产", Character: &library.Character{}, ProhibitedChanges: []string{}}, References: []libraryReferenceInput{}}
 	var original libraryrepo.Result
 	_ = json.Unmarshal(intentLibraryCall(t, s, "POST", "/api/v1/library/assets?space_id=personal-demo", "old-kind-before-upgrade", old, 201), &original)
-	if _, e := db.Exec(`ALTER TABLE studio_library_assets DROP CONSTRAINT studio_library_kind_v2; ALTER TABLE studio_library_assets ADD CONSTRAINT studio_library_assets_kind_check CHECK(kind IN ('character','product','scene'))`); e != nil {
+	if _, e := db.Exec(`ALTER TABLE studio_library_assets DROP CONSTRAINT studio_library_kind_v3; ALTER TABLE studio_library_assets ADD CONSTRAINT studio_library_assets_kind_check CHECK(kind IN ('character','product','scene'))`); e != nil {
 		t.Fatal(e)
 	}
 	if e := CheckPostgres(ctx, db); e == nil {

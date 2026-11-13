@@ -38,6 +38,14 @@ type Product struct {
 	Packaging  string `json:"packaging"`
 	ExactText  string `json:"exact_text"`
 }
+type Prop struct {
+	Appearance      string `json:"appearance"`
+	Dimensions      string `json:"dimensions"`
+	Materials       string `json:"materials"`
+	StoryFunction   string `json:"story_function"`
+	Condition       string `json:"condition"`
+	ContinuityNotes string `json:"continuity_notes"`
+}
 type Scene struct {
 	Layout     string `json:"layout"`
 	Objects    string `json:"objects"`
@@ -86,6 +94,7 @@ func validPresetModel(value string) bool {
 }
 
 type Source struct {
+	ShareID   string `json:"share_id,omitempty"`
 	AssetID   string `json:"asset_id"`
 	VersionID string `json:"version_id"`
 }
@@ -109,6 +118,7 @@ type Card struct {
 	ProhibitedChanges []string   `json:"prohibited_changes"`
 	Character         *Character `json:"character,omitempty"`
 	Product           *Product   `json:"product,omitempty"`
+	Prop              *Prop      `json:"prop,omitempty"`
 	Scene             *Scene     `json:"scene,omitempty"`
 	Style             *Style     `json:"style,omitempty"`
 	Voice             *Voice     `json:"voice,omitempty"`
@@ -185,7 +195,7 @@ func Normalize(kind string, in Card) (Card, error) {
 	}
 	var fields []*string
 	count := 0
-	for _, present := range []bool{c.Character != nil, c.Product != nil, c.Scene != nil, c.Style != nil, c.Voice != nil} {
+	for _, present := range []bool{c.Character != nil, c.Product != nil, c.Prop != nil, c.Scene != nil, c.Style != nil, c.Voice != nil} {
 		if present {
 			count++
 		}
@@ -204,6 +214,11 @@ func Normalize(kind string, in Card) (Card, error) {
 			return Card{}, ErrInput
 		}
 		fields = []*string{&c.Product.Model, &c.Product.Dimensions, &c.Product.Materials, &c.Product.Packaging, &c.Product.ExactText}
+	case "prop":
+		if c.Prop == nil {
+			return Card{}, ErrInput
+		}
+		fields = []*string{&c.Prop.Appearance, &c.Prop.Dimensions, &c.Prop.Materials, &c.Prop.StoryFunction, &c.Prop.Condition, &c.Prop.ContinuityNotes}
 	case "scene":
 		if c.Scene == nil || c.Character != nil || c.Product != nil {
 			return Card{}, ErrInput
@@ -325,4 +340,12 @@ func AppendVersion(a Asset, expected string, v Version) (Asset, error) {
 	}
 	a.HeadVersionID, a.Name, a.UpdatedAt = v.ID, v.Card.Name, v.CreatedAt
 	return a, nil
+}
+
+func ValidKind(kind string) bool {
+	switch kind {
+	case "character", "product", "prop", "scene", "style", "voice":
+		return true
+	}
+	return false
 }

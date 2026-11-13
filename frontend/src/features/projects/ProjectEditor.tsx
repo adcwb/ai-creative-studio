@@ -13,6 +13,7 @@ import { ProjectPublish } from './ProjectPublish'
 import { ProjectConfirmations } from './ProjectConfirmations'
 import { ProjectReferences } from '../library/ProjectReferences'
 import { ProductionBoard } from './ProductionBoard'
+import {PersonalCopyPanel} from './PersonalCopyPanel'
 
 const WorkflowStudio=lazy(()=>import('../workflows/WorkflowStudio'))
 const steps = [['brief', '项目总览'], ['script', '故事与剧本'], ['references', '角色与美术'], ['storyboard', '分镜与预演'], ['production', '镜头制作'], ['media', '剪辑与声音'], ['review', '审片与交付'], ['workflow','创作流程']]
@@ -39,7 +40,7 @@ export function ProjectEditor(props: {
     <nav className="project-steps" aria-label={t('项目工作区')}>{steps.map(([key, label]) => props.id ? <NavLink key={key} to={'/projects/' + encodeURIComponent(props.id!) + '/' + key}>{t(label)}</NavLink> : <span className={key === 'brief' ? 'current-step' : 'disabled-step'} key={key} aria-current={key === 'brief' ? 'step' : undefined}>{t(label)}</span>)}</nav>
     <div className="drama-editor"><ProjectFeedback state={state} />
       {(!props.id || editor.project) && <>
-        {props.section === 'brief' && <ProjectBrief state={state} />}
+        {props.section === 'brief' && <><ProjectBrief state={state}/>{editor.project&&<PersonalCopyPanel project={editor.project.id} disabled={editor.locked||editor.dirty||state.mediaDirty}/>}</>}
         {props.id && editor.project && <>
           {props.section === 'script' && <ProjectScript state={state} />}
           {props.section === 'storyboard' && <ProjectStoryboard state={state} />}

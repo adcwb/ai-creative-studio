@@ -11,7 +11,7 @@ export interface WorkspaceContext {
   refreshCapability: () => void
   refreshSpaces: () => void
   spaces: Space[]
-  switchSpace: (id: string) => void
+  switchSpace: (id: string, destination?: string) => void
   setDirty: (dirty: boolean) => void
   setImageDirty: (dirty: boolean) => void
   requestLeave: (action: () => void) => void

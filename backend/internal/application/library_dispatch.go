@@ -44,7 +44,10 @@ func uniqueLibrarySources(in []media.LibrarySource) []media.LibrarySource {
 		if out[i].AssetID != out[j].AssetID {
 			return out[i].AssetID < out[j].AssetID
 		}
-		return out[i].VersionID < out[j].VersionID
+		if out[i].VersionID != out[j].VersionID {
+			return out[i].VersionID < out[j].VersionID
+		}
+		return out[i].ShareID < out[j].ShareID
 	})
 	return out
 }
@@ -100,7 +103,7 @@ func (s *FileStore) pinCreativeLibraryMedia(ctx context.Context, project, space 
 			if s.library == nil {
 				return nil, errRuntimeDenied
 			}
-			current, e := s.library.Get(ctx, space, source.AssetID)
+			current, e := s.sharedLibraryAsset(ctx, space, source)
 			if e != nil {
 				return nil, e
 			}

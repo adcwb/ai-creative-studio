@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/identity"
+
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
@@ -71,7 +73,7 @@ func OpenAuthStore(dir string) (*AuthStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read authentication state (refusing to reset): %w", err)
 	}
-	if s.data.Version != 1 || s.data.Users == nil || s.data.Organizations == nil || s.data.Sessions == nil {
+	if (s.data.Version != 1 && s.data.Version != 2 && s.data.Version != 3) || s.data.Users == nil || s.data.Organizations == nil || s.data.Sessions == nil {
 		return nil, errors.New("invalid authentication state")
 	}
 	for id, u := range s.data.Users {
@@ -99,6 +101,15 @@ func OpenAuthStore(dir string) (*AuthStore, error) {
 				return nil, errors.New("invalid organization membership")
 			}
 		}
+		if err := identity.ValidateCustomRoles(o); err != nil {
+			return nil, err
+		}
+		if s.data.Version == 1 && (len(o.CustomRoles) > 0 || len(o.MemberRoles) > 0) {
+			return nil, errors.New("custom roles require auth format 2")
+		}
+	}
+	if err := validateAuthFormat(s.data); err != nil {
+		return nil, err
 	}
 	for _, ss := range s.data.Sessions {
 		if _, ok := s.data.Users[ss.UserID]; !ok || len(ss.CSRF) != 64 || ss.Expires.IsZero() {
@@ -121,6 +132,22 @@ func (s *AuthStore) clone() authSnapshot {
 func (s *AuthStore) commit(d authSnapshot) error {
 	if s.failed != nil {
 		return s.failed
+	}
+	for _, org := range d.Organizations {
+		if err := identity.ValidateCustomRoles(org); err != nil {
+			return err
+		}
+		if (len(org.CustomRoles) > 0 || len(org.MemberRoles) > 0) && d.Version < 2 {
+			d.Version = 2
+		}
+	}
+	for _, org := range d.Organizations {
+		if org.Closed {
+			d.Version = 3
+		}
+	}
+	if err := validateAuthFormat(d); err != nil {
+		return err
 	}
 	if s.pg != nil {
 		if err := s.pg.save(d); err != nil {
