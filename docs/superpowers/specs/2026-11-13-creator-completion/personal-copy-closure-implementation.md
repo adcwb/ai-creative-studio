@@ -51,3 +51,5 @@
 - 1920×1080与iPhone13截图已实查，证据保存在 `/workspace/artifacts/creator-completion/personal-copy-{preview,complete}-{desktop,mobile}.png` 和 `team-close-{confirm,readonly}-{desktop,mobile}.png`。沿用现有字体、配色、按钮与响应式，未出现横向溢出。
 - OpenAPI结构验证、国际化静态覆盖、Go vet、Windows amd64 API/worker交叉编译通过；交叉编译不是原生Windows执行证明。未做真实S3跨节点、付费模型、外部发布或生产迁移。云端CI和镜像结果另记，不能用旧基线CI代替。
 - 备份往返测试先因仍打开验证源触发“source store is running”，按真实离线要求关闭验证实例；随后暴露导入硬编码scope遗漏，修复后PG→文件→PG及关闭状态往返均通过。没有绕过停写锁、校验或权限断言。
+
+云端首次检查补记：205dc76 的格式门禁发现 library_http.go 一处 gofmt 空格；组织测试原 `.member-list` 在新增自定义角色列表后匹配两个列表。已给真实成员列表增加可访问名称并限定该列表，继续断言所有者、权限保存和跨源拒绝；桌面/手机两项复验通过（16.7s），Go 格式、vet、构建与前端 lint/typecheck 通过。未删除测试或放宽权限断言。
