@@ -97,6 +97,7 @@ func (r *ModelRuntime) executeGateway(ctx context.Context, q RuntimeSelection, d
 	providers := RuntimeProviders{}
 	switch q.Capability {
 	case "text":
+		providers.PromptOptimizer = api
 		if q.FeatureKey == "story_continuity" {
 			providers.StoryCheck = gatewayStoryCheck{api: api}
 		}

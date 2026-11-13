@@ -48,13 +48,14 @@ func Handler(repo Repository, origin string) http.Handler {
 		registerMediaRoutes(mux, store)
 		registerCreativeRoutes(mux, store)
 		registerImageResumeRoute(mux, store)
+		registerPromptOptimization(mux, store)
 	}
 	mux.HandleFunc("GET /api/v1/tasks", func(w http.ResponseWriter, r *http.Request) {
 		space, ok := spaceID(w, r)
 		if !ok {
 			return
 		}
-		respond(w, 200, repo.List(space))
+		listTasks(w, r, repo.List(space))
 	})
 	mux.HandleFunc("POST /api/v1/tasks", func(w http.ResponseWriter, r *http.Request) {
 		createTask(w, r, repo, "")
@@ -89,6 +90,9 @@ func Handler(repo Repository, origin string) http.Handler {
 			mime += "; charset=utf-8"
 		}
 		w.Header().Set("Content-Type", mime)
+		if r.URL.Query().Get("download") == "1" {
+			w.Header().Set("Content-Disposition", resultDisposition(r.PathValue("id"), result.MIMEType))
+		}
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
 		w.WriteHeader(200)
 		_, _ = w.Write(result.Data)

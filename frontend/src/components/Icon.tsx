@@ -1,6 +1,7 @@
-type IconName = 'clapper' | 'person' | 'videoPerson' | 'conversation' | 'cube' | 'folder' | 'layers' | 'publish' | 'spark' | 'grid' | 'image' | 'arrow' | 'close' | 'search' | 'check' | 'refresh' | 'poster' | 'portrait' | 'general' | 'script' | 'users' | 'settings' | 'wallet' | 'menu'
+type IconName = 'download' | 'clapper' | 'person' | 'videoPerson' | 'conversation' | 'cube' | 'folder' | 'layers' | 'publish' | 'spark' | 'grid' | 'image' | 'arrow' | 'close' | 'search' | 'check' | 'refresh' | 'poster' | 'portrait' | 'general' | 'script' | 'users' | 'settings' | 'wallet' | 'menu'
 
 const paths: Record<IconName, string> = {
+  download: 'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5',
   clapper: 'M3 9h18v12H3zM3 9 2 4l18-3 1 5-18 3ZM7 3l3 4M14 2l3 4',
   person: 'M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a8 8 0 0 1 16 0v2',
   videoPerson: 'M3 4h18v16H3zM10 14l5-3-5-3z',

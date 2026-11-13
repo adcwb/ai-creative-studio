@@ -1,0 +1,131 @@
+import {test, expect, type Page} from '@playwright/test'
+import {readFile} from 'node:fs/promises'
+const api='http://localhost:8084/api/v1'
+async function setup(page: Page) {
+ await page.goto('/')
+ await page.getByRole('button',{name:'创建新账户',exact:true}).click()
+ await page.locator('#auth-email').fill(`images-${crypto.randomUUID()}@example.invalid`)
+ await page.locator('#auth-password').fill('Synthetic-image-usability-password!')
+ await page.getByRole('button',{name:'注册并登录',exact:true}).click()
+ await expect(page.locator('.app-shell')).toBeVisible()
+ const session=await (await page.request.get(api+'/auth/session')).json()
+ const query='?space_id='+session.spaces[0].id
+ const headers={Origin:'http://localhost:5179','X-CSRF-Token':session.csrf_token}
+ const response=await page.request.post(api+'/ai-gateways'+query,{headers,data:{expected_version:0,gateway:{name:'Image usability fixture',base_url:'http://127.0.0.1:5193/v1',enabled:true,timeout_seconds:30},credential:{action:'set',secret:'synthetic-key-A'}}})
+ expect(response.status()).toBe(200)
+ const gateway=(await response.json()).gateways[0]
+ const models: Record<string,{id:string;version:number}>= {}
+ for(const capability of ['image','text']) {
+  const response=await page.request.post(api+'/gateway-models'+query,{headers,data:{expected_version:0,model:{gateway_id:gateway.id,name:`Synthetic ${capability}`,model:capability==='image'?'synthetic-vertical-image':'synthetic-text',capabilities:[capability],enabled:true,max_output_tokens:1024,json_output:true}}})
+  expect(response.status()).toBe(200)
+  models[capability]=(await response.json()).models.find((m:{capabilities:string[]})=>m.capabilities.includes(capability))
+ }
+ for(const [feature,capability] of [['image_generation','image'],['prompt_optimization','text']]) {
+  const response=await page.request.put(api+'/model-features/'+feature+query,{headers,data:{expected_version:0,binding:{feature_key:feature,model_config_id:models[capability].id,enabled:true,allow_override:true}}})
+  expect(response.status()).toBe(200)
+ }
+ await page.reload()
+ return {query,headers,models,gateway}
+}
+
+test('prompt suggestions require adoption, support undo and ignore obsolete responses',async({page})=>{
+ const {query}=await setup(page)
+ const prompt=page.getByLabel('描述你的画面',{exact:true})
+ const original='咖啡品牌海报，保留标题空间'
+ await prompt.fill(original)
+ const optimize=page.getByRole('button',{name:'AI 优化',exact:true})
+ await expect(optimize).toBeEnabled()
+ await optimize.click()
+ const suggestion=page.getByRole('region',{name:'优化建议'})
+ await expect(suggestion).toBeVisible()
+ await expect(prompt).toHaveValue(original)
+ await page.getByRole('button',{name:'使用优化结果',exact:true}).click()
+ await expect(prompt).toHaveValue(original+'，柔和侧光，主体清晰，背景简洁，保留标题空间。')
+ await page.getByRole('button',{name:'撤销优化',exact:true}).click()
+ await expect(prompt).toHaveValue(original)
+ expect(await(await page.request.get(api+'/tasks'+query)).json()).toEqual([])
+ await page.route('**/prompt-optimizations?**',async route=>{
+  await new Promise(resolve=>setTimeout(resolve,700))
+  await route.fulfill({json:{prompt:'过期的优化建议，不应覆盖新输入。'}}).catch(()=>{})
+ })
+ await optimize.click()
+ await prompt.fill('新的画面描述，清晨山景')
+ await expect(optimize).toBeEnabled()
+ await expect(suggestion).toHaveCount(0)
+ await expect(prompt).toHaveValue('新的画面描述，清晨山景')
+ await page.unrouteAll({behavior:'wait'})
+ await expect(suggestion).toHaveCount(0)
+})
+
+test('history pages, original downloads and nested image viewing work on desktop and mobile',async({page},info)=>{
+ test.setTimeout(90000)
+ const {query,headers,models,gateway}=await setup(page)
+ for(let i=0;i<7;i++) {
+  const response=await page.request.post(api+'/gateway-tasks'+query,{headers:{...headers,'Idempotency-Key':`image-history-${i}`},data:{prompt:`创作记录 ${i}，清晰主体和柔和自然光，完整描述保留在详情页面。`,kind:'general',ratio:'9:16',style:'natural',model_config_id:models.image.id,model_config_version:models.image.version}})
+  expect(response.status()).toBe(202)
+ }
+ await expect.poll(async()=>{
+  const rows=await(await page.request.get(api+'/tasks'+query)).json()
+  return rows.filter((r:{status:string})=>r.status==='succeeded').length
+ },{timeout:30000}).toBe(7)
+ await expect(page.locator('.task-gallery .task')).toHaveCount(6)
+ await expect(page.getByText('第 1 / 2 页',{exact:true})).toBeVisible()
+ await page.getByRole('button',{name:'下一页',exact:true}).click()
+ await expect(page.locator('.task-gallery .task')).toHaveCount(1)
+ await expect(page.getByText('第 2 / 2 页',{exact:true})).toBeVisible()
+ await page.getByRole('button',{name:'上一页',exact:true}).click()
+ await expect(page.locator('.task-gallery .task')).toHaveCount(6)
+ const downloadEvent=page.waitForEvent('download')
+ await page.locator('.task-gallery .task').first().getByRole('button',{name:'下载原图',exact:true}).click()
+ const download=await downloadEvent
+ expect(download.suggestedFilename()).toMatch(/^creation-.*\.png$/)
+ const data=await readFile((await download.path())!)
+ expect([...data.subarray(0,8)]).toEqual([137,80,78,71,13,10,26,10])
+ await page.locator('.task-gallery .task').first().getByRole('button',{name:'放大查看',exact:true}).click()
+ const viewer=page.getByRole('dialog',{name:'查看原图',exact:true})
+ await expect(viewer).toBeVisible()
+ await viewer.getByRole('button',{name:'原始尺寸',exact:true}).click()
+ await expect(viewer.locator('output')).toHaveText('100%')
+ await viewer.getByRole('button',{name:'放大',exact:true}).click()
+ await expect(viewer.locator('output')).toHaveText('125%')
+ await viewer.getByRole('button',{name:'缩小',exact:true}).click()
+ await expect(viewer.locator('output')).toHaveText('100%')
+ await viewer.getByRole('button',{name:'适应窗口',exact:true}).click()
+ await expect(viewer.locator('img')).toBeVisible()
+ await page.screenshot({path:`test-results/image-viewer-${info.project.name}.png`})
+ await page.keyboard.press('Escape')
+ await expect(viewer).toHaveCount(0)
+ await page.locator('.task-gallery .task').first().getByRole('button',{name:'查看详情',exact:true}).click()
+ const detail=page.getByRole('dialog',{name:'任务详情',exact:true})
+ await expect(detail.getByText('实际尺寸',{exact:true})).toBeVisible()
+ await detail.getByRole('button',{name:'放大查看',exact:true}).first().click()
+ await expect(viewer).toBeVisible()
+ await page.keyboard.press('Escape')
+ await expect(detail).toBeVisible()
+ await expect(viewer).toHaveCount(0)
+ await detail.getByRole('button',{name:'下载原图',exact:true}).click()
+ await detail.getByRole('button',{name:'关闭详情',exact:true}).click()
+ await expect(page.locator('.task-gallery .task').first().getByRole('button',{name:'查看详情',exact:true})).toBeFocused()
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true)
+ await page.screenshot({path:`test-results/image-history-${info.project.name}.png`,fullPage:true})
+ await page.getByRole('button',{name:'下一页',exact:true}).click()
+ await expect(page.getByText('第 2 / 2 页',{exact:true})).toBeVisible()
+ await page.getByLabel('画面比例',{exact:true}).selectOption('9:16')
+ await page.getByLabel('描述你的画面',{exact:true}).fill('新任务提交后回到第一页')
+ await page.getByRole('button',{name:'创建图像',exact:true}).click()
+ await expect(page.getByText('第 1 / 2 页',{exact:true})).toBeVisible()
+ await expect(page.locator('.task-gallery .task-prompt').first()).toHaveText('新任务提交后回到第一页')
+ const rejected=await page.request.post(api+'/gateway-models'+query,{headers,data:{expected_version:0,model:{gateway_id:gateway.id,name:'Synthetic rejection',model:'synthetic-reject',capabilities:['image'],enabled:true,max_output_tokens:512,json_output:true}}})
+ expect(rejected.status()).toBe(200)
+ const rejectedModel=(await rejected.json()).models.find((m:{model:string})=>m.model==='synthetic-reject')
+ const failed=await page.request.post(api+'/gateway-tasks'+query,{headers:{...headers,'Idempotency-Key':'image-history-failure'},data:{prompt:'失败记录只显示简短状态',kind:'general',model_config_id:rejectedModel.id,model_config_version:rejectedModel.version}})
+ expect(failed.status()).toBe(202)
+ const failedTask=await failed.json()
+ await expect.poll(async()=> (await(await page.request.get(api+'/tasks/'+failedTask.id+query)).json()).status).toBe('failed')
+ const failedCard=page.locator('.task-gallery .task').filter({hasText:'失败记录只显示简短状态'})
+ await expect(failedCard.locator('.status')).toHaveText('执行失败')
+ await expect(failedCard.locator('.task-error')).toHaveCount(0)
+ await failedCard.getByRole('button',{name:'查看详情',exact:true}).click()
+ await expect(detail.locator('.task-error')).toBeVisible()
+ await expect(detail.getByRole('button',{name:'编辑后重试',exact:true})).toBeVisible()
+})

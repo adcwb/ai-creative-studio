@@ -520,7 +520,12 @@ func (s *FileStore) List(space string) []Task {
 			out = append(out, t.Public())
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].ID > out[j].ID
+		}
+		return out[i].CreatedAt.After(out[j].CreatedAt)
+	})
 	return out
 }
 func (s *FileStore) Assets(space string) []Asset {

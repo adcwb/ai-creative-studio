@@ -8,6 +8,10 @@ export function useWorkspace(space: string, reading = true) {
   const [catalog, setCatalog] = useState<Catalog | null>(null)
   const [catalogError, setCatalogError] = useState('')
   const [tasks, setTasks] = useState<Task[]>([])
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [running, setRunning] = useState(0)
+  const pageSize = 6
   const [assets, setAssets] = useState<Asset[]>([])
   const [loading, setLoading] = useState(true)
   const [connectionError, setConnectionError] = useState('')
@@ -44,17 +48,17 @@ export function useWorkspace(space: string, reading = true) {
     const version = mutation.current
     try {
       const [newTasks, newAssets] = await Promise.all([
-        request<Task[]>(`/tasks${query}`, {signal}),
+        request<{items: Task[]; total: number; page: number; running: number}>(`/tasks${query}&page=${page}&page_size=${pageSize}`, {signal}),
         request<Asset[]>(`/assets${query}`, {signal}),
       ])
       if (!signal.aborted && mutation.current === version) {
-        setTasks(newTasks); setAssets(newAssets); setConnectionError('')
+        setTasks(newTasks.items); setTotal(newTasks.total); setPage(newTasks.page); setRunning(newTasks.running); setAssets(newAssets); setConnectionError('')
       }
     } catch (error) {
       if (!signal.aborted) setConnectionError(errorMessage(error, translate('服务连接失败')))
       throw error
     } finally {if (!signal.aborted) setLoading(false)}
-  }, 1500, `${query}:${revision}`, reading && !!space)
+  }, 1500, `${query}:${revision}:${page}`, reading && !!space)
 
   const clearFeedback = useCallback(() => {setActionError(''); setNotice('')}, [])
   const newAttempt = useCallback(() => {attempt.current = null; clearFeedback()}, [clearFeedback])
@@ -78,14 +82,14 @@ export function useWorkspace(space: string, reading = true) {
     pending.current.add(controller)
     inFlight.current = true; setBusy(true); clearFeedback()
     try {
-      const task = await request<Task>(path, {
+      await request<Task>(path, {
         method: 'POST', signal: controller.signal,
         headers: {'Content-Type': 'application/json', 'Idempotency-Key': attempt.current.key},
         body: JSON.stringify({...JSON.parse(body), expected_provider: capability.provider, expected_model: capability.mode === 'mock' ? '' : capability.model ?? ''}),
       })
       if (!active.current || controller.signal.aborted) return 'failed'
       mutation.current += 1
-      setTasks(previous => [task, ...previous.filter(item => item.id !== task.id)])
+      setLoading(true); setPage(1); setRevision(value => value + 1)
       setNotice(retryOf ? translate("重试任务已提交，原任务保留。相同提交不会重复创建。") : translate("任务已提交。相同设定重复点击会返回同一任务；可点击“开始新创作”另建任务。"))
       return 'created'
     } catch (error) {
@@ -141,6 +145,7 @@ export function useWorkspace(space: string, reading = true) {
     }
   }
 
-  return {catalog, catalogError, tasks, assets, loading, connectionError, actionError, notice, busy, saving,
+  function changePage(next: number) {setLoading(true); setPage(next)}
+  return {catalog, catalogError, tasks, assets, loading, connectionError, actionError, notice, busy, saving, page, pageSize, total, running, changePage,
     create, resume, save, newAttempt, clearFeedback, updateTask, reconnect: () => setRevision(value => value + 1)}
 }

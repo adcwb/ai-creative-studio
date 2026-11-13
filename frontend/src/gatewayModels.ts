@@ -27,7 +27,7 @@ export function featureModelStatus(report: ModelManagementReport, modelID: strin
 }
 export function previewFeature(preview?: {operation: string; input: Record<string, unknown>}) {
   if (!preview) return ''
-  const direct: Record<string, string> = {story_continuity: 'story_continuity',script: 'script_generation', storyboard: 'storyboard_planning', analysis: 'brief_analysis', image: 'image_generation'}
+  const direct: Record<string, string> = {prompt_optimization: 'prompt_optimization', story_continuity: 'story_continuity',script: 'script_generation', storyboard: 'storyboard_planning', analysis: 'brief_analysis', image: 'image_generation'}
   if (direct[preview.operation]) return direct[preview.operation]
   if (preview.operation === 'alignment') return preview.input.mode === 'transcription' ? 'speech_transcription' : 'subtitle_alignment'
   const input = preview.input

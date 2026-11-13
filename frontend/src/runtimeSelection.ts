@@ -1,4 +1,4 @@
-export interface RuntimePreview {operation: 'story_continuity' | 'image' | 'script' | 'storyboard' | 'creative' | 'analysis' | 'alignment'; project_id?: string; input: Record<string, unknown>}
+export interface RuntimePreview {operation: 'prompt_optimization' | 'story_continuity' | 'image' | 'script' | 'storyboard' | 'creative' | 'analysis' | 'alignment'; project_id?: string; input: Record<string, unknown>}
 export interface RuntimeModelOption {
   gateway_id?: string; gateway_name?: string; name?: string; capabilities?: string[]; reason_code?: string
   id: string; version: number; provider: string; model: string; capability: string; is_default: boolean; available: boolean

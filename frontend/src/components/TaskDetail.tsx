@@ -6,6 +6,7 @@ import { resultImageAlt, resultOriginLabel, resultProviderLabel, taskStatusLabel
 import { Icon } from './Icon'
 import { TaskMetadata } from './TaskList'
 import { ContinueImage } from '../features/images/ContinueImage'
+import {DownloadImage, ImageViewer} from './ImageResult'
 
 export function TaskDetail({id, space, catalog, saved, saving, busy, actionError, notice, onClose, onUpdate, onSave, onEdit, onResume, onSavePrompt}: {
   id: string; space: string; catalog: Catalog | null; saved: boolean; saving: string | null; busy: boolean; actionError: string; notice: string
@@ -16,6 +17,7 @@ export function TaskDetail({id, space, catalog, saved, saving, busy, actionError
   const [task, setTask] = useState<Task | null>(null)
   const [error, setError] = useState('')
   const [revision, setRevision] = useState(0)
+  const [viewing, setViewing] = useState(false)
   useEffect(() => {
     const dialog = dialogRef.current
     const previousFocus = document.activeElement as HTMLElement | null
@@ -48,7 +50,7 @@ export function TaskDetail({id, space, catalog, saved, saving, busy, actionError
     {!task && !error && <div className="loading-block" role="status">{t("正在加载任务详情…")}</div>}
     {task && <>
       {task.status === 'succeeded' && task.result_mime !== 'image/svg+xml' && <ContinueImage task={task} space={space} onClose={onClose} />}
-      <div className="detail-grid"><div className="detail-preview">{task.result_url ? <img decoding="async" width={task.result_width} height={task.result_height} src={`${baseURL}${task.result_url}`} alt={resultImageAlt(task)} /> : <div className="empty"><Icon name={task.status === 'failed' ? 'image' : 'spark'} /><p>{task.status === 'failed' ? t("本地暂无可用结果") : t("画面正在准备中")}</p></div>}<span>{task.result_url ? resultOriginLabel(task) : resultProviderLabel(task)}</span></div>
+      <div className="detail-grid"><div className="detail-result"><div className="detail-preview">{task.result_url ? <button type="button" className="detail-image-button" aria-label={t('放大查看')} onClick={() => setViewing(true)}><img decoding="async" width={task.result_width} height={task.result_height} src={`${baseURL}${task.result_url}`} alt={resultImageAlt(task)} /></button> : <div className="empty"><Icon name={task.status === 'failed' ? 'image' : 'spark'} /><p>{task.status === 'failed' ? t("本地暂无可用结果") : t("画面正在准备中")}</p></div>}<span>{task.result_url ? resultOriginLabel(task) : resultProviderLabel(task)}</span></div>{task.result_url && <div className="detail-image-actions"><button type="button" onClick={() => setViewing(true)}>{t('放大查看')}</button><DownloadImage task={task}/></div>}</div>
       <div className="detail-information" data-provider={task.provider}><span className={`status ${task.status}`}><span />{taskStatusLabel(task)}</span><h3>{t("画面描述")}</h3><p className="detail-prompt">{task.prompt}</p><TaskMetadata task={task} catalog={catalog} />
  {task.prompt_source && <p className="prompt-source-note">{t("来源提示词版本")} <code>{task.prompt_source.version_id}</code> · {t(task.prompt_source.edited ? "已修改后生成" : "按保存版本生成")}</p>}
  {task.status === "succeeded" && onSavePrompt && <button type="button" onClick={() => onSavePrompt(task)}>{t("将此描述存为提示词")}</button>}
@@ -58,6 +60,7 @@ export function TaskDetail({id, space, catalog, saved, saving, busy, actionError
       </div></div>
       {actionError && <div className="error" role="alert">{t(actionError)}</div>}{notice && <p className="notice" role="status">{t(notice)}</p>}
       <div className="dialog-actions"><span>{task.provider === 'mock-svg' ? t("模拟流程演示") : t("来源按任务记录保留")}{t("· 结果持久化保存")}</span>{task.status === 'succeeded' && <button type="button" className="primary" disabled={saved || saving !== null} onClick={() => onSave(task)}>{saved ? <><Icon name="check" />{t("已保存")}</> : saving === task.id ? t("保存中…") : t("保存到素材库")}</button>}{task.status === 'failed' && task.upstream_id && <button type="button" disabled={busy} onClick={() => {void onResume(task).then(() => setRevision(value => value + 1))}}>{t("继续查询原任务")}</button>}{task.status === 'failed' && <button type="button" className="primary" disabled={busy} onClick={() => onEdit(task)}><Icon name="refresh" />{t("编辑后重试")}</button>}</div>
+      {viewing && <ImageViewer task={task} onClose={() => setViewing(false)}/>}
     </>}
   </dialog>
 }

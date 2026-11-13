@@ -17,7 +17,7 @@ import (
 
 func gatewayFixture(t *testing.T, endpoint string) (*ModelRuntime, AIGateway, GatewayModel) {
 	t.Helper()
-	s, e := OpenModelConfigStore(t.TempDir(), bytes.Repeat([]byte{11}, 32))
+	s, e := OpenModelConfigStore(filepath.Join(t.TempDir(), "models"), bytes.Repeat([]byte{11}, 32))
 	if e != nil {
 		t.Fatal(e)
 	}

@@ -42,6 +42,10 @@ http.createServer(async (req,res)=>{
  }
  if(req.url==='/v1/chat/completions' && body.model==='synthetic-text') {
   const instruction=body.messages?.[0]?.content??''
+  if(instruction.includes('Optimize the supplied image-generation prompt')) {
+   const input=JSON.parse(body.messages[1].content)
+   res.end(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify({prompt:input.prompt+'，柔和侧光，主体清晰，背景简洁，保留标题空间。'})}}],usage:{prompt_tokens:20,completion_tokens:30}}));return
+  }
   if(instruction.includes('"findings"')){
    const input=JSON.parse(body.messages[1].content),record=input.material.find(r=>r.kind==='bible')
    const evidence=[{record_id:record.id,version_id:record.version_id,quote:record.body.bible.theme||record.title}]

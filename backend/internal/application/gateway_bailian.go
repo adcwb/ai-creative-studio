@@ -119,6 +119,7 @@ func newBailianRuntimeProviders(api *OpenAICreativeProvider, model GatewayModel,
 		textAPI := *api
 		textAPI.endpoint = strings.TrimSuffix(api.endpoint, "/api/v1") + "/compatible-mode/v1"
 		textAPI.prepareTextRequest = bailianTextParameters
+		out.PromptOptimizer = &textAPI
 		out.Creative = runtimeCreative{p: &gatewayCreativeProvider{OpenAICreativeProvider: &textAPI, model: model}, capability: q.Capability}
 		out.StoryCheck = gatewayStoryCheck{api: &textAPI}
 	case "vision":

@@ -115,6 +115,25 @@
               "type": "string"
             },
             "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 6
+            }
           }
         ],
         "responses": {
@@ -123,10 +142,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Task"
-                  }
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Task"
+                      }
+                    },
+                    {
+                      "$ref": "#/components/schemas/TaskPage"
+                    }
+                  ]
                 }
               }
             }
@@ -162,7 +188,7 @@
             }
           }
         },
-        "description": "返回当前演示空间的持久化任务，按创建时间倒序，无分页；终态任务和失败重试历史都保留。任务仍在运行时由客户端轮询。"
+        "description": "按创建时间倒序返回当前授权空间的任务。传 page 或 page_size 时返回分页对象，超出末页会回到末页；均未传时保持旧数组响应。running 为全空间执行中任务数。"
       },
       "post": {
         "operationId": "createTask",
@@ -609,6 +635,17 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "description": "1 时以 attachment 返回原图，文件名包含任务 ID 和实际格式。沿用结果读取授权。",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
           }
         ],
         "responses": {
@@ -624,6 +661,26 @@
                 "schema": {
                   "type": "string",
                   "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "Content-Disposition": {
+                "description": "download=1 时包含 attachment 和文件名",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -27853,6 +27910,154 @@
           }
         }
       }
+    },
+    "/api/v1/prompt-optimizations": {
+      "post": {
+        "operationId": "optimizeImagePrompt",
+        "summary": "使用已绑定的文本 LLM 优化图像提示词",
+        "description": "需当前组织执行权限及 prompt_optimization 文本功能绑定。经现有执行审核与用量记录；调用真实网关，无模拟回退，不创建图像任务。建议由用户预览并采纳。",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "同一优化请求使用唯一键；服务端持久化执行回执，同键再次提交返回 409，不重复调用上游。此接口不缓存优化文本，请勿自动重试。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptOptimizationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "优化建议",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptimizedPrompt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "输入无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "需要登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限或功能绑定不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "模型版本变化、缺少选择或重复请求",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "需要 application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "上游拒绝或返回无效结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "审核或运行时未就绪",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "提示词优化超时",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -41367,6 +41572,111 @@
           },
           "upstream": {
             "$ref": "#/components/schemas/UpstreamDiagnostic"
+          }
+        }
+      },
+      "TaskPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "running"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "running": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "PromptOptimizationInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "prompt",
+          "kind",
+          "model_config_id",
+          "model_config_version"
+        ],
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 1000,
+            "description": "去除首尾空白后 3–1000 个 Unicode 字符。仅 mock-svg 将 [mock-fail] 识别为模拟失败标记；OpenAI adapter 将输入作为请求描述的一部分，不在本地模拟外部结果。"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "poster",
+              "portrait",
+              "general"
+            ],
+            "description": "poster 海报、portrait 肖像、general 通用图像。"
+          },
+          "ratio": {
+            "type": "string",
+            "enum": [
+              "1:1",
+              "4:5",
+              "16:9",
+              "",
+              "9:16"
+            ],
+            "description": "请求画布比例；省略或空字符串默认 4:5。固定 OpenAI 模型映射为 1024x1024、1024x1280、1536x864、864x1536。显式 null/非字符串或未知值返回 400。",
+            "default": "4:5"
+          },
+          "style": {
+            "type": "string",
+            "enum": [
+              "natural",
+              "studio",
+              "illustration",
+              ""
+            ],
+            "description": "风格选项；省略或空字符串默认 natural。OpenAI adapter 将明确风格说明写入 prompt。显式 null/非字符串或未知值返回 400。",
+            "default": "natural"
+          },
+          "model_config_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "model_config_version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "OptimizedPrompt": {
+        "type": "object",
+        "required": [
+          "prompt"
+        ],
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 1000
           }
         }
       }

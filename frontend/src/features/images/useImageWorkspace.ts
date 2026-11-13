@@ -21,7 +21,7 @@ export function useImageController(active = true) {
   const preview = {operation: 'image' as const, input: {...draft, prompt: draft.prompt.trim()}}
   const effectiveCapability = creationCapability(runtimeChoice, preview, capability)
   const savedIds = new Set(studio.assets.map(asset => asset.task_id))
-  const running = studio.tasks.filter(task => task.status === 'queued' || task.status === 'running').length
+  const running = studio.running
   const busy = studio.busy || Boolean(studio.saving)
   useEffect(() => {setImageDirty(busy); return () => setImageDirty(false)}, [busy, setImageDirty])
 

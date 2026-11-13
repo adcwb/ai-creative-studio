@@ -3,15 +3,18 @@ import type { RefObject } from 'react'
 import { kindLabels, promptError, type Capabilities, type Catalog, type Task, type TaskInput } from '../api'
 import { retryCostNotice } from '../providerPresentation'
 import { Icon } from './Icon'
+import {RuntimeModelPicker} from './RuntimeModelPicker'
+import {usePromptOptimization} from '../features/images/usePromptOptimization'
 
 interface Props {
-  catalog: Catalog | null; capability: Capabilities | null; draft: TaskInput; busy: boolean; retryTask: Task | null
+  space: string; catalog: Catalog | null; capability: Capabilities | null; draft: TaskInput; busy: boolean; retryTask: Task | null
   promptRef: RefObject<HTMLTextAreaElement | null>; onChange: (draft: TaskInput) => void
   onSubmit: () => void; onCancelEdit: () => void; onNew: () => void
 }
 
-export function Composer({catalog, capability, draft, busy, retryTask, promptRef, onChange, onSubmit, onCancelEdit, onNew}: Props) {
+export function Composer({space, catalog, capability, draft, busy, retryTask, promptRef, onChange, onSubmit, onCancelEdit, onNew}: Props) {
   const { t } = useI18n()
+  const optimizer = usePromptOptimization(space, draft, onChange)
   const invalid = promptError(draft.prompt)
   const ready = !!capability?.ready && capability.mode !== 'unavailable'
   const retryNotice = retryTask ? retryCostNotice(retryTask, capability) : ''
@@ -25,9 +28,14 @@ export function Composer({catalog, capability, draft, busy, retryTask, promptRef
         <legend className="sr-only">{t("图像创作参数")}</legend>
         <label htmlFor="kind">{t("创作类型")}</label>
         <select id="kind" value={draft.kind} onChange={event => onChange({...draft, kind: event.target.value as TaskInput['kind']})}>{kindOptions.map(kind => <option key={kind} value={kind}>{t(kindLabels[kind])}</option>)}</select>
-        <div className="prompt-label"><label htmlFor="prompt">{t("描述你的画面")}</label><span>{t("必填")}</span></div>
+        <div className="prompt-label"><label htmlFor="prompt">{t("描述你的画面")}</label><button type="button" className="prompt-optimize-button" disabled={busy || optimizer.busy || !!invalid || !optimizer.choice?.model.available} onClick={() => {void optimizer.optimize()}}><Icon name={optimizer.busy ? 'refresh' : 'spark'} className={optimizer.busy ? 'spinning' : ''}/>{t(optimizer.busy ? '优化中…' : 'AI 优化')}</button></div>
         <textarea ref={promptRef} id="prompt" value={draft.prompt} onChange={event => onChange({...draft, prompt: event.target.value})} placeholder={t("描述主体、环境、光线与构图，让灵感更具体一些……")} rows={5} maxLength={2000} aria-describedby="prompt-hint prompt-count" aria-invalid={draft.prompt.length > 0 && !!invalid} />
         <div className="field-footer"><span id="prompt-hint">{draft.prompt.length > 0 && invalid ? invalid : t("3–1000 个字符 · 不输入敏感信息")}</span><span id="prompt-count">{[...draft.prompt.trim()].length} / 1000</span></div>
+        <details className="prompt-optimizer-settings"><summary>{t('优化模型')}</summary><RuntimeModelPicker gatewayOnly space={space} capability="text" preview={{operation:'prompt_optimization',input:{}}} value={optimizer.choice} onChange={optimizer.setChoice} disabled={busy || optimizer.busy}/></details>
+        {!optimizer.choice && <p className="optimizer-hint">{t('AI 优化需要配置“提示词优化”文本模型，可展开优化模型设置。')}</p>}
+        {optimizer.error && <p className="error" role="alert">{optimizer.error}</p>}
+        {optimizer.proposal && <div className="prompt-suggestion" role="region" aria-label={t('优化建议')}><strong>{t('优化建议')}</strong><p>{optimizer.proposal}</p><div><button type="button" onClick={optimizer.accept}>{t('使用优化结果')}</button><button type="button" onClick={optimizer.dismiss}>{t('放弃建议')}</button></div></div>}
+        {optimizer.canUndo && <button type="button" className="text-button optimizer-undo" onClick={optimizer.restore}>{t('撤销优化')}</button>}
         <div className="parameter-grid"><div><label htmlFor="ratio">{t("画面比例")}</label><select id="ratio" value={draft.ratio} onChange={event => onChange({...draft, ratio: event.target.value as TaskInput['ratio']})}>{catalog?.ratios.map(ratio => <option key={ratio.value} value={ratio.value}>{t(ratio.label)}</option>)}</select></div><div><label htmlFor="style">{t("视觉风格")}</label><select id="style" value={draft.style} onChange={event => onChange({...draft, style: event.target.value as TaskInput['style']})}>{catalog?.styles.map(style => <option key={style.value} value={style.value}>{t(style.label)}</option>)}</select></div></div>
         <p className="composer-help">{capability?.mode === 'mock' ? t("比例会改变画布尺寸；风格会改变模拟图形。") : t("比例与风格作为创作设定提交，实际尺寸见任务详情。")}<br />{t("肖像仅为概念分类，不上传或编辑照片。")}</p>
         <button className="primary" type="submit" disabled={busy || !catalog || !!invalid || !ready}><Icon name={busy ? 'refresh' : 'spark'} className={busy ? 'spinning' : ''} />{busy ? t("正在提交…") : retryTask ? t("创建重试任务") : capability?.mode === 'mock' ? t("创建模拟图像") : t("创建图像")}{!busy && <Icon name="arrow" />}</button>
