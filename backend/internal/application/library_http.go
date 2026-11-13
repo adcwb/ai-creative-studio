@@ -97,6 +97,7 @@ func registerLibraryRoutes(mux *http.ServeMux, s *FileStore) {
 		return
 	}
 	registerLibraryBindingRoutes(mux, s)
+	registerLibraryImpactRoute(mux, s)
 	registerLibraryAuthorizationRoutes(mux, s)
 	base := "/api/v1/library/assets"
 	mux.HandleFunc("GET "+base, func(w http.ResponseWriter, r *http.Request) {

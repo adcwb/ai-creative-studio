@@ -12605,6 +12605,7 @@
               "enum": [
                 "character",
                 "product",
+                "prop",
                 "scene",
                 "style",
                 "voice"
@@ -28884,6 +28885,135 @@
           }
         }
       }
+    },
+    "/api/v1/library/assets/{assetId}/impact": {
+      "get": {
+        "operationId": "getLibraryAssetImpact",
+        "summary": "只读核对资产在当前空间内的跨集引用影响",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "assetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,80}$"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "description": "Page working set, not a project quota."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current recorded references and source/declaration versions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryImpactPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "asset_version_conflict, asset_archived or idempotency_conflict; retain draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Outcome may be unknown; replay the original body and key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Recorded pinned bindings and persistent media sources only; legacy ancestry is never guessed. Does not replace versions, generate, approve, or publish. Pages use scoped opaque cursors. Current declarations are not verified licenses."
+      }
     }
   },
   "components": {
@@ -34249,6 +34379,44 @@
               "pace",
               "pronunciation"
             ]
+          },
+          "prop": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "appearance",
+              "dimensions",
+              "materials",
+              "story_function",
+              "condition",
+              "continuity_notes"
+            ],
+            "properties": {
+              "appearance": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "dimensions": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "materials": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "story_function": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "condition": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "continuity_notes": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            }
           }
         },
         "required": [
@@ -34266,6 +34434,11 @@
                 {
                   "required": [
                     "product"
+                  ]
+                },
+                {
+                  "required": [
+                    "prop"
                   ]
                 },
                 {
@@ -34295,6 +34468,45 @@
                 {
                   "required": [
                     "character"
+                  ]
+                },
+                {
+                  "required": [
+                    "prop"
+                  ]
+                },
+                {
+                  "required": [
+                    "scene"
+                  ]
+                },
+                {
+                  "required": [
+                    "style"
+                  ]
+                },
+                {
+                  "required": [
+                    "voice"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "required": [
+              "prop"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "character"
+                  ]
+                },
+                {
+                  "required": [
+                    "product"
                   ]
                 },
                 {
@@ -34333,6 +34545,11 @@
                 },
                 {
                   "required": [
+                    "prop"
+                  ]
+                },
+                {
+                  "required": [
                     "style"
                   ]
                 },
@@ -34362,6 +34579,11 @@
                 },
                 {
                   "required": [
+                    "prop"
+                  ]
+                },
+                {
+                  "required": [
                     "scene"
                   ]
                 },
@@ -34387,6 +34609,11 @@
                 {
                   "required": [
                     "product"
+                  ]
+                },
+                {
+                  "required": [
+                    "prop"
                   ]
                 },
                 {
@@ -34581,6 +34808,7 @@
             "enum": [
               "character",
               "product",
+              "prop",
               "scene",
               "style",
               "voice"
@@ -34703,6 +34931,7 @@
             "enum": [
               "character",
               "product",
+              "prop",
               "scene",
               "style",
               "voice"
@@ -34727,7 +34956,7 @@
           "card",
           "references"
         ],
-        "description": "Authored card versions. No fixed reference-count or prohibited-change-count quota. Voice cards currently accept textual performance intent only and must have references:[]; audio authorization and native dispatch are separate capabilities. Images are validated and prepared one at a time before metadata commit; partial preparations are not a successful version.",
+        "description": "Authored immutable typed card versions, including a distinct prop card. No fixed reference-count or prohibited-change-count quota. Voice cards keep performance intent and optional model-specific native preset metadata, accept references:[], and grant no cloning or media-use authorization. Images are validated and prepared one at a time before metadata commit; partial preparations are not a successful version.",
         "oneOf": [
           {
             "properties": {
@@ -34799,6 +35028,20 @@
               },
               "references": {
                 "maxItems": 0
+              }
+            }
+          },
+          {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "prop"
+                ]
+              },
+              "card": {
+                "required": [
+                  "prop"
+                ]
               }
             }
           }
@@ -34878,6 +35121,7 @@
             "enum": [
               "character",
               "product",
+              "prop",
               "scene",
               "style",
               "voice"
@@ -34920,6 +35164,7 @@
             "enum": [
               "character",
               "product",
+              "prop",
               "scene",
               "style",
               "voice"
@@ -34930,6 +35175,7 @@
             "enum": [
               "character",
               "product",
+              "prop",
               "scene",
               "style",
               "voice"
@@ -42705,6 +42951,119 @@
           "adopted_shots",
           "open_reviews"
         ]
+      },
+      "LibraryImpact": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "episode_id": {
+            "type": "string"
+          },
+          "series_id": {
+            "type": "string"
+          },
+          "season_id": {
+            "type": "string"
+          },
+          "episode_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "media_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "binding_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "media_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pinned_version_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "outdated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "project_id",
+          "title",
+          "media_version",
+          "binding_count",
+          "media_count",
+          "pinned_version_ids",
+          "outdated"
+        ]
+      },
+      "LibraryImpactPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "asset_id",
+          "head_version_id",
+          "asset_status",
+          "authorization_status",
+          "authorization_revision",
+          "coverage",
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string"
+          },
+          "head_version_id": {
+            "type": "string"
+          },
+          "asset_status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ]
+          },
+          "authorization_status": {
+            "type": "string",
+            "enum": [
+              "unconfirmed",
+              "granted",
+              "revoked",
+              "expired"
+            ]
+          },
+          "authorization_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "coverage": {
+            "type": "string",
+            "enum": [
+              "recorded_bindings_and_media_sources"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryImpact"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        }
       }
     },
     "securitySchemes": {

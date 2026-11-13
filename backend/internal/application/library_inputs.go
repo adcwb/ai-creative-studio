@@ -71,14 +71,16 @@ func visualLibrarySupported(kind, provider string) bool {
 }
 
 func libraryInputModes(kind, provider string, reference bool) map[string][]string {
-	modes := map[string][]string{"character": {}, "style": {}, "voice": {}}
+	modes := map[string][]string{"character": {}, "product": {}, "prop": {}, "scene": {}, "style": {}, "voice": {}}
 	if visualLibrarySupported(kind, provider) {
-		modes["character"], modes["style"] = []string{"prompt_only"}, []string{"prompt_only"}
-		if reference {
-			modes["character"] = append(modes["character"], "reference")
-			modes["style"] = append(modes["style"], "reference")
+		for _, visual := range []string{"character", "product", "prop", "scene", "style"} {
+			modes[visual] = []string{"prompt_only"}
+			if reference {
+				modes[visual] = append(modes[visual], "reference")
+			}
 		}
 	}
+
 	if kind == "speech" && nativePresetSupported(provider) {
 		modes["voice"] = []string{"native_preset"}
 	}
@@ -178,9 +180,9 @@ func (s *FileStore) compileLibraryInputs(ctx context.Context, project, space str
 		pin := libraryInputPin{Choice: choice, Kind: asset.Kind, Name: v.Card.Name, VersionNumber: v.Number, ContentSHA256: v.SHA256, Uses: []libraryUsePin{}, OmittedFields: []string{}}
 		purposes := []string{}
 		switch asset.Kind {
-		case "character", "style":
+		case "character", "product", "prop", "scene", "style":
 			if !visualLibrarySupported(in.Kind, caps.Provider) || (choice.Mode != "reference" && choice.Mode != "prompt_only") {
-				return nil, "", projectInputError("人物与风格仅支持明确的文字意图或参考图输入；当前适配器没有原生锁脸或风格身份参数")
+				return nil, "", projectInputError("视觉资产仅支持明确的文字意图或参考图输入；当前适配器没有原生锁脸或风格身份参数")
 			}
 			purposes = append(purposes, "prompt_context")
 			positions := []int{}
@@ -221,6 +223,12 @@ func (s *FileStore) compileLibraryInputs(ctx context.Context, project, space str
 				if c.VoiceNotes != "" {
 					pin.OmittedFields = append(pin.OmittedFields, "voice_notes")
 				}
+			} else if c := v.Card.Prop; c != nil {
+				fields["appearance"], fields["dimensions"], fields["materials"], fields["story_function"], fields["condition"], fields["continuity_notes"] = c.Appearance, c.Dimensions, c.Materials, c.StoryFunction, c.Condition, c.ContinuityNotes
+			} else if c := v.Card.Product; c != nil {
+				fields["model"], fields["dimensions"], fields["materials"], fields["packaging"], fields["exact_text"] = c.Model, c.Dimensions, c.Materials, c.Packaging, c.ExactText
+			} else if c := v.Card.Scene; c != nil {
+				fields["layout"], fields["objects"], fields["lighting"], fields["viewpoints"] = c.Layout, c.Objects, c.Lighting, c.Viewpoints
 			} else if c := v.Card.Style; c != nil {
 				fields["palette"], fields["linework"], fields["composition"], fields["lighting"], fields["texture"] = c.Palette, c.Linework, c.Composition, c.Lighting, c.Texture
 			}
@@ -256,7 +264,7 @@ func (s *FileStore) compileLibraryInputs(ctx context.Context, project, space str
 				pin.OmittedFields = append(pin.OmittedFields, "prohibited_changes")
 			}
 		default:
-			return nil, "", projectInputError("此创作选择仅支持人物、风格或声音卡；其他参考请使用现有素材选择")
+			return nil, "", projectInputError("此资产类型尚未适配当前创作方式，请核对素材与模型能力")
 		}
 		for _, purpose := range purposes {
 			if !asset.UseAuthorization.Allows(v.ID, purpose, time.Now().UTC()) {

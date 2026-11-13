@@ -28,3 +28,5 @@
 .library-native-voice input[type=checkbox],.library-input-picker input[type=checkbox]{width:16px;height:16px;min-height:0;flex:0 0 16px;margin:4px 0 0}
 .production-controls .library-input-picker>fieldset{max-height:none;overflow:visible}
 .library-input-picker .editing-note{margin-block:12px;overflow-wrap:anywhere}
+.library-impact{margin-block:24px;padding-block:18px;border-block:1px solid var(--border)}
+.library-impact li{overflow-wrap:anywhere}.library-impact .media-actions{flex-wrap:wrap;justify-content:flex-start;gap:16px}

@@ -58,7 +58,7 @@ func registerLibraryBindingRoutes(mux *http.ServeMux, s *FileStore) {
 		if !decodeProject(w, r, &in) {
 			return
 		}
-		if in.ExpectedVersion < 1 || !library.IDPattern.MatchString(in.AssetID) || !library.IDPattern.MatchString(in.VersionID) || (in.Usage != "character" && in.Usage != "product" && in.Usage != "scene" && in.Usage != "style" && in.Usage != "voice") {
+		if in.ExpectedVersion < 1 || !library.IDPattern.MatchString(in.AssetID) || !library.IDPattern.MatchString(in.VersionID) || !library.ValidKind(in.Usage) {
 			libraryError(w, library.ErrInput)
 			return
 		}
