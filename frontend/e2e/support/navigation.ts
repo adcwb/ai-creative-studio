@@ -60,6 +60,6 @@ export async function chooseLanguage(page: Page, locale: string) {
 }
 export async function openCreativeTools(page: Page) {
   await projectStep(page, 'script')
-  const tools = page.locator('.project-tools')
+  const tools = page.locator('details.project-tools').filter({has: page.getByText('创作辅助工具与版本历史', {exact: true})})
   if (await tools.getAttribute('open') === null) await tools.locator('summary').first().click()
 }
