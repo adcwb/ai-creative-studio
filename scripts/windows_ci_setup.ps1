@@ -15,15 +15,18 @@ New-Item 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' -Force
 New-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' -Name AllowDevelopmentWithoutDevLicense -Value 1 -PropertyType DWord -Force | Out-Null
 if ($Storage -eq 'postgres') {
   $pgbin = Join-Path $env:PGBIN ''
-  $service = Get-Service -Name 'postgresql-x64-17'
-  Start-Service $service.Name
-  $env:PGPASSWORD='root'
+  # Use a fresh per-run cluster rather than the image service's account/state.
+  $data=Join-Path $env:RUNNER_TEMP 'studio-native-pg'
+  if (Test-Path -LiteralPath $data) { throw 'Refusing to reuse PostgreSQL fixture data' }
+  & (Join-Path $pgbin 'initdb.exe') -D $data --username=postgres --encoding=UTF8 --locale=C --auth=trust
+  if ($LASTEXITCODE -ne 0) { throw 'Disposable PostgreSQL initialization failed' }
+  & (Join-Path $pgbin 'pg_ctl.exe') -D $data -l (Join-Path $env:RUNNER_TEMP 'studio-native-pg.log') -o '-h 127.0.0.1 -p 55439' -w start
+  if ($LASTEXITCODE -ne 0) { throw 'Disposable PostgreSQL startup failed' }
   foreach ($database in @('studio_windows_tests','studio_windows_runtime','studio_windows_scm')) {
-    & (Join-Path $pgbin 'createdb.exe') -h 127.0.0.1 -U postgres $database
+    & (Join-Path $pgbin 'createdb.exe') -h 127.0.0.1 -p 55439 -U postgres $database
     if ($LASTEXITCODE -ne 0) { throw 'Disposable database creation failed' }
   }
   foreach ($name in @('STUDIO_POSTGRES_TEST_DSN','JOBQUEUE_TEST_DSN','STUDIO_BLOB_TEST_DSN','STUDIO_WORKER_TEST_DSN','STUDIO_AUDIT_TEST_DSN')) {
-    "$name=postgresql://postgres:root@127.0.0.1/studio_windows_tests?sslmode=disable" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+    "$name=postgresql://postgres@127.0.0.1:55439/studio_windows_tests?sslmode=disable" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
   }
-  Remove-Item Env:PGPASSWORD
 }

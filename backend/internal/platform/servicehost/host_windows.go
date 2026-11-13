@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 	"golang.org/x/sys/windows/svc"
 )
@@ -61,7 +62,7 @@ func (h *host) Execute(_ []string, commands <-chan svc.ChangeRequest, status cha
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	result := make(chan error, 1)
-	go func() { result <- h.run(ctx) }()
+	go func() { result <- diagnostics.Invoke(ctx, "startup_error", func() error { return h.run(ctx) }) }()
 	current := svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}
 	status <- current
 	var tick <-chan time.Time

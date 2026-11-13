@@ -55,6 +55,9 @@ func TestRotationCLIFileApplyWithOnlySyntheticKeys(t *testing.T) {
 	t.Setenv("MODEL_ROTATION_CONFIRM_KEK_BASE64", base64.StdEncoding.EncodeToString(next))
 	t.Setenv("STORAGE_BACKEND", "file")
 	dir := t.TempDir()
+	if e := nativefs.EnsurePrivateDirectory(dir); e != nil {
+		t.Fatal(e)
+	}
 	if e := os.WriteFile(filepath.Join(dir, "state.json"), []byte(`{}`), 0600); e != nil {
 		t.Fatal(e)
 	}

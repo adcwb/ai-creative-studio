@@ -37,3 +37,9 @@
 ## 风险与兼容
 
 无 schema/JSON 升级，不重建 KEK。既有非空公开 Windows 数据目录不能静默修 ACL；需管理员迁到私有目录。Windows 无 POSIX 目录 fsync 等价保证，明确记录耐久性差异。第三方工具不保证长路径、UNC/ReFS/网络盘或 GPU 运行；SMB/真实 S3/付费供应商不在合成验收证据内。操作文档覆盖账号、注册表秘密、服务日志和所有 writer 必须停写的迁移/回退步骤。
+
+### 首轮实际 Windows CI（43345596648）
+
+Windows 文件 job 已实际通过 nativefs（内核锁/长路径/ACL/继承授权拒绝）、nativeproc（Job 子树取消）、servicehost、持久化和领域基础竞态；随后 CLI 密钥轮换失败，尚未执行应用及 SCM 全链路，不能声称原生验收成功。补充离线轮换安全阶段诊断和发布前关闭读取句柄，保留独占锁与所有隐私校验。
+
+PostgreSQL job 在 runner 预装服务启动失败；改用预装工具初始化全新 RUNNER_TEMP 测试集群，限定 loopback:55439，并在 always 步骤停止，不依赖预装服务账号/状态。PowerShell AST 和固定 SHA256 FFmpeg 安装已在 Windows 实际通过。补齐 SCM 运行 goroutine 的安全 panic 捕获和测试。

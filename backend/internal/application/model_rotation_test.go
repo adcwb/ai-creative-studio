@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
@@ -302,4 +304,11 @@ func TestPostgresModelRotationAtomicAuditAndBarrier(t *testing.T) {
 		t.Fatal(e)
 	}
 	assertRotatedModels(t, original, ids, 3)
+}
+
+func TestModelRotationFileErrorContainsOnlySafeStage(t *testing.T) {
+	e := rotationFileError("commit", &os.PathError{Op: "rename", Path: "synthetic-secret-path", Err: errors.New("synthetic-secret-value")})
+	if !errors.Is(e, ErrModelRotation) || strings.Contains(e.Error(), "synthetic-secret") {
+		t.Fatal("unsafe rotation diagnostic")
+	}
 }

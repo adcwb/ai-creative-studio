@@ -12,11 +12,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
@@ -186,56 +188,65 @@ func rotateModelSnapshot(d modelSnapshot, oldKey, newKey, confirmation []byte) (
 
 // RotateFileModelKey requires all processes stopped; the exclusive application
 // lock protects against ordinary writers. No backup is overwritten or revived.
+func rotationFileError(stage string, cause error) error {
+	var errno syscall.Errno
+	if errors.As(cause, &errno) {
+		return fmt.Errorf("%w: %s (os_error=%d)", ErrModelRotation, stage, uint64(errno))
+	}
+	return fmt.Errorf("%w: %s", ErrModelRotation, stage)
+}
+
 func RotateFileModelKey(dir string, oldKey, newKey, confirmation []byte, stopped, apply bool) (ModelRotationReport, error) {
 	report := ModelRotationReport{}
 	if !stopped {
-		return report, ErrModelRotation
+		return report, rotationFileError("confirm_stopped", nil)
 	}
 	info, e := os.Lstat(dir)
 	if e != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || !nativefs.PrivateDirectoryMode(dir) {
-		return report, ErrModelRotation
+		return report, rotationFileError("private_directory", e)
 	}
 	for _, name := range []string{"state.json", "model-config.json"} {
 		info, e = os.Lstat(filepath.Join(dir, name))
 		if e != nil || !info.Mode().IsRegular() || info.Size() > maxRotationBytes {
-			return report, ErrModelRotation
+			return report, rotationFileError("required_state", e)
 		}
 	}
 	lock, e := nativefs.OpenFile(filepath.Join(dir, "store.lock"), os.O_CREATE|os.O_RDWR|nativefs.NoFollow, 0600)
 	if e != nil {
-		return report, ErrModelRotation
+		return report, rotationFileError("lock_open", e)
 	}
 	defer lock.Close()
-	if nativefs.Flock(int(lock.Fd()), nativefs.LOCK_EX|nativefs.LOCK_NB) != nil {
-		return report, ErrModelRotation
+	if e = nativefs.Flock(int(lock.Fd()), nativefs.LOCK_EX|nativefs.LOCK_NB); e != nil {
+		return report, rotationFileError("lock_acquire", e)
 	}
 	defer nativefs.Flock(int(lock.Fd()), nativefs.LOCK_UN)
 	lockedInfo, e := lock.Stat()
 	if e != nil || !lockedInfo.Mode().IsRegular() {
-		return report, ErrModelRotation
+		return report, rotationFileError("lock_stat", e)
 	}
 	f, e := nativefs.OpenFile(filepath.Join(dir, "model-config.json"), os.O_RDONLY|nativefs.NoFollow, 0)
 	if e != nil {
-		return report, ErrModelRotation
+		return report, rotationFileError("config_open", e)
 	}
 	defer f.Close()
 	st, e := f.Stat()
 	if e != nil || !st.Mode().IsRegular() || !nativefs.Private(filepath.Join(dir, "model-config.json")) || st.Size() > maxRotationBytes {
-		return report, ErrModelRotation
+		return report, rotationFileError("config_privacy", e)
 	}
 	raw, e := io.ReadAll(io.LimitReader(f, maxRotationBytes+1))
+	e = errors.Join(e, f.Close())
 	if e != nil || len(raw) > maxRotationBytes {
-		return report, ErrModelRotation
+		return report, rotationFileError("config_read", e)
 	}
 	var snapshot modelSnapshot
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&snapshot) != nil {
-		return report, ErrModelRotation
+		return report, rotationFileError("config_decode", nil)
 	}
 	var extra any
 	if decoder.Decode(&extra) != io.EOF {
-		return report, ErrModelRotation
+		return report, rotationFileError("config_envelope", nil)
 	}
 	store := &ModelConfigStore{path: filepath.Join(dir, "model-config.json"), data: snapshot}
 	rotated, report, e := rotateModelSnapshot(snapshot, oldKey, newKey, confirmation)
@@ -246,7 +257,7 @@ func RotateFileModelKey(dir string, oldKey, newKey, confirmation []byte, stopped
 		return report, nil
 	}
 	if e = store.commit(rotated); e != nil {
-		return report, ErrModelRotation
+		return report, rotationFileError("commit", e)
 	}
 	report.Applied = true
 	return report, nil

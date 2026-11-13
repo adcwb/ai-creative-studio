@@ -390,6 +390,15 @@ jobs:
         run: |
           ./scripts/windows_service_fixture.ps1 -Action remove -Name CreativeStudioAPI
           ./scripts/windows_service_fixture.ps1 -Action remove -Name CreativeStudioWorker
+      - name: Stop disposable PostgreSQL
+        if: always() && matrix.storage == 'postgres'
+        shell: pwsh
+        run: |
+          $data=Join-Path $env:RUNNER_TEMP 'studio-native-pg'
+          if (Test-Path (Join-Path $data 'postmaster.pid')) {
+            & (Join-Path $env:PGBIN 'pg_ctl.exe') -D $data -m fast -w stop
+            if ($LASTEXITCODE -ne 0) { throw 'Fixture PostgreSQL stop failed' }
+          }
   verify:
     name: verify
     runs-on: ubuntu-24.04
