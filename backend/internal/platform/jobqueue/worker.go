@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/diagnostics"
+	"log/slog"
 	"time"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/tracing"
@@ -16,12 +17,21 @@ type Handler func(context.Context, Queue, Job) error
 
 func Run(ctx context.Context, q Queue, kind string, handler Handler) (resultErr error) {
 	activeCtx := ctx
+	stage := "initialize"
 	defer func() {
 		if recover() != nil {
 			resultErr = diagnostics.ErrPanic
 			diagnostics.Event(activeCtx, "worker_panic", "execution_interrupted", "", nil)
 		} else if resultErr != nil {
 			diagnostics.Event(activeCtx, "worker_error", diagnostics.ErrorCode(resultErr), "", nil)
+			safeKind := "unknown"
+			switch kind {
+			case "image", "script", "storyboard", "export", "alignment", "creative", "creative_recovery", "image_recovery", "story_check":
+				safeKind = kind
+			}
+			attrs := []any{"event", "worker_failure", "task_kind", safeKind, "worker_stage", stage, "error_code", diagnostics.ErrorCode(resultErr)}
+			attrs = append(attrs, diagnostics.SystemMetadata(resultErr)...)
+			slog.ErrorContext(activeCtx, "durable worker stopped", attrs...)
 		}
 	}()
 	if handler == nil {
@@ -36,6 +46,7 @@ func Run(ctx context.Context, q Queue, kind string, handler Handler) (resultErr 
 		case <-tick.C:
 		}
 		activeCtx = ctx
+		stage = "claim"
 		j, ok, err := q.Claim(ctx, kind)
 		if ctx.Err() != nil {
 			return nil
@@ -83,6 +94,7 @@ func Run(ctx context.Context, q Queue, kind string, handler Handler) (resultErr 
 		if q.Slots == nil || acquired {
 			traceCtx, span := tracing.Start(tracing.WithParent(WithLeaseFence(runCtx, q, j), j.TraceParent), "worker.execute", tracing.Attributes{Kind: j.Kind})
 			activeCtx = traceCtx
+			stage = "execute"
 			err = diagnostics.Invoke(traceCtx, "worker_panic", func() error { return handler(traceCtx, q, j) })
 			outcome := "ok"
 			if err != nil {
@@ -115,6 +127,7 @@ func Run(ctx context.Context, q Queue, kind string, handler Handler) (resultErr 
 			return err
 		}
 		if renewErr != nil && !errors.Is(renewErr, ErrLeaseLost) && ctx.Err() == nil {
+			stage = "renew"
 			return renewErr
 		}
 	}

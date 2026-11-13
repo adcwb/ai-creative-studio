@@ -175,7 +175,7 @@ def run(args):
                         except (ValueError, TypeError):
                             continue
                         if isinstance(record, dict):
-                            safe = {k: record[k] for k in ('event', 'component', 'service', 'error_code', 'status', 'request_id', 'task_id') if k in record}
+                            safe = {k: record[k] for k in ('event', 'component', 'service', 'error_code', 'status', 'request_id', 'task_id', 'task_kind', 'worker_stage', 'error_kind', 'sql_state', 'os_error', 'exit_status') if k in record}
                             if safe:
                                 print(json.dumps(safe, ensure_ascii=True))
                 except OSError:
