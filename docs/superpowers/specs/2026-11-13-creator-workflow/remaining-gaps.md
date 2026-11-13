@@ -15,3 +15,5 @@
 本地补齐进展（未推送）：独立道具卡及已记录绑定/素材来源的跨集影响查询已实现并完成专项验证，见 [补齐记录](../2026-11-13-creator-completion/assets-implementation.md)。上表保持486ef47发布基线事实，其余缺口不能因此视为完成。
 
 本地续进（未推送）：真实网关季/集纲候选、固定来源、明确采纳，以及预览后流式整季MP4/字幕/时间轴交付已实现，见 [阶段实施与验收](../2026-11-13-creator-completion/planning-delivery-implementation.md)。不代表自定义角色、个人作品迁移、发布元数据整包等其余缺口已经完成。
+
+本地续进（未推送）：空间范围自定义权限角色、所有权交接，以及固定成片的版本化发布标题/简介/标签/封面和单集/整季交付已实现，分别见 [角色权限](../2026-11-13-creator-completion/roles-implementation.md) 与 [发布资料](../2026-11-13-creator-completion/publishing-metadata-implementation.md)。个人作品跨空间复制、团队关闭、跨平台多规格/发布看板等仍未自动完成，不把本地阶段称为全清单完成。

@@ -28804,6 +28804,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "metadata_version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Pin an immutable release version and cover. Omission selects the current release head at request time. An export with no metadata remains a compatible legacy delivery."
           }
         ],
         "responses": {
@@ -30369,6 +30379,270 @@
           }
         },
         "description": "Current owner only, explicit confirmation and team CAS. Target is an existing trusted member account ID. The target’s custom assignment is cleared and owner membership/access metadata changes in one auth transaction. Team work stays in place. This is not verified external consent or an email invitation. Re-read access after an uncertain response; do not blindly repeat a transfer."
+      }
+    },
+    "/api/v1/projects/{id}/media/exports/{export_id}/delivery-metadata": {
+      "get": {
+        "operationId": "getExportDeliveryMetadata",
+        "summary": "Read versioned release preparation for this owned export.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current media version and immutable release history for the selected export.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "version",
+                    "items"
+                  ],
+                  "properties": {
+                    "version": {
+                      "type": "integer"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DeliveryMetadata"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "saveExportDeliveryMetadata",
+        "summary": "Append a release metadata version with per-export CAS and durable original-request receipt; requires workspace.write. Cover must be a local project image, bytes pinned by SHA-256. No external publication.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryMetadataInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved immutable metadata version, or the original receipt even after later edits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryMetadata"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -32696,6 +32970,13 @@
             "items": {
               "$ref": "#/components/schemas/PromptApplication"
             }
+          },
+          "delivery_metadata": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryMetadata"
+            },
+            "description": "Immutable authored release preparation, scoped to project exports. Optional for legacy projects."
           }
         },
         "required": [
@@ -44482,8 +44763,12 @@
             "type": "string",
             "enum": [
               "missing_final_export",
-              "export_files_unavailable"
+              "export_files_unavailable",
+              "cover_file_unavailable"
             ]
+          },
+          "publishing_metadata": {
+            "$ref": "#/components/schemas/DeliveryMetadata"
           }
         }
       },
@@ -44939,6 +45224,115 @@
           }
         },
         "description": "Refused while assigned; absent IDs are a read-only no-op for deletion recovery. Existing roles require exact team and role versions."
+      },
+      "DeliveryMetadata": {
+        "type": "object",
+        "required": [
+          "id",
+          "export_id",
+          "version",
+          "title",
+          "description",
+          "tags",
+          "rights_confirmed",
+          "created_at",
+          "created_by"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "export_id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 12000
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "uniqueItems": true
+          },
+          "cover_asset_id": {
+            "type": "string"
+          },
+          "cover_sha256": {
+            "type": "string"
+          },
+          "cover_mime": {
+            "type": "string"
+          },
+          "rights_confirmed": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string"
+          }
+        },
+        "description": "Immutable authored release preparation. Rights confirmation is a creator assertion, not license certification or approval. No external publication."
+      },
+      "DeliveryMetadataInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_metadata_version",
+          "title",
+          "description",
+          "tags",
+          "rights_confirmed"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 12000
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "uniqueItems": true
+          },
+          "cover_asset_id": {
+            "type": "string"
+          },
+          "rights_confirmed": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "expected_metadata_version": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Current metadata head for this export, 0 for the first version. CAS is independent of unrelated timeline edits."
+          }
+        }
       }
     },
     "securitySchemes": {

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/publishing"
 	"io"
 	"net/http"
 	"os"
@@ -20,13 +21,14 @@ type deliveryFile struct {
 	SHA256 string `json:"sha256"`
 }
 type deliveryManifest struct {
-	Format        int            `json:"format"`
-	ExportID      string         `json:"export_id"`
-	ProjectID     string         `json:"project_id"`
-	Episode       int            `json:"episode_number"`
-	Timeline      MediaTimeline  `json:"timeline"`
-	SeriesEpisode any            `json:"series_episode,omitempty"`
-	Files         []deliveryFile `json:"files"`
+	Metadata      *publishing.DeliveryMetadata `json:"publishing_metadata,omitempty"`
+	Format        int                          `json:"format"`
+	ExportID      string                       `json:"export_id"`
+	ProjectID     string                       `json:"project_id"`
+	Episode       int                          `json:"episode_number"`
+	Timeline      MediaTimeline                `json:"timeline"`
+	SeriesEpisode any                          `json:"series_episode,omitempty"`
+	Files         []deliveryFile               `json:"files"`
 }
 type deliveryInput struct {
 	name string
@@ -105,9 +107,12 @@ func prepareDelivery(m *MediaStore, space, project, id string) (MediaExport, []d
 	}
 	return *chosen, files, nil
 }
-func writeDelivery(ctx context.Context, w io.Writer, project string, export MediaExport, files []deliveryInput) error {
+func writeDelivery(ctx context.Context, w io.Writer, project string, export MediaExport, files []deliveryInput, metadata ...*publishing.DeliveryMetadata) error {
 	archive := zip.NewWriter(w)
 	manifest := deliveryManifest{Format: 1, ExportID: export.ID, ProjectID: project, Episode: export.EpisodeNumber, Timeline: export.Timeline, SeriesEpisode: export.SeriesEpisode, Files: []deliveryFile{}}
+	if len(metadata) > 0 {
+		manifest.Metadata = metadata[0]
+	}
 	if manifest.Episode == 0 {
 		manifest.Episode = 1
 	}
@@ -119,6 +124,9 @@ func writeDelivery(ctx context.Context, w io.Writer, project string, export Medi
 		size, hash, err := copyDeliveryFile(ctx, entry, f.file)
 		if err != nil {
 			return err
+		}
+		if manifest.Metadata != nil && f.name != "episode.mp4" && f.name != "episode.srt" && f.name != "episode.vtt" && hash != manifest.Metadata.CoverSHA256 {
+			return ErrBlobIntegrity
 		}
 		manifest.Files = append(manifest.Files, deliveryFile{f.name, size, hash})
 	}
@@ -155,13 +163,36 @@ func registerDeliveryRoute(mux *http.ServeMux, s *FileStore, scope func(http.Res
 				_ = f.file.Close()
 			}
 		}()
+		version, err := deliveryMetadataQuery(r)
+		if err != nil {
+			mediaError(w, err)
+			return
+		}
+		state, err := s.media.GetChecked(project, space)
+		if err != nil {
+			mediaError(w, err)
+			return
+		}
+		metadata, err := deliveryMetadata(state, export.ID, version)
+		if err != nil {
+			mediaError(w, err)
+			return
+		}
+		if metadata != nil && metadata.CoverAssetID != "" {
+			cover, e := openDeliveryCover(s.media, r.Context(), space, project, *metadata)
+			if e != nil {
+				mediaError(w, mediaInvalid("封面文件不可读取或已变化，请重新选择并保存发布资料"))
+				return
+			}
+			files = append(files, cover)
+		}
 		w.Header().Set("Content-Type", "application/zip")
 		w.Header().Set("Content-Disposition", `attachment; filename="episode-delivery.zip"`)
 		w.Header().Set("Cache-Control", "private, no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		// No JSON or second status after streaming starts. An incomplete archive is
 		// deliberately invalid, never a falsely successful delivery.
-		if err = writeDelivery(r.Context(), w, project, export, files); err != nil {
+		if err = writeDelivery(r.Context(), w, project, export, files, metadata); err != nil {
 			panic(http.ErrAbortHandler)
 		}
 	})

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/publishing"
 	"github.com/adcwb/ai-creative-studio/backend/internal/modules/series"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/seriesrepo"
 )
@@ -15,15 +16,16 @@ import (
 // The preview pins immutable exports, not the current mutable edit. No media
 // bytes are buffered and the number of episodes is not a product quota.
 type seasonDeliveryEpisode struct {
-	EpisodeID        string       `json:"episode_id"`
-	ProjectID        string       `json:"project_id"`
-	Number           int64        `json:"episode_number"`
-	Title            string       `json:"title"`
-	ExportID         string       `json:"export_id,omitempty"`
-	Duration         float64      `json:"duration_seconds"`
-	OutputResolution string       `json:"output_resolution,omitempty"`
-	Issue            string       `json:"issue,omitempty"`
-	Export           *MediaExport `json:"-"`
+	Metadata         *publishing.DeliveryMetadata `json:"publishing_metadata,omitempty"`
+	EpisodeID        string                       `json:"episode_id"`
+	ProjectID        string                       `json:"project_id"`
+	Number           int64                        `json:"episode_number"`
+	Title            string                       `json:"title"`
+	ExportID         string                       `json:"export_id,omitempty"`
+	Duration         float64                      `json:"duration_seconds"`
+	OutputResolution string                       `json:"output_resolution,omitempty"`
+	Issue            string                       `json:"issue,omitempty"`
+	Export           *MediaExport                 `json:"-"`
 }
 type seasonDeliveryPreview struct {
 	SeasonID string                  `json:"season_id"`
@@ -78,11 +80,20 @@ func (s *FileStore) seasonDelivery(ctx context.Context, space, id string) (seaso
 				item.Issue = "missing_final_export"
 			} else {
 				item.ExportID, item.Duration, item.OutputResolution = item.Export.ID, item.Export.Duration, item.Export.Timeline.OutputResolution
+				item.Metadata, _ = deliveryMetadata(state, item.ExportID, 0)
 				_, files, err := prepareDelivery(s.media, space, p.ID, item.ExportID)
 				if err != nil {
 					item.Issue = "export_files_unavailable"
 				} else {
 					closeDelivery(files)
+					if item.Metadata != nil && item.Metadata.CoverAssetID != "" {
+						cover, e := openDeliveryCover(s.media, ctx, space, p.ID, *item.Metadata)
+						if e != nil {
+							item.Issue = "cover_file_unavailable"
+						} else {
+							cover.file.Close()
+						}
+					}
 				}
 			}
 			if item.Issue != "" {
@@ -113,10 +124,11 @@ func (s *FileStore) seasonDelivery(ctx context.Context, space, id string) (seaso
 func (s *FileStore) writeSeasonDelivery(ctx context.Context, w io.Writer, space string, preview seasonDeliveryPreview) error {
 	archive := zip.NewWriter(w)
 	type episodeManifest struct {
-		Episode       seasonDeliveryEpisode `json:"episode"`
-		Timeline      MediaTimeline         `json:"timeline"`
-		SeriesEpisode any                   `json:"series_episode,omitempty"`
-		Files         []deliveryFile        `json:"files"`
+		Metadata      *publishing.DeliveryMetadata `json:"publishing_metadata,omitempty"`
+		Episode       seasonDeliveryEpisode        `json:"episode"`
+		Timeline      MediaTimeline                `json:"timeline"`
+		SeriesEpisode any                          `json:"series_episode,omitempty"`
+		Files         []deliveryFile               `json:"files"`
 	}
 	manifest := struct {
 		Format    int                   `json:"format"`
@@ -136,7 +148,15 @@ func (s *FileStore) writeSeasonDelivery(ctx context.Context, w io.Writer, space 
 			closeDelivery(files)
 			return series.ErrConflict
 		}
-		entry := episodeManifest{item, export.Timeline, export.SeriesEpisode, []deliveryFile{}}
+		if item.Metadata != nil && item.Metadata.CoverAssetID != "" {
+			cover, e := openDeliveryCover(s.media, ctx, space, item.ProjectID, *item.Metadata)
+			if e != nil {
+				closeDelivery(files)
+				return e
+			}
+			files = append(files, cover)
+		}
+		entry := episodeManifest{item.Metadata, item, export.Timeline, export.SeriesEpisode, []deliveryFile{}}
 		err = func() error {
 			defer closeDelivery(files)
 			for _, f := range files {
@@ -148,6 +168,9 @@ func (s *FileStore) writeSeasonDelivery(ctx context.Context, w io.Writer, space 
 				size, hash, err := copyDeliveryFile(ctx, dest, f.file)
 				if err != nil {
 					return err
+				}
+				if item.Metadata != nil && f.name != "episode.mp4" && f.name != "episode.srt" && f.name != "episode.vtt" && hash != item.Metadata.CoverSHA256 {
+					return ErrBlobIntegrity
 				}
 				entry.Files = append(entry.Files, deliveryFile{name, size, hash})
 			}

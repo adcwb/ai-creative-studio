@@ -119,17 +119,18 @@ type MediaExport struct {
 }
 
 type MediaState struct {
-	PromptApplications []prompts.Application `json:"prompt_applications,omitempty"`
-	EpisodeTimelines   map[int]MediaTimeline `json:"episode_timelines,omitempty"`
-	Selections         []Selection           `json:"selections,omitempty"`
-	Reviews            []ReviewNote          `json:"reviews,omitempty"`
-	LibraryBindings    []LibraryBinding      `json:"library_bindings,omitempty"`
-	Poster             *PosterDocument       `json:"poster,omitempty"`
-	Social             *SocialState          `json:"social,omitempty"`
-	Version            int                   `json:"version"`
-	Assets             []MediaAsset          `json:"assets"`
-	Timeline           MediaTimeline         `json:"timeline"`
-	Exports            []MediaExport         `json:"exports"`
+	DeliveryMetadata   []publishing.DeliveryMetadata `json:"delivery_metadata,omitempty"`
+	PromptApplications []prompts.Application         `json:"prompt_applications,omitempty"`
+	EpisodeTimelines   map[int]MediaTimeline         `json:"episode_timelines,omitempty"`
+	Selections         []Selection                   `json:"selections,omitempty"`
+	Reviews            []ReviewNote                  `json:"reviews,omitempty"`
+	LibraryBindings    []LibraryBinding              `json:"library_bindings,omitempty"`
+	Poster             *PosterDocument               `json:"poster,omitempty"`
+	Social             *SocialState                  `json:"social,omitempty"`
+	Version            int                           `json:"version"`
+	Assets             []MediaAsset                  `json:"assets"`
+	Timeline           MediaTimeline                 `json:"timeline"`
+	Exports            []MediaExport                 `json:"exports"`
 }
 
 // LibraryBinding records the exact library version copied into this project.
