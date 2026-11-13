@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/identity"
 	"io"
 	"net/http"
+	"reflect"
 	"sync"
 	"sync/atomic"
 
@@ -271,7 +273,7 @@ func (s *AuthStore) cancelChangedRuntimeLocked(before, after authSnapshot) {
 	defer authRuntimeCalls.Unlock()
 	for call := range authRuntimeCalls.calls[s] {
 		q := call.selection
-		if before.Organizations[q.TenantID].Members[q.ActorID] != after.Organizations[q.TenantID].Members[q.ActorID] {
+		if before.Organizations[q.TenantID].Members[q.ActorID] != after.Organizations[q.TenantID].Members[q.ActorID] || !reflect.DeepEqual(identity.EffectivePermissions(before.Organizations[q.TenantID], q.ActorID), identity.EffectivePermissions(after.Organizations[q.TenantID], q.ActorID)) {
 			call.cancel()
 		}
 	}

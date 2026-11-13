@@ -1,3 +1,4 @@
+import {hasPermission} from '../../permissions'
 import {useState} from 'react'
 import {useI18n} from '../../i18n'
 import {useAppWorkspace} from '../../app/workspace'
@@ -26,7 +27,7 @@ export function SeriesForm({kind,item,parent,profile=defaultProfile,onSaved,onCa
  const change=(f:()=>void)=>{write.markDirty();f()}
  return <section className="panel series-form"><h2>{t(labels[kind])}</h2><p className="drama-help">{metadataOnly?t('标题和故事简述请在这一集的项目总览中编辑。'):t('保存目录不会自动调用模型。创作内容由你决定。')}</p>
  <form onSubmit={e=>{e.preventDefault();if(!invalid||uncertain)void write.save({...(!metadataOnly?{title,summary}:{}),...(kind==='series'?{audience,format}:{}),profile:output,...(item?{expected_version:item.row_version,status}:{})})}}>
- <fieldset disabled={busy||uncertain||space?.role==='viewer'}>
+ <fieldset disabled={busy||uncertain||!hasPermission(space,'workspace.write')}>
  {!metadataOnly&&<><label>{t('名称')}<input value={title} maxLength={160} onChange={e=>change(()=>setTitle(e.target.value))} required={kind!=='season'} autoFocus/></label><label>{kind==='episode'?t('本集故事简述'):t('故事简介')}<textarea value={summary} onChange={e=>change(()=>setSummary(e.target.value))} required={kind==='series'}/></label>{kind==='episode'&&<p className="drama-help">{t('留空时沿用本季简介；保存后可在项目总览细化。')}</p>}</>}
  {kind==='series'&&<><label>{t('目标观众（选填，最多400字）')}<input value={audience} onChange={e=>change(()=>setAudience(e.target.value))}/></label><label>{t('表现形式')}<select value={format} onChange={e=>change(()=>setFormat(e.target.value))}><option value="motion-comic">{t('AI 漫剧')}</option><option value="video">{t('视频短剧')}</option><option value="mixed">{t('混合制作')}</option></select></label></>}
  <ProfileFields value={output} onChange={v=>change(()=>setOutput(v))}/><p className="drama-help">{t('建议每集1–2分钟。清晰度是后期输出档位，不代表模型原生画质。已有时间线不会随默认设置改变。')}</p>
@@ -36,7 +37,7 @@ export function SeriesForm({kind,item,parent,profile=defaultProfile,onSaved,onCa
  {error&&<div className="error" role="alert">{error}{!uncertain&&onRefresh&&<button type="button" onClick={onRefresh}>{t('重新读取目录版本')}</button>}</div>}
  {write.storageNotice&&<p className="editing-note" role="status">{write.storageNotice}</p>}
  {uncertain&&<p className="editing-note" role="status">{t('上次保存结果尚未确认。请用原请求核对，避免重复创建。')}</p>}
- <div className="drama-brief-actions"><button type="button" disabled={busy} onClick={()=>requestLeave(onCancel)}>{t('取消')}</button><button className="primary" disabled={busy||(!uncertain&&invalid)||space?.role==='viewer'}>{busy?t('正在保存…'):uncertain?t('核对并重试保存'):t('保存')}</button></div>
+ <div className="drama-brief-actions"><button type="button" disabled={busy} onClick={()=>requestLeave(onCancel)}>{t('取消')}</button><button className="primary" disabled={busy||(!uncertain&&invalid)||!hasPermission(space,'workspace.write')}>{busy?t('正在保存…'):uncertain?t('核对并重试保存'):t('保存')}</button></div>
  </form></section>
 }
 export function SeriesMoveForm({item,parent,onSaved,onCancel}:{item:SeriesEntry;parent:SeriesEntry;onSaved:(n:SeriesEntry)=>void;onCancel:()=>void}){

@@ -1,3 +1,4 @@
+import {hasPermission} from '../../permissions'
 import {useCallback,useEffect,useId,useRef,useState} from 'react'
 import {errorMessage,request} from '../../api'
 import {useAppWorkspace} from '../../app/workspace'
@@ -23,7 +24,7 @@ export function StoryDecisionEditor({space,episode,initial,onChanged,onPendingCh
  const[kind,setKind]=useState<StoryKind>(()=>proposal?.kind??'fact'),[title,setTitle]=useState(()=>proposal?.title??initial.finding.title),[body,setBody]=useState<StoryBody>(()=>structuredClone(proposal?.body??emptyBody('fact'))),[required,setRequired]=useState(()=>proposal?.required??false),[status,setStatus]=useState<'active'|'archived'>(()=>proposal?.status??'active'),[expected,setExpected]=useState(()=>proposal?.expected_version??0)
  const episodes=useDirectory<StoryEpisode>(`/series/${initial.snapshot.series_id}/story-episodes?limit=100`,space,0)
  const abort=useRef<AbortController|null>(null);useEffect(()=>()=>abort.current?.abort(),[])
- const writable=currentSpace?.role!=='viewer',locked=!writable||write.busy||write.uncertain||Boolean(decision)
+ const writable=hasPermission(currentSpace,'workspace.write'),locked=!writable||write.busy||write.uncertain||Boolean(decision)
  const characters=view.current_bible?.status==='active'?view.current_bible.body.bible?.characters??[]:[]
  const change=(fn:()=>void)=>{write.markDirty();fn()}
  async function refresh(){if(locked||reading)return;abort.current?.abort();const next=new AbortController();abort.current=next;setReading(true);setError('');try{const latest=await request<StoryFindingReview>(directoryURL(path+'/review',space),{signal:next.signal});if(!next.signal.aborted){setView(latest);setDecision(latest.decision??null);setExpected(latest.current_target?.number??0);setBasis(latest.review_sha256);setAck(false);write.markDirty()}}catch(e){if(!next.signal.aborted)setError(errorMessage(e,t('当前资料核对失败')))}finally{if(!next.signal.aborted)setReading(false)}}

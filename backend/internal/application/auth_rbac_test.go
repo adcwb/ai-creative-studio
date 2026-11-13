@@ -144,7 +144,7 @@ func TestPostgresRBACLegacyBackfillPreservesTeams(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Recreate an older deployment: JSON organizations only, without explicit types.
-	if _, err = db.Exec(`DROP TABLE studio_space_memberships,studio_space_access,studio_rbac_role_permissions,studio_rbac_permissions,studio_rbac_roles CASCADE; UPDATE studio_organizations SET payload=payload-'type'-'version'`); err != nil {
+	if _, err = db.Exec(`DROP TABLE studio_space_member_roles,studio_space_role_permissions,studio_space_roles,studio_space_memberships,studio_space_access,studio_rbac_role_permissions,studio_rbac_permissions,studio_rbac_roles CASCADE; UPDATE studio_organizations SET payload=payload-'type'-'version'`); err != nil {
 		t.Fatal(err)
 	}
 	if err = InitPostgres(context.Background(), db); err != nil {
@@ -256,7 +256,7 @@ func TestPostgresRBACBadLegacyMigrationIsAtomic(t *testing.T) {
 		t.Fatal(err)
 	}
 	team := testTeamSpace(t, a, owner.ID)
-	if _, err = db.Exec(`DROP TABLE studio_space_memberships,studio_space_access,studio_rbac_role_permissions,studio_rbac_permissions,studio_rbac_roles CASCADE`); err != nil {
+	if _, err = db.Exec(`DROP TABLE studio_space_member_roles,studio_space_role_permissions,studio_space_roles,studio_space_memberships,studio_space_access,studio_rbac_role_permissions,studio_rbac_permissions,studio_rbac_roles CASCADE`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = db.Exec(`UPDATE studio_organizations SET payload=jsonb_set(payload,'{members}',jsonb_build_object(payload->>'owner_id','owner','missing-user','editor')) WHERE entity_id=$1`, team); err != nil {

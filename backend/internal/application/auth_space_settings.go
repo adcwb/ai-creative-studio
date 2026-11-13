@@ -15,11 +15,11 @@ func (s *AuthStore) spaceSettings(w http.ResponseWriter, r *http.Request, user A
 		problem(w, 403, "role_denied", "个人空间不支持团队管理操作")
 		return
 	}
-	if action == "settings" && r.Method != "PATCH" || action == "leave" && r.Method != "POST" {
+	if action == "settings" && r.Method != "PATCH" || (action == "leave" || action == "transfer") && r.Method != "POST" {
 		problem(w, 405, "method_not_allowed", "方法不支持")
 		return
 	}
-	if action == "settings" && !s.canLocked(user.ID, org.ID, "members.manage") {
+	if action == "settings" && !s.canLocked(user.ID, org.ID, "workspace.manage") {
 		problem(w, 403, "role_denied", "当前角色不能管理团队信息")
 		return
 	}
@@ -27,9 +27,15 @@ func (s *AuthStore) spaceSettings(w http.ResponseWriter, r *http.Request, user A
 		problem(w, 403, "owner_cannot_leave", "团队所有者不能退出，请先保留团队管理责任")
 		return
 	}
+	if action == "transfer" && (org.OwnerID != user.ID || !s.canLocked(user.ID, org.ID, "members.manage_admin")) {
+		problem(w, 403, "owner_required", "只有当前所有者可以移交团队所有权")
+		return
+	}
 	var in struct {
 		Name            string `json:"name"`
 		ExpectedVersion int64  `json:"expected_version"`
+		TargetUserID    string `json:"target_user_id,omitempty"`
+		Confirmed       bool   `json:"confirmed,omitempty"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -49,6 +55,16 @@ func (s *AuthStore) spaceSettings(w http.ResponseWriter, r *http.Request, user A
 			return
 		}
 	}
+	if action == "transfer" {
+		if !in.Confirmed || in.TargetUserID == user.ID || org.Members[in.TargetUserID] == "" {
+			problem(w, 400, "invalid_input", "请明确确认并选择已经加入团队的另一位成员")
+			return
+		}
+		if _, ok := s.data.Users[in.TargetUserID]; !ok {
+			problem(w, 403, "member_identity_mismatch", "目标成员账号不存在")
+			return
+		}
+	}
 	if !beginAuthAudit(w, r) {
 		return
 	}
@@ -57,8 +73,14 @@ func (s *AuthStore) spaceSettings(w http.ResponseWriter, r *http.Request, user A
 	changed.Version = spaceVersion(org) + 1
 	if action == "settings" {
 		changed.Name = in.Name
+	} else if action == "transfer" {
+		changed.OwnerID = in.TargetUserID
+		changed.Members[user.ID] = "admin"
+		changed.Members[in.TargetUserID] = "owner"
+		delete(changed.MemberRoles, in.TargetUserID)
 	} else {
 		delete(changed.Members, user.ID)
+		delete(changed.MemberRoles, user.ID)
 	}
 	d.Organizations[org.ID] = changed
 	if err := s.commit(d); err != nil {

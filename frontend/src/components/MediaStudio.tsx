@@ -1,3 +1,4 @@
+import {hasPermission} from '../permissions'
 import {usePolling} from '../hooks/usePolling'
 import {MediaLineage} from '../features/library/MediaLineage'
 import {useSeriesEpisode} from '../features/series/episodeContext'
@@ -45,7 +46,7 @@ export function MediaStudio(props: StudioProps) {
 }
 function EpisodeMediaStudio({project, space, onDirtyChange, episode, allowSyntheticDemo = true}: StudioProps & {episode: number}) {
  const {space:currentSpace}=useAppWorkspace()
- const canWrite=currentSpace?.role!=='viewer'
+ const canWrite=hasPermission(currentSpace,'workspace.write')
   const {formatNumber} = useI18n()
 
   const [alignmentError, setAlignmentError] = useState('')

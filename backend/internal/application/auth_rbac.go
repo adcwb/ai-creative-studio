@@ -38,7 +38,7 @@ DO $$ BEGIN
 END $$;`
 
 func initRBAC(ctx context.Context, tx *sql.Tx) error {
-	if _, err := tx.ExecContext(ctx, rbacSchema); err != nil {
+	if _, err := tx.ExecContext(ctx, rbacSchema+customRBACSchema); err != nil {
 		return err
 	}
 	for _, role := range identity.Roles() {
@@ -61,6 +61,11 @@ func initRBAC(ctx context.Context, tx *sql.Tx) error {
 				return err
 			}
 		}
+	}
+	// Old readers reject this unknown role instead of granting the legacy
+	// editor/admin ceiling while ignoring scoped permissions.
+	if _, err := tx.ExecContext(ctx, `INSERT INTO studio_rbac_roles(id)VALUES('custom') ON CONFLICT DO NOTHING`); err != nil {
+		return err
 	}
 	// Only explicit type metadata identifies a personal space. Legacy organizations
 	// remain teams; their names and current member counts are not evidence.
@@ -120,7 +125,7 @@ func (p *postgresScope) loadRBAC(d map[string]json.RawMessage) error {
 			return err
 		}
 		o, ok := organizations[id]
-		if !ok || !validRole(role) {
+		if !ok || (!validRole(role) && role != "custom") {
 			return errors.New("invalid RBAC identity")
 		}
 		o.Type, o.OwnerID, o.Version = kind, owner, version
@@ -130,9 +135,20 @@ func (p *postgresScope) loadRBAC(d map[string]json.RawMessage) error {
 	if err = rows.Err(); err != nil {
 		return err
 	}
+	if err = p.loadCustomRBAC(organizations); err != nil {
+		return err
+	}
 	for _, o := range organizations {
 		if o.Members[o.OwnerID] != "owner" {
 			return errors.New("missing RBAC owner")
+		}
+		if err = identity.ValidateCustomRoles(o); err != nil {
+			return err
+		}
+		for _, role := range o.Members {
+			if !validRole(role) {
+				return errors.New("custom membership without policy")
+			}
 		}
 	}
 	d["organizations"], err = json.Marshal(organizations)
@@ -154,10 +170,19 @@ func (p *postgresScope) writeRBAC(records map[string]map[string]json.RawMessage)
 		if _, err := p.tx.ExecContext(p.ctx, `DELETE FROM studio_space_memberships WHERE space_id=$1`, o.ID); err != nil {
 			return err
 		}
+		if err := p.writeCustomRBAC(o); err != nil {
+			return err
+		}
 		for user, role := range o.Members {
+			if o.MemberRoles[user] != "" {
+				role = "custom"
+			}
 			if _, err := p.tx.ExecContext(p.ctx, `INSERT INTO studio_space_memberships(space_id,user_id,role_id,space_kind,space_owner_id) VALUES($1,$2,$3,$4,$5)`, o.ID, user, role, spaceType(o), o.OwnerID); err != nil {
 				return err
 			}
+		}
+		if err := p.writeCustomAssignments(o); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -181,12 +206,12 @@ func (s *AuthStore) canLocked(user, space, permission string) bool {
 	if o.Type == "personal" && o.OwnerID != user {
 		return false
 	}
-	if !identity.Allows(o.Members[user], permission) {
+	if !identity.EffectiveAllows(o, user, permission) {
 		return false
 	}
 	if s.pg != nil {
 		var allowed bool
-		err := s.pg.tx.QueryRowContext(s.pg.ctx, `SELECT EXISTS(SELECT 1 FROM studio_space_memberships m JOIN studio_rbac_role_permissions p ON p.role_id=m.role_id WHERE m.space_id=$1 AND m.user_id=$2 AND p.permission_id=$3)`, space, user, permission).Scan(&allowed)
+		err := s.pg.tx.QueryRowContext(s.pg.ctx, `SELECT EXISTS(SELECT 1 FROM studio_space_memberships m LEFT JOIN studio_space_member_roles c ON c.space_id=m.space_id AND c.user_id=m.user_id JOIN studio_rbac_role_permissions p ON p.role_id=COALESCE(c.base_role,m.role_id) WHERE m.space_id=$1 AND m.user_id=$2 AND p.permission_id=$3 AND ((c.role_id IS NULL AND m.role_id<>'custom') OR (m.role_id='custom' AND EXISTS(SELECT 1 FROM studio_space_role_permissions g WHERE g.space_id=c.space_id AND g.role_id=c.role_id AND g.permission_id=$3))))`, space, user, permission).Scan(&allowed)
 		return err == nil && allowed
 	}
 	return true
@@ -201,6 +226,13 @@ func (s *AuthStore) sessionSpaces(user string) []map[string]any {
 			item[key] = value
 		}
 		item["permissions"] = s.permissions(user, space["id"])
+		s.mu.Lock()
+		o := s.data.Organizations[space["id"]]
+		if id := o.MemberRoles[user]; id != "" {
+			item["custom_role_id"] = id
+			item["custom_role_name"] = o.CustomRoles[id].Name
+		}
+		s.mu.Unlock()
 		out = append(out, item)
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -224,11 +256,10 @@ func (s *AuthStore) permissions(user, space string) []string {
 	if o.Type == "personal" && o.OwnerID != user {
 		return out
 	}
-	role := o.Members[user]
 	if s.pg == nil {
-		return identity.Permissions(role)
+		return identity.EffectivePermissions(o, user)
 	}
-	rows, err := s.pg.tx.QueryContext(s.pg.ctx, `SELECT p.permission_id FROM studio_space_memberships m JOIN studio_rbac_role_permissions p ON p.role_id=m.role_id WHERE m.space_id=$1 AND m.user_id=$2 ORDER BY p.permission_id`, space, user)
+	rows, err := s.pg.tx.QueryContext(s.pg.ctx, `SELECT p.permission_id FROM studio_space_memberships m LEFT JOIN studio_space_member_roles c ON c.space_id=m.space_id AND c.user_id=m.user_id JOIN studio_rbac_role_permissions p ON p.role_id=COALESCE(c.base_role,m.role_id) WHERE m.space_id=$1 AND m.user_id=$2 ORDER BY p.permission_id`, space, user)
 	if err != nil {
 		return out
 	}
@@ -238,7 +269,7 @@ func (s *AuthStore) permissions(user, space string) []string {
 		if rows.Scan(&permission) != nil {
 			return []string{}
 		}
-		if identity.Allows(role, permission) {
+		if identity.EffectiveAllows(o, user, permission) {
 			out = append(out, permission)
 		}
 	}
@@ -248,8 +279,8 @@ func (s *AuthStore) permissions(user, space string) []string {
 	return out
 }
 
-// File snapshots use built-in roles. Refuse a lossy export after relational
-// grants were changed by an operator; native PostgreSQL backups preserve them.
+// File snapshots preserve scoped custom policies. Refuse a lossy export after
+// built-in grants were changed by an operator; native PG backups preserve them.
 var errRBACFileExport = errors.New("nonstandard RBAC grants require native PostgreSQL backup; file export refused")
 
 func validateFileExportGrants(ctx context.Context, tx *sql.Tx) error {

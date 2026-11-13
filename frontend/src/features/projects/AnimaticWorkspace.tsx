@@ -1,3 +1,4 @@
+import {hasPermission} from '../../permissions'
 import {usePolling} from '../../hooks/usePolling'
 import {useCallback,useEffect,useState} from 'react'
 import {Link} from 'react-router-dom'
@@ -29,7 +30,7 @@ function PreviewPlanner({project,space,disabled,onDirtyChange,onCreated}:{projec
  const original=write.recovery as unknown as PreviewInput|null
  const [basis,setBasis]=useState<{project:PreviewPlan;media:PreviewMedia;shot_episodes:Record<string,number>}|null>(null),[loading,setLoading]=useState(true),[readError,setReadError]=useState(''),[readRevision,setReadRevision]=useState(0),[refreshed,setRefreshed]=useState(false)
  const [episode,setEpisode]=useState(original?.episode_number??1),[aspect,setAspect]=useState(original?.aspect_ratio??'16:9'),[sound,setSound]=useState<'silent'|'temporary'>(original?.sound_mode??'silent'),[choices,setChoices]=useState<PreviewChoice[]>(original?.shots??[]),[add,setAdd]=useState('')
- const readOnly=workspace.space?.role==='viewer',locked=disabled||readOnly||write.busy||write.uncertain||loading
+ const readOnly=!hasPermission(workspace.space,'workspace.write'),locked=disabled||readOnly||write.busy||write.uncertain||loading
  useEffect(()=>{const abort=new AbortController();void request<{project:PreviewPlan;media:PreviewMedia;shot_episodes:Record<string,number>}>(`/projects/${project.id}/media/previews/options?space_id=${space}`,{signal:abort.signal}).then(v=>{if(!abort.signal.aborted){setBasis(v);setLoading(false);setReadError('');if(readRevision)setRefreshed(true);else if(!original)setAspect(v.media.aspect_ratio||'16:9')}}).catch(e=>{if(!abort.signal.aborted){setLoading(false);setReadError(errorMessage(e,t('预演来源读取失败')))}});return()=>abort.abort()
  // Refreshing sources preserves the creator's choices, order and timing.
  // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -92,7 +93,7 @@ function PreviewCard({project,space,value,onChanged,disabled}:{project:string;sp
  const {t,formatDate}=useI18n(),{space:workspace}=useAppWorkspace(),[source,setSource]=useState<PreviewSource|null>(null),[readError,setReadError]=useState(''),[reading,setReading]=useState(false),path=`/projects/${project}/media/previews/${value.id}`
  const canceled=useCallback(()=>onChanged(),[onChanged]),resumed=useCallback(()=>onChanged(),[onChanged])
  const cancel=useSeriesWrite<PreviewDetail>(`animatic:${value.id}:cancel`,path+'/cancel','POST',canceled),resume=useSeriesWrite<PreviewDetail>(`animatic:${value.id}:resume`,path+'/resume','POST',resumed)
- const locked=disabled||workspace?.role==='viewer'||cancel.busy||resume.busy
+ const locked=disabled||!hasPermission(workspace,'workspace.write')||cancel.busy||resume.busy
  async function read(){setReading(true);setReadError('');try{const d=await request<PreviewDetail>(path+`?space_id=${space}`);setSource(d.preview_source)}catch(e){setReadError(errorMessage(e,t('预演来源读取失败')))}finally{setReading(false)}}
  return <article><h4>{t(previewStatus[value.status]??'状态待核对')} · {formatDate(value.created_at)}</h4><p>{t('静帧预演 · {duration} 秒 · {sound}',{duration:value.duration.toFixed(1),sound:t(value.sound_mode==='silent'?'明确使用静音':'使用选定临时声轨')})}</p>{value.render_progress&&value.status==='running'&&<p role="status">{t('已完成 {completed}/{total} 段画面与声音',{completed:value.render_progress.completed,total:value.render_progress.total})}</p>}{value.error&&<p role="alert" className="error">{value.error}</p>}{value.status==='succeeded'&&value.file_url&&<><video controls preload="metadata" aria-label={t('独立静帧预演播放器')} src={baseURL+value.file_url}/><a className="button-link" download={`animatic-${value.id}.mp4`} href={baseURL+value.file_url+'&download=1'}>{t('下载带标识的预演')}</a></>}
   <p className="drama-help">{t('预演仅用于审视节奏，不是正式成片，不能直接进入发布流程。正式剪辑与已采用素材保持不变。')}</p>

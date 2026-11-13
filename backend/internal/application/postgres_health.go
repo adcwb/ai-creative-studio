@@ -48,6 +48,9 @@ var postgresReadinessSQL = func() string {
 		"SELECT space_id,kind,owner_id,version FROM studio_space_access WHERE false",
 		"SELECT space_id,user_id,role_id,space_kind,space_owner_id FROM studio_space_memberships WHERE false",
 		"SELECT role_id,permission_id FROM studio_rbac_role_permissions WHERE false",
+		"SELECT space_id,space_kind,id,name,base_role,version FROM studio_space_roles WHERE false",
+		"SELECT space_id,role_id,permission_id FROM studio_space_role_permissions WHERE false",
+		"SELECT space_id,user_id,role_id,base_role,membership_role FROM studio_space_member_roles WHERE false",
 		"SELECT state_hash,binding_hash,payload,expires FROM studio_oidc_pending WHERE false",
 		"SELECT key,tenant_hash,project_hash,size,sha256 FROM studio_blobs WHERE false",
 		"SELECT request_id,phase,at,actor_id,tenant_id,role,method,status,duration_ms FROM studio_audit_events WHERE false",
@@ -61,7 +64,7 @@ var postgresReadinessSQL = func() string {
 	for _, q := range queries {
 		checks = append(checks, "NOT EXISTS ("+q+")")
 	}
-	return "SELECT (SELECT count(*)=1 AND min(version)=1 AND max(version)=1 FROM studio_schema) AND EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_blobs_size_nonnegative') AND EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_library_kind_v3' AND conrelid='studio_library_assets'::regclass) AND EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_series_episode_project') AND " + strings.Join(checks, " AND ")
+	return "SELECT (SELECT count(*)=1 AND min(version)=1 AND max(version)=1 FROM studio_schema) AND EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_blobs_size_nonnegative') AND EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_library_kind_v3' AND conrelid='studio_library_assets'::regclass) AND EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_space_role_team' AND conrelid='studio_space_roles'::regclass) AND EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_series_episode_project') AND " + strings.Join(checks, " AND ")
 }()
 
 func (s *FileStore) PersistenceFailureEpoch() uint64 {

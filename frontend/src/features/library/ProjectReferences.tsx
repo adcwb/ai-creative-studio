@@ -1,3 +1,4 @@
+import {hasPermission} from '../../permissions'
 import { useEffect, useRef, useState } from 'react'
 import { ApiError, errorMessage, request } from '../../api'
 import { useNavigationTask } from '../../app/navigationGuard'
@@ -12,7 +13,7 @@ interface BindingView {items: Binding[]; media_version: number}
 export function ProjectReferences({space, projectId, shots, disabled}: {space: string; projectId: string; shots: {id: string; description: string}[]; disabled: boolean}) {
   const {t} = useI18n()
   const workspace = useAppWorkspace()
-  const readOnly = disabled || workspace.space?.role === 'viewer'
+  const readOnly = disabled || !hasPermission(workspace.space,'workspace.write')
   const [assets, setAssets] = useState<LibraryAsset[]>([])
   const [assetCursor, setAssetCursor] = useState('')
   const [assetNext, setAssetNext] = useState('')

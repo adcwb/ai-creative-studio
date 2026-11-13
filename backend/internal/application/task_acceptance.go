@@ -45,6 +45,12 @@ func creativeRuntimeCapability(kind string) string {
 
 func resolveModelRequest(w http.ResponseWriter, r *http.Request, repo any, in *ModelRequest, capability string, features ...string) bool {
 	in.traceParent = tracing.Parent(r.Context())
+	if actor, authenticated := r.Context().Value(authScopeKey{}).(authScope); authenticated {
+		if store, ok := repo.(*FileStore); ok && store.runtime != nil && store.runtime.auth != nil && !store.runtime.auth.can(actor.UserID, actor.SpaceID, "models.execute") {
+			problem(w, 403, "role_denied", "当前权限不能执行模型，请联系团队所有者调整角色")
+			return false
+		}
+	}
 	feature := ""
 	if len(features) > 0 {
 		feature = features[0]

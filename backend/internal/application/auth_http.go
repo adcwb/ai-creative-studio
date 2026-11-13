@@ -385,7 +385,7 @@ func (s *AuthStore) createOrganization(w http.ResponseWriter, r *http.Request, u
 }
 func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUser) {
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v1/organizations/"), "/")
-	if len(parts) != 2 || (parts[1] != "members" && parts[1] != "access" && parts[1] != "settings" && parts[1] != "leave") {
+	if len(parts) != 2 || (parts[1] != "roles" && parts[1] != "transfer" && parts[1] != "members" && parts[1] != "access" && parts[1] != "settings" && parts[1] != "leave") {
 		problem(w, 404, "not_found", "接口不存在")
 		return
 	}
@@ -397,12 +397,20 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 		problem(w, 403, "tenant_denied", "没有此工作空间的访问权限")
 		return
 	}
-	if !s.canLocked(user.ID, org.ID, "members.read") {
+	readPermission := "workspace.read"
+	if parts[1] == "members" || parts[1] == "roles" {
+		readPermission = "members.read"
+	}
+	if !s.canLocked(user.ID, org.ID, readPermission) {
 		problem(w, 403, "role_denied", "没有成员读取权限")
 		return
 	}
 	SetAuditIdentity(r.Context(), user.ID, org.ID, role)
-	if parts[1] == "settings" || parts[1] == "leave" {
+	if parts[1] == "roles" {
+		s.spaceRoles(w, r, user, org)
+		return
+	}
+	if parts[1] == "settings" || parts[1] == "leave" || parts[1] == "transfer" {
 		s.spaceSettings(w, r, user, org, parts[1])
 		return
 	}
@@ -417,14 +425,24 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 				permissions = append(permissions, p)
 			}
 		}
-		respond(w, 200, map[string]any{"id": org.ID, "name": org.Name, "type": spaceType(org), "owner_id": org.OwnerID, "version": spaceVersion(org), "role": role, "permissions": permissions})
+		info := map[string]any{"id": org.ID, "name": org.Name, "type": spaceType(org), "owner_id": org.OwnerID, "version": spaceVersion(org), "role": role, "permissions": permissions}
+		if id := org.MemberRoles[user.ID]; id != "" {
+			info["custom_role_id"] = id
+			info["custom_role_name"] = org.CustomRoles[id].Name
+		}
+		respond(w, 200, info)
 		return
 	}
 	if r.Method == "GET" {
 		members := []map[string]string{}
 		for uid, role := range org.Members {
 			u := s.data.Users[uid]
-			members = append(members, map[string]string{"id": uid, "email": u.Email, "role": role})
+			item := map[string]string{"id": uid, "email": u.Email, "role": role}
+			if id := org.MemberRoles[uid]; id != "" {
+				item["custom_role_id"] = id
+				item["custom_role_name"] = org.CustomRoles[id].Name
+			}
+			members = append(members, item)
 		}
 		respond(w, 200, members)
 		return
@@ -442,6 +460,7 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 		Role            string `json:"role"`
 		UserID          string `json:"user_id,omitempty"`
 		ExpectedVersion int64  `json:"expected_version,omitempty"`
+		CustomRoleID    string `json:"custom_role_id,omitempty"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -450,9 +469,33 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 		problem(w, 409, "membership_conflict", "成员权限已变化，请重新读取后保存")
 		return
 	}
+	if in.CustomRoleID != "" {
+		custom, ok := org.CustomRoles[in.CustomRoleID]
+		if !ok || custom.Base != in.Role || in.ExpectedVersion < 1 {
+			problem(w, 409, "membership_conflict", "自定义角色不存在或版本已变化，请重新读取团队权限")
+			return
+		}
+		// A member manager cannot assign grants that they do not currently hold.
+		for _, permission := range custom.Permissions {
+			if !s.canLocked(user.ID, org.ID, permission) {
+				problem(w, 403, "role_denied", "不能授予超出自己当前权限的角色")
+				return
+			}
+		}
+	}
 	if in.Role != "admin" && in.Role != "editor" && in.Role != "viewer" && in.Role != "remove" {
 		problem(w, 400, "invalid_input", "角色无效")
 		return
+	}
+	grants := identity.Permissions(in.Role)
+	if in.CustomRoleID != "" {
+		grants = org.CustomRoles[in.CustomRoleID].Permissions
+	}
+	for _, permission := range grants {
+		if !s.canLocked(user.ID, org.ID, permission) {
+			problem(w, 403, "role_denied", "不能授予超出自己当前权限的角色")
+			return
+		}
 	}
 	if in.UserID == "" {
 		problem(w, 403, "member_identity_confirmation_required", "请通过可信渠道核对成员账号 ID，不能仅凭邮箱授权")
@@ -475,10 +518,17 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 	d := s.clone()
 	changed := d.Organizations[org.ID]
 	changed.Version = spaceVersion(org) + 1
+	delete(changed.MemberRoles, uid)
 	if in.Role == "remove" {
 		delete(changed.Members, uid)
 	} else {
 		changed.Members[uid] = in.Role
+		if in.CustomRoleID != "" {
+			if changed.MemberRoles == nil {
+				changed.MemberRoles = map[string]string{}
+			}
+			changed.MemberRoles[uid] = in.CustomRoleID
+		}
 	}
 	d.Organizations[org.ID] = changed
 	if err := s.commit(d); err != nil {

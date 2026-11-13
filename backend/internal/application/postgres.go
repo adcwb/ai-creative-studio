@@ -597,9 +597,15 @@ func OpenPostgresAuthStore(dir string, db *sql.DB) (*AuthStore, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err = validateAuthFormat(s.data); err != nil {
+		return nil, err
+	}
 	s.pg.replace = func(raw []byte) error {
 		var d authSnapshot
 		if err := json.Unmarshal(raw, &d); err != nil {
+			return err
+		}
+		if err := validateAuthFormat(d); err != nil {
 			return err
 		}
 		s.cancelChangedRuntimeLocked(s.data, d)

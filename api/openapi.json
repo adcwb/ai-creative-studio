@@ -7858,6 +7858,11 @@
                     "type": "integer",
                     "minimum": 1,
                     "description": "CAS version from space access. Omitted only for older clients."
+                  },
+                  "custom_role_id": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{32}$",
+                    "description": "Optional custom role in this exact team. role must equal its base_role and expected_version becomes mandatory; caller may not assign grants beyond their current authority. Omit to return to a built-in role."
                   }
                 },
                 "required": [
@@ -29817,6 +29822,554 @@
           }
         }
       }
+    },
+    "/api/v1/organizations/{id}/roles": {
+      "get": {
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "operationId": "listCustomTeamRoles",
+        "summary": "Read team roles.",
+        "responses": {
+          "200": {
+            "description": "Current role list and team version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomTeamRolesView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Current team only. Reads require members.read; mutations require members.manage_admin and every proposed grant must be currently held by the caller. Personal spaces reject custom roles. CAS and relational constraints preserve owner, base ceiling and tenant isolation."
+      },
+      "post": {
+        "operationId": "createCustomTeamRole",
+        "summary": "Owner-only current-team custom permission-role mutation.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current role list and team version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomTeamRolesView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomTeamRoleWrite"
+              }
+            }
+          }
+        },
+        "description": "Current team only. Reads require members.read; mutations require members.manage_admin and every proposed grant must be currently held by the caller. Personal spaces reject custom roles. CAS and relational constraints preserve owner, base ceiling and tenant isolation."
+      },
+      "put": {
+        "operationId": "updateCustomTeamRole",
+        "summary": "Owner-only current-team custom permission-role mutation.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current role list and team version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomTeamRolesView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomTeamRoleWrite"
+              }
+            }
+          }
+        },
+        "description": "Current team only. Reads require members.read; mutations require members.manage_admin and every proposed grant must be currently held by the caller. Personal spaces reject custom roles. CAS and relational constraints preserve owner, base ceiling and tenant isolation."
+      },
+      "delete": {
+        "operationId": "deleteCustomTeamRole",
+        "summary": "Owner-only current-team custom permission-role mutation.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current role list and team version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomTeamRolesView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomTeamRoleDelete"
+              }
+            }
+          }
+        },
+        "description": "Current team only. Reads require members.read; mutations require members.manage_admin and every proposed grant must be currently held by the caller. Personal spaces reject custom roles. CAS and relational constraints preserve owner, base ceiling and tenant isolation."
+      }
+    },
+    "/api/v1/organizations/{id}/transfer": {
+      "post": {
+        "operationId": "transferTeamOwnership",
+        "summary": "Explicitly transfer team ownership to a current member; previous owner becomes administrator.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "updated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "version",
+                    "updated"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected; preserve the original request when its outcome is unconfirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "target_user_id",
+                  "confirmed",
+                  "expected_version"
+                ],
+                "properties": {
+                  "target_user_id": {
+                    "type": "string"
+                  },
+                  "confirmed": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  },
+                  "expected_version": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "Current owner only, explicit confirmation and team CAS. Target is an existing trusted member account ID. The target’s custom assignment is cleared and owner membership/access metadata changes in one auth transaction. Team work stays in place. This is not verified external consent or an email invitation. Re-read access after an uncertain response; do not blindly repeat a transfer."
+      }
     }
   },
   "components": {
@@ -30309,7 +30862,8 @@
               "admin",
               "editor",
               "viewer"
-            ]
+            ],
+            "description": "Built-in compatibility ceiling. custom_role_id/name identifies an assigned team role; permissions is authoritative and may be a strict subset. Never infer effective grants from this base role."
           },
           "permissions": {
             "type": "array",
@@ -30321,6 +30875,14 @@
           "version": {
             "type": "integer",
             "minimum": 1
+          },
+          "custom_role_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "custom_role_name": {
+            "type": "string",
+            "maxLength": 80
           }
         }
       },
@@ -33037,6 +33599,14 @@
               "editor",
               "viewer"
             ]
+          },
+          "custom_role_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "custom_role_name": {
+            "type": "string",
+            "maxLength": 80
           }
         },
         "required": [
@@ -44168,6 +44738,207 @@
           }
         },
         "description": "Lightweight history metadata; read the existing owned creative-job detail endpoint for immutable full sources and result."
+      },
+      "CustomTeamRole": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "base_role",
+          "version",
+          "permissions"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "base_role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "editor",
+              "viewer"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "workspace.read",
+                "workspace.write",
+                "workspace.manage",
+                "members.read",
+                "members.manage",
+                "models.manage",
+                "models.execute",
+                "usage.read"
+              ]
+            },
+            "uniqueItems": true
+          }
+        },
+        "description": "Actual editable grants bounded by a fixed built-in security ceiling. workspace.read is mandatory; execution/management also needs workspace.write. Custom roles cannot grant owner-only powers. Permissions affect API/worker authorization immediately, not just the display name."
+      },
+      "CustomTeamRolesView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "version",
+          "items",
+          "permission_options"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomTeamRole"
+            }
+          },
+          "permission_options": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "workspace.read",
+                  "workspace.write",
+                  "workspace.manage",
+                  "members.read",
+                  "members.manage",
+                  "models.manage",
+                  "models.execute",
+                  "usage.read"
+                ]
+              },
+              "uniqueItems": true
+            }
+          }
+        }
+      },
+      "CustomTeamRoleWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "base_role",
+          "permissions",
+          "expected_version",
+          "expected_role_version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "base_role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "editor",
+              "viewer"
+            ]
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "workspace.read",
+                "workspace.write",
+                "workspace.manage",
+                "members.read",
+                "members.manage",
+                "models.manage",
+                "models.execute",
+                "usage.read"
+              ]
+            },
+            "uniqueItems": true
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expected_role_version": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "description": "POST uses a client-held stable random ID and expected_role_version=0; PUT keeps base_role fixed and checks both role and team versions. Replaying unchanged created v1 or exactly matching v+1 updated content returns the current view without another mutation. Later differing edits conflict, never overwrite."
+      },
+      "CustomTeamRoleDelete": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "expected_version",
+          "expected_role_version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expected_role_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "base_role": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "workspace.read",
+                "workspace.write",
+                "workspace.manage",
+                "members.read",
+                "members.manage",
+                "models.manage",
+                "models.execute",
+                "usage.read"
+              ]
+            },
+            "uniqueItems": true
+          }
+        },
+        "description": "Refused while assigned; absent IDs are a read-only no-op for deletion recovery. Existing roles require exact team and role versions."
       }
     },
     "securitySchemes": {
