@@ -47,3 +47,5 @@ docs/
 | [前端路由](specs/2026-10-28-frontend-routing-design.md) | 历史路由设计 |
 
 - [Windows 原生后端重建规格与验收](specs/2026-11-13-windows-native-rebuild.md)
+
+- [图像创作 CI 契约回归修复与验收](specs/2026-11-13-image-ci-contract-repair.md)

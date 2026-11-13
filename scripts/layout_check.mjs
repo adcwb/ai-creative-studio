@@ -116,7 +116,8 @@ try {
       else await expect(page.locator('.task')).toHaveCount(count)
       await page.getByRole('button', { name: catalog.templates[0].name, exact: false }).click()
       if (state === 'editing') {
-        await page.locator('.task').filter({ hasText: '[mock-fail] 失败状态与按钮布局验收' }).getByRole('button', { name: '编辑后重试' }).click()
+        await page.locator('.task').filter({ hasText: '[mock-fail] 失败状态与按钮布局验收' }).getByRole('button', { name: '查看详情' }).click()
+        await page.getByRole('dialog', {name: '任务详情', exact: true}).getByRole('button', {name: '编辑后重试', exact: true}).click()
         await expect(page.getByRole('button', { name: '取消编辑' })).toBeVisible()
       }
       await page.evaluate(async () => {
@@ -137,11 +138,23 @@ try {
         return {
           controls: rect('.creation-controls'), composer: rect('.composer'), results: rect('.results'),
           viewport: innerWidth, documentWidth: document.documentElement.scrollWidth,
-          clippedPrompts: [...document.querySelectorAll('.task-prompt')].filter(node => node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1).length,
+          clippedPrompts: [...document.querySelectorAll('.task-prompt')].filter(node => node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1).map(node => ({text: node.textContent, clamp: getComputedStyle(node).webkitLineClamp, height: node.clientHeight, lineHeight: parseFloat(getComputedStyle(node).lineHeight)})),
         }
       })
       expect(geometry.documentWidth, `${state}/${viewport.name} horizontal overflow`).toBeLessThanOrEqual(geometry.viewport)
-      expect(geometry.clippedPrompts, `${state}/${viewport.name} clipped task description`).toBe(0)
+      // Gallery summaries intentionally use two lines. Verify the complete text
+      // is accessible via the real detail flow rather than hiding lost content.
+      for (const prompt of geometry.clippedPrompts) {
+        expect(prompt.clamp, `${state}/${viewport.name} summary clamp`).toBe('2')
+        expect(prompt.height).toBeLessThanOrEqual(prompt.lineHeight * 2 + 1)
+        await page.locator('.task').filter({has: page.locator('.task-prompt', {hasText: prompt.text})}).getByRole('button', {name: '查看详情'}).click()
+        const detail = page.getByRole('dialog', {name: '任务详情', exact: true})
+        await expect(detail.locator('.detail-prompt')).toBeVisible()
+        await expect(detail.locator('.detail-prompt')).toHaveText(prompt.text)
+        expect(await detail.locator('.detail-prompt').evaluate(node => node.scrollHeight <= node.clientHeight + 1 && node.scrollWidth <= node.clientWidth + 1)).toBe(true)
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+        await detail.getByRole('button', {name: '关闭详情'}).click()
+      }
       if (viewport.width > 1150) {
         expect(Math.abs(geometry.controls.top - geometry.results.top), `${state}/${viewport.name} column tops`).toBeLessThanOrEqual(1)
         expect(geometry.controls.right, `${state}/${viewport.name} column overlap`).toBeLessThanOrEqual(geometry.results.left)
