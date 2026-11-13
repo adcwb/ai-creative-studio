@@ -67,7 +67,15 @@ func (r *ModelRuntime) executeGateway(ctx context.Context, q RuntimeSelection, d
 	guardRuntimeClient(client, ctx, guard, onDispatch)
 	setRuntimeReadOnly(client, func(req *http.Request) bool {
 		id := executionRecoveryUpstream(req.Context())
-		return id != "" && gatewayVideoID.MatchString(id) && req.Method == http.MethodGet && req.URL.Host == origin.Host && req.URL.Scheme == origin.Scheme && req.URL.RawQuery == "" && (req.URL.Path == origin.Path+"/videos/"+id || req.URL.Path == origin.Path+"/videos/"+id+"/content")
+		if id == "" || !gatewayVideoID.MatchString(id) || req.Method != http.MethodGet || req.ContentLength != 0 || req.URL.Host != origin.Host || req.URL.Scheme != origin.Scheme || req.URL.RawQuery != "" || req.URL.User != nil || req.URL.RawPath != "" || req.URL.Fragment != "" {
+			return false
+		}
+		// Bailian recovers the acknowledged task through its native task route;
+		// it must not inherit the OpenAI /videos recovery paths.
+		if gatewayVendor(g.Gateway.Vendor) == gatewayBailian {
+			return req.URL.Path == origin.Path+"/tasks/"+id
+		}
+		return req.URL.Path == origin.Path+"/videos/"+id || req.URL.Path == origin.Path+"/videos/"+id+"/content"
 	})
 	api := newCreativeProvider(string(secret), g.Gateway.BaseURL, client)
 	api.SetModels(m.Model, m.Model, m.Model)

@@ -85,7 +85,7 @@ func WithDiagnostics(next http.Handler) http.Handler {
 		}
 		ctx, span := tracing.Start(ctx, "http.server", tracing.Attributes{Method: r.Method})
 		defer span.End("error")
-		ctx = context.WithValue(ctx, diagnosticKey{}, &requestDiagnostic{id: id, span: span})
+		ctx = context.WithValue(ctx, diagnosticKey{}, &requestDiagnostic{id: id, span: span, route: gatewayManagementRoute(r.URL.Path)})
 		r = r.WithContext(ctx)
 		w.Header().Set("X-Request-ID", id)
 		w.Header().Set("X-Correlation-ID", diagnostics.Correlation(ctx))
@@ -141,8 +141,20 @@ func WithDiagnostics(next http.Handler) http.Handler {
 				state, _ := ctx.Value(diagnosticKey{}).(*requestDiagnostic)
 				state.mu.Lock()
 				route := state.route
+				var upstream *diagnostics.Upstream
+				if state.upstream != nil {
+					copy := *state.upstream
+					upstream = &copy
+				}
 				state.mu.Unlock()
-				slog.Log(ctx, level, "HTTP operation failed", "event", "http_error", "request_id", id, "correlation_id", diagnostics.Correlation(ctx), "http_method", method, "route", route, "http_status", status, "error_code", diagnostics.SafeCode(code), "category", d.Category, "cause_known", d.CauseKnown, "duration_ms", time.Since(start).Milliseconds())
+				if route == "" {
+					route = "unmatched"
+				}
+				fields := []any{"event", "http_error", "request_id", id, "correlation_id", diagnostics.Correlation(ctx), "http_method", method, "route", route, "http_status", status, "error_code", diagnostics.SafeCode(code), "category", d.Category, "cause_known", d.CauseKnown, "duration_ms", time.Since(start).Milliseconds()}
+				if upstream != nil {
+					fields = append(fields, "upstream_http_status", upstream.HTTPStatus, "upstream_error_code", diagnostics.SafeUpstreamCode(upstream.Code), "upstream_request_id", diagnostics.SafeID(upstream.RequestID))
+				}
+				slog.Log(ctx, level, "HTTP operation failed", fields...)
 			}
 		}()
 		next.ServeHTTP(out, r)

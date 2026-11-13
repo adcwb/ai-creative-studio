@@ -40,9 +40,9 @@
 
 选择厂商“阿里云百炼”，服务地址填写账号及地域对应的 `/api/v1` 地址。例如 Token Plan 为 `https://token-plan.cn-beijing.maas.aliyuncs.com/api/v1`；普通百炼可使用业务空间域名或 `https://dashscope.aliyuncs.com/api/v1`。根地址及 `/compatible-mode/v1` 输入会规范化为 `/api/v1`。修改已有网关的实际地址须重新输入凭据；不要将普通百炼和套餐凭据混用。
 
-| 能力 | 百炼原生路径（相对于 /api/v1） |
+| 能力 | 百炼接口（媒体路径相对于 /api/v1） |
 | --- | --- |
-| 目录及连接检查 | `GET /models?page_no=…&page_size=100`，分页读取 `output.models` |
+| 目录及连接检查 | 从保存的 `/api/v1` 派生同源 `/compatible-mode/v1/models`，无分页参数，读取 `data[].id` |
 | 文本、剧本、分镜、连续性检查 | 同源 `/compatible-mode/v1/chat/completions`；按模型配置可使用 Responses |
 | 视觉理解、图像生成及参考图编辑 | `POST /services/aigc/multimodal-generation/generation` |
 | 文生视频 | `POST /services/aigc/video-generation/video-synthesis`，带 `X-DashScope-Async: enable` |
@@ -52,7 +52,7 @@
 
 图片通过 `input.messages` 与 `parameters` 提交，尺寸使用 `*`，只接收单张输出并通过现有安全下载器保存为 PNG。图像遮罩、参考视频生成和字幕时间戳未适配，明确拒绝，不伪造结果或改走 OpenAI。模型实际支持的参数、音色和输入限制以该模型官方文档为准；Chat Completions 使用 `max_tokens`，JSON 模式会关闭思考，强制思考模型请关闭 JSON 模式并验证结构化回答。
 
-Token Plan 文本按官方兼容接口实现。套餐域名对原生目录的权限尚未真实验证；目录不可用时可手工添加模型，但不代表生成已验证。测试使用本地合成上游，不证明真实账号权限、费用或模型效果。
+Token Plan 文本和模型目录使用兼容接口，媒体使用原生接口。2026-11-13 用户实测确认 `/compatible-mode/v1/models` 可用，而 `/api/v1/models?page_no=1&page_size=100` 返回 404，因此目录检查不再请求原生目录或携带分页参数。无需修改已保存的 `/api/v1` 地址或重新设置凭据。目录同步不代表生成已验证；本地合成上游测试不证明真实账号权限、费用或模型效果。
 
 ### Token Plan 图像生成报 provider_rejected
 
@@ -68,7 +68,29 @@ Token Plan 文本按官方兼容接口实现。套餐域名对原生目录的权
 
 最新排查证据和限制见 [2026-11-12 百炼图像调查](superpowers/specs/2026-11-12-bailian-image-diagnosis.md)。
 
-协议依据：[原生模型目录](https://help.aliyun.com/zh/model-studio/list-models)、[原生文本 API](https://help.aliyun.com/zh/model-studio/qwen-api-via-dashscope)、[Token Plan 多模态接口](https://help.aliyun.com/zh/model-studio/token-plan-integration-overview)。
+协议依据：[原生文本 API](https://help.aliyun.com/zh/model-studio/qwen-api-via-dashscope)、[Token Plan 多模态接口](https://help.aliyun.com/zh/model-studio/token-plan-integration-overview)。目录地址采用上述用户实测可用的兼容接口。
+
+### 2026-11-13 地址核对与回归
+
+以下为相对于网关域名的路径；配置经过代理时保留代理前缀，所有请求仍限定同源。目录路径依据用户的 Token Plan 实测，其余路径按下列官方文档核对。
+
+| 调用 | 方法与路径 | 依据 |
+| --- | --- | --- |
+| 模型目录 | `GET /compatible-mode/v1/models` | 用户实测成功；解析 `data[].id` |
+| 文本、剧本、分镜、连续性检查 | `POST /compatible-mode/v1/chat/completions` | [Chat Completions](https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions) |
+| 显式选择 Responses 的文本模型 | `POST /compatible-mode/v1/responses` | [Responses](https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-responses)；依赖所选模型支持 |
+| 视觉理解 | `POST /api/v1/services/aigc/multimodal-generation/generation` | [百炼视觉 API](https://help.aliyun.com/zh/model-studio/vision)；该文档示例使用业务空间域名，不能单凭路径相同证明每个 Token Plan 模型权限 |
+| 图片生成、参考图编辑 | `POST /api/v1/services/aigc/multimodal-generation/generation` | [Token Plan 图片接口](https://help.aliyun.com/zh/model-studio/token-plan-image-generation) |
+| 视频提交 | `POST /api/v1/services/aigc/video-generation/video-synthesis` | [Token Plan 视频接口](https://help.aliyun.com/zh/model-studio/token-plan-video-generation)；只在提交时发送 `X-DashScope-Async: enable` |
+| 视频轮询及恢复 | `GET /api/v1/tasks/{task_id}` | 同上；下载使用查询结果中的 `video_url`，经过独立下载校验 |
+| 语音合成 | `POST /api/v1/services/audio/tts/SpeechSynthesizer` | [Token Plan 语音合成](https://help.aliyun.com/zh/model-studio/token-plan-speech-synthesis)；下载使用 `output.audio.url` |
+| 语音识别 | `POST /api/v1/services/aigc/multimodal-generation/generation` | [Token Plan 语音识别](https://help.aliyun.com/zh/model-studio/token-plan-speech-recognition) |
+
+`POST /compatible-mode/v1/responses/input_tokens` 是现有显式输入计数选项使用的路径，本次未找到百炼官方支持该端点的依据，不能当作百炼默认能力。它仅在管理员启用 `native_input_counting` 时调用；计数不可用会停止后续生成，不改用其他协议。地址与序列化回归通过也不能证明真实账号对每种模型、参数或套餐均有权限。
+
+本次另外修复了视频恢复白名单：百炼只允许查询已持久化任务的 `/api/v1/tasks/{task_id}`，通用网关继续使用其 `/videos/{id}` 路径；不允许恢复流程生成新任务、查询其他任务或附加查询参数。
+
+验证：Go 1.25.3 编译 Linux application 测试程序，在 WSL 执行 40 项顶层定向测试全部通过（包含普通路径与代理前缀的 18 组运行时地址、视频恢复、目录同步、错误日志关联和脱敏）；application 包的 `go vet` 通过。真实模型调用与生产部署未执行。
 
 ## 部署准备
 

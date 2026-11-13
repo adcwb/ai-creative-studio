@@ -125,6 +125,9 @@ func (p *OpenAICreativeProvider) request(ctx context.Context, method, path strin
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		// Parse a bounded failure envelope for capacity and safe upstream metadata,
+		// including 404/auth/rate-limit responses. Never expose vendor prose.
+		raw, _ := io.ReadAll(io.LimitReader(response.Body, (64<<10)+1))
 		code := "provider_error"
 		switch response.StatusCode {
 		case 401, 403:
@@ -134,8 +137,7 @@ func (p *OpenAICreativeProvider) request(ctx context.Context, method, path strin
 		case 400, 404, 413, 422:
 			code = "provider_rejected"
 			if response.StatusCode != 404 && (path == "/chat/completions" || path == "/responses" || path == "/responses/input_tokens") {
-				raw, _ := io.ReadAll(io.LimitReader(response.Body, 16<<10))
-				if nativeCapacityError(raw) {
+				if len(raw) <= 16<<10 && nativeCapacityError(raw) {
 					code = "provider_input_capacity"
 				}
 			}

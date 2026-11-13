@@ -67,23 +67,93 @@ func TestGatewayVendorPersistenceAndCompatibility(t *testing.T) {
 	}
 }
 
-func TestBailianNativeCatalogPagination(t *testing.T) {
-	calls := 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls++
-		if r.URL.Path != "/api/v1/models" || r.Header.Get("Authorization") != "Bearer synthetic" || r.URL.Query().Get("page_size") != "100" {
-			t.Error("wrong native catalog request", r.URL)
-		}
-		if r.URL.Query().Get("page_no") == "1" {
-			fmt.Fprint(w, `{"output":{"total":2,"models":[{"model":"wan2.7-image"}]}}`)
-		} else {
-			fmt.Fprint(w, `{"output":{"total":2,"models":[{"model":"qwen3.8-max"}]}}`)
-		}
-	}))
-	defer srv.Close()
-	result := checkBailianCatalog(context.Background(), srv.Client(), srv.URL+"/api/v1", "synthetic")
-	if result["reachable"] != true || len(result["models"].([]string)) != 2 || calls != 2 || result["generation_verified"] != false {
-		t.Fatal(result, calls)
+// The Token Plan regression: native /api/v1/models returns 404 while the
+// compatible catalog succeeds. Exercise the saved vendor and encrypted key.
+func TestBailianCompatibleCatalogSync(t *testing.T) {
+	for _, prefix := range []string{"", "/proxy"} {
+		t.Run(prefix, func(t *testing.T) {
+			calls := 0
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				if r.Method != http.MethodGet || r.URL.Path != prefix+"/compatible-mode/v1/models" || r.URL.RawQuery != "" || r.Header.Get("Authorization") != "Bearer synthetic-gateway-key" {
+					t.Error("incorrect compatible catalog request", r.Method, r.URL)
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				fmt.Fprint(w, `{"data":[{"id":"wan2.7-image"},{"id":"qwen3.8-max"},{"id":"wan2.7-image"}]}`)
+			}))
+			defer srv.Close()
+			u, _ := url.Parse(srv.URL)
+			t.Setenv("MODEL_GATEWAY_ALLOWED_HOSTS", u.Host)
+			runtime, g, _ := gatewayFixture(t, srv.URL+prefix+"/api/v1")
+			s := runtime.auth.models
+			g.Vendor = gatewayBailian
+			report, err := s.saveGateway("tenant-a", g.Version, g, ModelCredentialInput{Action: "keep"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			g = report.Gateways[0]
+			result, err := s.syncGatewayModels(context.Background(), "tenant-a", g.ID, g.Version)
+			if err != nil || result.Added != 2 || len(result.Report.Models) != 3 || calls != 1 {
+				t.Fatal("compatible catalog sync failed", result, calls, err)
+			}
+			if result.Report.Gateways[0].BaseURL != srv.URL+prefix+"/api/v1" {
+				t.Fatal("catalog discovery changed the media endpoint")
+			}
+			for _, model := range result.Report.Models {
+				if (model.Model == "wan2.7-image" || model.Model == "qwen3.8-max") && (!model.Pending || model.Enabled || len(model.Capabilities) != 0) {
+					t.Fatal("catalog discovery claimed generation capability", model)
+				}
+			}
+		})
+	}
+}
+
+// Invalid catalogs and upstream rejections must preserve the existing models
+// and make exactly one request, without falling back to the native endpoint.
+func TestBailianCompatibleCatalogFailurePreservesModels(t *testing.T) {
+	for _, spec := range []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{"not_found", 404, `{"code":"NotFound"}`},
+		{"unauthorized", 401, `{"code":"InvalidApiKey"}`},
+		{"invalid_json", 200, `not-json`},
+		{"missing_data", 200, `{}`},
+		{"null_data", 200, `{"data":null}`},
+		{"native_shape", 200, `{"output":{"total":1,"models":[{"model":"wan2.7-image"}]}}`},
+		{"partial_invalid", 200, `{"data":[{"id":"wan2.7-image"},{"id":"bad model"}]}`},
+	} {
+		t.Run(spec.name, func(t *testing.T) {
+			calls := 0
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				if r.URL.Path != "/compatible-mode/v1/models" || r.URL.RawQuery != "" {
+					t.Error("incorrect catalog endpoint", r.URL)
+				}
+				w.WriteHeader(spec.status)
+				fmt.Fprint(w, spec.body)
+			}))
+			defer srv.Close()
+			u, _ := url.Parse(srv.URL)
+			t.Setenv("MODEL_GATEWAY_ALLOWED_HOSTS", u.Host)
+			runtime, g, original := gatewayFixture(t, srv.URL+"/api/v1")
+			s := runtime.auth.models
+			g.Vendor = gatewayBailian
+			report, err := s.saveGateway("tenant-a", g.Version, g, ModelCredentialInput{Action: "keep"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			g = report.Gateways[0]
+			if _, err := s.syncGatewayModels(context.Background(), "tenant-a", g.ID, g.Version); !errors.Is(err, errGatewayCatalog) {
+				t.Fatal("invalid catalog accepted", err)
+			}
+			report, err = s.managementReport("tenant-a")
+			if err != nil || len(report.Models) != 1 || report.Models[0].ID != original.ID || report.Gateways[0].SyncError != "gateway_catalog_unavailable" || calls != 1 {
+				t.Fatal("failed sync changed models or retried", report, calls, err)
+			}
+		})
 	}
 }
 

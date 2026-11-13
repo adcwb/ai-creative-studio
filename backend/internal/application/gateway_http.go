@@ -13,6 +13,40 @@ func gatewayManagementPath(path string) bool {
 	}
 	return false
 }
+
+// Auth handles these routes before the main mux. Return only fixed templates,
+// never tenant/model identifiers or arbitrary path fragments supplied by callers.
+func gatewayManagementRoute(path string) string {
+	for _, route := range []string{"/api/v1/model-management", "/api/v1/ai-gateways", "/api/v1/gateway-models", "/api/v1/model-features", "/api/v1/model-usage", "/api/v1/model-usage/calls"} {
+		if path == route {
+			return route
+		}
+	}
+	parts := strings.Split(strings.TrimPrefix(path, "/api/v1/"), "/")
+	if !strings.HasPrefix(path, "/api/v1/") || len(parts) < 2 || parts[1] == "" {
+		return ""
+	}
+	if len(parts) == 2 {
+		switch parts[0] {
+		case "ai-gateways":
+			return "/api/v1/ai-gateways/{id}"
+		case "gateway-models":
+			return "/api/v1/gateway-models/{id}"
+		case "model-features":
+			return "/api/v1/model-features/{key}"
+		}
+	}
+	if len(parts) == 3 && parts[0] == "ai-gateways" {
+		switch parts[2] {
+		case "check":
+			return "/api/v1/ai-gateways/{id}/check"
+		case "sync-models":
+			return "/api/v1/ai-gateways/{id}/sync-models"
+		}
+	}
+	return ""
+}
+
 func (s *ModelConfigStore) serveGatewayManagement(w http.ResponseWriter, r *http.Request, scope authScope) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/")
 	if path == "model-usage" || path == "model-usage/calls" {

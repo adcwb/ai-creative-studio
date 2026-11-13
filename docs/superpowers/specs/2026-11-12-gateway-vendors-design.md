@@ -8,9 +8,9 @@
 
 旧记录缺省按 OpenAI 兼容处理，旧客户端更新时省略字段保留原厂商。保存、报告、OpenAPI、表单和列表同步支持该字段。厂商变化递增网关版本，旧任务需重新选择配置。
 
-厂商决定整套接口。按用户最终要求，百炼文本 LLM 使用官方 OpenAI 兼容协议，由百炼适配器配置 `/compatible-mode/v1` 和 `max_tokens`；保留文本协议选项及显式配置的输入计数，不做失败回退。百炼接受域名根地址或 `/compatible-mode/v1`、`/api/v1` 地址，统一保存为 `/api/v1`，运行时派生同源文本地址。原生模型目录分页解析 `output.models`；视觉、图像与语音识别使用 multimodal-generation；语音合成使用 SpeechSynthesizer；视频使用 video-synthesis 和 tasks。
+厂商决定整套接口。按用户最终要求，百炼文本 LLM 使用官方 OpenAI 兼容协议，由百炼适配器配置 `/compatible-mode/v1` 和 `max_tokens`；保留文本协议选项及显式配置的输入计数，不做失败回退。百炼接受域名根地址或 `/compatible-mode/v1`、`/api/v1` 地址，统一保存为 `/api/v1`，运行时派生同源文本地址。模型目录使用同源 `/compatible-mode/v1/models`，无分页参数，复用 `data[].id` 解析；视觉、图像与语音识别使用 multimodal-generation；语音合成使用 SpeechSynthesizer；视频使用 video-synthesis 和 tasks。
 
-首批支持文生图、参考图编辑、文本、视觉、文生视频、WAV 语音合成、纯文本转写。不提供遮罩编辑、参考视频生成或字幕时间戳，相关调用明确拒绝。Token Plan 的原生模型目录权限尚无真实账号验证，不宣称全套餐模型可用。
+首批支持文生图、参考图编辑、文本、视觉、文生视频、WAV 语音合成、纯文本转写。不提供遮罩编辑、参考视频生成或字幕时间戳，相关调用明确拒绝。2026-11-13 用户实测 Token Plan 兼容目录成功、原生目录返回 404，修正了新增厂商分支误用目录路径的问题；目录可用不代表全套餐模型生成可用。
 
 保留凭据加密和地址变更时重新输入凭据的规则。请求限定在配置的同源 API 前缀，仅为百炼文本放行精确的兼容协议路径（chat/completions、responses、responses/input_tokens），不放宽整个域名。下载复用现有 SSRF、媒体解码及授权检查，不把 Token Plan 域名写死。用量记录沿用现有网关观测，并读取百炼 JSON 中的 request_id。
 

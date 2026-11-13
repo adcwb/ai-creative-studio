@@ -269,15 +269,18 @@ func (s *ModelConfigStore) checkGateway(ctx context.Context, tenant, id string, 
 	ctx, cancel := context.WithTimeout(ctx, 7*time.Second)
 	defer cancel()
 	client := newGatewayClient(g.Gateway)
+	endpoint := g.Gateway.BaseURL
 	if gatewayVendor(g.Gateway.Vendor) == gatewayBailian {
-		return checkBailianCatalog(ctx, client, g.Gateway.BaseURL, string(plain)), nil
+		// Bailian discovers models through the same compatible prefix as text.
+		// Keep the stored native prefix for media and preserve any proxy prefix.
+		endpoint = strings.TrimSuffix(endpoint, "/api/v1") + "/compatible-mode/v1"
 	}
-	req, e := http.NewRequestWithContext(ctx, "GET", g.Gateway.BaseURL+"/models", nil)
+	req, e := http.NewRequestWithContext(ctx, "GET", endpoint+"/models", nil)
 	if e != nil {
 		return nil, errModelInput
 	}
 	req.Header.Set("Authorization", "Bearer "+string(plain))
-	res, e := client.Do(req)
+	res, e := libraryGuardedRequest(client, req)
 	result := map[string]any{"reachable": false, "models": []string{}, "generation_verified": false, "checked_at": time.Now().UTC()}
 	if e != nil {
 		result["error_code"] = "gateway_connection_failed"
@@ -286,6 +289,9 @@ func (s *ModelConfigStore) checkGateway(ctx context.Context, tenant, id string, 
 	defer res.Body.Close()
 	result["http_status"] = res.StatusCode
 	if res.StatusCode != 200 {
+		// Consume only the bounded error envelope so status/code/request ID can
+		// accompany the failed check. The diagnostic observer never drains bodies.
+		_, _ = io.ReadAll(io.LimitReader(res.Body, (64<<10)+1))
 		result["error_code"] = "gateway_catalog_unavailable"
 		return result, nil
 	}

@@ -1,6 +1,6 @@
 package application
 
-// DashScope wire contracts are owned here, including catalog discovery. There is
+// DashScope media wire contracts are owned here. There is
 // no fallback to OpenAI endpoints on an upstream rejection.
 import (
 	"context"
@@ -8,9 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
-	"time"
 )
 
 const bailianMultimodal = "/services/aigc/multimodal-generation/generation"
@@ -110,56 +108,8 @@ func bailianAnswer(raw []byte) (string, error) {
 	return answer, nil
 }
 
-// Native catalog responses are paginated and have output.models rather than data.
-// Fail an incomplete catalog atomically instead of claiming partial sync success.
-func checkBailianCatalog(ctx context.Context, client *http.Client, endpoint, key string) map[string]any {
-	result := map[string]any{"reachable": false, "models": []string{}, "generation_verified": false, "checked_at": time.Now().UTC()}
-	p := bailianAPI{api: newCreativeProvider(key, endpoint, client)}
-	models := []string{}
-	seen := map[string]bool{}
-	for page := 1; page <= 100; page++ {
-		raw, err := p.request(ctx, http.MethodGet, "/models?page_no="+strconv.Itoa(page)+"&page_size=100", nil, 1<<20)
-		if err != nil {
-			result["error_code"] = "gateway_catalog_unavailable"
-			return result
-		}
-		var env struct {
-			Output struct {
-				Total  *int `json:"total"`
-				Models *[]struct {
-					Model string `json:"model"`
-				} `json:"models"`
-			} `json:"output"`
-		}
-		if json.Unmarshal(raw, &env) != nil || env.Output.Total == nil || *env.Output.Total < 0 || *env.Output.Total > 10000 || env.Output.Models == nil {
-			result["error_code"] = "invalid_gateway_catalog"
-			return result
-		}
-		before := len(models)
-		for _, m := range *env.Output.Models {
-			if !validGatewayModelID(m.Model) {
-				result["error_code"] = "invalid_gateway_catalog"
-				return result
-			}
-			if !seen[m.Model] {
-				models = append(models, m.Model)
-				seen[m.Model] = true
-			}
-		}
-		if len(models) == *env.Output.Total {
-			result["models"], result["reachable"], result["http_status"] = models, true, 200
-			return result
-		}
-		if len(models) == before || len(models) > *env.Output.Total {
-			break
-		}
-	}
-	result["error_code"] = "invalid_gateway_catalog"
-	return result
-}
-
 // The vendor chooses every protocol: Bailian LLMs use its documented OpenAI
-// compatibility endpoint; media and catalog use DashScope native endpoints.
+// compatibility endpoint, as does catalog discovery; media uses native endpoints.
 func newBailianRuntimeProviders(api *OpenAICreativeProvider, model GatewayModel, q RuntimeSelection, imageDownload, videoDownload, audioDownload func(context.Context, string, io.Writer) error) RuntimeProviders {
 	wire := &bailianAPI{api: api, model: model}
 	p := &bailianCreativeProvider{OpenAICreativeProvider: api, wire: wire, voice: q.Voice, videoDownload: videoDownload, audioDownload: audioDownload}
