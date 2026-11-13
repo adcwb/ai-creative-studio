@@ -19,7 +19,13 @@ test('canvas persists dragging and revisions, then pauses for a real human befor
   const node=page.locator('.react-flow__node[data-id="source"]');const b=await node.boundingBox();expect(b).not.toBeNull();await page.mouse.move(b!.x+80,b!.y+30);await page.mouse.down();await page.mouse.move(b!.x+140,b!.y+70,{steps:8});await page.mouse.up();await expect(page.getByRole('button',{name:'运行已保存流程',exact:true})).toBeDisabled();const update=page.waitForResponse(r=>r.url().includes(`/workflows/${saved.id}?`)&&r.request().method()==='PUT');await page.getByRole('button',{name:'保存流程修订',exact:true}).click();await update
   const detail=await(await page.request.get(api+`/projects/${f.project.id}/workflows/${saved.id}`+f.query)).json();expect(detail.version).toBe(2);expect(detail.revision.graph.nodes.find((n:{id:string})=>n.id==='source').x).not.toBe(20)
  }
- await page.reload();await expect(page.getByRole('textbox',{name:'流程名称',exact:true})).toHaveValue('固定素材先审后用');await page.screenshot({path:`/tmp/canvas-${info.project.name}.png`,fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);expect((await page.getByRole('textbox',{name:'流程名称',exact:true}).boundingBox())!.width).toBeGreaterThan(180)
+ const beforeZoom=await page.locator('.react-flow__viewport').evaluate(e=>new DOMMatrix(getComputedStyle(e).transform).a)
+ await page.getByRole('button',{name:'放大画布',exact:true}).click()
+ await expect.poll(()=>page.locator('.react-flow__viewport').evaluate(e=>new DOMMatrix(getComputedStyle(e).transform).a)).toBeGreaterThan(beforeZoom)
+ const viewSave=page.waitForResponse(r=>r.url().includes(`/workflows/${saved.id}?`)&&r.request().method()==='PUT');await page.getByRole('button',{name:'保存流程修订',exact:true}).click();await viewSave
+ const viewDetail=await(await page.request.get(api+`/projects/${f.project.id}/workflows/${saved.id}`+f.query)).json();expect(viewDetail.revision.graph.viewport.zoom).toBeGreaterThan(beforeZoom)
+ await page.reload();await expect.poll(()=>page.locator('.react-flow__viewport').evaluate(e=>new DOMMatrix(getComputedStyle(e).transform).a)).toBeCloseTo(viewDetail.revision.graph.viewport.zoom,3)
+ await expect(page.getByRole('textbox',{name:'流程名称',exact:true})).toHaveValue('固定素材先审后用');await page.screenshot({path:`/tmp/canvas-${info.project.name}.png`,fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);expect((await page.getByRole('textbox',{name:'流程名称',exact:true}).boundingBox())!.width).toBeGreaterThan(180)
  if(info.project.name==='desktop'){for(const theme of ['paper','screening','forest']){await page.evaluate(({user,theme})=>localStorage.setItem('studio.preferences.v1:'+encodeURIComponent(user),theme),{user:f.session.user.id,theme});await page.reload();await expect(page.locator('.user-workspace')).toHaveAttribute('data-theme',theme);await expect(page.locator('.workflow-node').first()).toBeVisible();await page.screenshot({path:`/tmp/canvas-${theme}-desktop.png`,fullPage:true})}}
  const starting=page.waitForResponse(r=>r.url().includes(`/workflows/${saved.id}/runs?`)&&r.request().method()==='POST');await page.getByRole('button',{name:'运行已保存流程',exact:true}).click();const run=await(await starting).json()
  await expect(page.locator('.workflow-run>p[role=status]')).toContainText('等待人工选择');let state=await(await page.request.get(api+`/projects/${f.project.id}/workflow-runs/${run.id}`+f.query)).json();expect(state.nodes.output.status).toBe('queued');await page.reload();await expect(page.locator('.workflow-run>p[role=status]')).toContainText('等待人工选择')
@@ -32,14 +38,14 @@ test('saved model graph creates one real gateway job and reconciles a lost run r
  const g=await f.write('/ai-gateways',{expected_version:0,gateway:{name:'Canvas gateway',base_url:upstream+'/v1',enabled:true,timeout_seconds:30},credential:{action:'set',secret:'synthetic-key-A'}})
  const models=await f.write('/gateway-models',{expected_version:0,model:{gateway_id:g.gateways[0].id,name:'Canvas image',model:'synthetic-image',capabilities:['image'],enabled:true,max_output_tokens:512,json_output:true}}),model=models.models[0]
  await f.write('/model-features/image_generation',{expected_version:0,binding:{feature_key:'image_generation',model_config_id:model.id,enabled:true,allow_override:true}},'PUT')
- const graph={nodes:[{id:'text',kind:'text',label:'描述',x:0,y:0,text:'Synthetic canvas real gateway image'},{id:'image',kind:'image',label:'真实图像',x:240,y:0,model_config_id:model.id,model_config_version:model.version,ratio:'9:16'},{id:'review',kind:'review',label:'选择素材',x:480,y:0},{id:'output',kind:'output',label:'输出',x:720,y:0}],edges:[{source:'text',target:'image',input:'prompt'},{source:'image',target:'review',input:'media'},{source:'review',target:'output',input:'media'}]}
+ const graph={nodes:[{id:'text',kind:'text',label:'描述',x:0,y:0,text:'Synthetic canvas real gateway image {{not_expanded}}'},{id:'template',kind:'template',label:'文案模板',x:120,y:0,text:'Poster: {{input}}'},{id:'image',kind:'image',label:'真实图像',x:240,y:0,model_config_id:model.id,model_config_version:model.version,ratio:'9:16'},{id:'review',kind:'review',label:'选择素材',x:480,y:0},{id:'output',kind:'output',label:'输出',x:720,y:0}],edges:[{source:'text',target:'template',input:'prompt'},{source:'template',target:'image',input:'prompt'},{source:'image',target:'review',input:'media'},{source:'review',target:'output',input:'media'}]}
  const saved=await f.write(`/projects/${f.project.id}/workflows`,{name:'图像真实网关',expected_version:0,graph}),before=await(await request.get(upstream+'/__state')).json()
  await page.goto(`/workflows/${f.project.id}`);await page.getByRole('combobox',{name:'已保存流程',exact:true}).selectOption(saved.id);await expect(page.getByRole('button',{name:'运行已保存流程',exact:true})).toBeEnabled()
  let id='',key='',body:unknown;await page.route('**/workflows/*/runs?*',async route=>{key=route.request().headers()['idempotency-key'];body=route.request().postDataJSON();const r=await route.fetch();expect(r.status()).toBe(200);id=(await r.json()).id;await route.abort('failed')},{times:1})
  await page.getByRole('button',{name:'运行已保存流程',exact:true}).click();await expect(page.getByRole('button',{name:'核对原流程运行请求',exact:true})).toBeVisible();await page.reload();const recovery=page.waitForResponse(r=>r.url().includes(`/workflows/${saved.id}/runs?`)&&r.request().method()==='POST');await page.getByRole('button',{name:'核对原流程运行请求',exact:true}).click();const recovered=await recovery;expect(recovered.request().headers()['idempotency-key']).toBe(key);expect(recovered.request().postDataJSON()).toEqual(body);expect((await recovered.json()).id).toBe(id)
  await expect(page.locator('.workflow-run>p[role=status]')).toContainText('等待人工选择')
  const current=await(await page.request.get(api+`/projects/${f.project.id}/workflow-runs/${id}`+f.query)).json();expect(current.nodes.image.job_id).toBeTruthy();expect(current.nodes.image.result.asset_kind).toBe('image');expect(current.nodes.output.status).toBe('queued')
- const jobs=await(await page.request.get(api+`/projects/${f.project.id}/creative-jobs`+f.query)).json();expect(jobs).toHaveLength(1);expect(jobs[0].provider).toBe('gateway-images');expect(jobs[0].prompt).toBe('Synthetic canvas real gateway image');expect((await(await request.get(upstream+'/__state')).json()).calls).toBe(before.calls+1)
+ const jobs=await(await page.request.get(api+`/projects/${f.project.id}/creative-jobs`+f.query)).json();expect(jobs).toHaveLength(1);expect(jobs[0].provider).toBe('gateway-images');expect(jobs[0].prompt).toBe('Poster: Synthetic canvas real gateway image {{not_expanded}}');expect((await(await request.get(upstream+'/__state')).json()).calls).toBe(before.calls+1)
  await page.getByRole('checkbox',{name:'我已检查此素材，继续后续步骤',exact:true}).check();await page.getByRole('button',{name:'确认采用并继续',exact:true}).click();await expect(page.locator('.workflow-run>p[role=status]')).toContainText('已完成');expect((await(await request.get(upstream+'/__state')).json()).calls).toBe(before.calls+1)
 })
 
@@ -57,4 +63,48 @@ test('speech steps route authorized copy and voice to the real speech protocol b
  await expect(page.locator('.workflow-run audio')).toHaveCount(2)
  await page.getByRole('checkbox',{name:'我已检查此素材，继续后续步骤',exact:true}).check();await page.getByRole('button',{name:'确认采用并继续',exact:true}).click();await expect(page.locator('.workflow-run>p[role=status]')).toContainText('已完成')
  expect((await(await request.get(upstream+'/__state')).json()).requests).toHaveLength(before+1)
+})
+
+test('video graph submits once, polls its durable upstream task and exposes decoded media for human review',async({page,request})=>{
+ const f=await fixture(page)
+ const gateways=await f.write('/ai-gateways',{expected_version:0,gateway:{name:'Canvas video',base_url:upstream+'/v1',enabled:true,timeout_seconds:30},credential:{action:'set',secret:'synthetic-key-A'}})
+ const models=await f.write('/gateway-models',{expected_version:0,model:{gateway_id:gateways.gateways[0].id,name:'Video only',model:'synthetic-video',capabilities:['video'],enabled:true,max_output_tokens:512,video_seconds:4,video_size:'720x1280'}}),model=models.models[0]
+ await f.write('/model-features/shot_video',{expected_version:0,binding:{feature_key:'shot_video',model_config_id:model.id,enabled:true,allow_override:true}},'PUT')
+ const graph={nodes:[{id:'text',kind:'text',label:'镜头描述',x:0,y:0,text:'Synthetic video: hold on the closed door.'},{id:'video',kind:'video',label:'视频',x:240,y:0,model_config_id:model.id,model_config_version:model.version},{id:'review',kind:'review',label:'审片',x:480,y:0},{id:'output',kind:'output',label:'输出',x:720,y:0}],edges:[{source:'text',target:'video',input:'prompt'},{source:'video',target:'review',input:'media'},{source:'review',target:'output',input:'media'}]}
+ const saved=await f.write(`/projects/${f.project.id}/workflows`,{name:'视频异步任务到审片',expected_version:0,graph}),before=(await(await request.get(upstream+'/__state')).json()).requests.length
+ await page.goto(`/workflows/${f.project.id}`);await page.getByRole('combobox',{name:'已保存流程',exact:true}).selectOption(saved.id)
+ await page.getByRole('button',{name:'运行已保存流程',exact:true}).click();await expect(page.locator('.workflow-run>p[role=status]')).toContainText('等待人工选择')
+ const sent=(await(await request.get(upstream+'/__state')).json()).requests.slice(before)
+ expect(sent.filter((r:{path:string})=>r.path==='/v1/videos')).toHaveLength(1)
+ expect(sent.find((r:{path:string})=>r.path==='/v1/videos')).toMatchObject({body:{model:'synthetic-video',prompt:'Synthetic video: hold on the closed door.',seconds:'4',size:'720x1280'}})
+ expect(sent.filter((r:{path:string})=>r.path==='/v1/videos/canvas-video').length).toBeGreaterThan(0)
+ expect(sent.some((r:{path:string})=>r.path==='/v1/videos/canvas-video/content')).toBe(true)
+ const jobs=await(await page.request.get(api+`/projects/${f.project.id}/creative-jobs`+f.query)).json();expect(jobs).toHaveLength(1);expect(jobs[0]).toMatchObject({kind:'video',status:'succeeded',upstream_id:'canvas-video'})
+ const player=page.locator('.workflow-run video').first();await expect(player).toBeVisible();await expect.poll(()=>player.evaluate((v:HTMLVideoElement)=>v.readyState)).toBeGreaterThanOrEqual(1);expect(await player.evaluate((v:HTMLVideoElement)=>v.duration)).toBeCloseTo(2,1)
+ await page.reload();await expect(page.locator('.workflow-run>p[role=status]')).toContainText('等待人工选择');await page.getByRole('checkbox',{name:'我已检查此素材，继续后续步骤',exact:true}).check();await page.getByRole('button',{name:'确认采用并继续',exact:true}).click();await expect(page.locator('.workflow-run>p[role=status]')).toContainText('已完成')
+ expect((await(await request.get(upstream+'/__state')).json()).requests.slice(before).filter((r:{path:string})=>r.path==='/v1/videos')).toHaveLength(1)
+})
+
+test('creators add and connect a literal copy template from the canvas controls',async({page},info)=>{
+ const f=await fixture(page)
+ if(info.project.name==='desktop')await page.setViewportSize({width:1920,height:1080})
+ await page.goto(`/workflows/${f.project.id}`)
+ await page.getByRole('combobox',{name:'步骤类型',exact:true}).selectOption('template')
+ await page.getByRole('button',{name:'添加步骤',exact:true}).click()
+ const panel=page.getByRole('complementary',{name:'步骤设置',exact:true})
+ await panel.getByRole('textbox',{name:'步骤名称',exact:true}).fill('海报文案')
+ await panel.getByRole('textbox',{name:'描述与文案',exact:true}).fill('海报主体：{{input}}。保留右上角标题空间。')
+ await expect(panel.getByText('使用 {{input}} 插入上一步文案，按原文替换，不执行表达式。',{exact:true})).toBeVisible()
+ await panel.getByRole('combobox',{name:'来源步骤',exact:true}).selectOption('description')
+ await panel.getByRole('button',{name:'连接到此步骤',exact:true}).click()
+ await page.getByRole('textbox',{name:'流程名称',exact:true}).fill('海报模板草稿')
+ const saving=page.waitForResponse(r=>r.url().includes('/workflows?')&&r.request().method()==='POST')
+ await page.getByRole('button',{name:'保存流程修订',exact:true}).click();const saved=await(await saving).json()
+ const detail=await(await page.request.get(api+`/projects/${f.project.id}/workflows/${saved.id}`+f.query)).json(),step=detail.revision.graph.nodes.find((n:{kind:string})=>n.kind==='template')
+ expect(step.text).toBe('海报主体：{{input}}。保留右上角标题空间。')
+ expect(detail.revision.graph.edges).toContainEqual({source:'description',target:step.id,input:'prompt'})
+ await page.reload();await page.locator('.workflow-step-list summary').click();await page.locator('.workflow-step-list').getByRole('button',{name:'海报文案',exact:true}).click()
+ await expect(panel.getByRole('textbox',{name:'描述与文案',exact:true})).toHaveValue(step.text)
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true)
+ await page.screenshot({path:`/tmp/canvas-template-editor-${info.project.name}.png`,fullPage:true})
 })

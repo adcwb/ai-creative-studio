@@ -54,3 +54,37 @@ func TestTypedGraphPlanAndFailureBoundaries(t *testing.T) {
 		t.Fatal("arbitrary execution node")
 	}
 }
+
+func TestSavedViewportRejectsCorruptCoordinates(t *testing.T) {
+	for _, v := range []Viewport{{X: math.Inf(1), Zoom: 1}, {Y: math.NaN(), Zoom: 1}, {Zoom: 0}, {Zoom: 2.1}, {Zoom: math.NaN()}} {
+		g := fixture()
+		g.Viewport = &v
+		if _, err := Validate(g, false); err == nil {
+			t.Fatal("invalid viewport accepted", v)
+		}
+	}
+	g := fixture()
+	g.Viewport = &Viewport{X: -120, Y: 40, Zoom: .7}
+	if _, err := Validate(g, true); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTemplateNodeUsesTypedLiteralTextAndRequiresInput(t *testing.T) {
+	g := fixture()
+	g.Nodes = append(g.Nodes, Node{ID: "template", Kind: "template", Text: "Poster: {{input}}"})
+	g.Edges[0] = Edge{Source: "template", Target: "image", Input: "prompt"}
+	g.Edges = append(g.Edges, Edge{Source: "text", Target: "template", Input: "prompt"})
+	if _, err := Validate(g, true); err != nil {
+		t.Fatal(err)
+	}
+	g.Nodes[len(g.Nodes)-1].Text = "{{input.secret}}"
+	if _, err := Validate(g, false); err == nil {
+		t.Fatal("expression accepted")
+	}
+	g.Nodes[len(g.Nodes)-1].Text = "{{input}}"
+	g.Edges = g.Edges[:len(g.Edges)-1]
+	if _, err := Validate(g, true); err == nil {
+		t.Fatal("missing input accepted")
+	}
+}

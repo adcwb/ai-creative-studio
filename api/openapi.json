@@ -47340,7 +47340,8 @@
               "speech",
               "video",
               "review",
-              "output"
+              "output",
+              "template"
             ]
           },
           "label": {
@@ -47420,6 +47421,28 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/WorkflowEdge"
+            }
+          },
+          "viewport": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "x",
+              "y",
+              "zoom"
+            ],
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "zoom": {
+                "type": "number",
+                "minimum": 0.25,
+                "maximum": 2
+              }
             }
           }
         }

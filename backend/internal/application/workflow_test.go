@@ -484,3 +484,51 @@ func TestWorkflowFailedParallelStepStopsAdmissionAndDrainsKnownChildren(t *testi
 		t.Fatal("unexpected new child", len(jobs), err)
 	}
 }
+
+func TestWorkflowTeamClosureStopsQueuedStepsForEveryController(t *testing.T) {
+	for _, mode := range []string{"file", "postgres"} {
+		t.Run(mode, func(t *testing.T) {
+			s := testStore(t)
+			if mode == "postgres" {
+				s = postgresTestStore(t, postgresTestDB(t))
+			}
+			p, m, a, actor := workflowFixture(t, s)
+			graph := w.Graph{Nodes: []w.Node{{ID: "source", Kind: "asset", AssetKind: "image", AssetID: m.Assets[0].ID}, {ID: "output", Kind: "output"}}, Edges: []w.Edge{{Source: "source", Target: "output", Input: "media"}}, Viewport: &w.Viewport{X: -10, Y: 20, Zoom: .75}}
+			ctx := context.Background()
+			saved, err := s.saveWorkflow(ctx, p.SpaceID, p.ID, "", "closed-save", actor, workflowSave{Name: "Paused before closure", Graph: graph})
+			if err != nil {
+				t.Fatal(err)
+			}
+			run, err := s.startWorkflow(ctx, p.SpaceID, p.ID, saved.ID, "closed-run", actor, p.Version, saved.Head, map[string]workflowPin{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			owner, token, session, err := a.login("workflow-owner@example.test", "synthetic-password", false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !a.can(owner.ID, p.SpaceID, "workspace.write") {
+				t.Fatal("owner fixture")
+			}
+			a.mu.Lock()
+			org := a.data.Organizations[p.SpaceID]
+			a.mu.Unlock()
+			h := SecureHandler(s, "http://localhost:5173", a, AuthOptions{})
+			authRequest(t, h, "POST", "/api/v1/organizations/"+p.SpaceID+"/close", projectJSON(t, map[string]any{"expected_version": org.Version, "name": org.Name, "confirmed": true}), token, session.CSRF, 200)
+			if err = s.advanceWorkflow(ctx, p.SpaceID, p.ID); err != nil {
+				t.Fatal(err)
+			}
+			doc, err := s.workflows.Read(ctx, p.SpaceID, p.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result := doc.Runs[run.ID]
+			if result.Status != "failed" || result.Nodes["source"].ErrorCode != "role_denied" || result.Nodes["output"].Result.AssetID != "" {
+				t.Fatal("closed team advanced", result)
+			}
+			if doc.Workflows[saved.ID].Revisions[0].Graph.Viewport.Zoom != .75 {
+				t.Fatal("viewport snapshot lost")
+			}
+		})
+	}
+}

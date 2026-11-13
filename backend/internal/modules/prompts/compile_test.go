@@ -82,3 +82,24 @@ func FuzzVariableCompilerDoesNotEvaluate(f *testing.F) {
 		_, _ = prompts.Compile(r, map[string]string{"subject": value})
 	})
 }
+
+func TestExpandLiteralDoesNotEvaluateOrReexpandValues(t *testing.T) {
+	got, err := prompts.ExpandLiteral("Poster: {{input}} / {{input}}", map[string]string{"input": "{{secret}} $(whoami)"}, 2000)
+	if err != nil || got != "Poster: {{secret}} $(whoami) / {{secret}} $(whoami)" {
+		t.Fatal(got, err)
+	}
+	for _, body := range []string{"{{input.name}}", "{{ input }}", "{{input|html}}", "{{unknown}}", "{{input", "plain"} {
+		if _, err = prompts.ExpandLiteral(body, map[string]string{"input": "literal"}, 2000); err == nil {
+			t.Fatal("accepted undeclared expression", body)
+		}
+	}
+	if _, err = prompts.ExpandLiteral("{{input}}", nil, 2000); err == nil {
+		t.Fatal("missing input")
+	}
+}
+
+func TestLiteralExpansionStopsAtActualTextWindow(t *testing.T) {
+	if _, err := prompts.ExpandLiteral(strings.Repeat("{{input}}", 1000), map[string]string{"input": strings.Repeat("x", 1000)}, 2000); err == nil {
+		t.Fatal("expanded past the creative input window")
+	}
+}

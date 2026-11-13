@@ -67,3 +67,7 @@ FR-D MUST：形象、声音授权均可追溯与撤销，历史与新派发分�
 - [数据流交互与计算说明](https://reactflow.dev/learn/advanced-use/computing-flows)
 - [wan2.2-s2v 官方 API](https://docs.modelstudio.console.alibabacloud.com/en/model-studio/wan-s2v-api)
 - Eino 以本仓库固定的 `github.com/cloudwego/eino@v0.7.37/compose/{graph,checkpoint,interrupt}.go` 源码为实施依据。
+
+## 本地整合增量
+
+已整合第6–10项补齐源码，保留独立本地分支；新增字面文案模板、保存视口和视频节点协议验收。见 [整合增量规格与验收](integration.md)。当前整体仍为分阶段实施，运行时多变量、LLM节点、局部步骤重跑、专用云数字人等未完成内容继续列于 tasks.md。

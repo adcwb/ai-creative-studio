@@ -17,3 +17,9 @@ test('a text label cannot stand in for image media and templates contain no gene
  const chain:Graph={nodes:[{id:'a',kind:'review',label:'A',x:0,y:0},{id:'b',kind:'review',label:'B',x:100,y:0}],edges:[{source:'a',target:'b',input:'media'}]}
  expect(canConnect(chain,{source:'b',target:'a',input:'media'})).toBe(false)
 })
+test('copy templates accept text input and produce text, never media',()=>{
+ const graph:Graph={nodes:[{id:'source',kind:'text',label:'Copy',x:0,y:0},{id:'template',kind:'template',label:'Template',text:'Poster: {{input}}',x:100,y:0},{id:'image',kind:'image',label:'Image',x:200,y:0}],edges:[]}
+ expect(canConnect(graph,{source:'source',target:'template',input:'prompt'})).toBe(true)
+ expect(canConnect(graph,{source:'template',target:'image',input:'prompt'})).toBe(true)
+ expect(canConnect(graph,{source:'template',target:'image',input:'reference'})).toBe(false)
+})

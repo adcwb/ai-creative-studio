@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/adcwb/ai-creative-studio/backend/internal/modules/prompts"
 	"math"
 	"regexp"
 	"sort"
@@ -36,9 +37,15 @@ type Edge struct {
 	Target string `json:"target"`
 	Input  string `json:"input"`
 }
+type Viewport struct {
+	X    float64 `json:"x"`
+	Y    float64 `json:"y"`
+	Zoom float64 `json:"zoom"`
+}
 type Graph struct {
-	Nodes []Node `json:"nodes"`
-	Edges []Edge `json:"edges"`
+	Viewport *Viewport `json:"viewport,omitempty"`
+	Nodes    []Node    `json:"nodes"`
+	Edges    []Edge    `json:"edges"`
 }
 type Revision struct {
 	ID        string `json:"id"`
@@ -94,7 +101,7 @@ func Terminal(status string) bool {
 }
 func kindType(n Node) string {
 	switch n.Kind {
-	case "text":
+	case "text", "template":
 		return "text"
 	case "asset":
 		return n.AssetKind
@@ -110,6 +117,9 @@ func kindType(n Node) string {
 // but malformed identities, cycles, duplicate ports and incompatible types are
 // never accepted. A run additionally requires every step to reach an output.
 func Validate(g Graph, run bool) ([]string, error) {
+	if g.Viewport != nil && (math.IsNaN(g.Viewport.X) || math.IsNaN(g.Viewport.Y) || math.IsInf(g.Viewport.X, 0) || math.IsInf(g.Viewport.Y, 0) || math.IsNaN(g.Viewport.Zoom) || math.IsInf(g.Viewport.Zoom, 0) || g.Viewport.Zoom < .25 || g.Viewport.Zoom > 2) {
+		return nil, ErrInput
+	}
 	if len(g.Nodes) == 0 {
 		return nil, ErrInput
 	}
@@ -125,15 +135,20 @@ func Validate(g Graph, run bool) ([]string, error) {
 			return nil, ErrInput
 		}
 		switch n.Kind {
-		case "text", "asset", "image", "speech", "video", "review", "output":
+		case "text", "template", "asset", "image", "speech", "video", "review", "output":
 		default:
 			return nil, ErrInput
 		}
 		if n.Kind == "asset" && (n.AssetKind != "image" && n.AssetKind != "audio" && n.AssetKind != "video") {
 			return nil, ErrInput
 		}
-		if run && (n.Kind == "text" && strings.TrimSpace(n.Text) == "" || n.Kind == "asset" && !ID.MatchString(n.AssetID) || ModelKind(n.Kind) && (!ID.MatchString(n.ModelID) || n.ModelVersion < 1)) {
+		if run && ((n.Kind == "text" || n.Kind == "template") && strings.TrimSpace(n.Text) == "" || n.Kind == "asset" && !ID.MatchString(n.AssetID) || ModelKind(n.Kind) && (!ID.MatchString(n.ModelID) || n.ModelVersion < 1)) {
 			return nil, ErrInput
+		}
+		if n.Kind == "template" && strings.TrimSpace(n.Text) != "" {
+			if _, err := prompts.ExpandLiteral(n.Text, map[string]string{"input": "x"}, 2000); err != nil {
+				return nil, ErrInput
+			}
 		}
 		if n.Ratio != "" && n.Ratio != "9:16" && n.Ratio != "16:9" && n.Ratio != "1:1" && n.Ratio != "4:5" {
 			return nil, ErrInput
@@ -148,7 +163,7 @@ func Validate(g Graph, run bool) ([]string, error) {
 		if !a || !b || e.Source == e.Target || incoming[e.Target][e.Input] != "" {
 			return nil, ErrInput
 		}
-		valid := e.Input == "prompt" && ModelKind(target.Kind) || e.Input == "reference" && (target.Kind == "image" || target.Kind == "video") || e.Input == "media" && (target.Kind == "review" || target.Kind == "output")
+		valid := e.Input == "prompt" && (ModelKind(target.Kind) || target.Kind == "template") || e.Input == "reference" && (target.Kind == "image" || target.Kind == "video") || e.Input == "media" && (target.Kind == "review" || target.Kind == "output")
 		if !valid {
 			return nil, ErrInput
 		}
@@ -180,7 +195,7 @@ func Validate(g Graph, run bool) ([]string, error) {
 			}
 		}
 		if run {
-			if ModelKind(n.Kind) && incoming[id]["prompt"] == "" || (n.Kind == "review" || n.Kind == "output") && incoming[id]["media"] == "" {
+			if (ModelKind(n.Kind) || n.Kind == "template") && incoming[id]["prompt"] == "" || (n.Kind == "review" || n.Kind == "output") && incoming[id]["media"] == "" {
 				return nil, ErrInput
 			}
 		}

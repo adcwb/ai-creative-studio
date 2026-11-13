@@ -1,9 +1,15 @@
+import {execFileSync} from 'node:child_process'
+import {mkdtempSync,readFileSync,rmSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
 import http from 'node:http'
 import {Buffer} from 'node:buffer'
 import {createHash} from 'node:crypto'
 import {deflateSync} from 'node:zlib'
 let calls = 0
 const requests = []
+let video
+function syntheticVideo(){if(!video){const dir=mkdtempSync(join(tmpdir(),'canvas-video-'));try{const file=join(dir,'synthetic.mp4');execFileSync('ffmpeg',['-hide_banner','-loglevel','error','-f','lavfi','-i','color=c=teal:s=256x256:r=12:d=2','-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart',file]);video=readFileSync(file)}finally{rmSync(dir,{recursive:true,force:true})}}return video}
 function wav() {
  const raw=Buffer.alloc(44+16000*2);raw.write('RIFF');raw.writeUInt32LE(raw.length-8,4);raw.write('WAVEfmt ',8);raw.writeUInt32LE(16,16);raw.writeUInt16LE(1,20);raw.writeUInt16LE(1,22);raw.writeUInt32LE(8000,24);raw.writeUInt32LE(16000,28);raw.writeUInt16LE(2,32);raw.writeUInt16LE(16,34);raw.write('data',36);raw.writeUInt32LE(raw.length-44,40);return raw
 }
@@ -18,6 +24,8 @@ http.createServer(async (req,res)=>{
  if(req.url==='/__state'){res.end(JSON.stringify({calls,requests}));return}
  calls++
  if(!['Bearer synthetic-key-A','Bearer synthetic-key-B'].includes(req.headers.authorization)){res.writeHead(401);res.end(JSON.stringify({error:'Synthetic authentication rejected'}));return}
+ if(req.url==='/v1/videos/canvas-video/content'){requests.push({path:req.url,method:req.method});res.setHeader('Content-Type','video/mp4');res.end(syntheticVideo());return}
+ if(req.url==='/v1/videos/canvas-video'){requests.push({path:req.url,method:req.method});res.end(JSON.stringify({id:'canvas-video',status:'completed'}));return}
  if(req.url==='/v1/models'){res.end(JSON.stringify({data:[{id:'synthetic-model'}]}));return}
  const chunks=[];for await(const part of req)chunks.push(part)
  const raw=Buffer.concat(chunks)
@@ -25,9 +33,10 @@ http.createServer(async (req,res)=>{
  if(req.headers['content-type']?.startsWith('multipart/form-data')){
   const data=await new globalThis.Request('http://fixture.invalid',{method:'POST',headers:{'Content-Type':req.headers['content-type']},body:raw}).formData()
   const images=data.getAll('image[]')
-  body={model:data.get('model'),prompt:data.get('prompt'),size:data.get('size'),image_hashes:await Promise.all(images.map(async image=>createHash('sha256').update(Buffer.from(await image.arrayBuffer())).digest('hex')))}
+  body={model:data.get('model'),prompt:data.get('prompt'),size:data.get('size'),...(data.has('seconds')?{seconds:data.get('seconds')}:{}),image_hashes:await Promise.all(images.map(async image=>createHash('sha256').update(Buffer.from(await image.arrayBuffer())).digest('hex')))}
  } else body=JSON.parse(raw.toString()||'{}')
  requests.push({path:req.url,body})
+ if(req.url==='/v1/videos'&&body.model==='synthetic-video'){res.end(JSON.stringify({id:'canvas-video',status:'queued'}));return}
  if(body.model==='synthetic-reject'){res.writeHead(429);res.end(JSON.stringify({error:'Synthetic upstream refusal'}));return}
  if(req.url==='/v1/audio/speech'&&body.model==='synthetic-speech'){res.setHeader('Content-Type','audio/wav');res.end(wav());return}
  if(req.url==='/v1/images/edits' && body.model==='synthetic-image' && body.image_hashes?.length){res.end(JSON.stringify({data:[{b64_json:png()}]}));return}

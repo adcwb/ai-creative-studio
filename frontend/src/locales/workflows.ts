@@ -1,4 +1,6 @@
 export default {
+ '文案模板':'Copy template',
+ '使用 {{input}} 插入上一步文案，按原文替换，不执行表达式。':'Use {{input}} to insert the previous copy as literal text. Expressions are not executed.',
  '有步骤未完成，后续生成已暂停；已开始的任务会继续核对结果。':'A step did not complete. Further generation is paused while already started tasks are reconciled.',
  '还有 {count} 个步骤需要补充描述、素材或模型，保存后再运行。':'Complete descriptions, media or model selections for {count} steps, then save before running.',
  '请选择PNG、JPEG、MP4、WAV或MP3素材':'Choose PNG, JPEG, MP4, WAV or MP3 media',

@@ -326,6 +326,14 @@ func (s *FileStore) advanceWorkflow(ctx context.Context, space, project string) 
 				case "text":
 					n.Status = "succeeded"
 					n.Result.Text = definition.Text
+				case "template":
+					n.Result.Text, err = prompts.ExpandLiteral(definition.Text, map[string]string{"input": inputs["prompt"].Text}, 2000)
+					if err != nil {
+						n.Status = "failed"
+						n.ErrorCode = "invalid_workflow"
+					} else {
+						n.Status = "succeeded"
+					}
 				case "asset":
 					state, e := s.media.GetChecked(project, space)
 					if e != nil {
