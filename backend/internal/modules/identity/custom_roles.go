@@ -65,6 +65,12 @@ func ValidateCustomRoles(o AuthOrganization) error {
 	return nil
 }
 func EffectivePermissions(o AuthOrganization, user string) []string {
+	if o.Closed {
+		if user != o.OwnerID || o.Members[user] != "owner" {
+			return []string{}
+		}
+		return []string{"members.read", "usage.read", "workspace.read"}
+	}
 	base := Permissions(o.Members[user])
 	id := o.MemberRoles[user]
 	if id == "" {

@@ -45,7 +45,7 @@ var postgresReadinessSQL = func() string {
 		"SELECT name,revision,envelope FROM studio_scopes WHERE false",
 		"SELECT tenant_id,id,kind,idempotency_key,payload,state,lease_token,lease_until,attempt,result,created_at,updated_at,trace_parent FROM execution_jobs WHERE false",
 		"SELECT address_hash,attempts,expires FROM studio_auth_attempts WHERE false",
-		"SELECT space_id,kind,owner_id,version FROM studio_space_access WHERE false",
+		"SELECT space_id,kind,owner_id,version,closed FROM studio_space_access WHERE false",
 		"SELECT space_id,user_id,role_id,space_kind,space_owner_id FROM studio_space_memberships WHERE false",
 		"SELECT role_id,permission_id FROM studio_rbac_role_permissions WHERE false",
 		"SELECT space_id,space_kind,id,name,base_role,version FROM studio_space_roles WHERE false",
@@ -75,6 +75,9 @@ func (s *FileStore) PersistenceFailureEpoch() uint64 {
 		}
 	}
 	add(s.pg)
+	if s.personalCopies != nil {
+		add(s.personalCopies.pg)
+	}
 	if s.budget != nil {
 		add(s.budget.pg)
 	}

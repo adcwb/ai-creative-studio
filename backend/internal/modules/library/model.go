@@ -94,6 +94,7 @@ func validPresetModel(value string) bool {
 }
 
 type Source struct {
+	ShareID   string `json:"share_id,omitempty"`
 	AssetID   string `json:"asset_id"`
 	VersionID string `json:"version_id"`
 }

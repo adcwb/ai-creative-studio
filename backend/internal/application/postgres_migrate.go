@@ -37,10 +37,10 @@ type MigrationReport struct {
 	Notes             []string          `json:"notes"`
 }
 
-var postgresSnapshotFiles = map[string]string{"core": "state.json", "auth": "auth.json", "budget": "budget.json", "models": "model-config.json", "creative": "creative.json", "media": "media/state.json", "alignment": "media/alignments.json", "usage": "model-usage.json"}
+var postgresSnapshotFiles = map[string]string{"personal_copies": "personal-copies.json", "core": "state.json", "auth": "auth.json", "budget": "budget.json", "models": "model-config.json", "creative": "creative.json", "media": "media/state.json", "alignment": "media/alignments.json", "usage": "model-usage.json"}
 
 func postgresTemplates() map[string]any {
-	return map[string]any{"usage": modelUsageSnapshot{Version: 1, Calls: map[string]ModelCall{}},
+	return map[string]any{"personal_copies": personalCopyDisk{Version: 1, Jobs: map[string]personalCopyJob{}}, "usage": modelUsageSnapshot{Version: 1, Calls: map[string]ModelCall{}},
 		"core": emptySnapshot(), "auth": authSnapshot{Version: 1, Users: map[string]authAccount{}, Organizations: map[string]AuthOrganization{}, Sessions: map[string]authSession{}}, "budget": costSnapshot{Version: 1, Limits: map[string]int64{}, Entries: map[string]CostEntry{}}, "models": modelSnapshot{Version: 1, Tenants: map[string]modelTenant{}}, "creative": creativeDisk{Version: 1, Jobs: map[string]CreativeJob{}, Receipts: map[string]creativeReceipt{}}, "media": mediaDisk{Version: 1, Projects: map[string]MediaState{}, Receipts: map[string]mediaReceipt{}}, "alignment": alignmentDisk{Version: 1, Tasks: map[string]AlignmentTask{}, Receipts: map[string]alignmentReceipt{}}}
 }
 func migrationDigest(b []byte) string { s := sha256.Sum256(b); return hex.EncodeToString(s[:]) }
@@ -70,15 +70,12 @@ func migrationMediaInventory(dir string) (map[string]string, error) {
 		if rel == "store.lock" {
 			return nil
 		}
-		if info.Size() > 256<<20 {
-			return errors.New("migration file exceeds safe bound")
-		}
 		f, e := os.Open(path)
 		if e != nil {
 			return e
 		}
 		h := sha256.New()
-		_, e = io.Copy(h, io.LimitReader(f, (256<<20)+1))
+		_, e = io.Copy(h, f)
 		e = errors.Join(e, f.Close())
 		if e != nil {
 			return e
@@ -113,7 +110,7 @@ func ImportPostgresData(ctx context.Context, dir string, db *sql.DB) (MigrationR
 		return report, err
 	}
 	templates := postgresTemplates()
-	scopes := []string{"auth", "budget", "models", "core", "creative", "media", "alignment"}
+	scopes := []string{"auth", "budget", "models", "core", "personal_copies", "creative", "media", "alignment"}
 	values := map[string]json.RawMessage{}
 	// Validate using an isolated copy of ONLY metadata. Constructors may normalize
 	// their copy for validation; the source is not opened by a mutating store.

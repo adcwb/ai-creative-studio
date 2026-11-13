@@ -33,8 +33,13 @@ CREATE TABLE IF NOT EXISTS studio_space_member_roles(
 `
 
 func validateAuthFormat(d authSnapshot) error {
-	if d.Version != 1 && d.Version != 2 {
+	if d.Version != 1 && d.Version != 2 && d.Version != 3 {
 		return errors.New("unsupported authentication format")
+	}
+	for _, o := range d.Organizations {
+		if o.Closed && (d.Version < 3 || spaceType(o) != "team" || len(o.Members) != 1 || o.Members[o.OwnerID] != "owner" || len(o.MemberRoles) != 0) {
+			return errors.New("invalid closed team identity")
+		}
 	}
 	if d.Version == 1 {
 		for _, o := range d.Organizations {

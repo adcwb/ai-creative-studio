@@ -201,7 +201,7 @@ func (s *FileStore) productionManifestLocked(ctx context.Context, p Project, sta
 			continue
 		}
 		seen[identity] = true
-		version, e := s.library.Version(ctx, p.SpaceID, v.AssetID, v.VersionID)
+		version, e := s.sharedLibraryVersion(ctx, p.SpaceID, media.LibrarySource{ShareID: v.ShareID, AssetID: v.AssetID, VersionID: v.VersionID})
 		if e != nil {
 			return revisions.Manifest{}, e
 		}

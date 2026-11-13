@@ -73,7 +73,7 @@ func OpenAuthStore(dir string) (*AuthStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read authentication state (refusing to reset): %w", err)
 	}
-	if (s.data.Version != 1 && s.data.Version != 2) || s.data.Users == nil || s.data.Organizations == nil || s.data.Sessions == nil {
+	if (s.data.Version != 1 && s.data.Version != 2 && s.data.Version != 3) || s.data.Users == nil || s.data.Organizations == nil || s.data.Sessions == nil {
 		return nil, errors.New("invalid authentication state")
 	}
 	for id, u := range s.data.Users {
@@ -108,6 +108,9 @@ func OpenAuthStore(dir string) (*AuthStore, error) {
 			return nil, errors.New("custom roles require auth format 2")
 		}
 	}
+	if err := validateAuthFormat(s.data); err != nil {
+		return nil, err
+	}
 	for _, ss := range s.data.Sessions {
 		if _, ok := s.data.Users[ss.UserID]; !ok || len(ss.CSRF) != 64 || ss.Expires.IsZero() {
 			return nil, errors.New("invalid authentication session")
@@ -134,9 +137,17 @@ func (s *AuthStore) commit(d authSnapshot) error {
 		if err := identity.ValidateCustomRoles(org); err != nil {
 			return err
 		}
-		if len(org.CustomRoles) > 0 || len(org.MemberRoles) > 0 {
+		if (len(org.CustomRoles) > 0 || len(org.MemberRoles) > 0) && d.Version < 2 {
 			d.Version = 2
 		}
+	}
+	for _, org := range d.Organizations {
+		if org.Closed {
+			d.Version = 3
+		}
+	}
+	if err := validateAuthFormat(d); err != nil {
+		return err
 	}
 	if s.pg != nil {
 		if err := s.pg.save(d); err != nil {

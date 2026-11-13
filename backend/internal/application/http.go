@@ -39,6 +39,7 @@ func Handler(repo Repository, origin string) http.Handler {
 		registerRevisionRoutes(mux, store)
 		registerStoryRoutes(mux, store)
 		registerEpisodeMigrationRoutes(mux, store)
+		registerPersonalCopyRoutes(mux, store)
 		registerLibraryRoutes(mux, store)
 		registerPromptRoutes(mux, store)
 		registerPromptApplicationRoutes(mux, store)

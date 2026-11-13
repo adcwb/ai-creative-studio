@@ -98,21 +98,21 @@ func (s *FileStore) boundLibraryVersion(ctx context.Context, project, space, bin
 		if b.ID != bindingID {
 			continue
 		}
-		current, err := s.library.Get(ctx, space, b.AssetID)
+		current, err := s.sharedLibraryAsset(ctx, space, media.LibrarySource{ShareID: b.ShareID, AssetID: b.AssetID, VersionID: b.VersionID})
 		if errors.Is(err, libraryrepo.ErrNotFound) {
 			err = ErrNotFound
 		}
 		if err != nil {
 			return b, library.Asset{}, library.Version{}, err
 		}
-		v, err := s.library.Version(ctx, space, b.AssetID, b.VersionID)
+		v, err := s.sharedLibraryVersion(ctx, space, media.LibrarySource{ShareID: b.ShareID, AssetID: b.AssetID, VersionID: b.VersionID})
 		if errors.Is(err, libraryrepo.ErrNotFound) {
 			err = ErrNotFound
 		}
 		if err != nil {
 			return b, library.Asset{}, v, err
 		}
-		if current.Asset.Kind != b.Kind || b.Usage != b.Kind || v.SpaceID != space || v.AssetID != b.AssetID {
+		if current.Asset.Kind != b.Kind || b.Usage != b.Kind || b.ShareID == "" && v.SpaceID != space || v.AssetID != b.AssetID {
 			return b, library.Asset{}, v, ErrBlobIntegrity
 		}
 		return b, current.Asset, v, nil
@@ -270,7 +270,7 @@ func (s *FileStore) compileLibraryInputs(ctx context.Context, project, space str
 			if !asset.UseAuthorization.Allows(v.ID, purpose, time.Now().UTC()) {
 				return nil, "", providerFailure("library_use_denied")
 			}
-			pin.Uses = append(pin.Uses, libraryUsePin{Source: media.LibrarySource{AssetID: asset.ID, VersionID: v.ID}, Revision: asset.UseAuthorization.Revision, Purpose: purpose})
+			pin.Uses = append(pin.Uses, libraryUsePin{Source: media.LibrarySource{ShareID: binding.ShareID, AssetID: asset.ID, VersionID: v.ID}, Revision: asset.UseAuthorization.Revision, Purpose: purpose})
 		}
 		pins = append(pins, pin)
 	}
@@ -312,7 +312,7 @@ func (s *FileStore) checkLibraryInputPins(ctx context.Context, space string, pin
 			return providerFailure("library_use_denied")
 		}
 		root := pin.Uses[0].Source
-		v, err := s.library.Version(ctx, space, root.AssetID, root.VersionID)
+		v, err := s.sharedLibraryVersion(ctx, space, root)
 		if err != nil {
 			return err
 		}
@@ -320,7 +320,7 @@ func (s *FileStore) checkLibraryInputPins(ctx context.Context, space string, pin
 			return providerFailure("library_use_denied")
 		}
 		for _, use := range pin.Uses {
-			current, err := s.library.Get(ctx, space, use.Source.AssetID)
+			current, err := s.sharedLibraryAsset(ctx, space, use.Source)
 			if err != nil {
 				return err
 			}

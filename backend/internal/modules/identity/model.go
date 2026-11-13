@@ -6,6 +6,7 @@ type AuthUser struct {
 }
 
 type AuthOrganization struct {
+	Closed      bool                  `json:"closed,omitempty"`
 	CustomRoles map[string]CustomRole `json:"custom_roles,omitempty"`
 	MemberRoles map[string]string     `json:"member_roles,omitempty"`
 	Type        string                `json:"type,omitempty"`

@@ -13,6 +13,7 @@ var shotIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,40}$`)
 
 // LibrarySource is trusted server-written lineage; no grant is embedded here.
 type LibrarySource struct {
+	ShareID   string `json:"share_id,omitempty"`
 	AssetID   string `json:"asset_id"`
 	VersionID string `json:"version_id"`
 }
@@ -136,6 +137,7 @@ type MediaState struct {
 // LibraryBinding records the exact library version copied into this project.
 // Later library edits cannot alter these project-owned media references.
 type LibraryBinding struct {
+	ShareID       string   `json:"share_id,omitempty"`
 	ID            string   `json:"id"`
 	AssetID       string   `json:"library_asset_id"`
 	VersionID     string   `json:"asset_version_id"`

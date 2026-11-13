@@ -167,7 +167,7 @@ func (m *MediaStore) bindLibrary(ctx context.Context, project, space, key string
 		}
 		sources := []media.LibrarySource{{AssetID: v.AssetID, VersionID: v.ID}}
 		for _, inherited := range ref.LibrarySources {
-			sources = append(sources, media.LibrarySource{AssetID: inherited.AssetID, VersionID: inherited.VersionID})
+			sources = append(sources, media.LibrarySource{ShareID: inherited.ShareID, AssetID: inherited.AssetID, VersionID: inherited.VersionID})
 		}
 		p.Assets = append(p.Assets, MediaAsset{ProvenanceVersion: 1, ProvenanceUnknown: ref.ProvenanceVersion == 0, LibrarySources: uniqueLibrarySources(sources), ContentSHA256: ref.SHA256, ID: id, Kind: "image", MIMEType: ref.MIMEType, Name: v.Card.Name + " · " + ref.ViewAngle, Role: "reference", Character: character, ShotID: in.ShotID, Source: "library:" + v.AssetID + ":" + v.ID, FileURL: mediaURL(space, project, "assets/"+id+"/file")})
 		binding.MediaAssetIDs = append(binding.MediaAssetIDs, id)

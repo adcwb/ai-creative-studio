@@ -351,7 +351,7 @@ func registerLibraryRoutes(mux *http.ServeMux, s *FileStore) {
 			}
 			inherited := []library.Source{}
 			for _, source := range sources {
-				inherited = append(inherited, library.Source{AssetID: source.AssetID, VersionID: source.VersionID})
+				inherited = append(inherited, library.Source{ShareID:source.ShareID,AssetID: source.AssetID, VersionID: source.VersionID})
 			}
 			ref := library.Reference{ProvenanceVersion: 1, LibrarySources: inherited, ID: libraryStableID(space, key, assetID+":"+digest+":"+strconv.Itoa(i)), Role: source.Role, ViewAngle: source.ViewAngle, MIMEType: mime, Width: cfg.Width, Height: cfg.Height, SizeBytes: int64(len(data)), SHA256: hex.EncodeToString(h[:]), SourceProjectID: source.ProjectID, SourceAssetID: source.AssetID}
 			if e := appendReference(ref); e != nil {

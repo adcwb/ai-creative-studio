@@ -385,7 +385,7 @@ func (s *AuthStore) createOrganization(w http.ResponseWriter, r *http.Request, u
 }
 func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUser) {
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v1/organizations/"), "/")
-	if len(parts) != 2 || (parts[1] != "roles" && parts[1] != "transfer" && parts[1] != "members" && parts[1] != "access" && parts[1] != "settings" && parts[1] != "leave") {
+	if len(parts) != 2 || (parts[1] != "close" && parts[1] != "reopen" && parts[1] != "roles" && parts[1] != "transfer" && parts[1] != "members" && parts[1] != "access" && parts[1] != "settings" && parts[1] != "leave") {
 		problem(w, 404, "not_found", "接口不存在")
 		return
 	}
@@ -406,6 +406,10 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 		return
 	}
 	SetAuditIdentity(r.Context(), user.ID, org.ID, role)
+	if parts[1] == "close" || parts[1] == "reopen" {
+		s.teamClosure(w, r, user, org, parts[1])
+		return
+	}
 	if parts[1] == "roles" {
 		s.spaceRoles(w, r, user, org)
 		return
@@ -425,7 +429,7 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 				permissions = append(permissions, p)
 			}
 		}
-		info := map[string]any{"id": org.ID, "name": org.Name, "type": spaceType(org), "owner_id": org.OwnerID, "version": spaceVersion(org), "role": role, "permissions": permissions}
+		info := map[string]any{"id": org.ID, "name": org.Name, "type": spaceType(org), "owner_id": org.OwnerID, "version": spaceVersion(org), "role": role, "permissions": permissions, "closed": org.Closed}
 		if id := org.MemberRoles[user.ID]; id != "" {
 			info["custom_role_id"] = id
 			info["custom_role_name"] = org.CustomRoles[id].Name
