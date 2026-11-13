@@ -20,7 +20,7 @@ import (
 
 const nativeReviewFixturePrefix = "studio-stream-review-"
 
-// Test-only native executable fixture: copied/linked test binaries dispatch here
+// Test-only native executable fixture: copied test binaries dispatch here
 // by an exact filename contract. No production binary has this entry point.
 func TestMain(m *testing.M) {
 	name := strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe")
@@ -125,24 +125,24 @@ func nativeStreamReviewExecutable(t *testing.T, sha, status string) string {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if e = os.Link(executable, path); e != nil {
-		source, e := os.Open(executable)
-		if e != nil {
-			t.Fatal(e)
-		}
-		defer source.Close()
-		target, e := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0700)
-		if e != nil {
-			t.Fatal(e)
-		}
-		_, e = io.Copy(target, source)
-		closeErr := target.Close()
-		if e != nil {
-			t.Fatal(e)
-		}
-		if closeErr != nil {
-			t.Fatal(closeErr)
-		}
+	// A separate file avoids sharing an image section with the still-running
+	// parent test executable; Windows must be able to remove this fixture.
+	source, e := os.Open(executable)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer source.Close()
+	target, e := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0700)
+	if e != nil {
+		t.Fatal(e)
+	}
+	_, e = io.Copy(target, source)
+	closeErr := target.Close()
+	if e != nil {
+		t.Fatal(e)
+	}
+	if closeErr != nil {
+		t.Fatal(closeErr)
 	}
 	return path
 }

@@ -28,6 +28,13 @@ def disposable_dsn(value):
     return value
 
 
+def fixture_environment(source):
+    # Windows os.environ normalizes keys to uppercase. Match without case,
+    # retaining SystemRoot for Winsock/side-by-side DLL loading, never secrets.
+    allowed = {'PATH', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'LANG', 'CI'}
+    return {key.upper(): value for key, value in source.items() if key.upper() in allowed}
+
+
 def run(args):
     if args.storage == 'postgres':
         disposable_dsn(args.dsn)
@@ -40,7 +47,9 @@ def run(args):
             sock.bind(('127.0.0.1', 0))
             port = sock.getsockname()[1]
         base = f'http://127.0.0.1:{port}'
-        env = {k: v for k, v in os.environ.items() if k in ('PATH', 'SystemRoot', 'WINDIR', 'TEMP', 'TMP', 'LANG', 'CI')}
+        env = fixture_environment(os.environ)
+        if os.name == 'nt' and not env.get('SYSTEMROOT'):
+            raise ValueError('Native Windows fixture requires SystemRoot')
         env.update(AUTH_MODE='demo', IMAGE_PROVIDER='mock-svg', TEXT_PROVIDER='mock-text',
                    HTTP_ADDR=f'127.0.0.1:{port}', DATA_DIR=str(root / 'api'),
                    FRONTEND_ORIGIN=base, CONTENT_MODERATION_MODE='disabled')
@@ -50,6 +59,7 @@ def run(args):
                        MODEL_CONFIG_KEK_BASE64=base64.b64encode(bytes(range(32))).decode())
         logs = []
         processes = []
+        active = []
         services = []
 
         def request(path, body=None, key=None, status=200, method=None):
@@ -71,6 +81,8 @@ def run(args):
         def wait(fn, predicate, seconds=60):
             deadline = time.monotonic() + seconds
             while time.monotonic() < deadline:
+                if any(process.poll() is not None for process in active):
+                    raise AssertionError('Native fixture process exited before readiness')
                 try:
                     result = fn()
                     if predicate(result):
@@ -101,6 +113,7 @@ def run(args):
             logs.append(log)
             process = subprocess.Popen([executable], env=values, stdout=log, stderr=subprocess.STDOUT)
             processes.append(process)
+            active.append(process)
             return process
 
         def stop(handle):
@@ -110,6 +123,8 @@ def run(args):
             elif handle.poll() is None:
                 handle.kill()
                 handle.wait(timeout=15)
+            if not isinstance(handle, str) and handle in active:
+                active.remove(handle)
 
         query = '?space_id=personal-demo'
         try:

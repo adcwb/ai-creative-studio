@@ -21,3 +21,8 @@ class NativeBackendGuardTest(unittest.TestCase):
         for key in ('host', 'hostaddr', 'service', 'dbname'):
             with self.assertRaises(ValueError):
                 module.disposable_dsn('postgresql://user@localhost/studio_native_test?' + key + '=elsewhere')
+
+    def test_windows_environment_keeps_systemroot_without_inheriting_secrets(self):
+        values = module.fixture_environment({'SystemRoot':'C:\\Windows','Path':'native-path','WINDIR':'C:\\Windows','OPENAI_API_KEY':'synthetic-secret','DATABASE_URL':'synthetic-db'})
+        self.assertEqual(values, {'SYSTEMROOT':'C:\\Windows','PATH':'native-path','WINDIR':'C:\\Windows'})
+        self.assertEqual(module.fixture_environment({'SYSTEMROOT':'C:\\Windows'}), {'SYSTEMROOT':'C:\\Windows'})
