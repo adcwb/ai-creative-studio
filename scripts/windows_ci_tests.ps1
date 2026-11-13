@@ -9,6 +9,10 @@ try {
   Write-Host "Windows native vet and command builds"
   Go-Checked vet ./...
   foreach ($directory in Get-ChildItem cmd -Directory) { Go-Checked build -o ('bin/'+$directory.Name+'.exe') ('./cmd/'+$directory.Name) }
+  # The external moderation fixture is a small native executable, not the entire
+  # race-instrumented application test binary. Preserve the production deadline.
+  Go-Checked build -o bin/studio-review-fixture.exe ./internal/platform/testsupport/reviewcmd
+  $env:STUDIO_NATIVE_REVIEW_FIXTURE=(Resolve-Path bin/studio-review-fixture.exe).Path
 } finally { Pop-Location }
 $arguments=@('scripts/native_backend_check.py','--storage',$Storage)
 if ($Storage -eq 'postgres') { $arguments+=@('--dsn','postgresql://postgres@127.0.0.1:55439/studio_windows_runtime?sslmode=disable') }

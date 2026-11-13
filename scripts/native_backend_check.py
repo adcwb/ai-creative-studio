@@ -138,6 +138,10 @@ def run(args):
             task_path = '/api/v1/tasks/' + task['id']
             wait(lambda: request(task_path + query), lambda v: v['status'] == 'succeeded')
             stop(api)
+            if args.storage == 'postgres':
+                # Schema setup belongs to initial provisioning, not a live
+                # API restart alongside active workers.
+                env['STORAGE_AUTO_MIGRATE'] = 'false'
             api = start('server', env)
             wait(lambda: request('/healthz'), lambda v: v['status'] == 'ok')
             assert request('/api/v1/tasks' + query, body, 'native-task')['id'] == task['id']
