@@ -1,6 +1,7 @@
 package application
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -82,7 +83,18 @@ func executionJSONStream(ctx context.Context, r ExecutionRequest) (*io.PipeReade
 	delete(fields, "Media")
 	reader, writer := io.Pipe()
 	done := make(chan error, 1)
-	go func() { e := writeExecutionJSON(ctx, writer, fields, r.Media); _ = writer.CloseWithError(e); done <- e }()
+	// Coalesce base64 encoder fragments before the process pipe. Windows pipe
+	// writes are expensive; keep memory bounded without changing wire bytes,
+	// deadlines, cancellation or the final content/hash validation.
+	go func() {
+		buffered := bufio.NewWriterSize(writer, 64<<10)
+		e := writeExecutionJSON(ctx, buffered, fields, r.Media)
+		if e == nil {
+			e = buffered.Flush()
+		}
+		_ = writer.CloseWithError(e)
+		done <- e
+	}()
 	return reader, done, nil
 }
 func writeExecutionJSON(ctx context.Context, w io.Writer, fields map[string]json.RawMessage, media []ExecutionMedia) error {
