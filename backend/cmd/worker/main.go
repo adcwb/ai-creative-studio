@@ -122,8 +122,8 @@ func run(parent context.Context) (resultErr error) {
 		return err
 	}
 	component = "serve"
-	slog.Info("durable worker started", "kinds", "image,script,storyboard,export,alignment,creative,story_check", "default_provider", caps.Provider)
-	results := make(chan error, 9)
+	slog.Info("durable worker started", "kinds", "image,script,storyboard,export,alignment,creative,story_check,workflow", "default_provider", caps.Provider)
+	results := make(chan error, 10)
 	go func() { results <- application.RunQueuedImageWorker(ctx, queue, store, pipeline) }()
 	go func() { results <- application.RunQueuedScriptWorker(ctx, queue, store, script) }()
 	go func() { results <- application.RunQueuedStoryboardWorker(ctx, queue, store, storyboard) }()
@@ -133,9 +133,10 @@ func run(parent context.Context) (resultErr error) {
 	go func() { results <- application.RunQueuedCreativeRecoveryWorker(ctx, queue, store) }()
 	go func() { results <- application.RunQueuedImageRecoveryWorker(ctx, queue, store) }()
 	go func() { results <- application.RunQueuedStoryCheckWorker(ctx, queue, store) }()
+	go func() { results <- application.RunWorkflowWorker(ctx, store) }()
 	err = <-results
 	cancel()
-	for range 8 {
+	for range 9 {
 		<-results
 	}
 	if ctx.Err() != nil && errors.Is(err, context.Canceled) {

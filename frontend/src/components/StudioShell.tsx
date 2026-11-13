@@ -59,7 +59,7 @@ export function StudioShell({spaces, space, capability, capabilityError, onSpace
         <div className="space-picker"><label htmlFor="space">{t('工作空间')}</label><select id="space" aria-label={session.mode === 'demo' ? t('选择演示空间') : t('选择组织')} value={space} disabled={!spaces.length} onChange={event => {setOpen(false); onSpaceChange(event.target.value)}}>{spaces.length ? spaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>) : <option value="">{t('等待空间数据')}</option>}</select></div>
         </div><div className="sidebar-navigation">
         <nav className="app-nav" aria-label={t('创作导航')}>
-          {group('creative', '创作空间', 'clapper', <>{navItem('/studio', '图像创作', 'image')}{navItem('/projects', '短剧创作', 'clapper')}{navItem('/publish', '发布中心', 'publish')}</>)}
+          {group('creative', '创作空间', 'clapper', <>{navItem('/studio', '图像创作', 'image')}{navItem('/projects', '短剧创作', 'clapper')}{navItem('/workflows','创作流程','layers')}{navItem('/publish', '发布中心', 'publish')}</>)}
           {group('avatars', '数字人', 'person', <>{navItem('/digital-humans/video', '视频型数字人', 'videoPerson')}{navItem('/digital-humans/interactive', '交互型数字人', 'conversation')}{navItem('/digital-humans/3d', '3D 数字人', 'cube')}</>)}
           {group('resources', '资源中心', 'folder', <>{navItem('/assets', '素材文件', 'grid')}{navItem('/library', '创作资产', 'layers')}</>)}
         </nav>

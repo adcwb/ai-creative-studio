@@ -24,6 +24,7 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/seriesrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/storyrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/workflowrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/jobqueue"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
@@ -170,6 +171,9 @@ func InitPostgres(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, `CREATE UNIQUE INDEX IF NOT EXISTS studio_projects_tenant_entity_unique ON studio_projects(tenant_id,entity_id)`); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, workflowrepo.Schema); err != nil {
 		return err
 	}
 	var episodeFK bool

@@ -4,6 +4,8 @@
 
 本目录区分当前使用合同、历史迭代记录与未来设计。历史文档的费用、容量或供应商描述可能已过时，不能代替对应提交的代码和最新专题合同。
 
+[第6–10项基础闭环及尚未覆盖缺口](superpowers/specs/2026-11-13-creator-workflow/README.md)；[可视化创作流程与数字人本地实施状态](superpowers/specs/2026-11-13-workflow-canvas-digital-human/implementation.md)。新功能不等于完整路线全部验收，云端状态以各提交记录为准。
+
 ## 当前系统
 
 - [项目入口与运行方式](../README.md)

@@ -146,6 +146,9 @@ func (s *FileStore) checkAvatarJob(ctx context.Context, job *CreativeJob) error 
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if s.runtime != nil && s.runtime.auth != nil && (job.VoiceConsentBy == "" || !s.runtime.auth.can(job.VoiceConsentBy, job.SpaceID, "workspace.write")) {
+		return errRuntimeDenied
+	}
 	c := s.creative
 	c.mu.Lock()
 	defer c.mu.Unlock()

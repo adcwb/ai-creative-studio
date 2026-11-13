@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, errorMessage, request } from '../api'
 import { useAppWorkspace } from '../app/workspace'
 import { useI18n } from '../i18n'
 import type { DramaProject } from '../drama'
-import { DigitalHumanStudio } from '../components/DigitalHumanStudio'
-import { MediaStudio } from '../components/MediaStudio'
-import { SocialPublishCenter } from '../components/SocialPublishCenter'
-import { ProductionBoard } from '../features/projects/ProductionBoard'
 import { NotFoundPage } from './NotFoundPage'
+const DigitalHumanStudio=lazy(()=>import('../components/DigitalHumanStudio').then(module=>({default:module.DigitalHumanStudio})))
+const MediaStudio=lazy(()=>import('../components/MediaStudio').then(module=>({default:module.MediaStudio})))
+const SocialPublishCenter=lazy(()=>import('../components/SocialPublishCenter').then(module=>({default:module.SocialPublishCenter})))
+const ProductionBoard=lazy(()=>import('../features/projects/ProductionBoard').then(module=>({default:module.ProductionBoard})))
 
 type CreationAttempt = {body: string; key: string}
 function recoverCreation(key: string): CreationAttempt | null {
@@ -76,9 +76,10 @@ function WorkspaceContent() {
       {!projects.length && <p className="panel">{t(publishing ? '还没有可交付作品，请先完成创作。' : '还没有作品，从新建作品开始。')}</p>}
       <div className="project-grid">{projects.map(p => <Link className="project-card" key={p.id} to={`${root}/${p.id}`}><h2>{p.title}</h2><p>{p.brief}</p><time>{formatDate(p.updated_at)}</time></Link>)}</div>
     </>}
-    {workspaceId && project && (publishing ? <SocialPublishCenter key={project.id} projectId={project.id} space={space!.id} /> : <>
+    {workspaceId&&project&&!publishing&&<p><Link className="button-link" to={`/workflows/${project.id}`}>{t('创作流程')}</Link></p>}
+    {workspaceId && project && <Suspense fallback={<p role="status">{t('正在读取作品…')}</p>}>{(publishing ? <SocialPublishCenter key={project.id} projectId={project.id} space={space!.id} /> : <>
       {digital && <nav className="workspace-tabs"><button className={tab === 'create' ? 'active' : ''} onClick={() => requestLeave(() => setTab('create'))}>{t('形象与口播制作')}</button><button className={tab === 'edit' ? 'active' : ''} onClick={() => requestLeave(() => setTab('edit'))}>{t('剪辑与交付')}</button><Link to={`/publish/${project.id}`}>{t('准备发布')}</Link></nav>}
       {digital ? tab === 'create' ? <DigitalHumanStudio project={project} space={space!.id} disabled={space?.role === 'viewer'} onDirtyChange={setDirty} /> : <MediaStudio project={project} space={space!.id} onDirtyChange={setDirty} /> : <ProductionBoard project={project} space={space!.id} disabled={space?.role === 'viewer'} onDirtyChange={setDirty} />}
-    </>)}
+    </>)}</Suspense>}
   </div>
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/revisionrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/seriesrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/storyrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/workflowrepo"
 )
 
 func (s *FileStore) openSeries(dir string) error {
@@ -18,6 +19,10 @@ func (s *FileStore) openSeries(dir string) error {
 	var db *sql.DB
 	if s.pg != nil {
 		db = s.pg.db
+	}
+	s.workflows, err = workflowrepo.Open(filepath.Join(dir, "workflows"), db)
+	if err != nil {
+		return err
 	}
 	s.revisions, err = revisionrepo.Open(filepath.Join(dir, "revisions"), db)
 	if err != nil {

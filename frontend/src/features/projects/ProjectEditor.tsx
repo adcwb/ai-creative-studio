@@ -1,6 +1,6 @@
 import {SeriesProjectBoundary,SeriesProjectBackLink} from '../series/SeriesProjectBoundary'
 import { Link, NavLink } from 'react-router-dom'
-import { useEffect, useRef } from 'react'
+import { lazy, Suspense, useEffect, useRef } from 'react'
 import { useI18n } from '../../i18n'
 import { useProjectEditor } from './useProjectEditor'
 import { ProjectBrief } from './ProjectBrief'
@@ -14,7 +14,8 @@ import { ProjectConfirmations } from './ProjectConfirmations'
 import { ProjectReferences } from '../library/ProjectReferences'
 import { ProductionBoard } from './ProductionBoard'
 
-const steps = [['brief', '项目总览'], ['script', '故事与剧本'], ['references', '角色与美术'], ['storyboard', '分镜与预演'], ['production', '镜头制作'], ['media', '剪辑与声音'], ['review', '审片与交付']]
+const WorkflowStudio=lazy(()=>import('../workflows/WorkflowStudio'))
+const steps = [['brief', '项目总览'], ['script', '故事与剧本'], ['references', '角色与美术'], ['storyboard', '分镜与预演'], ['production', '镜头制作'], ['media', '剪辑与声音'], ['review', '审片与交付'], ['workflow','创作流程']]
 
 export function ProjectEditor(props: {
   space: string; id: string | null; section: string; onDirtyChange: (dirty: boolean) => void; requestLeave: (action: () => void) => void
@@ -45,6 +46,7 @@ export function ProjectEditor(props: {
           {props.section === 'references' && <ProjectReferences space={props.space} projectId={editor.project.id} shots={editor.project.storyboard?.shots ?? []} disabled={editor.locked || editor.dirty} />}
           {(props.section === 'production' || props.section === 'review') && <><ProductionBoard key={editor.project.id} project={editor.project} space={props.space} disabled={editor.locked || editor.dirty} onDirtyChange={state.setToolsDirty} />{props.section === 'review' && <Link className="button-link" to={`/publish/${editor.project.id}`}>{t('准备发布')}</Link>}</>}
           {props.section === 'media' && <ProjectMedia state={state} />}
+          {props.section==='workflow'&&<Suspense fallback={<p role="status">{t('正在读取流程…')}</p>}><WorkflowStudio project={editor.project.id} space={props.space} projectVersion={editor.project.version}/></Suspense>}
           {props.section === 'avatar' && <DigitalHumanStudio key={editor.project.id} project={editor.project} space={props.space} disabled={editor.locked || editor.dirty || state.mediaDirty} onDirtyChange={state.setToolsDirty} />}
           {props.section === 'publish' && <ProjectPublish state={state} />}
         </>}

@@ -52,7 +52,7 @@ export function DigitalHumanStudio({project, space, disabled, onDirtyChange}: {p
   const speechReady = choice ? runtimeReady(choice, speechPreview) : caps.speech?.ready
   const audio = assets.find(item => item.id === audioId)
   const referenceAsset = assets.find(item => item.id === avatar?.reference_asset_id)
-  const validAudio = audio?.kind === 'audio' && audio.duration > 0 && audio.duration <= 30 && (avatar?.route !== 'video' || audio.duration <= (referenceAsset?.duration ?? 0) + .1)
+  const validAudio = audio?.kind === 'audio' && audio.duration > 0 && (avatar?.route !== 'video' || audio.duration <= (referenceAsset?.duration ?? 0) + .1)
 
   useEffect(() => {live.current = true; return () => {live.current = false}}, [])
   useEffect(() => {onDirtyChange(busy || uncertain || !!name || !!consent || !!text || !!voiceConsent); return () => onDirtyChange(false)}, [busy, uncertain, name, consent, text, voiceConsent, onDirtyChange])
@@ -100,13 +100,13 @@ export function DigitalHumanStudio({project, space, disabled, onDirtyChange}: {p
   function upload(file?: File) {
     if (!file || locked || flight.current) return
     const mime = file.type === 'audio/x-wav' ? 'audio/wav' : file.type
-    if (!['image/png', 'image/jpeg', 'video/mp4', 'audio/wav', 'audio/mpeg'].includes(mime) || file.size > 10 * 1024 * 1024) {setError(t('请选择10MiB以内的PNG、JPEG、MP4、WAV或MP3')); return}
+    if (!['image/png', 'image/jpeg', 'video/mp4', 'audio/wav', 'audio/mpeg'].includes(mime)) {setError(t('请选择PNG、JPEG、MP4、WAV或MP3素材')); return}
     const fields = new URLSearchParams({space_id: space, filename: file.name, role: mime.startsWith('audio/') ? 'voice' : 'reference'})
     pending.current = {path: `${prefix}/media/uploads?${fields}`, body: file, mime, key: crypto.randomUUID(), action: 'upload'}
     void execute()
   }
   return <section className="panel digital-human-studio">
-    <div className="section-heading"><div><span className="eyebrow">DIGITAL HUMAN</span><h2>{t('数字人口播')}</h2></div><span>{t('单人 · 固定机位 · 最长30秒')}</span></div>
+    <div className="section-heading"><div><span className="eyebrow">DIGITAL HUMAN</span><h2>{t('数字人口播')}</h2></div><span>{t('单人 · 固定机位 · 使用已授权配音')}</span></div>
     <p className="drama-help">{t('上传已授权形象，准备配音，再生成口播视频。照片驱动补充人物运动；视频改口型保留原动作。成片带有AI生成标识。')}</p>
     <p className="drama-source">{t('素材仅做格式、尺寸和时长检查；人脸数量、清晰度、遮挡及生成效果需要人工检查。')}</p>
     {readError && <p role="alert" className="error">{readError}</p>}
@@ -133,7 +133,7 @@ export function DigitalHumanStudio({project, space, disabled, onDirtyChange}: {p
     <button disabled={locked || !loaded || active || !speechReady || text.trim().length < 3} onClick={() => submit('/creative-jobs', {...speechInput, ...runtimeFields(choice), expected_provider: choice?.model.provider ?? caps.speech?.provider, expected_model: choice?.model.model ?? caps.speech?.model ?? ''}, 'job')}>{t('先生成配音（可能计费）')}</button>
     <label>{t('选择口播音频')}<select disabled={locked} value={audioId} onChange={event => {setAudioId(event.target.value); setVoiceConfirmed(false); setVoiceConsent('')}}><option value="">{t('选择音频')}</option>{assets.filter(item => item.kind === 'audio').map(item => <option key={item.id} value={item.id}>{item.name} · {item.duration.toFixed(1)}s</option>)}</select></label>
     {audio && <audio controls preload="none" src={`${baseURL}${audio.file_url}`} />}
-    {audio && !validAudio && <p role="alert" className="error">{t('配音须在30秒以内，且不能长于参考视频。')}</p>}
+    {audio && !validAudio && <p role="alert" className="error">{t('配音须有有效时长，且不能长于参考视频。')}</p>}
     <fieldset disabled={locked}><label>{t('声音授权依据')}<input maxLength={300} value={voiceConsent} placeholder={t('录音授权记录或TTS声音使用依据')} onChange={event => setVoiceConsent(event.target.value)} /></label><label><input type="checkbox" checked={voiceConfirmed} onChange={event => setVoiceConfirmed(event.target.checked)} />{t('我确认有权使用所选配音制作此口播')}</label></fieldset>
     <h3>{t('3. 生成人物口播')}</h3>
     <button className="primary" disabled={locked || !loaded || active || !avatar || !!avatar.revoked_at || !capability?.ready || !validAudio || !voiceConfirmed || voiceConsent.trim().length < 3} onClick={() => submit('/creative-jobs', {kind: 'digital_human', expected_version: project.version, avatar_id: avatarId, audio_asset_id: audioId, prompt: text.trim() || avatar?.name + '口播', voice_confirmed: voiceConfirmed, voice_consent_reference: voiceConsent.trim(), expected_provider: capability?.provider, expected_model: capability?.model}, 'job')}>{active ? t('项目任务处理中…') : t('生成数字人口播')}</button>

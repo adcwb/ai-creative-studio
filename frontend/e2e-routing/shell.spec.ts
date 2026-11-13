@@ -33,23 +33,27 @@ test('navigation groups and compact sidebar remain reachable, keyboard operable 
  await closeNavigation(page)
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
 })
-test('every workspace route has one shared context header across themes and languages',async({page},info)=>{
- await page.goto('/settings/preferences')
- for(const locale of ['zh-CN','en']){
+for(const locale of ['zh-CN','en']) for(const theme of ['forest','paper','screening']) {
+ test(`shared context header / ${locale} / ${theme}`,async({page},info)=>{
+  await page.goto('/settings/preferences')
   await page.locator('.preferences-page .language-buttons').getByRole('button',{name:locale==='en'?'English':'简体中文',exact:true}).click()
-  for(const theme of ['forest','paper','screening']){
-   await page.locator('.theme-option').filter({has:page.locator('.sample-'+theme)}).click()
-   await expect(page.locator('.user-workspace')).toHaveAttribute('data-theme',theme)
-   await expect(page.locator('.workspace-page-header')).toHaveCount(1)
-   await expect(page.locator('.workspace-page-context strong')).toHaveText(locale==='en'?'Personal settings':'系统设置')
-   await page.screenshot({path:`test-results/shell-${info.project.name}-${locale}-${theme}.png`,fullPage:true})
-   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
-  }
- }
- for(const route of ['/studio','/studio/workspaces','/assets','/library','/publish','/projects','/projects/story-1/brief','/projects/story-1/script','/projects/story-1/storyboard','/projects/story-1/production','/projects/story-1/review','/digital-humans/video','/digital-humans/interactive','/digital-humans/3d','/settings/models','/settings/billing','/settings/organization']){
+  await page.locator('.theme-option').filter({has:page.locator('.sample-'+theme)}).click()
+  await expect(page.locator('.user-workspace')).toHaveAttribute('data-theme',theme)
+  await expect(page.locator('.workspace-page-header')).toHaveCount(1)
+  await expect(page.locator('.workspace-page-context strong')).toHaveText(locale==='en'?'Personal settings':'系统设置')
+  await page.screenshot({path:`test-results/shell-${info.project.name}-${locale}-${theme}.png`,fullPage:true})
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+ })
+}
+// Each route gets its own browser context and the original 30-second budget.
+// Keep every existing assertion; a slow route now identifies its own failure.
+for(const route of ['/studio','/studio/workspaces','/assets','/library','/publish','/projects','/projects/story-1/brief','/projects/story-1/script','/projects/story-1/storyboard','/projects/story-1/production','/projects/story-1/review','/digital-humans/video','/digital-humans/interactive','/digital-humans/3d','/settings/models','/settings/billing','/settings/organization','/workflows']) {
+ test(`shared context header / English screening / ${route}`,async({page})=>{
+  await page.addInitScript(()=>{localStorage.setItem('studio.locale','en');localStorage.setItem('studio.preferences.v1:user-1','screening')})
   await page.goto(route)
+  await expect(page.locator('.user-workspace')).toHaveAttribute('data-theme','screening')
   await expect(page.locator('.workspace-page-header')).toHaveCount(1)
   await expect(page.locator('.workspace-page-context strong')).not.toHaveText('')
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
- }
-})
+ })
+}

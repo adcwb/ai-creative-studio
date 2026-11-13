@@ -23,6 +23,7 @@ func CheckPostgres(ctx context.Context, db *sql.DB) error {
 // Identifiers come only from this package's fixed schema definitions.
 var postgresReadinessSQL = func() string {
 	queries := []string{
+		"SELECT space_id,project_id,active,payload FROM studio_workflow_projects WHERE false",
 		"SELECT space_id,series_id,episode_id,check_id,finding_id,payload FROM studio_story_decisions WHERE false",
 		"SELECT space_id,series_id,episode_id,id,state,payload FROM studio_story_checks WHERE false",
 		"SELECT space_id,series_id,episode_id,id,payload FROM studio_story_contexts WHERE false",
@@ -61,7 +62,7 @@ var postgresReadinessSQL = func() string {
 	for _, q := range queries {
 		checks = append(checks, "NOT EXISTS ("+q+")")
 	}
-	return "SELECT (SELECT count(*)=1 AND min(version)=1 AND max(version)=1 FROM studio_schema) AND EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_blobs_size_nonnegative') AND EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_library_kind_v2' AND conrelid='studio_library_assets'::regclass) AND EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_series_episode_project') AND " + strings.Join(checks, " AND ")
+	return "SELECT (SELECT count(*)=1 AND min(version)=1 AND max(version)=1 FROM studio_schema) AND EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_workflow_project_fk' AND conrelid='studio_workflow_projects'::regclass) AND EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_blobs_size_nonnegative') AND EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_library_kind_v2' AND conrelid='studio_library_assets'::regclass) AND EXISTS(SELECT 1 FROM pg_constraint WHERE connamespace=current_schema()::regnamespace AND conname='studio_series_episode_project') AND " + strings.Join(checks, " AND ")
 }()
 
 func (s *FileStore) PersistenceFailureEpoch() uint64 {

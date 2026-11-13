@@ -1,0 +1,116 @@
+import {useCallback,useEffect,useMemo,useRef,useState} from 'react'
+import {Link} from 'react-router-dom'
+import {ReactFlow,Background,Controls,Handle,Position,type NodeProps,type Node,type Connection,type NodeChange} from '@xyflow/react'
+import '@xyflow/react/dist/style.css'
+import {ApiError,baseURL,errorMessage,request} from '../../api'
+import {useAppWorkspace} from '../../app/workspace'
+import {useNavigationTask} from '../../app/navigationGuard'
+import {translate,useI18n} from '../../i18n'
+import {usePolling} from '../../hooks/usePolling'
+import {useRuntimeCatalog} from '../../hooks/useRuntimeCatalog'
+import {RuntimeModelPicker} from '../../components/RuntimeModelPicker'
+import {initialRuntimeChoice,type RuntimePreview} from '../../runtimeSelection'
+import {previewFeature} from '../../gatewayModels'
+import {useSeriesWrite} from '../series/useSeriesWrite'
+import {useDirectory} from '../series/useDirectory'
+import {canConnect,labels,portLabels,ports,states,template,type Asset,type Detail,type Graph,type Kind,type Revision,type Run,type Step,type Summary,type Wire} from './types'
+import './workflow.css'
+function definite(e:unknown){return e instanceof ApiError&&e.status===409&&e.code==='workflow_version_conflict'}
+function FlowNode({data}:NodeProps){const {t}=useI18n(),step=data.step as Step,status=data.status as string|undefined;return <div className={'workflow-node workflow-node-'+step.kind}><span className="eyebrow">{t(labels[step.kind])}</span><strong>{step.label||t(labels[step.kind])}</strong>{status&&<span className="workflow-node-state">{t(states[status]??status)}</span>}{step.kind==='text'&&<p>{step.text?.slice(0,70)}</p>}{ports(step.kind).map((input,i)=><Handle key={input} id={input} type="target" position={Position.Left} style={{top:ports(step.kind).length===1?'50%':`${35+i*35}%`}} title={t(portLabels[input])}/>)}{step.kind!=='output'&&<Handle type="source" position={Position.Right} id="output"/>}</div>}
+const nodeTypes={creative:FlowNode}
+export default function WorkflowStudio({project,space,projectVersion}:{project:string;space:string;projectVersion:number}){
+ const {t}=useI18n(),workspace=useAppWorkspace(),storage=`studio.workflow.selected:${workspace.session.user?.id??'demo'}:${space}:${project}`
+ const [selected,setSelected]=useState(()=>{try{return sessionStorage.getItem(storage)??''}catch{return ''}}),[revision,setRevision]=useState(0)
+ const list=useDirectory<Summary>(`/projects/${project}/workflows`,space,revision)
+ function choose(id:string){workspace.requestLeave(()=>{try{sessionStorage.setItem(storage,id)}catch{/* Pending writes show their own storage warning. */}setSelected(id)})}
+ const saved=useCallback((value:Summary)=>{try{sessionStorage.setItem(storage,value.id)}catch{/* In-page recovery remains available. */}setSelected(value.id);setRevision(v=>v+1)},[storage])
+ return <section className="workflow-studio"><header className="series-heading"><div><h2>{t('创作流程')}</h2><p>{t('把描述、模型生成和人工选择连起来。保存流程不调用模型，运行时使用已保存版本。')}</p></div><button onClick={()=>choose('')}>{t('新建流程')}</button></header>
+ <div className="workflow-directory"><label>{t('已保存流程')}<select value={selected} onChange={e=>choose(e.target.value)}><option value="">{t('新流程草稿')}</option>{list.items.map(v=><option key={v.id} value={v.id}>{v.name} · {t('版本')} {v.version}</option>)}{selected&&!list.items.some(v=>v.id===selected)&&<option value={selected}>{t('正在读取所选流程…')}</option>}</select></label>{list.next_cursor&&<button disabled={list.more} onClick={()=>void list.loadMore()}>{t('加载更多流程')}</button>}{list.error&&<p role="alert">{list.error}</p>}</div>
+ <EditorLoader key={`${space}:${project}:${selected}:${revision}`} project={project} space={space} id={selected} projectVersion={projectVersion} saved={saved}/>
+ </section>
+}
+function EditorLoader({project,space,id,projectVersion,saved}:{project:string;space:string;id:string;projectVersion:number;saved:(v:Summary)=>void}){
+ const {t}=useI18n(),[detail,setDetail]=useState<Detail|null>(null),[error,setError]=useState(''),[refresh,setRefresh]=useState(0)
+ useEffect(()=>{if(!id)return;const abort=new AbortController();void request<Detail>(`/projects/${project}/workflows/${id}?space_id=${space}`,{signal:abort.signal}).then(v=>{if(!abort.signal.aborted)setDetail(v)}).catch(e=>{if(!abort.signal.aborted)setError(errorMessage(e,translate('流程读取失败')))});return()=>abort.abort()},[project,space,id,refresh])
+ if(id&&!detail)return <div className="panel">{error?<p role="alert">{error}<button onClick={()=>setRefresh(v=>v+1)}>{t('重新读取')}</button></p>:<p role="status">{t('正在读取流程…')}</p>}</div>
+ return <Editor project={project} space={space} detail={detail} projectVersion={projectVersion} saved={saved}/>
+}
+function Editor({project,space,detail,projectVersion,saved}:{project:string;space:string;detail:Detail|null;projectVersion:number;saved:(v:Summary)=>void}){
+ const {t}=useI18n(),workspace=useAppWorkspace(),path=`/projects/${project}/workflows${detail?'/'+detail.id:''}`
+ const write=useSeriesWrite<Summary>(`workflow-save:${project}:${detail?.id??'new'}`,path,detail?'PUT':'POST',saved,definite)
+ const pending=write.recovery as {name?:string;graph?:Graph}|null
+ const [name,setName]=useState(pending?.name??detail?.name??''),[graph,setGraph]=useState<Graph>(()=>pending?.graph??detail?.revision.graph??template(false,t))
+ const [basisVersion,setBasisVersion]=useState(detail?.version??0),[latest,setLatest]=useState<Detail|null>(null),[replaceConfirmed,setReplaceConfirmed]=useState(false)
+ const [selected,setSelected]=useState(graph.nodes[0]?.id??''),[kind,setKind]=useState<Kind>('image'),[error,setError]=useState(''),[notice,setNotice]=useState('')
+ const [past,setPast]=useState<Graph[]>([]),[future,setFuture]=useState<Graph[]>([]),dragStart=useRef<Graph|null>(null)
+ const [assets,setAssets]=useState<Asset[]>([]),[runState,setRunState]=useState<Run|null>(null)
+ const runStorage=`studio.workflow.run:${workspace.session.user?.id??'demo'}:${space}:${project}:${detail?.id??'new'}`
+ const [runId,setRunId]=useState(()=>{try{return sessionStorage.getItem(runStorage)??''}catch{return ''}})
+ const runningSaved=useCallback((r:Run)=>{try{sessionStorage.setItem(runStorage,r.id)}catch{/* The original request remains recoverable. */}setRunId(r.id);setNotice(t('运行已保存，离开页面后仍会继续。'))},[t,runStorage])
+ const run=useSeriesWrite<Run>(`workflow-run:${project}:${detail?.id??'new'}`,path+'/runs','POST',runningSaved,definite)
+ const initialGraph=useRef(graph)
+ const dirty=JSON.stringify(graph)!==JSON.stringify(initialGraph.current)||name!==(detail?.name??'')
+ useNavigationTask(dirty||write.busy||write.uncertain||run.busy||run.uncertain)
+ const readOnly=workspace.space?.role==='viewer',locked=readOnly||write.busy||write.uncertain||run.busy||run.uncertain
+ useEffect(()=>{const abort=new AbortController();void request<{assets:Asset[]}>(`/projects/${project}/media?space_id=${space}`,{signal:abort.signal}).then(v=>{if(!abort.signal.aborted)setAssets(v.assets)}).catch(e=>{if(!abort.signal.aborted)setError(errorMessage(e,t('项目素材读取失败')))});return()=>abort.abort()},[project,space,t])
+ function commit(next:Graph){setPast(v=>[...v,structuredClone(graph)]);setFuture([]);setGraph(next);setError('');setNotice('')}
+ function patch(next:Partial<Step>){commit({...graph,nodes:graph.nodes.map(n=>n.id===selected?{...n,...next}:n)})}
+ function connect(edge:Wire){if(!canConnect(graph,edge)){setError(t('无法连接：请检查输入类型、重复连线和循环。'));return};commit({...graph,edges:[...graph.edges,edge]})}
+ const nodes:Node[]=useMemo(()=>graph.nodes.map(n=>({id:n.id,type:'creative',position:{x:n.x,y:n.y},data:{step:n,status:!dirty&&runState?.revision_id===detail?.head_revision_id?runState?.nodes[n.id]?.status:undefined},selected:n.id===selected})),[graph.nodes,selected,dirty,runState,detail?.head_revision_id])
+ function changes(changes:NodeChange[]){if(locked)return;const removed=new Set(changes.filter(c=>c.type==='remove').map(c=>c.id));if(removed.size){commit({nodes:graph.nodes.filter(n=>!removed.has(n.id)),edges:graph.edges.filter(e=>!removed.has(e.source)&&!removed.has(e.target))});return};const positions=new Map<string,{x:number;y:number}>();for(const change of changes){if(change.type==='position'&&change.position)positions.set(change.id,change.position)}if(positions.size)setGraph(old=>({...old,nodes:old.nodes.map(n=>positions.has(n.id)?{...n,x:positions.get(n.id)!.x,y:positions.get(n.id)!.y}:n)}))}
+ const incomplete=graph.nodes.filter(n=>n.kind==='text'?!n.text?.trim():n.kind==='asset'?!n.asset_id:['image','video','speech'].includes(n.kind)?!n.model_config_id||!n.model_config_version:false).length
+ const step=graph.nodes.find(n=>n.id===selected)
+ return <><section className="panel workflow-editor"><div className="workflow-toolbar"><label>{t('流程名称')}<input maxLength={80} value={name} disabled={locked} onChange={e=>setName(e.target.value)}/></label><button className="primary" disabled={locked||!name.trim()||!graph.nodes.length} onClick={()=>void write.save({name,expected_version:basisVersion,graph})}>{t('保存流程修订')}</button>{detail&&<button disabled={locked||dirty||incomplete>0} onClick={()=>void run.save({revision_id:detail.head_revision_id,expected_project_version:projectVersion})}>{t('运行已保存流程')}</button>}</div>
+ {detail&&<p>{t('当前编辑起点：保存版本 {version}',{version:basisVersion})} <button disabled={locked} onClick={()=>{void request<Detail>(`${path}?space_id=${space}`).then(v=>{setLatest(v);setReplaceConfirmed(false)}).catch(e=>setError(errorMessage(e,t('流程读取失败'))))}}>{t('核对最新保存版本')}</button></p>}
+ {latest&&<div className="editing-note"><p>{t('最新保存版本 {version}，当前草稿仍保留。请比较后明确选择是否基于它继续保存。',{version:latest.version})}</p><label><input type="checkbox" checked={replaceConfirmed} disabled={locked} onChange={e=>setReplaceConfirmed(e.target.checked)}/>{t('已比较，保留当前草稿作为新修订')}</label><button disabled={locked||!replaceConfirmed} onClick={()=>{setBasisVersion(latest.version);setLatest(null);setNotice(t('保存起点已更新，当前草稿未替换。'))}}>{t('使用核对后的保存起点')}</button></div>}
+ {incomplete>0&&<p className="drama-help">{t('还有 {count} 个步骤需要补充描述、素材或模型，保存后再运行。',{count:incomplete})}</p>}
+ {dirty&&<p className="editing-note">{t('当前有未保存草稿。请先保存，再运行；旧运行不会随草稿变化。')}</p>}
+ {error&&<p role="alert" className="error">{error}</p>}{(write.error||run.error)&&<p role="alert" className="error">{write.error||run.error}</p>}{(write.storageNotice||run.storageNotice)&&<p role="status">{write.storageNotice||run.storageNotice}</p>}{notice&&<p role="status">{notice}</p>}
+ {write.uncertain&&<button disabled={write.busy||readOnly} onClick={()=>void write.save({})}>{t('核对原流程保存请求')}</button>}{run.uncertain&&<button disabled={run.busy||readOnly} onClick={()=>void run.save({})}>{t('核对原流程运行请求')}</button>}
+ <div className="workflow-toolbar"><label>{t('步骤类型')}<select disabled={locked} value={kind} onChange={e=>setKind(e.target.value as Kind)}>{Object.entries(labels).map(([k,v])=><option key={k} value={k}>{t(v)}</option>)}</select></label><button disabled={locked} onClick={()=>{const n:Step={id:crypto.randomUUID(),kind,label:t(labels[kind]),x:40+graph.nodes.length*180,y:220,asset_kind:kind==='asset'?'image':undefined};commit({...graph,nodes:[...graph.nodes,n]});setSelected(n.id)}}>{t('添加步骤')}</button><button disabled={locked||!past.length} onClick={()=>{setFuture(v=>[structuredClone(graph),...v]);setGraph(past[past.length-1]);setPast(v=>v.slice(0,-1))}}>{t('撤销编辑')}</button><button disabled={locked||!future.length} onClick={()=>{setPast(v=>[...v,structuredClone(graph)]);setGraph(future[0]);setFuture(v=>v.slice(1))}}>{t('重做编辑')}</button></div>
+ {!detail&&<div className="media-actions"><button disabled={locked} onClick={()=>commit(template(false,t))}>{t('图像出稿模板')}</button><button disabled={locked} onClick={()=>commit(template(true,t))}>{t('已有素材审片模板')}</button></div>}
+ <div className="workflow-layout"><div><div className="workflow-canvas" aria-label={t('创作流程画布')}><ReactFlow nodes={nodes} edges={graph.edges.map(e=>({id:`${e.source}:${e.target}:${e.input}`,source:e.source,target:e.target,sourceHandle:'output',targetHandle:e.input}))} nodeTypes={nodeTypes} onNodesChange={changes} onNodeClick={(_,n)=>setSelected(n.id)} onNodeDragStart={()=>{dragStart.current=structuredClone(graph)}} onNodeDragStop={()=>{if(dragStart.current){const before=dragStart.current;setPast(v=>[...v,before]);setFuture([]);dragStart.current=null}}} onConnect={(c:Connection)=>{if(!locked&&c.source&&c.target&&c.targetHandle)connect({source:c.source,target:c.target,input:c.targetHandle})}} nodesDraggable={!locked} nodesConnectable={!locked} deleteKeyCode={locked?null:['Backspace','Delete']} fitView minZoom={.25} maxZoom={2} ariaLabelConfig={{'controls.zoomIn.ariaLabel':t('放大画布'),'controls.zoomOut.ariaLabel':t('缩小画布'),'controls.fitView.ariaLabel':t('适应画布')}}><Background/><Controls showInteractive={false}/></ReactFlow></div>
+ <details className="workflow-step-list"><summary>{t('按列表选择步骤，支持键盘与手机操作')}</summary>{graph.nodes.map(n=><button key={n.id} aria-pressed={selected===n.id} onClick={()=>setSelected(n.id)}>{n.label||t(labels[n.kind])}</button>)}</details>
+ <details><summary>{t('检查与移除连线')}</summary>{graph.edges.map(e=><p key={`${e.source}:${e.target}:${e.input}`}>{graph.nodes.find(n=>n.id===e.source)?.label} → {graph.nodes.find(n=>n.id===e.target)?.label} · {t(portLabels[e.input])}<button disabled={locked} onClick={()=>commit({...graph,edges:graph.edges.filter(v=>v!==e)})}>{t('移除连线')}</button></p>)}</details></div>
+ <aside className="workflow-properties" aria-label={t('步骤设置')}>{step?<StepSettings key={step.id} step={step} graph={graph} assets={assets} space={space} project={project} projectVersion={projectVersion} disabled={locked} patch={patch} connect={connect} remove={()=>{commit({nodes:graph.nodes.filter(n=>n.id!==step.id),edges:graph.edges.filter(e=>e.source!==step.id&&e.target!==step.id)});setSelected('')}}/>:<p>{t('选择一个步骤，查看输入和设置。')}</p>}</aside></div>
+ {detail&&<History project={project} space={space} detail={detail} disabled={locked} load={v=>{workspace.requestLeave(()=>{commit(v.graph);setNotice(t('历史版本已载入草稿，保存后形成新修订，原记录保留。'))})}}/>}
+ </section>{detail&&<RunHistory key={runId} project={project} space={space} workflow={detail.id} selected={runId} choose={setRunId} observe={setRunState}/>}</>
+}
+function ModelSettings({step,graph,space,project,projectVersion,disabled,patch}:{step:Step;graph:Graph;space:string;project:string;projectVersion:number;disabled:boolean;patch:(v:Partial<Step>)=>void}){
+ const workspace=useAppWorkspace(),reference=graph.edges.some(e=>e.target===step.id&&e.input==='reference')
+ const preview:RuntimePreview={operation:'creative',project_id:project,input:{kind:step.kind,expected_version:projectVersion,...(reference?{reference_asset_id:'workflow-reference'}:{})}}
+ const {catalog}=useRuntimeCatalog(workspace.session.user?.id??'demo',space,previewFeature(preview),workspace.session.mode==='secure')
+ const model=catalog?.models.find(v=>v.id===step.model_config_id&&v.version===step.model_config_version),choice=model?{...initialRuntimeChoice(model),voice:step.voice??''}:null
+ return <RuntimeModelPicker space={space} capability={step.kind} value={choice} onChange={value=>patch({model_config_id:value?.model.id,model_config_version:value?.model.version,voice:value?.voice})} preview={preview} disabled={disabled} gatewayOnly/>
+}
+function StepSettings({step,graph,assets,space,project,projectVersion,disabled,patch,connect,remove}:{step:Step;graph:Graph;assets:Asset[];space:string;project:string;projectVersion:number;disabled:boolean;patch:(v:Partial<Step>)=>void;connect:(e:Wire)=>void;remove:()=>void}){
+ const {t}=useI18n(),[source,setSource]=useState(''),[port,setPort]=useState(ports(step.kind)[0]??'')
+ return <fieldset disabled={disabled}><h3>{t(labels[step.kind])}</h3><label>{t('步骤名称')}<input maxLength={80} value={step.label} onChange={e=>patch({label:e.target.value})}/></label>{step.kind==='text'&&<label>{t('描述与文案')}<textarea maxLength={2000} value={step.text??''} onChange={e=>patch({text:e.target.value})}/></label>}{step.kind==='asset'&&<label>{t('项目素材')}<select value={step.asset_id??''} onChange={e=>{const a=assets.find(v=>v.id===e.target.value);patch({asset_id:a?.id,asset_kind:a?.kind??'image'})}}><option value="">{t('请选择素材')}</option>{assets.map(a=><option key={a.id} value={a.id}>{a.name} · {a.kind}</option>)}</select></label>}
+ {['image','speech','video'].includes(step.kind)&&<ModelSettings step={step} graph={graph} space={space} project={project} projectVersion={projectVersion} disabled={disabled} patch={patch}/>}
+ {step.kind==='image'&&<label>{t('画面比例')}<select value={step.ratio??'1:1'} onChange={e=>patch({ratio:e.target.value})}>{['9:16','16:9','1:1','4:5'].map(v=><option key={v} value={v}>{v}</option>)}</select></label>}
+ {ports(step.kind).length>0&&<><h4>{t('连接上一步')}</h4><label>{t('来源步骤')}<select value={source} onChange={e=>setSource(e.target.value)}><option value="">{t('选择步骤')}</option>{graph.nodes.filter(n=>n.id!==step.id&&n.kind!=='output').map(n=><option key={n.id} value={n.id}>{n.label||t(labels[n.kind])}</option>)}</select></label><label>{t('输入位置')}<select value={port} onChange={e=>setPort(e.target.value)}>{ports(step.kind).map(v=><option key={v} value={v}>{t(portLabels[v])}</option>)}</select></label><button disabled={!source} onClick={()=>connect({source,target:step.id,input:port})}>{t('连接到此步骤')}</button></>}
+ {step.kind==='review'&&<p>{t('运行到这里会停下。创作者核对素材后，才继续后面的步骤。')}</p>}{step.kind==='output'&&<p>{t('输出保留在本项目素材中，不会自动覆盖剪辑或发布到外部平台。')}</p>}<button onClick={remove}>{t('移除此步骤')}</button></fieldset>
+}
+function History({project,space,detail,disabled,load}:{project:string;space:string;detail:Detail;disabled:boolean;load:(v:Revision)=>void}){
+ const {t}=useI18n(),list=useDirectory<{id:string;number:number}>(`/projects/${project}/workflows/${detail.id}/revisions`,space,detail.version),[error,setError]=useState('')
+ return <details><summary>{t('流程修订历史')}</summary>{list.items.map(v=><p key={v.id}>{t('版本')} {v.number} <button disabled={disabled} onClick={()=>{void request<Revision>(`/projects/${project}/workflows/${detail.id}/revisions/${v.id}?space_id=${space}`).then(load).catch(e=>setError(errorMessage(e,t('历史版本读取失败'))))}}>{t('作为草稿打开')}</button></p>)}{list.next_cursor&&<button onClick={()=>void list.loadMore()}>{t('加载更早修订')}</button>}{(list.error||error)&&<p role="alert">{list.error||error}</p>}</details>
+}
+function RunHistory({project,space,workflow,selected,choose,observe}:{project:string;space:string;workflow:string;selected:string;choose:(id:string)=>void;observe:(value:Run)=>void}){
+ const {t}=useI18n(),[refresh,setRefresh]=useState(0),list=useDirectory<{id:string;workflow_id:string;status:string}>(`/projects/${project}/workflow-runs`,space,refresh)
+ return <section className="panel"><h3>{t('流程运行记录')}</h3><button onClick={()=>setRefresh(v=>v+1)}>{t('刷新运行记录')}</button>{list.error&&<p role="alert">{list.error}</p>}<div className="media-actions">{list.items.filter(v=>v.workflow_id===workflow).map((v,i)=><button key={v.id} aria-pressed={selected===v.id} onClick={()=>choose(v.id)}>{t('运行')} {i+1} · {t(states[v.status]??v.status)}</button>)}</div>{list.next_cursor&&<button onClick={()=>void list.loadMore()}>{t('加载更多运行')}</button>}{selected&&<RunView key={selected} project={project} space={space} id={selected} observe={observe}/>}</section>
+}
+function RunView({project,space,id,observe}:{project:string;space:string;id:string;observe:(value:Run)=>void}){
+ const {t}=useI18n(),[run,setRun]=useState<Run|null>(null),[error,setError]=useState(''),[assets,setAssets]=useState<Asset[]>([])
+ const load=useCallback(async(signal:AbortSignal)=>{const value=await request<Run>(`/projects/${project}/workflow-runs/${id}?space_id=${space}`,{signal});if(!signal.aborted){setRun(value);observe(value);setError('')};const media=await request<{assets:Asset[]}>(`/projects/${project}/media?space_id=${space}`,{signal});if(!signal.aborted)setAssets(media.assets)},[project,space,id,observe])
+ usePolling(async signal=>{try{await load(signal)}catch(e){if(!signal.aborted)setError(errorMessage(e,t('流程运行读取失败')));throw e}},2000,`workflow:${project}:${space}:${id}`)
+ return <div className="workflow-run" aria-label={t('运行详情')}>{error&&<p role="alert">{error}</p>}{run&&<><p role="status">{t(states[run.status]??run.status)} · {t('运行版本')} {run.version}</p>{Object.values(run.nodes).some(n=>n.status==='failed'||n.status==='unknown')&&<p className="editing-note">{t('有步骤未完成，后续生成已暂停；已开始的任务会继续核对结果。')}</p>}<p>{t('运行固定保存时的流程版本；图中的每一步使用既有创作任务，结果未知时不会自动重新生成。')}</p>{run.graph.nodes.map(step=>{const n=run.nodes[step.id],asset=assets.find(a=>a.id===n.result.asset_id);return <article className="editing-note" key={step.id}><h4>{step.label||t(labels[step.kind])} · {t(states[n.status]??n.status)}</h4>{n.error_code&&<p className="error">{t('步骤未完成（{code}），请核对原任务与当前权限。',{code:n.error_code})}</p>}{asset&&<>{asset.kind==='image'?<img className="workflow-result" alt={asset.name} src={baseURL+asset.file_url}/>:asset.kind==='video'?<video className="workflow-result" controls preload="metadata" src={baseURL+asset.file_url}/>:<audio controls preload="metadata" src={baseURL+asset.file_url}/>}<p>{asset.name}</p></>}{n.result.text&&<p>{n.result.text}</p>}{n.status==='waiting_review'&&<ReviewDecision project={project} space={space} run={run} node={step.id} saved={setRun}/>}</article>})}<RunAction project={project} space={space} run={run} saved={setRun}/><Link className="button-link" to={`/projects/${project}/media`}>{t('在剪辑工作区使用素材')}</Link></>}</div>
+}
+function ReviewDecision({project,space,run,node,saved}:{project:string;space:string;run:Run;node:string;saved:(v:Run)=>void}){
+ const {t}=useI18n(),workspace=useAppWorkspace(),[confirmed,setConfirmed]=useState(false),write=useSeriesWrite<Run>(`workflow-review:${run.id}:${node}`,`/projects/${project}/workflow-runs/${run.id}/nodes/${node}/decision`,'POST',saved,definite)
+ return <div data-space={space}><label><input type="checkbox" checked={confirmed} disabled={write.busy||write.uncertain||workspace.space?.role==='viewer'} onChange={e=>setConfirmed(e.target.checked)}/>{t('我已检查此素材，继续后续步骤')}</label><button disabled={write.busy||workspace.space?.role==='viewer'||!confirmed&&!write.uncertain} onClick={()=>void write.save({expected_version:run.version,approved:true})}>{t(write.uncertain?'核对原审片决定':'确认采用并继续')}</button>{write.error&&<p role="alert">{write.error}</p>}{write.storageNotice&&<p role="status">{write.storageNotice}</p>}</div>
+}
+function RunAction({project,run,saved}:{project:string;space:string;run:Run;saved:(v:Run)=>void}){
+ const {t}=useI18n(),workspace=useAppWorkspace(),action=run.status==='unknown'?'reconcile':'cancel',write=useSeriesWrite<Run>(`workflow-action:${run.id}:${action}`,`/projects/${project}/workflow-runs/${run.id}/${action}`,'POST',saved,definite)
+ if(run.status==='succeeded'||run.status==='failed'||run.status==='cancelled')return null
+ return <div><p>{t('停止只阻止后续派发，不能保证上游已开始的计算被撤回。核对沿用原任务，不创建新的模型请求。')}</p><button disabled={write.busy||workspace.space?.role==='viewer'} onClick={()=>void write.save({expected_version:run.version})}>{t(write.uncertain?'核对原运行操作':action==='reconcile'?'核对原任务结果':'停止后续步骤')}</button>{write.error&&<p role="alert">{write.error}</p>}</div>
+}

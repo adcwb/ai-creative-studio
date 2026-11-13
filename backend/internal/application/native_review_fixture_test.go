@@ -20,6 +20,12 @@ const nativeReviewFixturePrefix = reviewfixture.Prefix
 // by an exact filename contract. No production binary has this entry point.
 func TestMain(m *testing.M) {
 	name := strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe")
+	if name == avatarFixturePrefix {
+		if avatarFileFixtureCommand() != nil {
+			os.Exit(3)
+		}
+		os.Exit(0)
+	}
 	if strings.HasPrefix(name, nativeReviewFixturePrefix) {
 		if e := reviewfixture.Command(name, os.Stdin, os.Stdout); e != nil {
 			os.Exit(3)

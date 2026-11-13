@@ -69,6 +69,8 @@ func providerFailure(code string) error { return &ProviderError{Code: code} }
 
 func providerMessage(code string) string {
 	switch code {
+	case "avatar_legacy_protocol_limit":
+		return "当前数字人执行器仍使用旧版 JSON 媒体协议，输入超过其内存边界；请由部署方切换 files-v1 文件协议，素材未截断。"
 	case "writing_context_changed":
 		return "本集正式资料或剧本来源已变化，未发送新的生成请求；请核对并重新准备写作上下文。旧稿与候选保留。"
 	case "alignment_source_unpinned":

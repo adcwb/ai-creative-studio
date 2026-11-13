@@ -1,6 +1,6 @@
 # 可视化创作流程与数字人
 
-状态：Planning，尚未实现。基线 `486ef479b4906aa6c3ddc6a37516d33c0da818de`（第 6–10 项已推送，CI 43475422718 的 25 项检查全部成功）。本包属于随后授权的第 1、4 项；先保留本地，不随上一阶段提交推送。不得把本包的设计内容当作现成功能或供应商验收。
+状态：Implementing，本地已有可执行阶段结果，完整规格未完成。详见 [实施记录](implementation.md) 和 [任务状态](tasks.md)。基线 `486ef479b4906aa6c3ddc6a37516d33c0da818de`（第 6–10 项已推送，CI 43475422718 的 25 项检查全部成功）。本包属于随后授权的第 1、4 项；先保留本地，不随上一阶段提交推送。不得把本包的设计内容当作现成功能或供应商验收。
 
 ## 创作目标
 
@@ -10,7 +10,7 @@
 
 ## 已核对代码
 
-- 当前无在线画布。`pipeline.go`、`project_pipeline.go`、`storyboard_pipeline.go` 和 `digital_human_pipeline.go` 使用 Eino Chain；`backend/go.mod` 固定 Eino v0.7.37。不能把开发工具或后台链路冒充 C 端画布。
+- 基线原无在线画布（本轮已加入首批实际节点，见实施记录）。`pipeline.go`、`project_pipeline.go`、`storyboard_pipeline.go` 和 `digital_human_pipeline.go` 使用 Eino Chain；`backend/go.mod` 固定 Eino v0.7.37。不能把开发工具或后台链路冒充 C 端画布。
 - 可复用既有项目、库版本、提示词应用、CreativeJob、媒体采用/审片、剪辑、固定修订、交付包、任务回执、授权检查及队列。新图不能复制凭据或跳过这些路径。
 - 当前视频数字人已有项目形象授权、永久撤销、照片驱动/视频改口型接口与本地执行器；默认未配置执行器与许可时不可运行。`WorkspacesPage.tsx` 的交互与 3D 入口明确不可用。
 - 数字人旧实现仍有本项目的 10MiB、30秒、720p/24fps、32MiB 输出门槛及内存 base64 IPC；`DigitalHumanStudio.tsx` 也有 30 秒判定。属于需改造的当前实现边界，不能伪装成所有模型的协议限制。照片最小清晰尺寸、真实格式、授权和时长一致性校验须按实际执行器能力保留。
@@ -36,7 +36,7 @@ FR-C MUST：服务端执行与浏览器生命周期独立。持久状态至少�
 
 领域/API 候选：Workflow、WorkflowRevision、WorkflowRun、WorkflowNodeRun、ReviewDecision。拟放入 `modules/workflows`、`persistence/workflowrepo`、application/workflow_* 与 frontend/features/workflows；接口拟为 project/workflows、workflow revisions/validate/runs、run nodes/decisions/cancel/reconcile。表及文件结构在实施前落到完整请求响应、约束、迁移与恢复验收中，不能临时加在不受约束的浏览器存储。
 
-画布候选使用 MIT React Flow 的基础组件（npm 官方元数据当前为 12.12.1，peer React >=17，尚未安装；实施时锁定精确依赖），自定义本项目节点和样式，不购买或复制 Pro 模板。浏览器只负责交互，真实执行仍在服务端。Eino v0.7.37 有 Graph/Checkpoint 扩展点，但是否采用必须先用现有异步子任务验证恢复语义；不得为套用框架再建一套重复派发系统。
+画布候选使用 MIT React Flow 的基础组件（npm 官方元数据当前为 12.12.1，peer React >=17，本轮已安装并锁定精确依赖），自定义本项目节点和样式，不购买或复制 Pro 模板。浏览器只负责交互，真实执行仍在服务端。Eino v0.7.37 有 Graph/Checkpoint 扩展点，但是否采用必须先用现有异步子任务验证恢复语义；不得为套用框架再建一套重复派发系统。
 
 ## N2：真实数字人的执行器与制作闭环
 

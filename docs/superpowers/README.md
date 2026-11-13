@@ -52,4 +52,4 @@ docs/
 
 - [创作者返修、连续制作与团队交付](specs/2026-11-13-creator-workflow/README.md)
 
-- [可视化创作流程与数字人（下一阶段本地规划，未实现）](specs/2026-11-13-workflow-canvas-digital-human/README.md)
+- [可视化创作流程与数字人（本地阶段实现，完整规格未完成）](specs/2026-11-13-workflow-canvas-digital-human/README.md)

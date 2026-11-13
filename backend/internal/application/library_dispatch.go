@@ -131,6 +131,11 @@ func (s *FileStore) withLibraryDispatchGuard(ctx context.Context, job *CreativeJ
 	inputPins := cloneLibraryInputPins(job.LibraryInputs)
 	input := creativeJobMediaInput(job)
 	guard := func(ctx context.Context) error {
+		if job.Kind == "digital_human" {
+			if err := s.checkAvatarJob(ctx, job); err != nil {
+				return err
+			}
+		}
 		if e := s.checkLibraryInputPins(ctx, job.SpaceID, inputPins); e != nil {
 			return e
 		}

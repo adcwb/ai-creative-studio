@@ -21,6 +21,7 @@ import (
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/seriesrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/storyrepo"
 	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/uploadrepo"
+	"github.com/adcwb/ai-creative-studio/backend/internal/persistence/workflowrepo"
 
 	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
@@ -55,6 +56,7 @@ type FileStore struct {
 	storyWorkerMu     sync.Mutex
 	storyWorkerClosed bool
 	storyRunner       *storyCheckRunner
+	workflows         *workflowrepo.Store
 	revisions         *revisionrepo.Store
 	story             *storyrepo.Store
 	migrations        *migrationrepo.Store

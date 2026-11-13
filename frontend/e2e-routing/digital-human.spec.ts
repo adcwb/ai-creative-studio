@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 
-test('avatar consent, unknown-result replay and license gate', async ({page, request}) => {
+test('avatar consent, unknown-result replay and license gate', async ({page, request},info) => {
+ if(info.project.name==='desktop') await page.setViewportSize({width:1920,height:1080})
   await request.post('http://127.0.0.1:5189/__test__/reset', {data: {}})
   const people: Record<string, unknown>[] = []
   const jobs: Record<string, unknown>[] = []
@@ -8,7 +9,7 @@ test('avatar consent, unknown-result replay and license gate', async ({page, req
   let ready = false
   let failOnce = true
   await page.route('**/api/v1/creative-media-capabilities', route => route.fulfill({json: {digital_human_photo: {provider: 'synthetic-avatar', model: 'test-v1', ready, message: ready ? 'Synthetic configured engine' : '部署方尚未确认数字人引擎使用许可'}}}))
-  await page.route('**/api/v1/projects/story-1/media?*', route => route.fulfill({json: {assets: [{id: 'photo', kind: 'image', name: 'Synthetic photo', duration: 0}, {id: 'audio', kind: 'audio', name: 'Synthetic voice', duration: 3, file_url: '/synthetic.wav'}]}}))
+  await page.route('**/api/v1/projects/story-1/media?*', route => route.fulfill({json: {assets: [{id: 'photo', kind: 'image', name: 'Synthetic photo', duration: 0}, {id: 'audio', kind: 'audio', name: 'Synthetic voice', duration: 33, file_url: '/synthetic.wav'}]}}))
   await page.route('**/api/v1/projects/story-1/digital-humans?*', async route => {
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON()

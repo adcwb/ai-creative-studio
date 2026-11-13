@@ -1,7 +1,6 @@
 package application
 
 import (
-	"bytes"
 	"context"
 	"image"
 	"math"
@@ -70,12 +69,12 @@ func (s *FileStore) validateAvatarMedia(project, space string, asset MediaAsset,
 		return err
 	}
 	info, err := os.Stat(path)
-	if err != nil || info.Size() > 10<<20 {
-		return projectInputError("数字人输入素材最大10MiB")
+	if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+		return ErrInvalidProjectInput
 	}
 	if audio || asset.Kind == "video" {
-		if asset.Duration <= 0 || asset.Duration > 30 || math.IsNaN(asset.Duration) || math.IsInf(asset.Duration, 0) {
-			return projectInputError("数字人首版仅支持30秒以内的音视频")
+		if asset.Duration <= 0 || math.IsNaN(asset.Duration) || math.IsInf(asset.Duration, 0) {
+			return projectInputError("数字人音视频必须有可解析的有效时长")
 		}
 		if audio && mime != "audio/wav" && mime != "audio/mpeg" {
 			return ErrInvalidProjectInput
@@ -88,11 +87,12 @@ func (s *FileStore) validateAvatarMedia(project, space string, asset MediaAsset,
 	if mime != "image/png" && mime != "image/jpeg" {
 		return ErrInvalidProjectInput
 	}
-	data, err := os.ReadFile(path)
+	file, err := openLocalBlob(path)
 	if err != nil {
 		return err
 	}
-	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	defer file.Close()
+	cfg, _, err := image.DecodeConfig(file)
 	if err != nil || cfg.Width < 256 || cfg.Height < 256 {
 		return projectInputError("形象照片宽高至少256像素")
 	}
@@ -100,16 +100,23 @@ func (s *FileStore) validateAvatarMedia(project, space string, asset MediaAsset,
 }
 
 type avatarWork struct {
-	reference, audio, video         []byte
-	referenceMIME, audioMIME, route string
-	duration                        float64
+	// Byte fields exist only for the legacy compatibility test helper.
+	reference, audio, video                         []byte
+	referenceMIME, audioMIME, route                 string
+	referencePath, audioPath, videoPath, outputPath string
+	duration                                        float64
 }
 
-// executeDigitalHuman uses Eino for validation -> model driving -> encoding and
-// technical QC. Speech is a separate, explicitly quoted creative job, so this
-// pipeline never makes an unconfirmed second billable request.
+// executeDigitalHuman keeps inference and encoding on private files. Speech is
+// a separately requested job; this pipeline never silently calls TTS or a
+// generic video model in place of a dedicated avatar engine.
 func (s *FileStore) executeDigitalHuman(ctx context.Context, job *CreativeJob) error {
 	c := s.creative
+	dir, err := nativefs.MkdirTemp("", "studio-avatar-job-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
 	chain := compose.NewChain[*CreativeJob, *avatarWork]().
 		AppendLambda(compose.InvokableLambda(func(ctx context.Context, job *CreativeJob) (*avatarWork, error) {
 			if err := s.checkAvatarJob(ctx, job); err != nil {
@@ -154,39 +161,69 @@ func (s *FileStore) executeDigitalHuman(ctx context.Context, job *CreativeJob) e
 			if err != nil {
 				return nil, err
 			}
-			work := &avatarWork{referenceMIME: refMIME, audioMIME: audioMIME, route: a.Route, duration: audio.Duration}
-			work.reference, err = os.ReadFile(refPath)
+			return &avatarWork{referencePath: refPath, audioPath: audioPath, referenceMIME: refMIME, audioMIME: audioMIME, route: a.Route, duration: audio.Duration, videoPath: filepath.Join(dir, "model.mp4"), outputPath: filepath.Join(dir, "composed.mp4")}, nil
+		})).
+		AppendLambda(compose.InvokableLambda(func(ctx context.Context, work *avatarWork) (*avatarWork, error) {
+			if err := s.checkAvatarJob(ctx, job); err != nil {
+				return nil, err
+			}
+			var provider any = c.avatarPhoto
+			operation := "photo_avatar"
+			if work.route == "video" {
+				provider = c.lipSync
+				operation = "lip_sync"
+			}
+			if provider == nil {
+				return nil, providerFailure("provider_unavailable")
+			}
+			local, fileMode := provider.(*LocalTransform)
+			if fileMode && local.protocol == "files-v1" {
+				if err := local.AvatarFiles(ctx, operation, work.referencePath, work.referenceMIME, work.audioPath, work.audioMIME, work.videoPath); err != nil {
+					return nil, err
+				}
+				return work, nil
+			}
+			// Compatibility with existing JSON executors is explicit and bounded. These
+			// are adapter transport limits, not global asset/project upload quotas.
+			for _, path := range []string{work.referencePath, work.audioPath} {
+				info, err := os.Stat(path)
+				if err != nil {
+					return nil, err
+				}
+				if info.Size() > 10<<20 {
+					return nil, providerFailure("avatar_legacy_protocol_limit")
+				}
+			}
+			ref, err := os.ReadFile(work.referencePath)
 			if err != nil {
 				return nil, err
 			}
-			work.audio, err = os.ReadFile(audioPath)
-			return work, err
-		})).
-		AppendLambda(compose.InvokableLambda(func(ctx context.Context, work *avatarWork) (*avatarWork, error) {
-			if err := s.checkAvatarJob(ctx, job); err != nil {
+			audio, err := os.ReadFile(work.audioPath)
+			if err != nil {
 				return nil, err
 			}
-			var err error
-			if work.route == "photo" {
-				if c.avatarPhoto == nil {
-					return nil, providerFailure("provider_unavailable")
-				}
-				work.video, err = c.avatarPhoto.Animate(ctx, work.reference, work.referenceMIME, work.audio, work.audioMIME)
+			var video []byte
+			if operation == "photo_avatar" {
+				video, err = c.avatarPhoto.Animate(ctx, ref, work.referenceMIME, audio, work.audioMIME)
 			} else {
-				if c.lipSync == nil {
-					return nil, providerFailure("provider_unavailable")
-				}
-				work.video, err = c.lipSync.Sync(ctx, work.reference, work.audio, work.audioMIME)
+				video, err = c.lipSync.Sync(ctx, ref, audio, work.audioMIME)
 			}
-			return work, err
+			if err != nil {
+				return nil, err
+			}
+			if len(video) < 12 || len(video) > 32<<20 {
+				return nil, providerFailure("invalid_provider_response")
+			}
+			if err = os.WriteFile(work.videoPath, video, 0600); err != nil {
+				return nil, err
+			}
+			return work, nil
 		})).
 		AppendLambda(compose.InvokableLambda(func(ctx context.Context, work *avatarWork) (*avatarWork, error) {
 			if err := s.checkAvatarJob(ctx, job); err != nil {
 				return nil, err
 			}
-			video, err := composeAvatarVideo(ctx, work)
-			work.video = video
-			return work, err
+			return work, composeAvatarFiles(ctx, work)
 		}))
 	run, err := chain.Compile(ctx)
 	if err != nil {
@@ -196,8 +233,11 @@ func (s *FileStore) executeDigitalHuman(ctx context.Context, job *CreativeJob) e
 	if err != nil {
 		return err
 	}
-	// Serialize publication with revocation (also a PostgreSQL row lock). Never
-	// keep this lock while waiting for model inference or transcoding.
+	if err = checkLibraryDispatch(ctx); err != nil {
+		return err
+	}
+	// Serialize publication against fresh revocation, including the PostgreSQL
+	// creative row lock. Never hold it while waiting for inference/transcoding.
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if _, err = c.avatarLocked(job.SpaceID, job.ProjectID, job.AvatarID); err != nil {
@@ -209,7 +249,9 @@ func (s *FileStore) executeDigitalHuman(ctx context.Context, job *CreativeJob) e
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	_, err = s.media.addAssetContext(ctx, job.ProjectID, job.SpaceID, "creative-"+job.ID, "AI生成 · 数字人口播", "shot", job.Character, job.ShotID, job.Provider, work.video, "video/mp4", job.lease)
+	_, err = s.media.addAssetFile(ctx, job.ProjectID, job.SpaceID, "creative-"+job.ID, "AI生成 · 数字人口播", "shot", job.Character, job.ShotID, job.Provider, work.outputPath, "video/mp4", func() bool {
+		return s.runtime == nil || s.runtime.auth == nil || (job.VoiceConsentBy != "" && s.runtime.auth.can(job.VoiceConsentBy, job.SpaceID, "workspace.write"))
+	}, job.lease)
 	if err != nil {
 		return err
 	}
@@ -220,10 +262,46 @@ func (s *FileStore) executeDigitalHuman(ctx context.Context, job *CreativeJob) e
 	return err
 }
 
-// composeAvatarVideo replaces any model soundtrack with the authorized audio,
-// burns in an AI disclosure, and rejects missing/short/invalid model output.
+// composeAvatarFiles replaces model sound with the authorized audio and burns
+// AI disclosure at native dimensions/frame cadence. No 720p/24fps/32MiB product
+// cap is applied. This neither upscales to 4K nor claims improved source detail.
+func composeAvatarFiles(ctx context.Context, work *avatarWork) error {
+	if err := validateProviderMediaFile(ctx, work.videoPath, "video/mp4"); err != nil {
+		return err
+	}
+	if _, duration, e := validateMedia(work.videoPath, "video/mp4"); e != nil || duration+0.1 < work.duration {
+		return providerFailure("invalid_provider_response")
+	}
+	err := ffmpeg(ctx, "-protocol_whitelist", "file,pipe", "-i", work.videoPath, "-protocol_whitelist", "file,pipe", "-i", work.audioPath, "-map", "0:v:0", "-map", "1:a:0", "-vf", "scale=w=trunc(iw/2)*2:h=trunc(ih/2)*2,drawtext=font='sans':text='AI Generated':fontsize=20:fontcolor=white:box=1:boxcolor=black@0.6:x=12:y=12", "-t", seconds(work.duration), "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", work.outputPath)
+	if err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return providerFailure("avatar_composition_failed")
+	}
+	if err = validateProviderMediaFile(ctx, work.outputPath, "video/mp4"); err != nil {
+		return err
+	}
+	if _, duration, e := validateMedia(work.outputPath, "video/mp4"); e != nil || math.Abs(duration-work.duration) > 0.25 {
+		return providerFailure("invalid_provider_response")
+	}
+	probe, err := probeMedia(work.outputPath)
+	if err != nil {
+		return err
+	}
+	audioFound := false
+	for _, stream := range probe.Streams {
+		audioFound = audioFound || stream.CodecType == "audio"
+	}
+	if !audioFound {
+		return providerFailure("invalid_provider_response")
+	}
+	return nil
+}
+
+// Legacy test/helper bridge; production uses composeAvatarFiles throughout.
 func composeAvatarVideo(ctx context.Context, work *avatarWork) ([]byte, error) {
-	if len(work.video) < 12 || len(work.video) > 32<<20 {
+	if len(work.video) < 12 || string(work.video[4:8]) != "ftyp" {
 		return nil, providerFailure("invalid_provider_response")
 	}
 	dir, err := nativefs.MkdirTemp("", "studio-avatar-*")
@@ -231,38 +309,17 @@ func composeAvatarVideo(ctx context.Context, work *avatarWork) ([]byte, error) {
 		return nil, err
 	}
 	defer os.RemoveAll(dir)
-	video, audio, out := filepath.Join(dir, "video.mp4"), filepath.Join(dir, "audio"), filepath.Join(dir, "output.mp4")
-	if err = os.WriteFile(video, work.video, 0600); err != nil {
+	work.videoPath = filepath.Join(dir, "model.mp4")
+	work.audioPath = filepath.Join(dir, "audio")
+	work.outputPath = filepath.Join(dir, "output.mp4")
+	if err = os.WriteFile(work.videoPath, work.video, 0600); err != nil {
 		return nil, err
 	}
-	if _, duration, e := validateMedia(video, "video/mp4"); e != nil || duration+0.1 < work.duration {
-		return nil, providerFailure("invalid_provider_response")
-	}
-	if err = os.WriteFile(audio, work.audio, 0600); err != nil {
+	if err = os.WriteFile(work.audioPath, work.audio, 0600); err != nil {
 		return nil, err
 	}
-	err = ffmpeg(ctx, "-protocol_whitelist", "file,pipe", "-i", video, "-protocol_whitelist", "file,pipe", "-i", audio, "-map", "0:v:0", "-map", "1:a:0", "-vf", "scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,drawtext=font='sans':text='AI Generated':fontsize=20:fontcolor=white:box=1:boxcolor=black@0.6:x=12:y=12", "-t", seconds(work.duration), "-r", "24", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", "-fs", "33554432", out)
-	if err != nil {
-		return nil, providerFailure("avatar_composition_failed")
-	}
-	if _, duration, e := validateMedia(out, "video/mp4"); e != nil || math.Abs(duration-work.duration) > 0.25 {
-		return nil, providerFailure("invalid_provider_response")
-	}
-	probe, err := probeMedia(out)
-	if err != nil {
+	if err = composeAvatarFiles(ctx, work); err != nil {
 		return nil, err
 	}
-	audioFound := false
-	for _, stream := range probe.Streams {
-		audioFound = audioFound || stream.CodecType == "audio"
-	}
-	if !audioFound {
-		return nil, providerFailure("invalid_provider_response")
-	}
-	// Read only after checking the filesystem bound, including encoder overhead.
-	info, err := os.Stat(out)
-	if err != nil || info.Size() > 32<<20 {
-		return nil, providerFailure("invalid_provider_response")
-	}
-	return os.ReadFile(out)
+	return os.ReadFile(work.outputPath)
 }

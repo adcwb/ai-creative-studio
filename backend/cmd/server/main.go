@@ -116,12 +116,18 @@ func run(parent context.Context) (resultErr error) {
 		defer metrics.Close()
 	}
 	component = "serve"
-	errs := make(chan error, 6)
+	errs := make(chan error, 7)
 	if metrics != nil {
 		go func() { errs <- metrics.Serve(listener) }()
 	}
 	workerDone := make(chan struct{})
 	creativeWorkerDone := make(chan struct{})
+	workflowWorkerDone := make(chan struct{})
+	if db == nil {
+		go func() { defer close(workflowWorkerDone); errs <- application.RunWorkflowWorker(ctx, store) }()
+	} else {
+		close(workflowWorkerDone)
+	}
 	if db == nil {
 		go func() { defer close(creativeWorkerDone); errs <- application.RunCreativeWorker(ctx, store) }()
 	} else {
@@ -154,6 +160,7 @@ func run(parent context.Context) (resultErr error) {
 	defer cancel()
 	shutdownErr := srv.Shutdown(shutdown)
 	<-creativeWorkerDone
+	<-workflowWorkerDone
 	<-workerDone
 	<-scriptWorkerDone
 	<-storyboardWorkerDone
