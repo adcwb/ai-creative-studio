@@ -23,6 +23,8 @@ import (
 )
 
 type CreativeJobInput struct {
+	OutlineScopeSHA256     string `json:"outline_scope_sha256,omitempty"`
+	outlineSnapshot        *outlineSnapshot
 	UseDirectorContext     bool                 `json:"use_director_context,omitempty"`
 	LibraryInputs          []libraryInputChoice `json:"library_inputs,omitempty"`
 	PromptSource           *promptSourceInput   `json:"prompt_source,omitempty"`
@@ -51,18 +53,20 @@ type CreativeJobInput struct {
 	Character             string `json:"character,omitempty"`
 }
 type CreativeJob struct {
-	DirectorContext        *DirectorSnapshot `json:"director_context,omitempty"`
-	DirectorSourceVersion  int               `json:"director_source_version,omitempty"`
-	DirectorSourceSHA256   string            `json:"director_source_sha256,omitempty"`
-	LibraryInputs          []libraryInputPin `json:"library_inputs,omitempty"`
-	LibraryInputContext    string            `json:"library_input_context,omitempty"`
-	LibraryMediaPins       []libraryMediaPin `json:"library_media_pins,omitempty"`
-	PromptSource           *prompts.Source   `json:"prompt_source,omitempty"`
-	ImageParameters        *prompts.Defaults `json:"image_parameters,omitempty"`
-	ReferenceAssetIDs      []string          `json:"reference_asset_ids,omitempty"`
-	FirstFrameAssetID      string            `json:"first_frame_asset_id,omitempty"`
-	LastFrameAssetID       string            `json:"last_frame_asset_id,omitempty"`
-	MotionReferenceAssetID string            `json:"motion_reference_asset_id,omitempty"`
+	OutlineContext         *outlineSnapshot        `json:"outline_context,omitempty"`
+	OutlineResult          *outlineCandidateResult `json:"outline_result,omitempty"`
+	DirectorContext        *DirectorSnapshot       `json:"director_context,omitempty"`
+	DirectorSourceVersion  int                     `json:"director_source_version,omitempty"`
+	DirectorSourceSHA256   string                  `json:"director_source_sha256,omitempty"`
+	LibraryInputs          []libraryInputPin       `json:"library_inputs,omitempty"`
+	LibraryInputContext    string                  `json:"library_input_context,omitempty"`
+	LibraryMediaPins       []libraryMediaPin       `json:"library_media_pins,omitempty"`
+	PromptSource           *prompts.Source         `json:"prompt_source,omitempty"`
+	ImageParameters        *prompts.Defaults       `json:"image_parameters,omitempty"`
+	ReferenceAssetIDs      []string                `json:"reference_asset_ids,omitempty"`
+	FirstFrameAssetID      string                  `json:"first_frame_asset_id,omitempty"`
+	LastFrameAssetID       string                  `json:"last_frame_asset_id,omitempty"`
+	MotionReferenceAssetID string                  `json:"motion_reference_asset_id,omitempty"`
 
 	VoiceConsentBy        string `json:"voice_consent_by,omitempty"`
 	AvatarID              string `json:"avatar_id,omitempty"`
@@ -276,7 +280,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	if in.ExpectedVersion < 1 {
 		return CreativeJob{}, false, ErrInvalidProjectInput
 	}
-	if in.Kind != "analysis" && in.Kind != "image" && in.Kind != "speech" && in.Kind != "video" && in.Kind != "vision" && in.Kind != "consistency" && in.Kind != "music" && in.Kind != "lip_sync" && in.Kind != "sound_effect" && in.Kind != "digital_human" {
+	if in.Kind != "outline" && in.Kind != "analysis" && in.Kind != "image" && in.Kind != "speech" && in.Kind != "video" && in.Kind != "vision" && in.Kind != "consistency" && in.Kind != "music" && in.Kind != "lip_sync" && in.Kind != "sound_effect" && in.Kind != "digital_human" {
 		return CreativeJob{}, false, ErrInvalidProjectInput
 	}
 	if in.ImageParameters != nil {
@@ -323,6 +327,12 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	}
 	if p.Version != in.ExpectedVersion {
 		return CreativeJob{}, false, ErrVersionConflict
+	}
+	if in.Kind == "outline" && (in.outlineSnapshot == nil || in.outlineSnapshot.SHA256 != in.OutlineScopeSHA256 || in.outlineSnapshot.AnchorID != id || in.selection == nil || in.selection.GatewayID == "" || in.selection.FeatureKey != "script_generation") {
+		return CreativeJob{}, false, ErrInvalidProjectInput
+	}
+	if in.Kind != "outline" && (in.outlineSnapshot != nil || in.OutlineScopeSHA256 != "") {
+		return CreativeJob{}, false, ErrInvalidProjectInput
 	}
 	if in.ShotID != "" {
 		found := false
@@ -503,6 +513,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	}
 	job := CreativeJob{LibraryMediaPins: pins, PromptSource: in.promptSnapshot, ImageParameters: in.ImageParameters, ReferenceAssetIDs: append([]string(nil), in.ReferenceAssetIDs...), FirstFrameAssetID: in.FirstFrameAssetID, LastFrameAssetID: in.LastFrameAssetID, MotionReferenceAssetID: in.MotionReferenceAssetID, TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), AudioAssetID: in.AudioAssetID, ComparisonAssetID: in.ComparisonAssetID, MaskAssetID: in.MaskAssetID, ReferenceAssetID: in.ReferenceAssetID, ID: jid, SpaceID: space, ProjectID: id, Kind: in.Kind, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Prompt: in.Prompt, ShotID: in.ShotID, Character: in.Character, Source: ProjectInput{Title: p.Title, Brief: p.Brief}, CreatedAt: now, UpdatedAt: now}
 	job.DirectorContext = director
+	job.OutlineContext = cloneOutlineSnapshot(in.outlineSnapshot)
 	if director != nil {
 		job.DirectorSourceVersion, job.DirectorSourceSHA256 = director.ProjectVersion, director.SHA256
 	}
@@ -604,7 +615,7 @@ func (c *creativeStore) updateJob(job CreativeJob) error {
 		return context.Canceled
 	}
 	job.UpdatedAt = time.Now().UTC()
-	c.data.Jobs[job.ID] = job
+	c.data.Jobs[job.ID] = cloneCreativeJob(job)
 	if job.lease != nil && c.pg != nil {
 		state := "succeeded"
 		if job.Status != "succeeded" {
@@ -761,6 +772,9 @@ func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob
 	}
 	if job.Kind == "digital_human" {
 		return s.executeDigitalHuman(ctx, job)
+	}
+	if job.Kind == "outline" {
+		return s.executeOutlineCandidate(ctx, job, managed)
 	}
 	c := s.creative
 	textProvider, imageProvider, speechProvider, videoProvider, musicProvider := c.provider, c.image, c.speech, c.video, c.music
@@ -1246,6 +1260,11 @@ type asyncReferenceImageProvider interface {
 }
 
 func cloneCreativeJob(job CreativeJob) CreativeJob {
+	job.OutlineContext = cloneOutlineSnapshot(job.OutlineContext)
+	if job.OutlineResult != nil {
+		v := *job.OutlineResult
+		job.OutlineResult = &v
+	}
 	job.DirectorContext = cloneDirectorSnapshot(job.DirectorContext)
 	job.RuntimeSelection = cloneRuntimeSelection(job.RuntimeSelection)
 	job.LibraryInputs = cloneLibraryInputPins(job.LibraryInputs)

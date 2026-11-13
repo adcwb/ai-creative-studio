@@ -75,6 +75,7 @@ func registerSeriesRoutes(mux *http.ServeMux, s *FileStore) {
 	if s.series == nil {
 		return
 	}
+	registerSeasonDeliveryRoutes(mux, s)
 	list := func(kind, parentParam, parentKind string) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			space, ok := spaceID(w, r)

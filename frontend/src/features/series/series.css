@@ -23,3 +23,7 @@
 .script-candidate .checkbox-label input { width:16px; height:16px; flex:0 0 16px; margin-top:.2rem; }
 
 .episode-production { min-width:0; overflow-wrap:anywhere; padding-block: .75rem; border-top: 1px solid var(--border); }
+
+.season-delivery p{line-height:1.8;overflow-wrap:anywhere}.season-delivery .checkbox-row{display:flex;align-items:flex-start;gap:8px;margin:16px 0}.season-delivery .checkbox-row input{width:16px;height:16px;flex:0 0 16px;margin-top:4px}.season-delivery .button-link{display:inline-flex;margin-top:8px}
+
+.outline-candidates .outline-new{margin-block:16px}.outline-new>summary{margin-bottom:16px}.outline-candidate{margin-block:20px;padding:20px;border:1px solid var(--border);border-radius:12px;min-width:0;background:var(--surface)}.outline-candidate p{line-height:1.8;overflow-wrap:anywhere}.outline-candidate fieldset{min-width:0}.outline-single>section{margin-bottom:24px}.outline-candidate .story-check{display:flex;flex-direction:row;gap:8px;align-items:flex-start}.outline-candidate .story-check input{width:16px;height:16px;flex:0 0 16px;margin-top:3px}.outline-candidate button{margin-top:16px}.series-form>section>.page-empty{padding-block:24px}

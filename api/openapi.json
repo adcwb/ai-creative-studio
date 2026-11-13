@@ -29014,6 +29014,809 @@
         },
         "description": "Recorded pinned bindings and persistent media sources only; legacy ancestry is never guessed. Does not replace versions, generate, approve, or publish. Pages use scoped opaque cursors. Current declarations are not verified licenses."
       }
+    },
+    "/api/v1/seasons/{id}/delivery": {
+      "get": {
+        "tags": [
+          "Series"
+        ],
+        "operationId": "previewSeasonDelivery",
+        "summary": "Preview the latest completed formal export of every ready episode in season directory order.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A preview. ready=false for an empty season or any missing final export.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeasonDeliveryPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Read-only snapshot including missing/unreadable export issues. No episode count quota or automatic publishing. Selection digest binds the current directory, project versions and immutable export metadata. Animatics are excluded; current edits are not silently substituted."
+      }
+    },
+    "/api/v1/seasons/{id}/delivery.zip": {
+      "get": {
+        "tags": [
+          "Series"
+        ],
+        "operationId": "downloadSeasonDelivery",
+        "summary": "Stream a complete season ZIP with per-episode MP4/SRT/VTT and a fixed timeline/checksum manifest.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "selection_sha256",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Complete ZIP. Interrupted transfers leave an invalid archive.",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Requires the exact preview selection_sha256. Missing exports or a changed selection return 409 before streaming. File read errors/cancellation abort the archive without a success manifest. Only three media files are opened at a time; video bytes are never buffered in browser or whole-season server memory. No licensing certification or external publishing."
+      }
+    },
+    "/api/v1/seasons/{id}/outline-candidates": {
+      "get": {
+        "tags": [
+          "Series"
+        ],
+        "operationId": "listOutlineCandidates",
+        "summary": "Read durable candidates for exactly this season/episode scope.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "episode_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "description": "Omit for this season arc; otherwise an episode belonging to this season."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Scoped result. Model execution is never implied by a preview or adoption.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutlineCandidatePage"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Series"
+        ],
+        "operationId": "createOutlineCandidate",
+        "summary": "Queue one real text-gateway season/episode outline candidate.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "episode_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "description": "Omit for this season arc; otherwise an episode belonging to this season."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "所有项目写操作在同一空间共享项目域命名空间，与图像任务键独立。指纹含操作、目标项目和规范化完整请求（含 expected_version）。同一提交网络重试必须保留键和 body；同键不同操作/目标/body 返回 idempotency_conflict。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "In secure mode, the origin must be configured as trusted; arbitrary origins are rejected."
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Scoped result. Model execution is never implied by a preview or adoption.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeJob"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutlineCandidateInput"
+              }
+            }
+          }
+        },
+        "description": "Requires source preview and a gateway text model allowed by script_generation. No local/mock fallback, budget or project quota. The candidate stores immutable sources and is never automatically adopted. Reusing the exact original body/key reconciles accepted work after source/model changes without another provider call. A failed/unknown/interrupted text call is never automatically resubmitted; no resume endpoint sends another outline request. Existing creative workers and PostgreSQL queue handle execution."
+      }
+    },
+    "/api/v1/seasons/{id}/outline-candidates/source": {
+      "get": {
+        "tags": [
+          "Series"
+        ],
+        "operationId": "previewOutlineCandidateSource",
+        "summary": "Prepare fixed bible/beat/directory sources without calling a model.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "episode_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "description": "Omit for this season arc; otherwise an episode belonging to this season."
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Scoped result. Model execution is never implied by a preview or adoption.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutlineCandidateSource"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/seasons/{id}/outline-candidates/{job_id}/adopt": {
+      "post": {
+        "tags": [
+          "Series"
+        ],
+        "operationId": "adoptOutlineCandidate",
+        "summary": "Explicitly append an edited, confirmed successful candidate as a formal outline.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "episode_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "description": "Omit for this season arc; otherwise an episode belonging to this season."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "所有项目写操作在同一空间共享项目域命名空间，与图像任务键独立。指纹含操作、目标项目和规范化完整请求（含 expected_version）。同一提交网络重试必须保留键和 body；同键不同操作/目标/body 返回 idempotency_conflict。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "In secure mode, the origin must be configured as trusted; arbitrary origins are rejected."
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scope, ownership, content, source or version rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Scoped result. Model execution is never implied by a preview or adoption.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryVersion"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutlineAdoptionInput"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -31761,6 +32564,12 @@
           },
           "diagnostics": {
             "$ref": "#/components/schemas/ErrorDiagnostic"
+          },
+          "outline_context": {
+            "$ref": "#/components/schemas/OutlineCandidateSource"
+          },
+          "outline_result": {
+            "$ref": "#/components/schemas/OutlineCandidateResult"
           }
         },
         "required": [
@@ -43064,6 +43873,301 @@
             "type": "string"
           }
         }
+      },
+      "SeasonDeliveryEpisode": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "episode_id",
+          "project_id",
+          "episode_number",
+          "title",
+          "duration_seconds"
+        ],
+        "properties": {
+          "episode_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "episode_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string"
+          },
+          "export_id": {
+            "type": "string"
+          },
+          "duration_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "output_resolution": {
+            "type": "string"
+          },
+          "issue": {
+            "type": "string",
+            "enum": [
+              "missing_final_export",
+              "export_files_unavailable"
+            ]
+          }
+        }
+      },
+      "SeasonDeliveryPreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "season_id",
+          "series_id",
+          "title",
+          "episodes",
+          "ready",
+          "selection_sha256"
+        ],
+        "properties": {
+          "season_id": {
+            "type": "string"
+          },
+          "series_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "episodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeasonDeliveryEpisode"
+            }
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "selection_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      },
+      "OutlineCandidateSource": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "space_id",
+          "series_id",
+          "season_id",
+          "anchor_project_id",
+          "project_version",
+          "directory_sha256",
+          "heads_sha256",
+          "series",
+          "season",
+          "episodes",
+          "material",
+          "source_sha256"
+        ],
+        "properties": {
+          "space_id": {
+            "type": "string"
+          },
+          "series_id": {
+            "type": "string"
+          },
+          "season_id": {
+            "type": "string"
+          },
+          "episode_id": {
+            "type": "string"
+          },
+          "anchor_project_id": {
+            "type": "string"
+          },
+          "directory_sha256": {
+            "type": "string"
+          },
+          "heads_sha256": {
+            "type": "string"
+          },
+          "source_sha256": {
+            "type": "string"
+          },
+          "project_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "series": {
+            "$ref": "#/components/schemas/SeriesEntry"
+          },
+          "season": {
+            "$ref": "#/components/schemas/SeriesEntry"
+          },
+          "episodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeriesEntry"
+            }
+          },
+          "material": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoryVersion"
+            }
+          }
+        },
+        "description": "Fixed source for one season arc or one episode. Includes the active bible and this season’s active formal outline plans, current episode summaries, and hashes of directory/all story heads. It is not all story facts or a substitute for the continuity-check workflow. One owned existing episode anchors durable execution."
+      },
+      "OutlineCandidateResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "outline",
+          "rationale"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "outline": {
+            "$ref": "#/components/schemas/StoryOutline"
+          },
+          "rationale": {
+            "type": "string"
+          }
+        },
+        "description": "Editable suggestion only. Never automatically becomes a formal plan, script, image or video."
+      },
+      "OutlineCandidateInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "model_config_id",
+          "model_config_version",
+          "anchor_project_id",
+          "expected_project_version",
+          "source_sha256",
+          "prompt"
+        ],
+        "properties": {
+          "model_config_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Explicit tenant model configuration ID paired with its current version. Only legacy endpoints permit omission; gateway creation endpoints require a bound gateway model."
+          },
+          "model_config_version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "anchor_project_id": {
+            "type": "string"
+          },
+          "expected_project_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "source_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 2000
+          }
+        }
+      },
+      "OutlineAdoptionInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "anchor_project_id",
+          "confirmed",
+          "story"
+        ],
+        "properties": {
+          "anchor_project_id": {
+            "type": "string"
+          },
+          "confirmed": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "story": {
+            "$ref": "#/components/schemas/StoryWrite"
+          }
+        },
+        "description": "Explicit authored/editable adoption. story kind and scope must match this successful candidate. Current source hashes and target CAS are checked atomically with the append. Original receipts replay before freshness checks, preserving later edits."
+      },
+      "OutlineCandidatePage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutlineCandidateSummary"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "description": "20 candidates per page in descending stable ID order. Cursor is the last ID, not a project count quota."
+      },
+      "OutlineCandidateSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "project_id",
+          "status",
+          "prompt",
+          "model",
+          "created_at",
+          "source_sha256"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error": {
+            "type": "string"
+          },
+          "source_sha256": {
+            "type": "string"
+          }
+        },
+        "description": "Lightweight history metadata; read the existing owned creative-job detail endpoint for immutable full sources and result."
       }
     },
     "securitySchemes": {

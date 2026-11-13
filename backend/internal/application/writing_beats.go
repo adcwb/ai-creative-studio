@@ -17,6 +17,7 @@ type writingBeatsView struct {
 }
 
 func registerWritingBeatsRoutes(mux *http.ServeMux, s *FileStore) {
+	registerOutlineCandidateRoutes(mux, s)
 	base := "/api/v1/seasons/{id}/writing-beats"
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		var space, key string

@@ -1,4 +1,5 @@
 import {StoryEvidenceViewer} from './StoryEvidenceViewer'
+import {OutlineCandidates} from './OutlineCandidates'
 import {useCallback,useEffect,useState} from 'react'
 import {Link} from 'react-router-dom'
 import {request,errorMessage} from '../../api'
@@ -40,5 +41,6 @@ function BeatScope({root,season,episode,known}:{root:string;season:SeriesEntry;e
  const episodes=known.map(n=>({id:n.id,season_id:season.id,season_ordinal:season.ordinal??1,ordinal:n.ordinal??1,title:n.title}))
  return <section aria-label={t('正式节拍计划')}><h3>{episode?episode.title:t('本季主线与节拍')}</h3>{error&&<p className="error" role="alert">{error}<button type="button" onClick={()=>setRevision(v=>v+1)}>{t('重新读取资料')}</button></p>}{loading&&<p role="status">{t('正在读取故事资料…')}</p>}
  {!loading&&!error&&editing?<StoryEditor key={current?.id??'new'} root={root} kind="outline" item={forceNew?undefined:current??undefined} identity={identity} space={space!.id} characters={[]} episodes={episodes} outlineScope={{season_id:season.id,...(episode?{episode_id:episode.id}:{})}} initialTitle={`${episode?.title??season.title??t('本季主线与节拍')} · ${t('季集节拍')}`} onSaved={saved} onClose={()=>requestLeave(()=>setEditing(false))}/>:<>{current?<><p>{t('版本 {p0}',{p0:current.number})} · {current.status==='active'?t('正式资料'):t('已归档')}</p><StoryBodyView body={current.body}/><StoryEvidenceViewer root={root} space={space!.id} value={current.body.evidence}/></>:!loading&&!error&&<p className="page-empty">{t('还没有保存节拍计划。可以先写最重要的人物目标，其他节奏逐步补充。')}</p>}{!loading&&!error&&space?.role!=='viewer'&&<button type="button" onClick={()=>setEditing(true)}>{t(current?'编辑节拍与查看历史':'写下节拍计划')}</button>}</>}
+ <OutlineCandidates season={season.id} episode={episode?.id} onAdopted={saved}/>
  </section>
 }

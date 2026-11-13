@@ -13,6 +13,7 @@ import (
 )
 
 type RuntimeProviders struct {
+	OutlinePlanner  outlinePlanner
 	PromptOptimizer promptOptimizer
 	StoryCheck      StoryCheckProvider
 	Image           ImageProvider

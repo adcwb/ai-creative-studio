@@ -34,7 +34,7 @@ func cloneRuntimeSelection(s *RuntimeSelection) *RuntimeSelection {
 
 func creativeRuntimeCapability(kind string) string {
 	switch kind {
-	case "analysis":
+	case "analysis", "outline":
 		return "text"
 	case "consistency":
 		return "vision"

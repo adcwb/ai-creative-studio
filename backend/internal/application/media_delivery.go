@@ -10,6 +10,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+
+	"github.com/adcwb/ai-creative-studio/backend/internal/platform/nativefs"
 )
 
 type deliveryFile struct {
@@ -42,6 +44,23 @@ func (r deliveryReader) Read(p []byte) (int, error) {
 	return r.r.Read(p)
 }
 
+func copyDeliveryFile(ctx context.Context, dest io.Writer, file *os.File) (int64, string, error) {
+	before, err := file.Stat()
+	if err != nil || !before.Mode().IsRegular() {
+		return 0, "", ErrBlobIntegrity
+	}
+	hash := sha256.New()
+	size, err := io.Copy(io.MultiWriter(dest, hash), deliveryReader{ctx, file})
+	if err != nil {
+		return 0, "", err
+	}
+	after, err := file.Stat()
+	if err != nil || size != before.Size() || after.Size() != before.Size() || !after.ModTime().Equal(before.ModTime()) {
+		return 0, "", ErrBlobIntegrity
+	}
+	return size, hex.EncodeToString(hash.Sum(nil)), nil
+}
+
 func prepareDelivery(m *MediaStore, space, project, id string) (MediaExport, []deliveryInput, error) {
 	state, err := m.GetChecked(project, space)
 	if err != nil {
@@ -66,7 +85,7 @@ func prepareDelivery(m *MediaStore, space, project, id string) (MediaExport, []d
 		path, err := m.localBlob(space, project, id+"."+ext)
 		var file *os.File
 		if err == nil {
-			file, err = os.Open(path)
+			file, err = nativefs.OpenFile(path, os.O_RDONLY|nativefs.NoFollow|nativefs.NonBlock, 0)
 		}
 		if err != nil {
 			for _, f := range files {
@@ -97,12 +116,11 @@ func writeDelivery(ctx context.Context, w io.Writer, project string, export Medi
 		if err != nil {
 			return err
 		}
-		hash := sha256.New()
-		size, err := io.Copy(io.MultiWriter(entry, hash), deliveryReader{ctx, f.file})
+		size, hash, err := copyDeliveryFile(ctx, entry, f.file)
 		if err != nil {
 			return err
 		}
-		manifest.Files = append(manifest.Files, deliveryFile{f.name, size, hex.EncodeToString(hash.Sum(nil))})
+		manifest.Files = append(manifest.Files, deliveryFile{f.name, size, hash})
 	}
 	entry, err := archive.Create("manifest.json")
 	if err != nil {
