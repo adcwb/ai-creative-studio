@@ -385,7 +385,7 @@ func (s *AuthStore) createOrganization(w http.ResponseWriter, r *http.Request, u
 }
 func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUser) {
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v1/organizations/"), "/")
-	if len(parts) != 2 || (parts[1] != "members" && parts[1] != "access") {
+	if len(parts) != 2 || (parts[1] != "members" && parts[1] != "access" && parts[1] != "settings" && parts[1] != "leave") {
 		problem(w, 404, "not_found", "接口不存在")
 		return
 	}
@@ -402,6 +402,10 @@ func (s *AuthStore) members(w http.ResponseWriter, r *http.Request, user AuthUse
 		return
 	}
 	SetAuditIdentity(r.Context(), user.ID, org.ID, role)
+	if parts[1] == "settings" || parts[1] == "leave" {
+		s.spaceSettings(w, r, user, org, parts[1])
+		return
+	}
 	if parts[1] == "access" {
 		if r.Method != "GET" {
 			problem(w, 405, "method_not_allowed", "方法不支持")

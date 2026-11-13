@@ -21,3 +21,5 @@
 .script-candidate .drama-script { margin-block:1rem; }
 .script-candidate .checkbox-label { display:flex; gap:.5rem; align-items:flex-start; }
 .script-candidate .checkbox-label input { width:16px; height:16px; flex:0 0 16px; margin-top:.2rem; }
+
+.episode-production { min-width:0; overflow-wrap:anywhere; padding-block: .75rem; border-top: 1px solid var(--border); }

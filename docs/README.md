@@ -65,3 +65,5 @@
 最新发布以[收紧后的本次范围](superpowers/specs/2026-11-04-creative-series/README.md#focused-release)为准：提示词、现有系列集管理、单集真实生成—人工审片—合成；画布、批量DAG和长期容量专项延期。聚焦验收后推送并核验CI，下方/历史记录中的旧完整Spec推送门槛不再适用于本次范围。
 
 - [Windows 原生后端运行与迁移](windows-native.md)
+
+- [创作者返修、连续制作与团队交付](superpowers/specs/2026-11-13-creator-workflow/README.md)

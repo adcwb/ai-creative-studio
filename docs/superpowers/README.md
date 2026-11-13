@@ -49,3 +49,5 @@ docs/
 - [Windows 原生后端重建规格与验收](specs/2026-11-13-windows-native-rebuild.md)
 
 - [图像创作 CI 契约回归修复与验收](specs/2026-11-13-image-ci-contract-repair.md)
+
+- [创作者返修、连续制作与团队交付](specs/2026-11-13-creator-workflow/README.md)

@@ -13,7 +13,8 @@ import (
 
 type seriesEntry struct {
 	series.Node
-	ProjectVersion int `json:"project_version,omitempty"`
+	ProjectVersion int                `json:"project_version,omitempty"`
+	Production     *episodeProduction `json:"production,omitempty"`
 }
 
 func (s *FileStore) seriesEntries(nodes []series.Node) ([]seriesEntry, error) {
@@ -151,6 +152,16 @@ func registerSeriesRoutes(mux *http.ServeMux, s *FileStore) {
 			if err != nil {
 				seriesError(w, err)
 				return
+			}
+			if kind == "episode" && r.URL.Query().Get("include_production") == "true" {
+				for i := range items {
+					progress, err := s.episodeProduction(space, items[i].ProjectID)
+					if err != nil {
+						seriesError(w, err)
+						return
+					}
+					items[i].Production = &progress
+				}
 			}
 			next := ""
 			if page.Next != "" {

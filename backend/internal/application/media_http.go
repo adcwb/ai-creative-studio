@@ -68,6 +68,7 @@ func registerMediaRoutes(mux *http.ServeMux, s *FileStore) {
 	}
 	base := "/api/v1/projects/{id}/media"
 	registerMediaPreviewRoutes(mux, s, scope)
+	registerDeliveryRoute(mux, s, scope)
 	mux.HandleFunc("GET "+base+"/review-members", func(w http.ResponseWriter, r *http.Request) {
 		if _, _, ok := scope(w, r, false); !ok {
 			return

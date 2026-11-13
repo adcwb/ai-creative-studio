@@ -3,6 +3,7 @@ export interface SeriesEntry {
  id: string; space_id: string; kind: 'series'|'season'|'episode'; parent_id?: string; series_id: string
  ordinal?: number; next_ordinal: number; row_version: number; title: string; summary: string; audience?: string; format?: string
  profile: OutputProfile; status: string; state: 'ready'; project_id?: string; project_version?: number
+ production?: {project_version:number;media_version:number;script:boolean;storyboard:boolean;storyboard_stale:boolean;shots:number;adopted_shots:number;open_reviews:number;export_id?:string}
  created_by: string; created_at: string; updated_at: string
 }
 export interface EpisodeContext {series: SeriesEntry; season: SeriesEntry; episode: SeriesEntry}

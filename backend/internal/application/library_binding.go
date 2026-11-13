@@ -21,6 +21,7 @@ type libraryBindingInput struct {
 }
 
 func registerLibraryBindingRoutes(mux *http.ServeMux, s *FileStore) {
+	registerBindingCheckRoute(mux, s)
 	base := "/api/v1/projects/{id}/library-bindings"
 	mux.HandleFunc("GET "+base, func(w http.ResponseWriter, r *http.Request) {
 		space, ok := spaceID(w, r)

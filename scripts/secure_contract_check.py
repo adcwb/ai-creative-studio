@@ -474,9 +474,47 @@ def main():
                 cancelled = call(alice, 'POST', uploads + query, upload_route, transfer_input, aq, status=201, key='secure-upload-cancel-create')
                 call(alice, 'POST', uploads + '/' + cancelled['id'] + '/cancel' + query, upload_route + '/{upload_id}/cancel', {}, aq)
                 call(alice, 'POST', variable_target + '/copies' + query, route + '/copies', dict(version_id=variable_saved['version']['id'], name='Copied recipe', visibility='private'), aq, status=201)
+                # Creator iteration: validate real responses, not just static schemas.
+                production_path='/api/v1/projects/'+project['id']
+                production_route='/api/v1/projects/{id}'
+                media=call(alice,'GET',production_path+'/media'+query,production_route+'/media')
+                edit=dict(aspect_ratio='9:16',output_resolution='360p',clips=[dict(id='contract-clip',asset_id=completed['uploaded_asset_id'],duration=1,trim_start=0,subtitle='Contract subtitle',audio_asset_id='',audio_volume=1)],music_asset_id='',music_volume=.2)
+                media=call(alice,'PUT',production_path+'/media/timeline'+query,production_route+'/media/timeline',dict(expected_version=media['version'],timeline=edit),aq,key='creator-contract-edit')
+                revision=call(alice,'POST',production_path+'/revision-branches/main/revisions'+query,production_route+'/revision-branches/{branch_id}/revisions',dict(expected_project_version=project['version'],expected_media_version=media['version'],expected_branch_version=0,expected_head_revision_id='',label='Delivery source'),aq,status=201,key='creator-contract-revision')
+                restore_path=production_path+'/revisions/'+revision['id']
+                restore_route=production_route+'/revisions/{revision_id}'
+                plan=call(alice,'GET',restore_path+'/restore-plan'+query+'&component=subtitles&clip_id=contract-clip',restore_route+'/restore-plan')
+                assert not plan['changed'] and plan['current_timeline']['clips'][0]['subtitle']=='Contract subtitle'
+                restore=dict(expected_project_version=plan['project_version'],expected_media_version=plan['media_version'],component='subtitles',clip_id='contract-clip',episode_number=1)
+                call(alice,'POST',restore_path+'/restore-timeline'+query,restore_route+'/restore-timeline',restore,status=403)
+                applied=call(alice,'POST',restore_path+'/restore-timeline'+query,restore_route+'/restore-timeline',restore,aq,key='creator-contract-restore')
+                assert call(alice,'POST',restore_path+'/restore-timeline'+query,restore_route+'/restore-timeline',restore,aq,key='creator-contract-restore')==applied
+                call(bob,'POST',restore_path+'/restore-timeline'+query,restore_route+'/restore-timeline',restore,bq,status=403)
+                checks=call(alice,'GET',production_path+'/library-bindings/check'+query,production_route+'/library-bindings/check')
+                assert checks['items']==[] and checks['media_version']==applied['media_version']
+                call(bob,'GET',production_path+'/library-bindings/check'+query,production_route+'/library-bindings/check',status=403)
+                root=call(alice,'POST','/api/v1/series'+query,'/api/v1/series',dict(title='Production overview',summary='Read-only facts'),aq,status=201,key='creator-contract-series')
+                season=call(alice,'POST','/api/v1/series/'+root['id']+'/seasons'+query,'/api/v1/series/{id}/seasons',dict(title='First season'),aq,status=201,key='creator-contract-season')
+                call(alice,'POST','/api/v1/seasons/'+season['id']+'/episodes'+query,'/api/v1/seasons/{id}/episodes',dict(title='Awaiting production'),aq,status=201,key='creator-contract-episode')
+                episodes=call(alice,'GET','/api/v1/seasons/'+season['id']+'/episodes'+query+'&include_production=true','/api/v1/seasons/{id}/episodes')
+                assert not episodes['items'][0]['production']['script'] and 'export_id' not in episodes['items'][0]['production']
+                access_path='/api/v1/organizations/'+org
+                access_route='/api/v1/organizations/{id}'
+                access=call(alice,'GET',access_path+'/access',access_route+'/access')
+                rename=dict(expected_version=access['version'],name='Renamed contract team')
+                call(alice,'PATCH',access_path+'/settings',access_route+'/settings',rename,status=403)
+                changed=call(alice,'PATCH',access_path+'/settings',access_route+'/settings',rename,aq)
+                call(alice,'PATCH',access_path+'/settings',access_route+'/settings',rename,aq,status=409)
+                call(alice,'POST',access_path+'/leave',access_route+'/leave',dict(expected_version=changed['version']),aq,status=403)
+                call(alice,'PUT',member,member_route,{'email':b['user']['email'],'user_id':b['user']['id'],'role':'viewer'},aq)
+                access=call(bob,'GET',access_path+'/access',access_route+'/access')
+                call(bob,'PATCH',access_path+'/settings',access_route+'/settings',dict(expected_version=access['version'],name='Viewer must not rename'),bq,status=403)
+                call(bob,'POST',access_path+'/leave',access_route+'/leave',dict(expected_version=access['version']),bq)
+                call(bob,'GET',access_path+'/access',access_route+'/access',status=403)
+
                 call(alice, 'POST', '/api/v1/auth/logout', '/api/v1/auth/logout', {}, aq)
                 assert call(alice, 'GET', session_route, session_route)['authenticated'] is False
-                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'library use declarations: CSRF, viewer, forged actor, original grant receipt and current revocation', 'read-only media lineage, exact uploaded bytes and current membership boundaries', 'explicit stable structure upgrade, CSRF and viewer refusal', 'episode copy preview, hidden target, viewer/CSRF refusal and revoked progress access', 'canonical story versions, immutable retrieval snapshots, current-source comparisons, original receipts, null-script safeguards and revoked access', 'on-demand director detail: current membership, viewer reads, forbidden writes, CSRF, source forgery and revoked access', 'independent animatic: source options, byte-pinned render, original receipt after plan changes, silent watermark, unchanged edit, publishing refusal and revoked downloads', 'production revision snapshots: required clocks, CSRF, viewer, immutable source, branch CAS, metadata-only history, explicit fork and current membership'], 'live_provider_calls': 0}))
+                print(json.dumps({'result': 'passed', 'contract_responses': count, 'checks': ['secure sessions', 'CSRF', 'tenant isolation', 'owner-only budget', 'CAS', 'currency separation', 'revocation', 'missing FX fail closed', 'credential-free model declarations', 'local validation only', 'live endpoint refused', 'gateway admin and viewer boundaries', 'gateway model ownership', 'feature binding CAS', 'sanitized runtime catalog', 'usage membership revocation', 'private prompt revisions, sharing, literal search and revoked replay', 'library use declarations: CSRF, viewer, forged actor, original grant receipt and current revocation', 'read-only media lineage, exact uploaded bytes and current membership boundaries', 'explicit stable structure upgrade, CSRF and viewer refusal', 'episode copy preview, hidden target, viewer/CSRF refusal and revoked progress access', 'canonical story versions, immutable retrieval snapshots, current-source comparisons, original receipts, null-script safeguards and revoked access', 'on-demand director detail: current membership, viewer reads, forbidden writes, CSRF, source forgery and revoked access', 'independent animatic: source options, byte-pinned render, original receipt after plan changes, silent watermark, unchanged edit, publishing refusal and revoked downloads', 'production revision snapshots: required clocks, CSRF, viewer, immutable source, branch CAS, metadata-only history, explicit fork and current membership', 'creator iteration: selective restore preview, CAS, original receipt and tenant guards; read-only reference checks and production facts; team rename, owner protection and self-leave'], 'live_provider_calls': 0}))
             finally:
                 process.terminate()
                 process.wait(timeout=15)
