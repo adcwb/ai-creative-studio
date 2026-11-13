@@ -18,7 +18,7 @@ test('personal and team spaces, access boundaries and explicit backend settings'
  await expect(page.locator('.space-card').filter({hasText:'品牌故事团队'})).toContainText('当前空间')
  await navigateTo(page,'/settings/organization')
  await expect(page.getByRole('button',{name:'保存成员权限'})).toBeVisible()
- await expect(page.locator('.member-list')).toContainText('所有者')
+ await expect(page.getByRole('list',{name:'当前组织成员',exact:true})).toContainText('所有者')
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
  await page.screenshot({path:`test-results/p0-real-members-${info.project.name}.png`,fullPage:true})
  await navigateTo(page,'/settings/backend')
