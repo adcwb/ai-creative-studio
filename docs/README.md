@@ -67,3 +67,5 @@
 - [Windows 原生后端运行与迁移](windows-native.md)
 
 - [创作者返修、连续制作与团队交付](superpowers/specs/2026-11-13-creator-workflow/README.md)
+
+- [可视化创作流程与数字人（下一阶段本地规划，未实现）](superpowers/specs/2026-11-13-workflow-canvas-digital-human/README.md)

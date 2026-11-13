@@ -51,3 +51,5 @@ docs/
 - [图像创作 CI 契约回归修复与验收](specs/2026-11-13-image-ci-contract-repair.md)
 
 - [创作者返修、连续制作与团队交付](specs/2026-11-13-creator-workflow/README.md)
+
+- [可视化创作流程与数字人（下一阶段本地规划，未实现）](specs/2026-11-13-workflow-canvas-digital-human/README.md)

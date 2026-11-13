@@ -20,6 +20,15 @@
 - 手机参考 `e601e79d7f347d3ecfbea2e6676b6e79a5a05d850615facfba0d888ad93c2555`
 - 手机恢复 `62e854199c425e930a6ceab9e1e0963e710021ea43cc1a43b9172a07590f5404`
 
-远端本轮尚未推送；对应 CI 和镜像发布尚未运行。完成本地检查及审查后安全推送并填写精确提交和运行结果。
+远端源码提交 `486ef479b4906aa6c3ddc6a37516d33c0da818de`，已用 `git ls-remote origin refs/heads/master` 核验。推送后的 [CI 43475422718](https://github.com/adcwb/ai-creative-studio/actions/runs/43475422718) 于 2026-11-13 17:42:21–17:52:22 UTC 完成，25/25 success，约 10分01秒。Go 文件/PG 六组 race、两端 e2e/auth/routing、两端网关、API/媒体/布局、PG worker/restore、双容器、Windows 文件与 PG 原生及 SCM 均成功；既有 Windows 选择性测试矩阵并不代表每一个新增用例都在 Windows 单独执行。
 
-真实付费模型、许可、真实外部发布、真实 S3、Windows 原生新功能回归、真实多集创作和画质验收未在此环境执行。云端原生 Windows 及完整矩阵将由推送后的现有 CI 验证，不能用交叉编译代替其结论。
+网关日志证实新增六项流程在云端桌面 15.7 秒、手机 12.9 秒通过。完整云端两端 routing 均成功，首轮本地等待超时未复现，不修改断言或超时。
+
+Docker Hub 前后端发布步骤均成功，提交标签 `sha-486ef479b4906aa6c3ddc6a37516d33c0da818de` 及默认分支 latest 已生成：
+
+- backend：`sha256:a6aef9628def6300e8c44c2d00ffbc3ac3da2e1304f0357419ec54de7d6adb03`
+- frontend：`sha256:9c858c921397da4e0558965d9c452800850a33981235adbbea93b578de02f356`
+
+以上只是代码与镜像发布，没有部署应用、执行生产迁移或调用真实付费模型。本节 CI 归档补记随下一阶段文档先保留本地，不另触发一次仅文档的完整发布流水线。
+
+真实付费模型、许可、真实外部发布、真实 S3、Windows 原生新功能回归、真实多集创作和画质验收未在此环境执行。本次云端原生 Windows 已在现有选择性矩阵通过；真实服务、许可和效果仍不能用该结果或交叉编译冒充。
