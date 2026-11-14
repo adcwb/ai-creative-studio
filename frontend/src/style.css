@@ -269,6 +269,11 @@ footer { display: flex; justify-content: space-between; gap: 15px; margin: 30px 
 .task-gallery .result-preview img { height: 196px; width: 100%; object-fit: contain; }
 .task-gallery .task-prompt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 3.6em; margin: 10px 0 0; }
 .task-gallery .task-top { flex-wrap: wrap; gap: 6px; }
+.task-resolution { font-size: var(--text-xs); color: var(--ink-muted); white-space: nowrap; }
+.task-gallery .task-bottom { flex-wrap: wrap; gap: 8px; }
+.task-gallery .task-bottom button, .history-actions button { font-size: var(--text-xs); padding: 8px 10px; min-height: 36px; }
+.history-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
+.task-delete { margin-left: auto; }
 .task-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; width: 100%; height: 196px; margin-bottom: 12px; background: var(--surface-soft); border: 0; color: var(--ink-muted); }
 .task-placeholder .icon { width: 32px; height: 32px; }
 .image-download { min-width: 0; }

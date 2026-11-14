@@ -68,13 +68,13 @@ test('history pages, original downloads and nested image viewing work on desktop
   const rows=await(await page.request.get(api+'/tasks'+query)).json()
   return rows.filter((r:{status:string})=>r.status==='succeeded').length
  },{timeout:30000}).toBe(7)
- await expect(page.locator('.task-gallery .task')).toHaveCount(6)
+ await expect(page.locator('.task-gallery .task')).toHaveCount(4)
  await expect(page.getByText('第 1 / 2 页',{exact:true})).toBeVisible()
  await page.getByRole('button',{name:'下一页',exact:true}).click()
- await expect(page.locator('.task-gallery .task')).toHaveCount(1)
+ await expect(page.locator('.task-gallery .task')).toHaveCount(3)
  await expect(page.getByText('第 2 / 2 页',{exact:true})).toBeVisible()
  await page.getByRole('button',{name:'上一页',exact:true}).click()
- await expect(page.locator('.task-gallery .task')).toHaveCount(6)
+ await expect(page.locator('.task-gallery .task')).toHaveCount(4)
  const downloadEvent=page.waitForEvent('download')
  await page.locator('.task-gallery .task').first().getByRole('button',{name:'下载原图',exact:true}).click()
  const download=await downloadEvent
@@ -128,4 +128,55 @@ test('history pages, original downloads and nested image viewing work on desktop
  await failedCard.getByRole('button',{name:'查看详情',exact:true}).click()
  await expect(detail.locator('.task-error')).toBeVisible()
  await expect(detail.getByRole('button',{name:'编辑后重试',exact:true})).toBeVisible()
+})
+
+
+test('history deletion keeps assets and editing copies while cards show a four-image grid',async({page,request},info)=>{
+ test.setTimeout(90000)
+ const {query,headers,models}=await setup(page)
+ for(let i=0;i<5;i++) {
+  const response=await page.request.post(api+'/gateway-tasks'+query,{headers:{...headers,'Idempotency-Key':'history-actions-'+i},data:{prompt:'可编辑的历史图片 '+i,kind:'general',ratio:'9:16',style:'natural',model_config_id:models.image.id,model_config_version:models.image.version}})
+  expect(response.status()).toBe(202)
+ }
+ let rows:{id:string;status:string;result_url:string;result_width:number;result_height:number}[]=[]
+ await expect.poll(async()=>{rows=await(await page.request.get(api+'/tasks'+query)).json();return rows.filter(r=>r.status==='succeeded').length},{timeout:30000}).toBe(5)
+ const saved=rows[rows.length-1]
+ expect((await page.request.post(api+'/assets'+query,{headers,data:{task_id:saved.id}})).status()).toBe(200)
+ await expect(page.locator('.task')).toHaveCount(4)
+ const positions=await page.locator('.task').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return {x:r.x,y:r.y}}))
+ if(info.project.name==='desktop'){expect(positions[0].x).toBe(positions[2].x);expect(positions[1].x).toBe(positions[3].x);expect(positions[0].y).toBe(positions[1].y);expect(positions[2].y).toBeGreaterThan(positions[0].y)}
+ await expect(page.locator('.task-resolution').first()).toHaveText(rows[0].result_width+' × '+rows[0].result_height+' px')
+ await page.screenshot({path:info.outputPath('history-actions.png'),fullPage:true})
+ await page.getByRole('button',{name:'下一页',exact:true}).click()
+ await expect(page.locator('.task')).toHaveCount(1)
+ await page.getByRole('button',{name:'删除创作记录',exact:true}).click()
+ const confirm=page.getByRole('dialog',{name:'删除这条创作记录？'})
+ await confirm.getByRole('button',{name:'取消',exact:true}).click()
+ await expect(page.locator('.task')).toHaveCount(1)
+ await page.getByRole('button',{name:'删除创作记录',exact:true}).click()
+ await confirm.getByRole('button',{name:'确认删除',exact:true}).click()
+ await expect(confirm).toHaveCount(0)
+ await expect(page.getByText('第 1 / 1 页',{exact:true})).toBeVisible()
+ await expect(page.locator('.task')).toHaveCount(4)
+ expect((await page.request.get('http://localhost:8084'+saved.result_url)).status()).toBe(200)
+ const source=await(await page.request.get(api+'/tasks'+query)).json()
+ const before=(await(await request.get('http://127.0.0.1:5193/__state')).json()).requests.length
+ await page.locator('.task').first().getByRole('button',{name:'继续编辑',exact:true}).click()
+ await expect(page).toHaveURL(/\/studio\/workspaces\//)
+ const project=page.url().split('/').pop()!
+ const media=await(await page.request.get(api+'/projects/'+project+'/media'+query)).json()
+ expect(media.assets).toHaveLength(1)
+ expect(media.assets[0].name).toBe('source-'+source[0].id+'.png')
+ const editedSource=media.assets[0].file_url
+ await page.goto('/studio')
+ await page.getByRole('button',{name:'清空历史',exact:true}).click()
+ await page.getByRole('dialog',{name:'清空创作历史？'}).getByRole('button',{name:'确认清空',exact:true}).click()
+ await expect(page.locator('.task')).toHaveCount(0)
+ expect(await(await page.request.get(api+'/tasks'+query)).json()).toEqual([])
+ expect(await(await page.request.get(api+'/assets'+query)).json()).toHaveLength(1)
+ expect((await page.request.get('http://localhost:8084'+saved.result_url)).status()).toBe(200)
+ expect((await page.request.get('http://localhost:8084'+editedSource)).status()).toBe(200)
+ expect((await(await request.get('http://127.0.0.1:5193/__state')).json()).requests.length).toBe(before)
+ await page.reload()
+ await expect(page.locator('.task')).toHaveCount(0)
 })

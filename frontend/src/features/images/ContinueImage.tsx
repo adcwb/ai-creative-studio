@@ -6,7 +6,7 @@ import { useI18n } from '../../i18n'
 import { useNavigationTask } from '../../app/navigationGuard'
 import {uploadMediaBlob} from '../uploads/uploadBlob'
 
-export function ContinueImage({task, space, onClose}: {task: Task; space: string; onClose: () => void}) {
+export function ContinueImage({task, space, onClose, disabled = false}: {task: Task; space: string; onClose: () => void; disabled?: boolean}) {
   const {t} = useI18n()
   const navigate = useNavigate()
   const [busy, setBusy] = useState(false)
@@ -18,7 +18,7 @@ export function ContinueImage({task, space, onClose}: {task: Task; space: string
   const project = useRef(initial.id)
   const releaseNavigation=useNavigationTask(busy)
   async function open() {
-    if (flight.current || !task.result_url?.startsWith('/')) return
+    if (disabled || flight.current || !task.result_url?.startsWith('/')) return
     flight.current = true; setBusy(true); setError('')
     try {sessionStorage.setItem(storageKey, JSON.stringify({key: key.current, id: project.current,protocol:initial.protocol}))} catch { /* In-memory recovery. */ }
     try {
@@ -41,5 +41,5 @@ export function ContinueImage({task, space, onClose}: {task: Task; space: string
     } catch (e) {setError(errorMessage(e, t('继续编辑失败')))}
     finally {flight.current = false; setBusy(false)}
   }
-  return <span><button type="button" disabled={busy} onClick={() => void open()}>{t(busy ? '准备编辑工作区…' : '继续编辑')}</button>{error && <span className="error" role="alert">{error}</span>}</span>
+  return <span><button type="button" disabled={disabled || busy} onClick={() => void open()}>{t(busy ? '准备编辑工作区…' : '继续编辑')}</button>{error && <span className="error" role="alert">{error}</span>}</span>
 }
