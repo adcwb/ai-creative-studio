@@ -1,6 +1,7 @@
 package application
 
-// The S3 bridge stores only a random-key copy of a validated reference image.
+// The S3 bridge stores validated reference-image copies and explicitly authorized
+// private avatar input copies. The avatar adapter streams audio/photo files.
 // It is not the application's general media backend. Credentials stay on the
 // server, and URLs must never be logged or stored in public job responses.
 import (

@@ -61,3 +61,19 @@
 截图已实看，保持森林主题、现有表单和手机单栏，无横向页面溢出：`/workspace/artifacts/workflow-canvas-digital-human/followup/` 下的 `workflow-runtime-viewport-desktop.png`（1920×1080）、`workflow-runtime-remake-desktop.png`、`workflow-runtime-remake-mobile.png`、`digital-human-desktop.png` 与 `digital-human-mobile.png`。手机为390 CSS像素/3倍截图；原生控件文案随浏览器语言，视觉测试未证明所有浏览器。
 
 日志保存在该环境 `/tmp/creator-followup-full-file-final.log`、`creator-followup-postgres.log`、`workflow-outline-final-pg.log`、`workflow-domain-final.log`、`workflow-runtime-visual-final.log`、`avatar-recovery-browser.log`、`workflow-followup-front-check.log`。未执行新分支云端CI/镜像、生产迁移、真实S3、真实GPU/权重/付费模型、原生Windows、商业授权或艺术4K验收；本轮不推送。
+
+
+## 专用云单段与人工审片后续增量
+
+对应 [cloud-review.md](cloud-review.md)，起点96b8047。全部云/对象存储使用隔离HTTP合成上游，未发送实际人物/声音到外部服务。
+
+- 文件模式 `go test ./... -count=1`通过，application 217.924s。此后补充权限/原生窗口错误HTTP状态与采用源素材检查，另跑最后受影响专项；不把此前全量称作含该最后修正。
+- 文件+真实PG的云任务POST/ID持久化/中断后GET恢复、未知提交不重发、独立声音撤销、检查点迁移与固定审片CAS、历史、CSRF/只读/跨空间测试竞态专项通过58.648s；最终扩展专项通过：application 68.272s、deployconfig 1.019s（-race，真实PG与文件），含最新HTTP错误状态、源素材检查、可信配置与无回退负向。最新go vet与Windows amd64 server/worker交叉编译通过；未进行Windows本机执行。HTTP负向还覆盖不可信结果地址、任务ID路径及外部ID不匹配、原目的地变化；有效云配置构造不发网络，错误配置不能回退本地引擎。
+- 类型、lint、前端26文件83项单测、生产构建通过（2.90s），3242条i18n与OpenAPI校验通过。云API key分类为敏感字段，原配置敏感值机制不变，固定供应商/分辨率配置拒绝未实现的能力。
+- 新人工审片及原数字人桌面/手机4项通过40.3s。新增用例检查可解码1秒MP4、400像素参考图、有效1秒WAV、四确认前禁用采用、返工必填、同键同body刷新恢复原记录、两版历史、原任务查询文案与外传确认。仅本地色块/音频夹具，不能证明口型或艺术质量。
+- 首次并行全量回归出现上传单测15秒超时并干扰后续断言、旧手机恢复用例30秒超时；另一次新桌面首屏加载超过20秒，5秒可见性断言失败。检查trace未见新增页面JS异常，模块加载明显延迟。在后端全量结束后串行重跑全部前端单测及新旧4项浏览器均通过，保留原超时和断言；未将最初失败隐瞒为通过，也未确认其在其他环境永不发生。
+- 1920×1080桌面及390 CSS像素手机截图已实际检查，沿用旧主题、单栏表单、可折叠对照与审片历史，无页面横向溢出。证据：`/workspace/artifacts/workflow-canvas-digital-human/cloud-review/avatar-cloud-review-desktop.png` 与 `avatar-cloud-review-mobile.png`；同目录保存最终日志。本机仅Chrome路线，未代表全浏览器或真实模型。
+
+未执行本分支云端CI/镜像、真实Windows运行、供应商/Token Plan账号权限、真实S3/OSS兼容性、生命周期删除、商业许可、真实口型/连续五集/4K效果或生产迁移。自动云分段、多take专用比较、实时和3D仍为代码未实现项；不能把这些都解释成仅缺真实凭据。本轮不推送、不部署。
+
+最终登记云错误码后，接口403/409与worker安全可操作错误合同专项通过0.151s；diagnostics整包通过。新码不再被折叠成internal_error。之后go vet与Windows server/worker交叉编译通过；本地Compose两份YAML解析通过，未运行生产Compose或部署。

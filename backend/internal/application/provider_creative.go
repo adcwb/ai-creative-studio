@@ -86,6 +86,9 @@ func creativeFailure(err error) (string, string) {
 	if code == "execution_outcome_unknown" {
 		return code, "请求可能已发送，但结果未确认；未自动重发。请先核对原服务或执行器记录，保留原请求和已保存计划。"
 	}
+	if strings.HasPrefix(code, "avatar_cloud_") {
+		return code, providerMessage(code)
+	}
 	if code == "avatar_checkpoint_invalid" || code == "avatar_source_changed" || code == "avatar_legacy_protocol_limit" || code == "provider_inline_capacity" || code == "writing_context_changed" || code == "library_use_denied" || code == "provider_input_capacity" || code == "provider_input_count_unavailable" || code == "alignment_source_unpinned" || code == "alignment_source_changed" {
 		return code, providerMessage(code)
 	}

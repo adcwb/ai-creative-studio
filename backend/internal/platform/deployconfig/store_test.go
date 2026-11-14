@@ -200,3 +200,21 @@ func TestAvatarFileProtocolConfigurationPersistsAndLoadsOnlyOnRestart(t *testing
 		}
 	}
 }
+
+func TestDedicatedCloudAvatarSettingsArePrivateAndExplicit(t *testing.T) {
+	defs := map[string]Field{}
+	for _, f := range definitions() {
+		defs[f.Key] = f
+	}
+	if !defs["DIGITAL_HUMAN_CLOUD_API_KEY"].Secret || defs["DIGITAL_HUMAN_CLOUD_WORKSPACE"].Secret {
+		t.Fatal("incorrect cloud config secret classification")
+	}
+	for _, item := range []struct{ key, value string }{{"DIGITAL_HUMAN_PHOTO_PROVIDER", "dashscope-s2v"}, {"DIGITAL_HUMAN_CLOUD_RESOLUTION", "720P"}} {
+		if !validValue(item.key, item.value) {
+			t.Fatal(item)
+		}
+	}
+	if validValue("DIGITAL_HUMAN_PHOTO_PROVIDER", "generic-video") || validValue("DIGITAL_HUMAN_CLOUD_RESOLUTION", "4K") {
+		t.Fatal("unimplemented cloud capability accepted")
+	}
+}

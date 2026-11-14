@@ -1,3 +1,4 @@
+import {AvatarReviewPanel,type AvatarReview} from './AvatarReviewPanel'
 import {readAvatarAttempt,saveAvatarAttempt,clearAvatarAttempt,type AvatarAttempt} from './avatarPending'
 import {useAppWorkspace} from '../app/workspace'
 import {VoiceAuthorizationPanel,type VoiceAuthorization} from './VoiceAuthorizationPanel'
@@ -14,7 +15,7 @@ import './DigitalHumanStudio.css'
 interface Avatar {id: string; name: string; reference_asset_id: string; route: 'photo' | 'video'; consent_reference: string; revoked_at?: string}
 interface Asset {id: string; name: string; kind: string; duration: number; file_url: string}
 interface Capability {provider: string; model?: string; ready: boolean; message: string}
-interface Job {avatar_recovery_phase?:string;voice_authorization_id?:string;error_code?:string;id: string; kind: string; status: string; asset_id?: string; error?: string; avatar_id?: string}
+interface Job {avatar_reviews?:AvatarReview[];reference_asset_id?:string;audio_asset_id?:string;avatar_recovery_phase?:string;voice_authorization_id?:string;error_code?:string;id: string; kind: string; status: string; asset_id?: string; error?: string; avatar_id?: string}
 type Attempt=AvatarAttempt
 const jobLabels: Record<string, string> = {queued: '排队中', running: '生成中', succeeded: '已完成', failed: '失败', cancelled: '已取消'}
 
@@ -39,6 +40,7 @@ export function DigitalHumanStudio({project, space, disabled, onDirtyChange}: {p
   const [text, setText] = useState('')
   const [voiceGrant,setVoiceGrant]=useState<VoiceAuthorization|null>(null)
  const [voicePending,setVoicePending]=useState(false)
+ const [cloudTransfer,setCloudTransfer]=useState(false)
   const [choice, setChoice] = useState<RuntimeChoice | null>(null)
   const [busy, setBusy] = useState(false)
   const [uncertain, setUncertain] = useState(Boolean(recovery))
@@ -58,7 +60,8 @@ export function DigitalHumanStudio({project, space, disabled, onDirtyChange}: {p
   const speechReady = choice ? runtimeReady(choice, speechPreview) : caps.speech?.ready
   const audio = assets.find(item => item.id === audioId)
   const referenceAsset = assets.find(item => item.id === avatar?.reference_asset_id)
-  const validAudio = audio?.kind === 'audio' && audio.duration > 0 && (avatar?.route !== 'video' || audio.duration <= (referenceAsset?.duration ?? 0) + .1)
+  const cloudAudioValid=capability?.provider!=='dashscope-s2v'||(audio?.duration??20)<20
+  const validAudio = cloudAudioValid && audio?.kind === 'audio' && audio.duration > 0 && (avatar?.route !== 'video' || audio.duration <= (referenceAsset?.duration ?? 0) + .1)
 
   useEffect(() => {live.current = true; return () => {live.current = false}}, [])
   useEffect(() => {onDirtyChange(busy || uncertain || !!name || !!consent || !!text); return () => onDirtyChange(false)}, [busy, uncertain, name, consent, text, onDirtyChange])
@@ -141,14 +144,16 @@ export function DigitalHumanStudio({project, space, disabled, onDirtyChange}: {p
     <button disabled={locked || !loaded || active || !speechReady || text.trim().length < 3} onClick={() => submit('/creative-jobs', {...speechInput, ...runtimeFields(choice), expected_provider: choice?.model.provider ?? caps.speech?.provider, expected_model: choice?.model.model ?? caps.speech?.model ?? ''}, 'job')}>{t('先生成配音（可能计费）')}</button>
     <label>{t('选择口播音频')}<select disabled={locked||voicePending} value={audioId} onChange={event => {const audio=event.target.value;workspace.requestLeave(()=>{setAudioId(audio);setVoiceGrant(null)})}}><option value="">{t('选择音频')}</option>{assets.filter(item => item.kind === 'audio').map(item => <option key={item.id} value={item.id}>{item.name} · {item.duration.toFixed(1)}s</option>)}</select></label>
     {audio && <audio controls preload="none" src={`${baseURL}${audio.file_url}`} />}
-    {audio && !validAudio && <p role="alert" className="error">{t('配音须有有效时长，且不能长于参考视频。')}</p>}
+    {audio && !validAudio && <p role="alert" className="error">{t(!cloudAudioValid?'百炼单请求配音须不足20秒，请先制作短段；项目不限制素材总时长。':'配音须有有效时长，且不能长于参考视频。')}</p>}
     <VoiceAuthorizationPanel key={`${project.id}:${space}:${audioId}`} project={project.id} space={space} audio={audioId} value={voiceGrant} choose={setVoiceGrant} onBusy={setVoicePending} disabled={locked}/>
     <h3>{t('3. 生成人物口播')}</h3>
-    <button className="primary" disabled={locked || !loaded || active || !avatar || !!avatar.revoked_at || !capability?.ready || !validAudio || voicePending || !voiceGrant || voiceGrant.audio_asset_id!==audioId || !!voiceGrant.revoked_at} onClick={() => submit('/creative-jobs', {kind: 'digital_human_authorized',voice_authorization_id:voiceGrant?.id, expected_version: project.version, avatar_id: avatarId, audio_asset_id: audioId, prompt: text.trim() || avatar?.name + '口播', voice_confirmed: true, voice_consent_reference: voiceGrant?.consent_reference, expected_provider: capability?.provider, expected_model: capability?.model}, 'job')}>{active ? t('项目任务处理中…') : t('生成数字人口播')}</button>
+ {capability?.provider==='dashscope-s2v'&&<label><input type="checkbox" checked={cloudTransfer} disabled={locked} onChange={e=>setCloudTransfer(e.target.checked)}/>{t('我同意将所选形象与配音临时发送到部署方配置的私有对象存储及百炼数字人服务')}</label>}
+ {capability?.provider==='dashscope-s2v'&&<p className="drama-help">{t('云素材读取链接24小时失效；副本删除依赖部署方对象存储生命周期和任务完成清理，撤销不能保证立即撤回云端计算。')} {t('百炼当前接入单段照片口播，原生480P或720P；照片边长400–7000像素，配音不足20秒且小于15MB。较长内容请先分段，不会自动截断或改用其他模型。')}</p>}
+    <button className="primary" disabled={locked || !loaded || active || !avatar || !!avatar.revoked_at || !capability?.ready || !validAudio || voicePending || capability?.provider==='dashscope-s2v'&&!cloudTransfer || !voiceGrant || voiceGrant.audio_asset_id!==audioId || !!voiceGrant.revoked_at} onClick={() => submit('/creative-jobs', {kind: 'digital_human_authorized',...(capability?.provider==='dashscope-s2v'?{cloud_transfer_confirmed:cloudTransfer}:{}),voice_authorization_id:voiceGrant?.id, expected_version: project.version, avatar_id: avatarId, audio_asset_id: audioId, prompt: text.trim() || avatar?.name + '口播', voice_confirmed: true, voice_consent_reference: voiceGrant?.consent_reference, expected_provider: capability?.provider, expected_model: capability?.model}, 'job')}>{active ? t('项目任务处理中…') : t('生成数字人口播')}</button>
     <p className="drama-help">{t('未配置引擎或未确认模型许可时不可生成。任务失败不会自动重试；技术检查通过不代表嘴型、人物一致性和中文发音已验收。')}</p>
     <div className="drama-history"><h3>{t('口播与配音任务')}</h3><ol>{jobs.filter(job => (job.kind === 'digital_human'||job.kind==='digital_human_authorized') || job.kind === 'speech').map(job => {
       const output = assets.find(item => item.id === job.asset_id)
-      return <li key={job.id}><div><span>{(job.kind === 'digital_human'||job.kind==='digital_human_authorized') ? t('数字人口播') : t('配音')} · {t(jobLabels[job.status] ?? job.status)}</span>{(job.status === 'queued' || job.status === 'running') && <button disabled={locked} onClick={() => submit(`/creative-jobs/${job.id}/cancel`, {}, 'cancel')}>{t('取消创作任务')}</button>}</div>{job.error && <p className="error">{job.error}</p>}{['failed','cancelled'].includes(job.status)&&['engine_done','composed'].includes(job.avatar_recovery_phase??'')&&<div><p className="drama-help">{t('恢复只使用已校验的完成结果，继续合成或入库，不重新启动引擎；仍检查当前授权。')}</p><button disabled={locked} onClick={()=>submit(`/creative-jobs/${job.id}/resume`,{},'resume')}>{t('恢复已确认口播结果')}</button></div>}{job.avatar_recovery_phase==='dispatching'&&['failed','cancelled'].includes(job.status)&&<p className="editing-note">{t('引擎执行结果尚未确认，未自动重新生成。请先核对执行器记录。')}</p>}{output?.kind === 'video' && <video controls preload="metadata" src={`${baseURL}${output.file_url}`} />}{output?.kind === 'audio' && <button disabled={locked} onClick={() => {setAudioId(output.id); setVoiceGrant(null)}}>{t('使用此配音')}</button>}</li>
+      return <li key={job.id}><div><span>{(job.kind === 'digital_human'||job.kind==='digital_human_authorized') ? t('数字人口播') : t('配音')} · {t(jobLabels[job.status] ?? job.status)}</span>{(job.status === 'queued' || job.status === 'running') && <button disabled={locked} onClick={() => submit(`/creative-jobs/${job.id}/cancel`, {}, 'cancel')}>{t('取消创作任务')}</button>}</div>{job.error && <p className="error">{job.error}</p>}{['failed','cancelled'].includes(job.status)&&['engine_done','composed','remote_pending'].includes(job.avatar_recovery_phase??'')&&<div><p className="drama-help">{t(job.avatar_recovery_phase==='remote_pending'?'恢复只查询原百炼任务并取回结果，不再次提交生成；仍检查当前授权。':'恢复只使用已校验的完成结果，继续合成或入库，不重新启动引擎；仍检查当前授权。')}</p><button disabled={locked} onClick={()=>submit(`/creative-jobs/${job.id}/resume`,{},'resume')}>{t(job.avatar_recovery_phase==='remote_pending'?'核对原云端口播任务':'恢复已确认口播结果')}</button></div>}{job.avatar_recovery_phase==='dispatching'&&['failed','cancelled'].includes(job.status)&&<p className="editing-note">{t('引擎执行结果尚未确认，未自动重新生成。请先核对执行器记录。')}</p>}{output?.kind === 'video' && <video controls preload="metadata" src={`${baseURL}${output.file_url}`} />}{output?.kind==='video'&&job.status==='succeeded'&&<AvatarReviewPanel project={project.id} job={job.id} asset={output.id} reviews={job.avatar_reviews??[]} reference={assets.find(a=>a.id===job.reference_asset_id)} audio={assets.find(a=>a.id===job.audio_asset_id)} disabled={locked}/>} {output?.kind === 'audio' && <button disabled={locked} onClick={() => {setAudioId(output.id); setVoiceGrant(null)}}>{t('使用此配音')}</button>}</li>
     })}</ol></div>
     <p className="drama-help">{t('加入时间轴后勾选“视频原音”以保留口播，或使用所选配音作为片段音轨。')}</p>
     <Link to={`${prefix}/media`} className="button-link">{t('进入编辑器添加字幕、背景与音乐')}</Link>

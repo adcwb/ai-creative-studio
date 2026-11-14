@@ -34026,6 +34026,187 @@
         },
         "description": "Idempotent state transition. Requires editor privileges and CSRF protection. Blocks future generation and unpublished output of running jobs; existing assets remain for audit. New consent requires a new grant. Does not remove published media."
       }
+    },
+    "/api/v1/projects/{id}/creative-jobs/{jobId}/avatar-reviews": {
+      "post": {
+        "operationId": "reviewAvatarOutput",
+        "summary": "Append manual review of one exact avatar output",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          },
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required and non-empty in secure mode; all origins are accepted."
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Immutable manual review, or the original idempotent result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvatarReview"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AvatarReviewInput"
+              }
+            }
+          }
+        },
+        "description": "仅支持当前provider/model匹配原任务且已持久upstream_id的异步任务；旧执行器尚未退出时409，不能并发恢复造成重复发布。"
+      }
     }
   },
   "components": {
@@ -36621,6 +36802,10 @@
           },
           "voice_authorization_id": {
             "type": "string"
+          },
+          "cloud_transfer_confirmed": {
+            "type": "boolean",
+            "description": "Explicit authorization to transfer selected avatar inputs to the operator-configured private object store and dedicated cloud service. Required only for dashscope-s2v."
           }
         },
         "required": [
@@ -36830,7 +37015,17 @@
               "engine_done",
               "composed"
             ],
-            "description": "Safe recovery progress; private blob keys and checkpoint proofs are never returned."
+            "description": "Safe recovery phase only: dispatching (unconfirmed; never resubmit), remote_pending (query original cloud task), engine_done or composed. Private task destination and signed input URLs are never exposed."
+          },
+          "cloud_transfer_confirmed": {
+            "type": "boolean",
+            "description": "Explicit authorization to transfer selected avatar inputs to the operator-configured private object store and dedicated cloud service. Required only for dashscope-s2v."
+          },
+          "avatar_reviews": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AvatarReview"
+            }
           }
         },
         "required": [
@@ -49462,6 +49657,104 @@
             "format": "date-time"
           }
         }
+      },
+      "AvatarReview": {
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "asset_id",
+          "outcome",
+          "identity_confirmed",
+          "lip_sync_confirmed",
+          "audio_confirmed",
+          "disclosure_confirmed",
+          "reviewed_by",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "asset_id": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "adopted",
+              "rework"
+            ]
+          },
+          "identity_confirmed": {
+            "type": "boolean"
+          },
+          "lip_sync_confirmed": {
+            "type": "boolean"
+          },
+          "audio_confirmed": {
+            "type": "boolean"
+          },
+          "disclosure_confirmed": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "reviewed_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AvatarReviewInput": {
+        "type": "object",
+        "required": [
+          "expected_version",
+          "asset_id",
+          "outcome"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "adopted",
+              "rework"
+            ]
+          },
+          "identity_confirmed": {
+            "type": "boolean"
+          },
+          "lip_sync_confirmed": {
+            "type": "boolean"
+          },
+          "audio_confirmed": {
+            "type": "boolean"
+          },
+          "disclosure_confirmed": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "description": "Adoption requires all four confirmations. Rework requires a non-empty note. CAS appends an immutable review; no inference or publication."
       }
     },
     "securitySchemes": {

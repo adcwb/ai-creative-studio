@@ -14,11 +14,15 @@ import (
 )
 
 type avatarCheckpoint struct {
-	Format       int       `json:"format"`
-	Phase        string    `json:"phase"`
-	SourceSHA256 string    `json:"source_sha256"`
-	Engine       *BlobInfo `json:"engine,omitempty"`
-	Composed     *BlobInfo `json:"composed,omitempty"`
+	RemoteID         string    `json:"remote_id,omitempty"`
+	CloudDestination string    `json:"cloud_destination,omitempty"`
+	CloudImageKey    string    `json:"cloud_image_key,omitempty"`
+	CloudAudioKey    string    `json:"cloud_audio_key,omitempty"`
+	Format           int       `json:"format"`
+	Phase            string    `json:"phase"`
+	SourceSHA256     string    `json:"source_sha256"`
+	Engine           *BlobInfo `json:"engine,omitempty"`
+	Composed         *BlobInfo `json:"composed,omitempty"`
 }
 
 func avatarCheckpointKey(job CreativeJob, stage string) string {
@@ -33,8 +37,22 @@ func validAvatarCheckpoint(job CreativeJob) bool {
 	if !isAvatarKind(job.Kind) || cp.Format != 1 || len(cp.SourceSHA256) != 64 {
 		return false
 	}
-	if cp.Phase == "dispatching" {
+	if cp.CloudDestination != "" || cp.RemoteID != "" || cp.CloudImageKey != "" || cp.CloudAudioKey != "" {
+		opaque, _ := projectFingerprint("cloud-avatar-inputs", job.ID, []string{job.SpaceID, job.ProjectID})
+		if job.Provider != wanAvatarProvider || !job.CloudTransferConfirmed || len(cp.CloudDestination) != 64 || cp.CloudImageKey != "avatar-inputs/"+opaque+"/image" || cp.CloudAudioKey != "avatar-inputs/"+opaque+"/audio" {
+			return false
+		}
+		if cp.Phase != "dispatching" && !wanTaskID.MatchString(cp.RemoteID) {
+			return false
+		}
+	} else if cp.Phase == "remote_pending" {
+		return false
+	}
+	if cp.Phase == "remote_pending" {
 		return cp.Engine == nil && cp.Composed == nil
+	}
+	if cp.Phase == "dispatching" {
+		return cp.Engine == nil && cp.Composed == nil && cp.RemoteID == ""
 	}
 	if cp.Phase != "engine_done" && cp.Phase != "composed" || cp.Engine == nil || !validBlobInfo(*cp.Engine) || cp.Engine.Key != avatarCheckpointKey(job, "engine") {
 		return false
@@ -43,6 +61,9 @@ func validAvatarCheckpoint(job CreativeJob) bool {
 		return cp.Composed == nil
 	}
 	return cp.Composed != nil && validBlobInfo(*cp.Composed) && cp.Composed.Key == avatarCheckpointKey(job, "composed")
+}
+func avatarRecoveryAvailable(job CreativeJob) bool {
+	return avatarCheckpointReady(job) || (job.AvatarCheckpoint != nil && validAvatarCheckpoint(job) && job.AvatarCheckpoint.Phase == "remote_pending")
 }
 func avatarCheckpointReady(job CreativeJob) bool {
 	return job.AvatarCheckpoint != nil && validAvatarCheckpoint(job) && (job.AvatarCheckpoint.Phase == "engine_done" || job.AvatarCheckpoint.Phase == "composed")
@@ -82,7 +103,7 @@ func (c *creativeStore) recordAvatarCheckpoint(ctx context.Context, job *Creativ
 			return ErrConflict
 		}
 	} else {
-		if prior.SourceSHA256 != checkpoint.SourceSHA256 {
+		if prior.SourceSHA256 != checkpoint.SourceSHA256 || prior.CloudDestination != checkpoint.CloudDestination || prior.CloudImageKey != checkpoint.CloudImageKey || prior.CloudAudioKey != checkpoint.CloudAudioKey || prior.RemoteID != "" && prior.RemoteID != checkpoint.RemoteID {
 			return ErrConflict
 		}
 		if prior.Phase == checkpoint.Phase {
@@ -94,7 +115,7 @@ func (c *creativeStore) recordAvatarCheckpoint(ctx context.Context, job *Creativ
 			job.AvatarCheckpoint = prior
 			return nil
 		}
-		if !(prior.Phase == "dispatching" && checkpoint.Phase == "engine_done" || prior.Phase == "engine_done" && checkpoint.Phase == "composed") {
+		if !((prior.Phase == "dispatching" && (checkpoint.Phase == "engine_done" || checkpoint.Phase == "remote_pending") || prior.Phase == "remote_pending" && checkpoint.Phase == "engine_done") || prior.Phase == "engine_done" && checkpoint.Phase == "composed") {
 			return ErrConflict
 		}
 	}

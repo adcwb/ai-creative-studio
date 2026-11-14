@@ -30,7 +30,7 @@ func validateVoiceAuthorizations(d creativeDisk) error {
 		}
 	}
 	for _, j := range d.Jobs {
-		if !validAvatarCheckpoint(j) {
+		if !validAvatarCheckpoint(j) || !validateAvatarReviews(j) {
 			return errors.New("invalid avatar checkpoint")
 		}
 		if j.Kind == "digital_human_authorized" {

@@ -23,6 +23,7 @@ import (
 )
 
 type CreativeJobInput struct {
+	CloudTransferConfirmed bool   `json:"cloud_transfer_confirmed,omitempty"`
 	VoiceAuthorizationID   string `json:"voice_authorization_id,omitempty"`
 	TextInstruction        string `json:"text_instruction,omitempty"`
 	OutlineScopeSHA256     string `json:"outline_scope_sha256,omitempty"`
@@ -55,6 +56,8 @@ type CreativeJobInput struct {
 	Character             string `json:"character,omitempty"`
 }
 type CreativeJob struct {
+	AvatarReviews          []AvatarReview          `json:"avatar_reviews,omitempty"`
+	CloudTransferConfirmed bool                    `json:"cloud_transfer_confirmed,omitempty"`
 	AvatarCheckpoint       *avatarCheckpoint       `json:"avatar_checkpoint,omitempty"`
 	AvatarRecoveryPhase    string                  `json:"avatar_recovery_phase,omitempty"`
 	VoiceAuthorizationID   string                  `json:"voice_authorization_id,omitempty"`
@@ -108,6 +111,7 @@ type CreativeJob struct {
 	Source                ProjectInput      `json:"source"`
 }
 type creativeReceipt struct {
+	ReviewVersion        int    `json:"review_version,omitempty"`
 	VoiceAuthorizationID string `json:"voice_authorization_id,omitempty"`
 	AvatarID             string `json:"avatar_id,omitempty"`
 	Fingerprint          string `json:"fingerprint"`
@@ -171,7 +175,7 @@ func openCreativeStore(dir string, database ...*sql.DB) (*creativeStore, error) 
 				return nil, errors.New("invalid creative job")
 			}
 			if j.Status == "running" {
-				if avatarCheckpointReady(j) || (j.Kind == "video" || (j.Kind == "image" && j.Provider == "jimeng-images")) && j.UpstreamID != "" {
+				if avatarRecoveryAvailable(j) || (j.Kind == "video" || (j.Kind == "image" && j.Provider == "jimeng-images")) && j.UpstreamID != "" {
 					j.Status = "queued"
 				} else {
 					j.Status = "failed"
@@ -421,6 +425,13 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		}
 		in.ReferenceAssetID = avatar.ReferenceAssetID
 		caps = c.avatarCaps(avatar.Route)
+		if caps.Provider == wanAvatarProvider {
+			cloud, ok := c.avatarPhoto.(*avatarCloud)
+			if !ok || in.Kind != "digital_human_authorized" || !in.CloudTransferConfirmed || !cloud.tenants[space] {
+				return CreativeJob{}, false, providerFailure("avatar_cloud_transfer_denied")
+			}
+		}
+
 		media := s.media.Get(id, space)
 		reference, found := mediaAsset(media, avatar.ReferenceAssetID)
 		if !found {
@@ -439,7 +450,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		if avatar.Route == "video" && audio.Duration > reference.Duration+0.1 {
 			return CreativeJob{}, false, projectInputError("配音不能长于参考视频，请裁剪配音或更换视频")
 		}
-	} else if in.VoiceAuthorizationID != "" || in.AvatarID != "" || in.VoiceConfirmed || in.VoiceConsentReference != "" {
+	} else if in.CloudTransferConfirmed || in.VoiceAuthorizationID != "" || in.AvatarID != "" || in.VoiceConfirmed || in.VoiceConsentReference != "" {
 		return CreativeJob{}, false, ErrInvalidProjectInput
 	}
 	libraryPins, libraryContext, err := s.compileLibraryInputs(context.Background(), id, space, &in, caps)
@@ -555,6 +566,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	if director != nil {
 		job.DirectorSourceVersion, job.DirectorSourceSHA256 = director.ProjectVersion, director.SHA256
 	}
+	job.CloudTransferConfirmed = in.CloudTransferConfirmed
 	job.AvatarID, job.VoiceConsentReference, job.VoiceConfirmed, job.AIGenerated = in.AvatarID, in.VoiceConsentReference, in.VoiceConfirmed, isAvatarKind(in.Kind)
 	job.LibraryInputs, job.LibraryInputContext = cloneLibraryInputPins(libraryPins), libraryContext
 	if isAvatarKind(in.Kind) {
@@ -1239,7 +1251,7 @@ func (s *FileStore) resumeCreativeJob(space, id, jid, key string) (CreativeJob, 
 	if _, running := c.cancels[jid]; running {
 		return CreativeJob{}, ErrGenerationActive
 	}
-	avatarRecovery := isAvatarKind(job.Kind) && avatarCheckpointReady(job)
+	avatarRecovery := isAvatarKind(job.Kind) && avatarRecoveryAvailable(job)
 	if (!avatarRecovery && ((job.Kind != "video" && !(job.Kind == "image" && job.Provider == "jimeng-images")) || job.UpstreamID == "")) || (job.Status != "failed" && job.Status != "cancelled") {
 		return CreativeJob{}, ErrConflict
 	}
@@ -1325,6 +1337,7 @@ type asyncReferenceImageProvider interface {
 }
 
 func cloneCreativeJob(job CreativeJob) CreativeJob {
+	job.AvatarReviews = append([]AvatarReview(nil), job.AvatarReviews...)
 	if job.AvatarCheckpoint != nil {
 		cp := *job.AvatarCheckpoint
 		job.AvatarCheckpoint = &cp

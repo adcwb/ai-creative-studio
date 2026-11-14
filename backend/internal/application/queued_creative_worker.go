@@ -52,7 +52,7 @@ func runQueuedCreative(ctx context.Context, q jobqueue.Queue, s *FileStore, kind
 		}
 		runCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 		defer cancel()
-		if kind == "creative_resume" && isAvatarKind(job.Kind) && avatarCheckpointReady(job) {
+		if kind == "creative_resume" && isAvatarKind(job.Kind) && avatarRecoveryAvailable(job) {
 			err = s.executeCreativeJob(runCtx, &job)
 		} else if kind == "creative_resume" {
 			if (job.Kind != "video" && !(job.Kind == "image" && job.Provider == "jimeng-images")) || job.UpstreamID == "" || job.RuntimeSelection == nil {

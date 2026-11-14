@@ -137,6 +137,10 @@ func validValue(key, value string) bool {
 		case "AUTH_ALLOWED_ORIGINS":
 			_, err := TrustedOrigins("", strings.Split(value, ","))
 			return err == nil
+		case "DIGITAL_HUMAN_PHOTO_PROVIDER":
+			return value == "local" || value == "dashscope-s2v"
+		case "DIGITAL_HUMAN_CLOUD_RESOLUTION":
+			return value == "480P" || value == "720P"
 		case "DIGITAL_HUMAN_PHOTO_PROTOCOL", "LIP_SYNC_PROTOCOL":
 			return value == "json-v1" || value == "files-v1"
 		case "DIGITAL_HUMAN_PHOTO_TIMEOUT_SECONDS", "LIP_SYNC_TIMEOUT_SECONDS":

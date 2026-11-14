@@ -303,6 +303,16 @@ func storeError(w http.ResponseWriter, err error) {
 		return
 	}
 	var failure *ProviderError
+	if errors.As(err, &failure) {
+		switch failure.Code {
+		case "avatar_cloud_transfer_denied", "avatar_authorization_revoked":
+			problem(w, 403, failure.Code, providerMessage(failure.Code))
+			return
+		case "avatar_cloud_input_window", "avatar_cloud_configuration_changed":
+			problem(w, 409, failure.Code, providerMessage(failure.Code))
+			return
+		}
+	}
 	if errors.As(err, &failure) && (failure.Code == "library_use_denied" || failure.Code == "provider_input_capacity") {
 		problem(w, 409, failure.Code, providerMessage(failure.Code))
 		return

@@ -20,6 +20,19 @@ type PhotoAvatarProvider interface {
 
 func ConfigureDigitalHumanFromEnv(s *FileStore) {
 	p, caps := configureLocalTransform("DIGITAL_HUMAN_PHOTO", "local-photo-avatar")
+	if selected := os.Getenv("DIGITAL_HUMAN_PHOTO_PROVIDER"); selected != "" && selected != "local" {
+		s.creative.avatarPhoto = nil
+		caps = Capabilities{Provider: "unavailable", Mode: "unavailable", ReasonCode: "provider_unavailable", Message: "专用云数字人配置无效，请核对工作空间、私有素材桥接和允许空间"}
+		if selected == wanAvatarProvider {
+			if cloud, err := configureAvatarCloud(); err == nil {
+				s.creative.avatarPhoto = cloud
+				caps = Capabilities{Provider: wanAvatarProvider, Model: "wan2.2-s2v", Mode: "real", Ready: true, Message: "百炼照片口播专用协议；原生480P/720P，单段音频小于20秒；需明确授权外传素材，效果与商业许可未验收"}
+			}
+		}
+		s.creative.avatarPhotoCaps = caps
+		s.creative.avatarLicenseConfirmed = os.Getenv("DIGITAL_HUMAN_LICENSE_ACK") == "true"
+		return
+	}
 	if p != nil {
 		s.creative.avatarPhoto = p
 	}
@@ -172,6 +185,12 @@ func (s *FileStore) executeDigitalHuman(ctx context.Context, job *CreativeJob) e
 			if work.route == "video" {
 				provider = c.lipSync
 				operation = "lip_sync"
+			}
+			if cloud, ok := provider.(*avatarCloud); ok && !avatarCheckpointReady(*job) {
+				if e := s.executeCloudAvatar(s.avatarDispatchContext(ctx, job), job, work, cloud); e != nil {
+					return nil, e
+				}
+				return work, nil
 			}
 			if restored, e := s.restoreAvatarCheckpoint(ctx, job, work); e != nil {
 				return nil, e

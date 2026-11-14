@@ -143,6 +143,11 @@ func (c *creativeStore) avatarLocked(space, project, id string) (DigitalHuman, e
 }
 
 func (s *FileStore) checkAvatarJob(ctx context.Context, job *CreativeJob) error {
+	if cloud, ok := s.creative.avatarPhoto.(*avatarCloud); ok && job.Provider == wanAvatarProvider {
+		if err := cloud.allowed(*job); err != nil {
+			return err
+		}
+	}
 	if err := s.checkVoiceAuthorization(ctx, job); err != nil {
 		return err
 	}
