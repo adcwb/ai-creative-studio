@@ -9,6 +9,7 @@ import { dirname, join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { deflateSync } from 'node:zlib'
+import { selectOption } from '../frontend/e2e/support/controls.ts'
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(join(repo, 'frontend/package.json'))
 const { chromium, expect } = require('@playwright/test')
@@ -63,7 +64,7 @@ try {
   browser = await chromium.launch({channel: process.env.PLAYWRIGHT_BROWSER_CHANNEL,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH})
   const page = await browser.newPage({locale:'zh-CN',viewport:{width:1440,height:1100}}); const errors = []; page.on('pageerror', e => errors.push(e.message))
   await page.goto(origin); await expect(page.locator('.template-card')).toHaveCount(3); await expect(page.locator('.provider-mock')).toContainText('模拟')
-  await page.getByLabel('描述你的画面').fill(fixturePrompt); await page.getByLabel('画面比例').selectOption('1:1')
+  await page.getByLabel('描述你的画面').fill(fixturePrompt); await selectOption(page.getByLabel('画面比例'),'1:1')
   // Leave cached mock capabilities in this browser, then change the process.
   await boot('real'); let posts = 0; const seenKeys = []
   page.on('request', req => { if (req.method()==='POST' && req.url().includes('/tasks')) { posts++; seenKeys.push(req.headers()['idempotency-key']) } })

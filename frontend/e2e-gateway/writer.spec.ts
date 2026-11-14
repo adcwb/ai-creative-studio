@@ -1,4 +1,4 @@
-import {expectControlValue, selectOption} from '../e2e/support/controls'
+import {selectOption} from '../e2e/support/controls'
 import {test,expect,type Page} from '@playwright/test'
 import {randomUUID} from 'node:crypto'
 const api='http://localhost:8084/api/v1',upstream='http://127.0.0.1:5193'
@@ -14,43 +14,47 @@ async function fixture(page:Page){
  return {query,headers,model,project:original,root,season,episode,write}
 }
 
-test('writer candidates preserve official drafts, recover original requests, and require explicit versioned adoption',async({page,request},info)=>{
+// Candidate controls were intentionally removed from the primary script page.
+// Keep the legacy API's recovery, immutable sources and explicit CAS adoption
+// coverage while exercising the current page for the creator's official draft.
+test('legacy writer candidates preserve drafts, recover requests and retain versioned explicit adoption',async({page,request})=>{
  const f=await fixture(page),before=(await(await request.get(upstream+'/__state')).json()).requests.length
  const genPath=`/api/v1/projects/${f.project.id}/gateway-generations`,keys:string[]=[],bodies:string[]=[]
  page.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname===genPath){keys.push(r.headers()['idempotency-key']);bodies.push(r.postData()??'')}})
  await page.goto(`/projects/${f.project.id}/script`)
- await expect(page.getByRole('button',{name:'生成剧本候选',exact:true})).toBeEnabled()
- await page.route(`**${genPath}?*`,async route=>{if(route.request().method()!=='POST')return route.continue();const r=await route.fetch();expect(r.status()).toBe(202);await route.abort('failed')},{times:1})
- await page.getByRole('button',{name:'生成剧本候选',exact:true}).click();await expect(page.getByText('生成结果尚未确认。请核对原请求，系统不会另开一次模型调用。',{exact:true})).toBeVisible()
+ await expect(page.getByRole('heading',{name:'当前剧本',exact:true})).toBeVisible()
+ await expect(page.getByRole('button',{name:'生成剧本候选',exact:true})).toHaveCount(0)
+ async function browserPost(path:string,body:unknown,key:string){return page.evaluate(async({path,body,key,headers,query,api})=>{try{const r=await fetch(api+path+query,{method:'POST',credentials:'include',headers:{...headers,'Content-Type':'application/json','Idempotency-Key':key},body:JSON.stringify(body)});return {status:r.status,body:await r.json()}}catch{return {status:0,body:null}}},{path,body,key,headers:f.headers,query:f.query,api})}
+ const key=randomUUID(),input={candidate_only:true,expected_version:f.project.version,model_config_id:f.model.id,model_config_version:f.model.version,expected_provider:'gateway-text',expected_model:f.model.model}
+ await page.route(`**${genPath}?*`,async route=>{const r=await route.fetch();expect(r.status()).toBe(202);await route.abort('failed')},{times:1})
+ expect((await browserPost(`/projects/${f.project.id}/gateway-generations`,input,key)).status).toBe(0)
  await expect.poll(async()=>{const p=await(await page.request.get(api+`/projects/${f.project.id}`+f.query)).json();return p.latest_generation?.status}).toBe('succeeded')
  let current=await(await page.request.get(api+`/projects/${f.project.id}`+f.query)).json();expect(current.version).toBe(f.project.version);expect(current.script).toEqual(f.project.script)
  await f.write('/gateway-models/'+f.model.id,{expected_version:f.model.version,model:{id:f.model.id,gateway_id:f.model.gateway_id,name:f.model.name,model:f.model.model,capabilities:f.model.capabilities,enabled:false,max_output_tokens:2000}},'PATCH')
- page.on('dialog',d=>void d.accept());await page.reload();await page.getByRole('button',{name:'核对原生成请求',exact:true}).click();await expect(page.getByText('生成结果尚未确认。请核对原请求，系统不会另开一次模型调用。',{exact:true})).toHaveCount(0)
+ await page.reload();expect((await browserPost(`/projects/${f.project.id}/gateway-generations`,input,key)).status).toBe(200)
  expect(keys).toHaveLength(2);expect(new Set(keys).size).toBe(1);expect(new Set(bodies).size).toBe(1);expect(JSON.parse(bodies[0]).candidate_only).toBe(true)
- const sent=(await(await request.get(upstream+'/__state')).json()).requests.slice(before);expect(sent).toHaveLength(1);expect(sent[0].path).toBe('/v1/chat/completions')
  const id=current.latest_generation.id,full=await(await page.request.get(api+`/projects/${f.project.id}/generations/${id}`+f.query)).json();expect(full.candidate.structure_version).toBe(2);expect(full.source_script).toEqual(f.project.script);expect(full.runtime_selection).toBeUndefined()
- const modified=structuredClone(current.script);modified.scenes[0].action='作者后来保留了另一种动作。';current=await f.write(`/projects/${f.project.id}/script`,{expected_version:current.version,script:modified},'PUT');await page.reload()
- const card=page.locator('.script-candidate').filter({has:page.getByRole('button',{name:'比较这份候选',exact:true})}).first();await card.getByRole('button',{name:'比较这份候选',exact:true}).click()
- await card.getByText('查看生成时的原稿与简报',{exact:true}).click();await expect(card).toContainText('原稿保留迟疑，不自动透露来客身份。');await card.getByText('查看现在的正式剧本',{exact:true}).click();await expect(card).toContainText(modified.scenes[0].action)
- await card.getByRole('button',{name:'编辑剧本',exact:true}).click();await card.getByLabel('故事梗概',{exact:true}).fill('编剧调整停顿，仍然不揭示来客的身份。');await card.getByRole('button',{name:'完成候选编辑',exact:true}).click();await card.getByLabel('采纳理由（可选）',{exact:true}).fill('保留悬念，调整本集节奏。')
- const adopt=card.getByRole('button',{name:'明确采纳为正式剧本',exact:true});await expect(adopt).toBeDisabled();const check=card.getByRole('checkbox',{name:'我已比较当前版本，仍决定采纳这份候选。',exact:true});await check.check();await expect(adopt).toBeEnabled();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);expect((await check.boundingBox())?.width).toBeLessThanOrEqual(20);await card.screenshot({path:`/tmp/writer-candidate-${info.project.name}.png`})
- // Another editor wins after the creator's first comparison. Refresh only the
- // official source: local candidate edits and the reason must remain intact.
- const latestBrief='另一位编剧刚刚保存的本集新简报。'
- current=await f.write(`/projects/${f.project.id}`,{expected_version:current.version,title:current.title,brief:latestBrief},'PUT')
- const conflict=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname.endsWith(`/generations/${id}/adoptions`))
- await adopt.click();expect((await conflict).status()).toBe(409)
- await card.getByRole('button',{name:'核对最新正式稿',exact:true}).click();await expect(card).toContainText(latestBrief);await expect(check).not.toBeChecked();await expect(adopt).toBeDisabled();await expect(card).toContainText('编剧调整停顿，仍然不揭示来客的身份。');await expectControlValue(card.getByLabel('采纳理由（可选）',{exact:true}), '保留悬念，调整本集节奏。');await check.check();await expect(adopt).toBeEnabled()
- const adoptPath=`/api/v1/projects/${f.project.id}/generations/${id}/adoptions`,adoptKeys:string[]=[],adoptBodies:string[]=[];page.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname===adoptPath){adoptKeys.push(r.headers()['idempotency-key']);adoptBodies.push(r.postData()??'')}})
- await page.route(`**${adoptPath}?*`,async route=>{if(route.request().method()!=='POST')return route.continue();const r=await route.fetch();expect(r.status()).toBe(200);await route.abort('failed')},{times:1});await adopt.click();await expect(card.getByText('采纳结果尚未确认。请用原请求核对，避免重复更新正式稿。',{exact:true})).toBeVisible()
- current=await(await page.request.get(api+`/projects/${f.project.id}`+f.query)).json();expect(current.script.logline).toBe('编剧调整停顿，仍然不揭示来客的身份。');const later=structuredClone(current.script);later.title='采纳后继续手写的正式稿';current=await f.write(`/projects/${f.project.id}/script`,{expected_version:current.version,script:later},'PUT')
- await page.reload();await page.getByRole('button',{name:'核对原采纳请求',exact:true}).click();await expect(page.getByText('采纳结果尚未确认。请用原请求核对，避免重复更新正式稿。',{exact:true})).toHaveCount(0)
- expect(adoptKeys).toHaveLength(2);expect(new Set(adoptKeys).size).toBe(1);expect(new Set(adoptBodies).size).toBe(1);const final=await(await page.request.get(api+`/projects/${f.project.id}`+f.query)).json();expect(final.version).toBe(current.version);expect(final.script).toEqual(later)
- const detail=await(await page.request.get(api+`/projects/${f.project.id}/generations/${id}`+f.query)).json();expect(detail.candidate).toEqual(full.candidate);expect(detail.source_script).toEqual(f.project.script);expect(detail.adoption.edited).toBe(true);expect(detail.adoption.reason).toBe('保留悬念，调整本集节奏。');expect((await(await request.get(upstream+'/__state')).json()).requests.length).toBe(before+1)
+ const modified=structuredClone(current.script);modified.scenes[0].action='作者后来保留了另一种动作。';current=await f.write(`/projects/${f.project.id}/script`,{expected_version:current.version,script:modified},'PUT')
+ const draft=structuredClone(full.candidate);draft.logline='编剧调整停顿，仍然不揭示来客的身份。'
+ const adoption={expected_version:current.version,reviewed_changes:true,script:draft,reason:'保留悬念，调整本集节奏。'}
+ const latestBrief='另一位编剧刚刚保存的本集新简报。';current=await f.write(`/projects/${f.project.id}`,{expected_version:current.version,title:current.title,brief:latestBrief},'PUT')
+ const adoptPath=`/api/v1/projects/${f.project.id}/generations/${id}/adoptions`
+ expect((await browserPost(`/projects/${f.project.id}/generations/${id}/adoptions`,adoption,randomUUID())).status).toBe(409)
+ adoption.expected_version=current.version
+ const adoptKeys:string[]=[],adoptBodies:string[]=[];page.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname===adoptPath){adoptKeys.push(r.headers()['idempotency-key']);adoptBodies.push(r.postData()??'')}})
+ const adoptKey=randomUUID();await page.route(`**${adoptPath}?*`,async route=>{const r=await route.fetch();expect(r.status()).toBe(200);await route.abort('failed')},{times:1})
+ expect((await browserPost(`/projects/${f.project.id}/generations/${id}/adoptions`,adoption,adoptKey)).status).toBe(0)
+ current=await(await page.request.get(api+`/projects/${f.project.id}`+f.query)).json();expect(current.script.logline).toBe(draft.logline)
+ const later=structuredClone(current.script);later.title='采纳后继续手写的正式稿';current=await f.write(`/projects/${f.project.id}/script`,{expected_version:current.version,script:later},'PUT')
+ await page.reload();expect((await browserPost(`/projects/${f.project.id}/generations/${id}/adoptions`,adoption,adoptKey)).status).toBe(200)
+ expect(adoptKeys).toHaveLength(2);expect(new Set(adoptKeys).size).toBe(1);expect(new Set(adoptBodies).size).toBe(1)
+ const final=await(await page.request.get(api+`/projects/${f.project.id}`+f.query)).json();expect(final.version).toBe(current.version);expect(final.script).toEqual(later)
+ const detail=await(await page.request.get(api+`/projects/${f.project.id}/generations/${id}`+f.query)).json();expect(detail.candidate).toEqual(full.candidate);expect(detail.source_script).toEqual(f.project.script);expect(detail.adoption.edited).toBe(true);expect(detail.adoption.reason).toBe(adoption.reason)
+ expect((await(await request.get(upstream+'/__state')).json()).requests.length).toBe(before+1)
+ await expect(page.getByText(later.title,{exact:true}).last()).toBeVisible()
 })
 
-
-test('season and episode beats persist and canonical writing context is pinned through creator adoption',async({page,request},info)=>{
+test('season and episode beats persist and current writing context is pinned through explicit regeneration',async({page,request},info)=>{
  const f=await fixture(page),before=(await(await request.get(upstream+'/__state')).json()).requests.length
  const bible=await f.write(`/series/${f.root.id}/story-records`,{expected_version:0,title:'正式世界规则',kind:'bible',status:'active',required:true,body:{evidence:[],bible:{theme:'误认与信任',world_rules:'人物不能自动共享知识。'.repeat(2400),story_arc:'本季从误认走向独立判断。',visual_intent:'雨夜的克制',immutable_rules:'保留角色之间不同的知情边界。',characters:[]}}})
  await page.goto(`/series/${f.root.id}`);await page.getByText('编剧工作台 · 季与集的节拍',{exact:true}).click()
@@ -65,13 +69,19 @@ test('season and episode beats persist and canonical writing context is pinned t
  await board.getByRole('button',{name:'编辑节拍与查看历史',exact:true}).click();await board.getByRole('button',{name:'读取资料历史',exact:true}).click();await expect(board.getByRole('button',{name:/版本 1/})).toBeVisible();await board.getByRole('button',{name:'返回资料列表',exact:true}).click();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await board.screenshot({path:`/tmp/writing-beats-${info.project.name}.png`})
  const originalAction=f.project.script.scenes[0].action,changedScript=structuredClone(f.project.script);changedScript.scenes[0].action='作者后来改变了当前场次动作。';f.project=await f.write(`/projects/${f.project.id}/script`,{expected_version:f.project.version,script:changedScript},'PUT');await board.getByRole('button',{name:'查看固定场次原文',exact:true}).click();await expect(board.getByRole('region',{name:'节拍来源原文',exact:true})).toContainText(originalAction);await expect(board.getByRole('region',{name:'节拍来源原文',exact:true})).not.toContainText(changedScript.scenes[0].action)
  const future=await f.write(`/seasons/${f.season.id}/episodes`,{title:'未来一集'});await f.write(`/seasons/${f.season.id}/writing-beats?episode_id=${future.id}`,{expected_version:0,title:'FUTURE_WRITING_MATERIAL',kind:'outline',status:'active',required:true,body:{evidence:[],outline:{season_id:f.season.id,episode_id:future.id,goal:'FUTURE_WRITING_MATERIAL',opening:'',conflict:'',turn:'',hook:''}}},'PUT')
- await page.goto(`/projects/${f.project.id}/script`);const context=page.getByRole('region',{name:'本集写作上下文',exact:true});await context.getByRole('checkbox',{name:'依据正式故事资料接续剧情',exact:true}).check();await expect(page.getByRole('button',{name:'生成剧本候选',exact:true})).toBeDisabled();await context.getByRole('button',{name:'准备本集写作资料',exact:true}).click();await expect(context).toContainText('正式世界规则');await expect(page.getByRole('button',{name:'生成剧本候选',exact:true})).toBeEnabled()
- const accepted=page.waitForResponse(r=>r.request().method()==='POST'&&r.url().includes('/gateway-generations?'));await page.getByRole('button',{name:'生成剧本候选',exact:true}).click();const response=await accepted;expect(response.status()).toBe(202);expect(response.request().postDataJSON().context_snapshot_id).toMatch(/^[a-f0-9]{32}$/)
- await expect(page.getByRole('button',{name:'比较这份候选',exact:true})).toBeVisible();await page.getByRole('button',{name:'比较这份候选',exact:true}).click();const card=page.locator('.script-candidate').first(),review=card.getByRole('region',{name:'写作来源对照',exact:true}),adopt=card.getByRole('button',{name:'明确采纳为正式剧本',exact:true});await expect(adopt).toBeEnabled()
+ await page.goto(`/projects/${f.project.id}/script`);const context=page.getByRole('region',{name:'本集写作上下文',exact:true}),regenerate=page.getByRole('button',{name:'重新生成',exact:true})
+ await context.getByRole('checkbox',{name:'依据正式故事资料接续剧情',exact:true}).check();await expect(regenerate).toBeDisabled();await context.getByRole('button',{name:'准备本集写作资料',exact:true}).click();await expect(context).toContainText('正式世界规则');await expect(regenerate).toBeEnabled()
+ const accepted=page.waitForResponse(r=>r.request().method()==='POST'&&r.url().includes('/gateway-generations?'));await regenerate.click();await page.getByRole('group',{name:'确认重新生成剧本',exact:true}).getByRole('button',{name:'确认重新生成',exact:true}).click()
+ const response=await accepted;expect(response.status()).toBe(202);const input=response.request().postDataJSON();expect(input.context_snapshot_id).toMatch(/^[a-f0-9]{32}$/);expect(input).not.toHaveProperty('candidate_only')
+ await expect.poll(async()=>{const p=await(await page.request.get(api+`/projects/${f.project.id}`+f.query)).json();return p.latest_generation?.status}).toBe('succeeded')
+ await expect(page.getByRole('heading',{name:'当前剧本',exact:true})).toBeVisible()
+ const generated=await(await page.request.get(api+`/projects/${f.project.id}`+f.query)).json();expect(generated.script_version).toBe(f.project.script_version+1)
  const beat=(await(await page.request.get(api+`/seasons/${f.season.id}/writing-beats`+f.query+'&episode_id='+f.project.id)).json()).current
  await f.write(`/seasons/${f.season.id}/writing-beats?episode_id=${f.project.id}`,{expected_version:beat.number,title:beat.title,kind:'outline',status:'active',required:true,body:{...beat.body,outline:{...beat.body.outline,hook:'编剧后来改为门外出现一道光'}}},'PUT')
- await review.getByRole('button',{name:'核对生成时的来源',exact:true}).click();await expect(adopt).toBeDisabled();await review.getByRole('button',{name:'准备现在的对照资料',exact:true}).click();await expect(review).toContainText('本次核对的正式资料');const check=card.getByRole('checkbox',{name:'我已比较当前版本，仍决定采纳这份候选。',exact:true});await expect(check).not.toBeChecked();await check.check();await expect(adopt).toBeEnabled()
- await review.getByRole('button',{name:'准备现在的对照资料',exact:true}).click();await expect(check).not.toBeChecked();await check.check();await expect(adopt).toBeEnabled();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await review.screenshot({path:`/tmp/writing-context-${info.project.name}.png`});await adopt.click();await expect(page.getByText(`已明确采纳为剧本版本 ${f.project.script_version+1}`,{exact:true})).toBeVisible()
+ await context.getByRole('button',{name:'核对当前来源',exact:true}).click();await expect(context.getByRole('status')).toContainText('写作来源已变化');await expect(regenerate).toBeDisabled()
+ await context.getByRole('button',{name:'准备本集写作资料',exact:true}).click();await expect(regenerate).toBeEnabled()
+ const unchanged=await(await page.request.get(api+`/projects/${f.project.id}`+f.query)).json();expect(unchanged.script).toEqual(generated.script);expect(unchanged.version).toBe(generated.version)
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await context.screenshot({path:`/tmp/writing-context-${info.project.name}.png`})
  const sent=(await(await request.get(upstream+'/__state')).json()).requests.slice(before);expect(sent).toHaveLength(1);const payload=JSON.parse(sent[0].body.messages[1].content);expect(payload.episode_id).toBe(f.project.id);expect(payload.current_script).toEqual(f.project.script);expect(payload.material.filter((v:{kind:string})=>v.kind==='outline')).toHaveLength(2);expect(payload.material.find((v:{kind:string})=>v.kind==='bible').version_id).toBe(bible.version_id);expect(JSON.stringify(payload)).not.toContain('FUTURE_WRITING_MATERIAL');expect(sent[0].body.messages[1].content.length).toBeGreaterThan(20000)
 })
 

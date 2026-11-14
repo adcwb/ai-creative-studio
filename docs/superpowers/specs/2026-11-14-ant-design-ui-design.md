@@ -62,3 +62,7 @@
 核心实现见 [主题桥接](../../../frontend/src/ui/StudioTheme.tsx)、[共用弹层](../../../frontend/src/ui/StudioDialog.tsx)、[网关列表](../../../frontend/src/components/GatewayTable.tsx)、[新增回归](../../../frontend/e2e-routing/ui-components.spec.ts)。
 
 未变更后端或 API 合同，无需数据迁移。其他业务页的原生控件、专业画布、时间轴与原图查看器仍保留现有实现；原图查看器中的按钮已统一。回退时需一起回退依赖、主题与已迁移控件，不能只移除 npm 依赖。代码提交与云端分支以 Git 记录为准，部署不包含在本轮交付范围。
+
+## 后续完整门禁复验
+
+基线c63c7d的云检查暴露了独立脚本控件、旧剧本主流程、PG禁用选项和过渡帧断言等遗留不一致；后续修复与实际截图发现的缩略图高度回归见[CI与界面复验](2026-11-14-ant-design-ci-repair.md)。原本地小范围通过不能代替完整云矩阵结果。

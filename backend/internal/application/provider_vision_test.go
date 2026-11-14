@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -150,7 +151,7 @@ func TestVisionRejectsInputBeforeNetwork(t *testing.T) {
 }
 func TestVisionOutputMetadataAndMalformedResults(t *testing.T) {
 	png := nativeTestImage(t, "png")
-	cases := []string{`{"summary":"valid summary","questions":[],"suggestions":[],"source_version":999}`, `{"summary":"valid summary","questions":[],"suggestions":[],"provider":"forged"}`, `{"summary":"valid summary","questions":null,"suggestions":[]}`, `{"summary":"valid summary","questions":[null],"suggestions":[]}`, `{"summary":"valid summary","questions":[],"suggestions":[],"unexpected":"value"}`, "```json\n" + visionValidJSON + "\n```", visionValidJSON + visionValidJSON, `{"summary":"x","questions":[],"suggestions":[]}`}
+	cases := []string{`{"summary":"valid summary","questions":[],"suggestions":[],"source_version":999}`, `{"summary":"valid summary","questions":[],"suggestions":[],"provider":"forged"}`, `{"summary":"valid summary","questions":null,"suggestions":[]}`, `{"summary":"valid summary","questions":[null],"suggestions":[]}`, `{"summary":"valid summary","questions":[],"suggestions":[],"unexpected":"value"}`, "Explanation\n```json\n" + visionValidJSON + "\n```", "```json\n" + visionValidJSON + "\n``` trailing prose", visionValidJSON + visionValidJSON, `{"summary":"x","questions":[],"suggestions":[]}`}
 	for _, content := range cases {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(visionTestResponse("openai-text", content))
@@ -245,6 +246,31 @@ func TestVisionRejectsIncompleteAndRefusalAcrossProviders(t *testing.T) {
 			p := visionTestProvider(kind, server.URL, server.Client())
 			if _, err := p.DescribeImage(context.Background(), "describe synthetic image", image, "image/jpeg"); err == nil {
 				t.Fatal("incomplete/refusal accepted")
+			}
+		})
+	}
+}
+
+// The shared structured-response parser explicitly accepts one complete fence.
+// It still rejects injected metadata, null collections, prose and extra objects.
+func TestVisionSingleJSONFencePreservesValidatedAnalysis(t *testing.T) {
+	image := nativeTestImage(t, "png")
+	for _, kind := range []string{"openai-text", "ark-text", "anthropic-text", "gemini-text", "minimax-text"} {
+		t.Run(kind, func(t *testing.T) {
+			content := visionValidJSON
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				json.NewEncoder(w).Encode(visionTestResponse(kind, content))
+			}))
+			defer server.Close()
+			p := visionTestProvider(kind, server.URL, server.Client())
+			plain, e := p.DescribeImage(context.Background(), "describe image", image, "image/png")
+			if e != nil {
+				t.Fatal(e)
+			}
+			content = "```json\n" + visionValidJSON + "\n```"
+			fenced, e := p.DescribeImage(context.Background(), "describe image", image, "image/png")
+			if e != nil || !reflect.DeepEqual(plain, fenced) || fenced.Provider != kind || fenced.SourceVersion != 0 {
+				t.Fatal("fence changed validated response or trusted metadata", plain, fenced, e)
 			}
 		})
 	}

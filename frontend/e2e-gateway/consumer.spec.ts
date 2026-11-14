@@ -92,7 +92,7 @@ test('workspace guidance, honest model state and persistent navigation preserve 
   expect((await page.locator('.sidebar-brand').boundingBox())!.y).toBe(brand!.y)
   expect((await page.locator('.space-picker').boundingBox())!.y).toBe(picker!.y)
   expect(await page.locator('.app-nav a>span').evaluateAll(nodes=>nodes.filter(n=>n.getClientRects().length).every(n=>n.scrollWidth<=n.clientWidth+1))).toBe(true)
-  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
   await page.screenshot({path:`/tmp/studio-consumer/navigation-${info.project.name}.png`})
   if (info.project.name==='mobile') {await page.keyboard.press('Escape');await expect(page.locator('.menu-toggle')).toBeFocused()}
   else await closeNavigation(page)

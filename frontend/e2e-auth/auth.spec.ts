@@ -96,7 +96,10 @@ test('owner reads historical costs without budget controls and configures models
   } else {
     await expectControlValue(page.getByRole('combobox', {name: '凭据操作', exact: true}), 'keep')
     await expect(page.getByLabel('新的 API Key', {exact: true})).toHaveCount(0)
-    await expect(page.getByRole('option', {name: '设置 API Key', exact: true})).toHaveJSProperty('disabled', true)
+    const credential=page.getByRole('combobox', {name:'凭据操作',exact:true})
+    await credential.click()
+    await expect(page.getByRole('option', {name: '设置 API Key', exact: true})).toBeDisabled()
+    await credential.press('Escape')
     await expect(page.getByText('MODEL_CONFIG_KEK_BASE64', {exact: true})).toBeVisible()
   }
   await page.getByLabel('网关名称',{exact:true}).fill('Synthetic declaration gateway')

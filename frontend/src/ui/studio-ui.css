@@ -54,3 +54,5 @@
  .image-page .creation-grid {grid-template-columns:1fr}
  .studio-select .ant-select-input,.model-editor-form .ant-input {font-size:16px}
 }
+/* Image previews keep their image-defined height, rather than Button's controlHeight. */
+.task-gallery .result-preview.ant-btn {display:block;height:auto;padding:0;line-height:normal}

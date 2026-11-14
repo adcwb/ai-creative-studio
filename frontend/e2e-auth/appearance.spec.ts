@@ -71,14 +71,13 @@ test('personal themes and locale persist per account, reset on logout and never 
   await expect(page.locator('.user-workspace')).toHaveAttribute('data-theme','screening')
   await expect(page.locator('html')).toHaveAttribute('lang','en')
   await navigateTo(page,'/studio')
-  await expect(page.locator('textarea').first()).toBeVisible()
+  await expect(page.locator('textarea').first()).toBeEnabled()
   await screenshot(page,`studio-${info.project.name}-screening`)
-  const contrast = await page.locator('textarea').first().evaluate(el => {
+  await expect.poll(() => page.locator('textarea').first().evaluate(el => {
     const c=getComputedStyle(el)
     function luminance(rgb: string) { const a=(rgb.match(/[\d.]+/g) ?? []).slice(0,3).map(Number).map(v=> {v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4});return a[0]*.2126+a[1]*.7152+a[2]*.0722 }
     const a=luminance(c.color), b=luminance(c.backgroundColor);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05)
-  })
-  expect(contrast).toBeGreaterThanOrEqual(4.5)
+  })).toBeGreaterThanOrEqual(4.5)
   await openNavigation(page)
   await page.locator('[data-group=resources] .group-toggle').click()
   await expect(page.locator('[data-group=resources] .group-toggle')).toHaveAttribute('aria-expanded','true')
