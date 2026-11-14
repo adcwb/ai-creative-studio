@@ -71,6 +71,8 @@ func providerMessage(code string) string {
 	switch code {
 	case "avatar_authorization_revoked":
 		return "形象或声音授权已撤销，不能继续生成或新增采用；历史作品与审片记录保留。"
+	case "avatar_plan_changed":
+		return "切点预览与实际音频计划不一致，未派发生成；请重新预览确认。"
 	case "avatar_cloud_transfer_denied":
 		return "云数字人需要当前空间获准外传素材，并由创作者明确确认；未发送模型请求。"
 	case "avatar_cloud_configuration_changed":

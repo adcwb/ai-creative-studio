@@ -24,6 +24,9 @@ func isAvatarKind(kind string) bool {
 	return kind == "digital_human" || kind == "digital_human_authorized"
 }
 func validateVoiceAuthorizations(d creativeDisk) error {
+	if err := validateAvatarDerivatives(d); err != nil {
+		return err
+	}
 	for id, v := range d.VoiceAuthorizations {
 		if id != v.ID || !shotIDPattern.MatchString(id) || v.SpaceID == "" || v.ProjectID == "" || v.AudioID == "" || v.CreatedBy == "" || v.ConsentReference == "" || v.CreatedAt.IsZero() {
 			return errors.New("invalid voice authorization")

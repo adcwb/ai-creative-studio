@@ -308,7 +308,7 @@ func storeError(w http.ResponseWriter, err error) {
 		case "avatar_cloud_transfer_denied", "avatar_authorization_revoked":
 			problem(w, 403, failure.Code, providerMessage(failure.Code))
 			return
-		case "avatar_cloud_input_window", "avatar_cloud_configuration_changed":
+		case "avatar_cloud_input_window", "avatar_cloud_configuration_changed", "avatar_plan_changed":
 			problem(w, 409, failure.Code, providerMessage(failure.Code))
 			return
 		}

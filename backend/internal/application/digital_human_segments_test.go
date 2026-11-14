@@ -67,6 +67,7 @@ func TestDigitalHumanAutomaticSegmentsRecoverExactAudioWithoutDuplicateGeneratio
 			var mu sync.Mutex
 			posts := 0
 			blocked := true
+			blockedTask := "part-2"
 			failPost := 0
 			revokeOnGet := false
 			durations := map[string]float64{}
@@ -108,12 +109,12 @@ func TestDigitalHumanAutomaticSegmentsRecoverExactAudioWithoutDuplicateGeneratio
 				case strings.HasPrefix(r.URL.Path, "/api/v1/tasks/"):
 					id := strings.TrimPrefix(r.URL.Path, "/api/v1/tasks/")
 					queries[id]++
-					if revokeOnGet && id == "part-5" {
+					if revokeOnGet && id == "part-7" {
 						if _, err := s.revokeDigitalHuman(p.SpaceID, p.ID, in.AvatarID); err != nil {
 							t.Error(err)
 						}
 					}
-					if blocked && id == "part-2" {
+					if blocked && id == blockedTask {
 						w.WriteHeader(503)
 						return
 					}
@@ -243,9 +244,177 @@ func TestDigitalHumanAutomaticSegmentsRecoverExactAudioWithoutDuplicateGeneratio
 			if posts != 2 || queries["part-1"] != 1 || queries["part-2"] != 2 || durations["part-1"] != 18 || durations["part-2"] != 5.125 {
 				t.Fatal(posts, queries, durations)
 			}
-			failPost = 4
+			blocked = true
+			blockedTask = "part-3"
 			mu.Unlock()
 			s = restored
+			originalOutputPath := path
+			// Missing/corrupt reused evidence must fail before any paid replacement
+			// request, even if its JSON metadata still names the correct blob.
+			corrupt, err := s.replaceAvatarSegments(ctx, p.SpaceID, p.ID, job.ID, "corrupt-reuse", "test-actor", avatarReplacementInput{SourceAsset: job.AssetID, ExpectedVersion: p.Version, Segments: []int{1}, Confirmed: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			proof := job.AvatarCheckpoint.Segments[1].Video
+			proofPath := filepath.Join(s.media.dir, filepath.Base(proof.Key))
+			if mode == "postgres" {
+				proofPath = filepath.Join(blobRoot, proof.Key)
+			}
+			originalBytes, err := os.ReadFile(proofPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = os.WriteFile(proofPath, []byte("corrupt-proof"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			leaseAvatarSegmentTest(t, s, &corrupt, "creative")
+			corruptErr := s.executeCreativeJob(ctx, &corrupt)
+			if err = os.WriteFile(proofPath, originalBytes, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if corruptErr == nil {
+				t.Fatal("corrupt reused proof accepted")
+			}
+			mu.Lock()
+			noPaidDispatch := posts == 2
+			mu.Unlock()
+			if !noPaidDispatch {
+				t.Fatal("paid dispatch before reuse integrity check")
+			}
+			corrupt.Status = "failed"
+			if err = s.creative.updateJob(corrupt); err != nil {
+				t.Fatal(err)
+			}
+			// An immutable new take replaces only one selected window. Existing
+			// confirmed clips are referenced, never copied or submitted again.
+			replaceIn := avatarReplacementInput{SourceAsset: job.AssetID, ExpectedVersion: p.Version, Segments: []int{2}, Confirmed: true}
+			replacement, err := s.replaceAvatarSegments(ctx, p.SpaceID, p.ID, job.ID, "replace-part", "replacement-actor", replaceIn)
+			if err != nil {
+				t.Fatal("replacement admission", err)
+			}
+			replayed, err := s.replaceAvatarSegments(ctx, p.SpaceID, p.ID, job.ID, "replace-part", "replacement-actor", replaceIn)
+			if err != nil || replayed.ID != replacement.ID {
+				t.Fatal("replacement replay", err)
+			}
+			bad := replaceIn
+			bad.SourceAsset = "stale-output"
+			if _, err = s.replaceAvatarSegments(ctx, p.SpaceID, p.ID, job.ID, "stale-replace", "test-actor", bad); err == nil {
+				t.Fatal("stale output accepted")
+			}
+			if _, err = s.replaceAvatarSegments(ctx, "other-space", p.ID, job.ID, "foreign-replace", "test-actor", replaceIn); err == nil {
+				t.Fatal("foreign replacement accepted")
+			}
+			if replacement.ReplacementOf != job.ID || replacement.ID == job.ID || replacement.AvatarCheckpoint.Segments[0].ReusedFrom != job.ID || !sameAvatarBlob(replacement.AvatarCheckpoint.Segments[0].Video, job.AvatarCheckpoint.Segments[0].Video) {
+				t.Fatal("replacement provenance", replacement)
+			}
+			leaseAvatarSegmentTest(t, s, &replacement, "creative")
+			if err = s.executeCreativeJob(ctx, &replacement); err == nil || !avatarRecoveryAvailable(replacement) {
+				t.Fatal("replacement interruption", err)
+			}
+			if replacement.AvatarCheckpoint.Segments[1].Phase != "remote_pending" {
+				t.Fatal("replacement lost original remote task")
+			}
+			mu.Lock()
+			blocked = false
+			mu.Unlock()
+			// The same checkpoint continues by GET; this cannot submit part 3 twice.
+			if err = s.executeCreativeJob(ctx, &replacement); err != nil {
+				t.Fatal("replacement recovery", err)
+			}
+			replacement.Status = "succeeded"
+			if err = s.creative.updateJob(replacement); err != nil {
+				t.Fatal(err)
+			}
+			if err = validateVoiceAuthorizations(s.creative.data); err != nil {
+				t.Fatal("lineage validation", err)
+			}
+			path, _, err = s.media.file(p.ID, p.SpaceID, replacement.AssetID, false, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			replacedProbe, err := probeMedia(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			replacedDuration, _ := strconv.ParseFloat(replacedProbe.Format.Duration, 64)
+			if math.Abs(replacedDuration-23.125) > .1 || replacement.AssetID == job.AssetID {
+				t.Fatal("replacement changed duration or overwrote output", replacedDuration)
+			}
+			// Replacing the opposite window of a replacement keeps the exact
+			// original ownership of reused proofs and a separate parent version.
+			nested, err := s.replaceAvatarSegments(ctx, p.SpaceID, p.ID, replacement.ID, "replace-earlier-window", "test-actor", avatarReplacementInput{SourceAsset: replacement.AssetID, ExpectedVersion: p.Version, Segments: []int{1}, Confirmed: true})
+			if err != nil {
+				t.Fatal("nested replacement", err)
+			}
+			if nested.ReplacementOf != replacement.ID || nested.AvatarCheckpoint.Segments[1].ReusedFrom != replacement.ID {
+				t.Fatal("nested proof owner not preserved")
+			}
+			leaseAvatarSegmentTest(t, s, &nested, "creative")
+			if err = s.executeCreativeJob(ctx, &nested); err != nil {
+				t.Fatal("earlier-window replacement", err)
+			}
+			nested.Status = "succeeded"
+			if err = s.creative.updateJob(nested); err != nil {
+				t.Fatal(err)
+			}
+			// Whole-track remuxing must preserve exactly the same encoded speech,
+			// instead of splicing independently encoded segment audio at joins.
+			hashes := []string{}
+			for n, inputPath := range []string{originalOutputPath, path} {
+				hashPath := filepath.Join(temp, fmt.Sprintf("audio-hash-%d.txt", n))
+				if err = ffmpeg(ctx, "-protocol_whitelist", "file,pipe", "-i", inputPath, "-map", "0:a:0", "-c:a", "copy", "-f", "hash", "-hash", "sha256", hashPath); err != nil {
+					t.Fatal(err)
+				}
+				raw, readErr := os.ReadFile(hashPath)
+				if readErr != nil {
+					t.Fatal(readErr)
+				}
+				hashes = append(hashes, string(raw))
+			}
+			if hashes[0] != hashes[1] {
+				t.Fatal("replacement changed authorized speech track")
+			}
+			// Reopening storage validates persisted lineage, not just in-memory state.
+			if mode == "file" {
+				dir := filepath.Dir(s.creative.path)
+				if err = s.Close(); err != nil {
+					t.Fatal(err)
+				}
+				s, err = OpenStore(dir)
+				if err != nil {
+					t.Fatal("replacement reopen", err)
+				}
+			} else {
+				s = postgresTestStore(t, s.pg.db)
+				b, _ := NewFileBlobStore(blobRoot)
+				if err = configureBlobStorage(s, b); err != nil {
+					t.Fatal(err)
+				}
+			}
+			s.creative.avatarLicenseConfirmed = true
+			s.creative.avatarPhoto = cloud
+			s.creative.avatarPhotoCaps = Capabilities{Provider: wanAvatarProvider, Model: "wan2.2-s2v", Mode: "real", Ready: true}
+			savedReplacement := s.creative.data.Jobs[replacement.ID]
+			if savedReplacement.ReplacementOf != job.ID || savedReplacement.AvatarCheckpoint.Segments[0].ReusedFrom != job.ID {
+				t.Fatal("replacement lineage lost on reopen")
+			}
+			tampered := cloneCreativeJob(savedReplacement)
+			tampered.AvatarCheckpoint = cloneAvatarCheckpoint(savedReplacement.AvatarCheckpoint)
+			tampered.AvatarCheckpoint.Segments[0].AudioSHA = strings.Repeat("d", 64)
+			badState := creativeDisk{Jobs: map[string]CreativeJob{job.ID: job, tampered.ID: tampered}}
+			if validateAvatarDerivatives(badState) == nil {
+				t.Fatal("retimed/mismatched proof accepted")
+			}
+			original := s.creative.data.Jobs[job.ID]
+			if original.AssetID != job.AssetID || original.AvatarCheckpoint.Segments[1].RemoteID != "part-2" {
+				t.Fatal("original take mutated")
+			}
+			mu.Lock()
+			if posts != 4 || queries["part-1"] != 1 || queries["part-3"] != 2 || queries["part-4"] != 1 {
+				t.Fatal("replacement resubmitted unselected/unknown task", posts, queries)
+			}
+			failPost = 6
+			mu.Unlock()
 			second, _, e := s.createCreativeJob(p.SpaceID, p.ID, "unknown-segment", in)
 			if e != nil {
 				t.Fatal(e)
@@ -258,7 +427,7 @@ func TestDigitalHumanAutomaticSegmentsRecoverExactAudioWithoutDuplicateGeneratio
 				t.Fatal("unknown segment resubmitted")
 			}
 			mu.Lock()
-			if posts != 4 {
+			if posts != 6 {
 				t.Fatal("duplicate generation", posts)
 			}
 			revokeOnGet = true
@@ -277,8 +446,11 @@ func TestDigitalHumanAutomaticSegmentsRecoverExactAudioWithoutDuplicateGeneratio
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			if posts != 5 {
+			if posts != 7 {
 				t.Fatal("later segment dispatched after revocation", posts)
+			}
+			if _, err := s.replaceAvatarSegments(ctx, p.SpaceID, p.ID, job.ID, "revoked-replace", "test-actor", replaceIn); err == nil {
+				t.Fatal("revoked replacement admitted")
 			}
 			if _, e = s.media.AssetForReceipt(p.ID, p.SpaceID, "creative-"+third.ID); e == nil {
 				t.Fatal("revoked output became observable")

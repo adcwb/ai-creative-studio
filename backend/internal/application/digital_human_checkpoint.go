@@ -14,6 +14,7 @@ import (
 )
 
 type avatarCheckpoint struct {
+	Planner          string          `json:"planner,omitempty"`
 	TotalSamples     int64           `json:"total_samples,omitempty"`
 	Segments         []avatarSegment `json:"segments,omitempty"`
 	RemoteID         string          `json:"remote_id,omitempty"`
@@ -42,7 +43,7 @@ func validAvatarCheckpoint(job CreativeJob) bool {
 	if cp.Format == 2 && !validAvatarSegments(job) {
 		return false
 	}
-	if cp.Format == 1 && (len(cp.Segments) > 0 || cp.TotalSamples != 0) {
+	if cp.Format == 1 && (len(cp.Segments) > 0 || cp.TotalSamples != 0 || cp.Planner != "" || job.AvatarSplitMode != "") {
 		return false
 	}
 	if cp.CloudDestination != "" || cp.RemoteID != "" || cp.CloudImageKey != "" || cp.CloudAudioKey != "" {
@@ -88,7 +89,11 @@ func avatarSourceSHA(ctx context.Context, job CreativeJob, work *avatarWork) (st
 	if err != nil {
 		return "", err
 	}
-	return projectFingerprint("avatar-fixed-inputs", job.ID, []any{job.SpaceID, job.ProjectID, job.Provider, job.Model, job.AvatarID, job.ReferenceAssetID, job.AudioAssetID, job.VoiceAuthorizationID, job.VoiceConsentBy, job.VoiceConsentReference, ref.SHA256, audio.SHA256, work.route})
+	base, err := projectFingerprint("avatar-fixed-inputs", job.ID, []any{job.SpaceID, job.ProjectID, job.Provider, job.Model, job.AvatarID, job.ReferenceAssetID, job.AudioAssetID, job.VoiceAuthorizationID, job.VoiceConsentBy, job.VoiceConsentReference, ref.SHA256, audio.SHA256, work.route})
+	if err != nil {
+		return "", err
+	}
+	return avatarSplitSourceHash(base, job)
 }
 func (c *creativeStore) recordAvatarCheckpoint(ctx context.Context, job *CreativeJob, checkpoint avatarCheckpoint) error {
 	if err := ctx.Err(); err != nil {
@@ -230,7 +235,7 @@ func publicCreativeJob(job CreativeJob) CreativeJob {
 		job.AvatarRecoveryPhase = job.AvatarCheckpoint.Phase
 		job.AvatarCanResume = avatarRecoveryAvailable(job)
 		for i, v := range job.AvatarCheckpoint.Segments {
-			job.AvatarSegments = append(job.AvatarSegments, avatarSegmentProgress{Index: i + 1, Start: float64(v.Start) / 48000, Duration: float64(v.Samples) / 48000, Status: v.Phase})
+			job.AvatarSegments = append(job.AvatarSegments, avatarSegmentProgress{Index: i + 1, Start: float64(v.Start) / 48000, Duration: float64(v.Samples) / 48000, Status: v.Phase, CutReason: v.CutReason, Reused: v.ReusedFrom != ""})
 		}
 		if job.AvatarCheckpoint.Format == 2 && !job.AvatarCanResume {
 			job.AvatarRecoveryPhase = "dispatching"
@@ -295,6 +300,9 @@ func publishAvatarCheckpointFile(ctx context.Context, source, target string, exp
 	return nativefs.SyncDirectory(filepath.Dir(target))
 }
 func avatarCheckpointReferences(d creativeDisk) ([]BlobInfo, error) {
+	if err := validateAvatarDerivatives(d); err != nil {
+		return nil, ErrBlobIntegrity
+	}
 	refs := []BlobInfo{}
 	for _, job := range d.Jobs {
 		if !validAvatarCheckpoint(job) {

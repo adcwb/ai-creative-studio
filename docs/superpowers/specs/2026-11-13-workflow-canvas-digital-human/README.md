@@ -76,3 +76,5 @@ FR-D MUST：形象、声音授权均可追溯与撤销，历史与新派发分�
 
 
 后续增量已实现自动分段、原固定计划恢复及同源多take比较，见 [segments-takes.md](segments-takes.md)；本文件中此前单段边界保留为阶段记录，当前状态以tasks.md为准。实时/3D及真实服务仍未验收。
+
+最新本地增量补齐声学停顿候选、人工切点和指定片段新版本替换，详见 [cuts-replacement.md](cuts-replacement.md)。语义理解、自动动作融合、真实服务和实时/3D仍未实现/验收；当前状态以tasks.md和validation.md为准。

@@ -17,18 +17,22 @@ import (
 const avatarSegmentSamples int64 = 18 * 48000 // margin below the vendor's strict <20s window
 
 type avatarSegmentProgress struct {
-	Index    int     `json:"index"`
-	Start    float64 `json:"start_seconds"`
-	Duration float64 `json:"duration_seconds"`
-	Status   string  `json:"status"`
+	CutReason string  `json:"cut_reason,omitempty"`
+	Reused    bool    `json:"reused,omitempty"`
+	Index     int     `json:"index"`
+	Start     float64 `json:"start_seconds"`
+	Duration  float64 `json:"duration_seconds"`
+	Status    string  `json:"status"`
 }
 type avatarSegment struct {
-	Start    int64     `json:"start_sample"`
-	Samples  int64     `json:"samples"`
-	AudioSHA string    `json:"audio_sha256"`
-	Phase    string    `json:"phase"`
-	RemoteID string    `json:"remote_id,omitempty"`
-	Video    *BlobInfo `json:"video,omitempty"`
+	CutReason  string    `json:"cut_reason,omitempty"`
+	ReusedFrom string    `json:"reused_from_job_id,omitempty"`
+	Start      int64     `json:"start_sample"`
+	Samples    int64     `json:"samples"`
+	AudioSHA   string    `json:"audio_sha256"`
+	Phase      string    `json:"phase"`
+	RemoteID   string    `json:"remote_id,omitempty"`
+	Video      *BlobInfo `json:"video,omitempty"`
 }
 
 func avatarSegmentKey(job CreativeJob, index int) string {
@@ -43,11 +47,18 @@ func avatarSegmentFrames(seg avatarSegment) int64 {
 }
 func validAvatarSegments(job CreativeJob) bool {
 	cp := job.AvatarCheckpoint
+	if !validAvatarSplitSpec(job.AvatarSplitMode, job.AvatarCutPoints, job.AvatarPlanSHA) || cp.Planner != avatarPlanner(job.AvatarSplitMode) {
+		return false
+	}
 	if cp.Format != 2 || job.Provider != wanAvatarProvider || job.Kind != "digital_human_authorized" || !job.CloudTransferConfirmed || cp.TotalSamples < 1 || len(cp.Segments) == 0 || cp.RemoteID != "" || cp.CloudDestination == "" {
 		return false
 	}
 	var offset int64
+	priorDone := true
 	for i, seg := range cp.Segments {
+		if seg.ReusedFrom != "" && seg.Phase != "done" {
+			return false
+		}
 		if seg.Start != offset || seg.Samples < 1 || seg.Samples >= 20*48000 || seg.Samples > cp.TotalSamples-offset || len(seg.AudioSHA) != 64 || avatarSegmentFrames(seg) < 1 {
 			return false
 		}
@@ -61,16 +72,17 @@ func validAvatarSegments(job CreativeJob) bool {
 				return false
 			}
 		case "done":
-			if !wanTaskID.MatchString(seg.RemoteID) || seg.Video == nil || !validBlobInfo(*seg.Video) || seg.Video.Key != avatarSegmentKey(job, i) {
+			if !wanTaskID.MatchString(seg.RemoteID) || seg.Video == nil || !validBlobInfo(*seg.Video) || seg.Video.Key != avatarSegmentExpectedKey(job, i, seg) {
 				return false
 			}
 		default:
 			return false
 		}
 		// A later segment is never submitted until every predecessor is confirmed.
-		if i > 0 && cp.Segments[i-1].Phase != "done" && seg.Phase != "queued" {
+		if !priorDone && seg.Phase != "queued" && !(seg.Phase == "done" && seg.ReusedFrom != "") {
 			return false
 		}
+		priorDone = priorDone && seg.Phase == "done"
 		offset += seg.Samples
 	}
 	if offset != cp.TotalSamples {
@@ -87,13 +99,13 @@ func validAvatarSegments(job CreativeJob) bool {
 	return (cp.Phase == "engine_done" && cp.Engine != nil && cp.Composed == nil) || (cp.Phase == "composed" && cp.Engine != nil && cp.Composed != nil)
 }
 func validSegmentAdvance(prior, next *avatarCheckpoint) bool {
-	if prior.TotalSamples != next.TotalSamples || len(prior.Segments) != len(next.Segments) {
+	if prior.Planner != next.Planner || prior.TotalSamples != next.TotalSamples || len(prior.Segments) != len(next.Segments) {
 		return false
 	}
 	changes := 0
 	for i, a := range prior.Segments {
 		b := next.Segments[i]
-		if a.Start != b.Start || a.Samples != b.Samples || a.AudioSHA != b.AudioSHA {
+		if a.ReusedFrom != b.ReusedFrom || a.CutReason != b.CutReason || a.Start != b.Start || a.Samples != b.Samples || a.AudioSHA != b.AudioSHA {
 			return false
 		}
 		if a.Phase == b.Phase {
@@ -138,7 +150,7 @@ func avatarSegmentsRecoverable(job CreativeJob) bool {
 
 // The decoded sample count, not rounded container duration, fixes all boundaries.
 // PCM stays private on disk; splitting and upload never read the whole audio.
-func prepareAvatarSegments(ctx context.Context, work *avatarWork) ([]avatarSegment, []string, int64, error) {
+func prepareAvatarSegments(ctx context.Context, work *avatarWork, options ...avatarSplitSpec) ([]avatarSegment, []string, int64, error) {
 	dir := filepath.Dir(work.videoPath)
 	pcm := filepath.Join(dir, "speech.s16")
 	if err := ffmpeg(ctx, "-protocol_whitelist", "file,pipe", "-i", work.audioPath, "-map", "0:a:0", "-vn", "-ar", "48000", "-ac", "1", "-c:a", "pcm_s16le", "-f", "s16le", pcm); err != nil {
@@ -154,14 +166,19 @@ func prepareAvatarSegments(ctx context.Context, work *avatarWork) ([]avatarSegme
 		return nil, nil, 0, ErrInvalidProjectInput
 	}
 	total := stat.Size() / 2
+	spec := avatarSplitSpec{}
+	if len(options) > 0 {
+		spec = options[0]
+	}
+	ends, reasons, err := avatarCutBounds(f, total, spec)
+	if err != nil {
+		return nil, nil, 0, err
+	}
 	segments := []avatarSegment{}
 	paths := []string{}
-	for offset := int64(0); offset < total; {
-		samples := min(avatarSegmentSamples, total-offset)
-		// Avoid a sub-frame final fragment without exceeding the native window.
-		if remain := total - offset - samples; remain > 0 && remain < 2000 {
-			samples += remain
-		}
+	offset := int64(0)
+	for index, end := range ends {
+		samples := end - offset
 		path := filepath.Join(dir, fmt.Sprintf("speech-%d.wav", len(paths)))
 		out, e := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 		if e != nil {
@@ -192,7 +209,7 @@ func prepareAvatarSegments(ctx context.Context, work *avatarWork) ([]avatarSegme
 		if e != nil {
 			return nil, nil, 0, e
 		}
-		segments = append(segments, avatarSegment{Start: offset, Samples: samples, AudioSHA: info.SHA256, Phase: "queued"})
+		segments = append(segments, avatarSegment{Start: offset, Samples: samples, AudioSHA: info.SHA256, Phase: "queued", CutReason: reasons[index]})
 		paths = append(paths, path)
 		offset += samples
 	}
@@ -251,9 +268,13 @@ func (s *FileStore) executeSegmentedCloudAvatar(ctx context.Context, job *Creati
 	if err := p.allowed(*job); err != nil {
 		return err
 	}
-	plan, audio, total, err := prepareAvatarSegments(ctx, work)
+	spec := avatarSplitSpec{Mode: job.AvatarSplitMode, Cuts: job.AvatarCutPoints, Approved: job.AvatarPlanSHA}
+	plan, audio, total, err := prepareAvatarSegments(ctx, work, spec)
 	if err != nil {
 		return err
+	}
+	if spec.Approved != "" && avatarPlanDigest(job.AudioAssetID, spec, total, plan) != spec.Approved {
+		return avatarPlanChanged()
 	}
 	sha, err := avatarSourceSHA(ctx, *job, work)
 	if err != nil {
@@ -261,7 +282,7 @@ func (s *FileStore) executeSegmentedCloudAvatar(ctx context.Context, job *Creati
 	}
 	if job.AvatarCheckpoint == nil {
 		opaque, _ := projectFingerprint("cloud-avatar-inputs", job.ID, []string{job.SpaceID, job.ProjectID})
-		cp := avatarCheckpoint{Format: 2, Phase: "segments", SourceSHA256: sha, CloudDestination: p.fingerprint, CloudImageKey: "avatar-inputs/" + opaque + "/image", CloudAudioKey: "avatar-inputs/" + opaque + "/audio", TotalSamples: total, Segments: plan}
+		cp := avatarCheckpoint{Format: 2, Phase: "segments", SourceSHA256: sha, CloudDestination: p.fingerprint, CloudImageKey: "avatar-inputs/" + opaque + "/image", CloudAudioKey: "avatar-inputs/" + opaque + "/audio", TotalSamples: total, Segments: plan, Planner: avatarPlanner(job.AvatarSplitMode)}
 		if err = s.creative.recordAvatarCheckpoint(ctx, job, cp); err != nil {
 			return err
 		}
@@ -281,6 +302,19 @@ func (s *FileStore) executeSegmentedCloudAvatar(ctx context.Context, job *Creati
 	}
 	work.duration = float64(total) / 48000
 	work.exactAudioSamples = total
+	// Validate all confirmed proof files before any remaining (possibly paid)
+	// dispatch. Reused outputs are never trusted merely because JSON names them.
+	for i, seg := range job.AvatarCheckpoint.Segments {
+		if seg.Phase == "done" {
+			if err = s.checkAvatarJob(ctx, job); err != nil {
+				return err
+			}
+			raw := filepath.Join(filepath.Dir(work.videoPath), fmt.Sprintf("fixed-%d.mp4", i))
+			if err = s.materializeAvatarMedia(ctx, *seg.Video, raw); err != nil {
+				return err
+			}
+		}
+	}
 	for i := range plan {
 		seg := job.AvatarCheckpoint.Segments[i]
 		if seg.Phase == "done" {
@@ -389,8 +423,12 @@ func (s *FileStore) executeSegmentedCloudAvatar(ctx context.Context, job *Creati
 			return err
 		}
 		raw := filepath.Join(filepath.Dir(work.videoPath), fmt.Sprintf("fixed-%d.mp4", i))
-		if err = s.materializeAvatarMedia(ctx, *seg.Video, raw); err != nil {
-			return err
+		if _, statErr := os.Stat(raw); os.IsNotExist(statErr) {
+			if err = s.materializeAvatarMedia(ctx, *seg.Video, raw); err != nil {
+				return err
+			}
+		} else if statErr != nil {
+			return statErr
 		}
 		if i == 0 {
 			probe, e := probeMedia(raw)
@@ -442,10 +480,25 @@ func (s *FileStore) creativeJobTimeout(job CreativeJob) time.Duration {
 		return 10 * time.Minute
 	}
 	audio, ok := mediaAsset(state, job.AudioAssetID)
-	if !ok || math.IsNaN(audio.Duration) || math.IsInf(audio.Duration, 0) || audio.Duration < 20 {
+	if !ok || math.IsNaN(audio.Duration) || math.IsInf(audio.Duration, 0) || audio.Duration <= 0 {
 		return 10 * time.Minute
 	}
 	chunks := math.Ceil(audio.Duration / 18)
+	if job.AvatarSplitMode == "pause" {
+		chunks = math.Ceil(audio.Duration / 12) // earliest acoustic candidate
+	} else if job.AvatarSplitMode == "manual" {
+		chunks = float64(len(job.AvatarCutPoints)) + 1
+	}
+	if cp := job.AvatarCheckpoint; cp != nil && cp.Format == 2 {
+		chunks = 0
+		for _, seg := range cp.Segments {
+			if seg.Phase != "done" {
+				chunks++
+			}
+		}
+	}
+	chunks = max(1, chunks) // completed proofs still need composition/publication
+
 	if chunks >= 144 {
 		return 24 * time.Hour
 	}

@@ -164,7 +164,7 @@ func TestAvatarAdmissionErrorsRemainActionable(t *testing.T) {
 	for _, item := range []struct {
 		code   string
 		status int
-	}{{"avatar_cloud_transfer_denied", 403}, {"avatar_authorization_revoked", 403}, {"avatar_cloud_input_window", 409}, {"avatar_cloud_configuration_changed", 409}} {
+	}{{"avatar_plan_changed", 409}, {"avatar_cloud_transfer_denied", 403}, {"avatar_authorization_revoked", 403}, {"avatar_cloud_input_window", 409}, {"avatar_cloud_configuration_changed", 409}} {
 		w := httptest.NewRecorder()
 		storeError(w, providerFailure(item.code))
 		if w.Code != item.status || !strings.Contains(w.Body.String(), `"code":"`+item.code+`"`) {
@@ -174,7 +174,7 @@ func TestAvatarAdmissionErrorsRemainActionable(t *testing.T) {
 }
 
 func TestAvatarCloudWorkerErrorsPreserveSafeActionableClassification(t *testing.T) {
-	for _, code := range []string{"avatar_cloud_transfer_denied", "avatar_cloud_configuration_changed", "avatar_cloud_input_window", "avatar_cloud_task_failed", "avatar_cloud_task_unknown"} {
+	for _, code := range []string{"avatar_plan_changed", "avatar_cloud_transfer_denied", "avatar_cloud_configuration_changed", "avatar_cloud_input_window", "avatar_cloud_task_failed", "avatar_cloud_task_unknown"} {
 		actual, message := creativeFailure(providerFailure(code))
 		if actual != code || message != providerMessage(code) {
 			t.Fatal(code, actual, message)

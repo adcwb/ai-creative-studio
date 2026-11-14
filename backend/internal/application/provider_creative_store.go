@@ -23,6 +23,10 @@ import (
 )
 
 type CreativeJobInput struct {
+	AvatarSplitMode        string    `json:"avatar_split_mode,omitempty"`
+	AvatarCutPoints        []float64 `json:"avatar_cut_points,omitempty"`
+	AvatarPlanSHA          string    `json:"avatar_plan_sha256,omitempty"`
+	replacement            *avatarReplacementPrepared
 	CloudTransferConfirmed bool   `json:"cloud_transfer_confirmed,omitempty"`
 	VoiceAuthorizationID   string `json:"voice_authorization_id,omitempty"`
 	TextInstruction        string `json:"text_instruction,omitempty"`
@@ -56,6 +60,12 @@ type CreativeJobInput struct {
 	Character             string `json:"character,omitempty"`
 }
 type CreativeJob struct {
+	AvatarSplitMode        string                  `json:"avatar_split_mode,omitempty"`
+	AvatarCutPoints        []float64               `json:"avatar_cut_points,omitempty"`
+	AvatarPlanSHA          string                  `json:"avatar_plan_sha256,omitempty"`
+	ReplacementOf          string                  `json:"replacement_of_job_id,omitempty"`
+	ReplacementSegments    []int                   `json:"replacement_segments,omitempty"`
+	ReplacementSourceAsset string                  `json:"replacement_source_asset_id,omitempty"`
 	AvatarSegments         []avatarSegmentProgress `json:"avatar_segments,omitempty"`
 	AvatarCanResume        bool                    `json:"avatar_can_resume,omitempty"`
 	AvatarReviews          []AvatarReview          `json:"avatar_reviews,omitempty"`
@@ -351,6 +361,9 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	fingerprint, _ := projectFingerprint("creative", id, in)
+	if in.replacement != nil {
+		fingerprint = in.replacement.fingerprint
+	}
 	rk := projectReceiptKey(space, key)
 	if r, ok := c.data.Receipts[rk]; ok {
 		if r.Fingerprint != fingerprint {
@@ -426,7 +439,13 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 			return CreativeJob{}, false, ErrInvalidProjectInput
 		}
 		in.ReferenceAssetID = avatar.ReferenceAssetID
+		if !validAvatarSplitSpec(in.AvatarSplitMode, in.AvatarCutPoints, in.AvatarPlanSHA) {
+			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
 		caps = c.avatarCaps(avatar.Route)
+		if (in.AvatarSplitMode != "" || len(in.AvatarCutPoints) > 0 || in.AvatarPlanSHA != "") && caps.Provider != wanAvatarProvider {
+			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
 		if caps.Provider == wanAvatarProvider {
 			cloud, ok := c.avatarPhoto.(*avatarCloud)
 			if !ok || in.Kind != "digital_human_authorized" || !in.CloudTransferConfirmed || !cloud.tenants[space] {
@@ -452,7 +471,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		if avatar.Route == "video" && audio.Duration > reference.Duration+0.1 {
 			return CreativeJob{}, false, projectInputError("配音不能长于参考视频，请裁剪配音或更换视频")
 		}
-	} else if in.CloudTransferConfirmed || in.VoiceAuthorizationID != "" || in.AvatarID != "" || in.VoiceConfirmed || in.VoiceConsentReference != "" {
+	} else if in.AvatarSplitMode != "" || len(in.AvatarCutPoints) > 0 || in.AvatarPlanSHA != "" || in.CloudTransferConfirmed || in.VoiceAuthorizationID != "" || in.AvatarID != "" || in.VoiceConfirmed || in.VoiceConsentReference != "" {
 		return CreativeJob{}, false, ErrInvalidProjectInput
 	}
 	libraryPins, libraryContext, err := s.compileLibraryInputs(context.Background(), id, space, &in, caps)
@@ -568,11 +587,20 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	if director != nil {
 		job.DirectorSourceVersion, job.DirectorSourceSHA256 = director.ProjectVersion, director.SHA256
 	}
+	job.AvatarSplitMode = in.AvatarSplitMode
+	job.AvatarCutPoints = append([]float64(nil), in.AvatarCutPoints...)
+	job.AvatarPlanSHA = in.AvatarPlanSHA
 	job.CloudTransferConfirmed = in.CloudTransferConfirmed
 	job.AvatarID, job.VoiceConsentReference, job.VoiceConfirmed, job.AIGenerated = in.AvatarID, in.VoiceConsentReference, in.VoiceConfirmed, isAvatarKind(in.Kind)
 	job.LibraryInputs, job.LibraryInputContext = cloneLibraryInputPins(libraryPins), libraryContext
 	if isAvatarKind(in.Kind) {
 		job.VoiceConsentBy = in.consentActor
+	}
+	if in.replacement != nil {
+		if err = s.attachAvatarReplacementLocked(space, id, key, &job, in.replacement); err != nil {
+			return CreativeJob{}, false, err
+		}
+		jid = job.ID
 	}
 	c.data.Jobs[jid] = job
 	c.data.Receipts[rk] = creativeReceipt{Fingerprint: fingerprint, JobID: jid}
@@ -1339,6 +1367,8 @@ type asyncReferenceImageProvider interface {
 }
 
 func cloneCreativeJob(job CreativeJob) CreativeJob {
+	job.AvatarCutPoints = append([]float64(nil), job.AvatarCutPoints...)
+	job.ReplacementSegments = append([]int(nil), job.ReplacementSegments...)
 	job.AvatarReviews = append([]AvatarReview(nil), job.AvatarReviews...)
 	if job.AvatarCheckpoint != nil {
 		job.AvatarCheckpoint = cloneAvatarCheckpoint(job.AvatarCheckpoint)

@@ -34207,6 +34207,360 @@
         },
         "description": "仅支持当前provider/model匹配原任务且已持久upstream_id的异步任务；旧执行器尚未退出时409，不能并发恢复造成重复发布。"
       }
+    },
+    "/api/v1/projects/{id}/avatar-cut-preview": {
+      "post": {
+        "operationId": "previewAvatarCuts",
+        "summary": "Decode own-project audio locally and return pinned acoustic/manual cuts; no model dispatch.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Secure mode requires same-origin or an explicitly configured trusted origin; credentials are never accepted from arbitrary origins."
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Successful local preview or original/new accepted replacement receipt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvatarCutPreview"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AvatarCutPreviewInput"
+              }
+            }
+          }
+        },
+        "description": "仅支持当前provider/model匹配原任务且已持久upstream_id的异步任务；旧执行器尚未退出时409，不能并发恢复造成重复发布。"
+      }
+    },
+    "/api/v1/projects/{id}/creative-jobs/{jobId}/segment-replacements": {
+      "post": {
+        "operationId": "replaceAvatarSegments",
+        "summary": "Queue a new take replacing selected segments only; preserve original timing, source grants and output.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          },
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Secure mode requires same-origin or an explicitly configured trusted origin; credentials are never accepted from arbitrary origins."
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Successful local preview or original/new accepted replacement receipt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeJob"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AvatarReplacementInput"
+              }
+            }
+          }
+        },
+        "description": "仅支持当前provider/model匹配原任务且已持久upstream_id的异步任务；旧执行器尚未退出时409，不能并发恢复造成重复发布。"
+      }
     }
   },
   "components": {
@@ -36806,6 +37160,29 @@
           "cloud_transfer_confirmed": {
             "type": "boolean",
             "description": "Explicit authorization to transfer selected avatar inputs to the operator-configured private object store and dedicated cloud service. Required only for dashscope-s2v."
+          },
+          "avatar_split_mode": {
+            "type": "string",
+            "enum": [
+              "fixed",
+              "pause",
+              "manual"
+            ],
+            "description": "Optional cloud-only versioned planner. pause detects acoustic quiet intervals, not semantic meaning; absent retains legacy fixed-window behavior."
+          },
+          "avatar_cut_points": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMinimum": true
+            },
+            "description": "Manual ascending seconds excluding start/end. Each exact decoded segment must contain a 24fps frame and be shorter than vendor 20-second window."
+          },
+          "avatar_plan_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "Optional hash returned by local preview; changed audio/plan fails before upstream dispatch."
           }
         },
         "required": [
@@ -37063,9 +37440,58 @@
                     "remote_pending",
                     "done"
                   ]
+                },
+                "cut_reason": {
+                  "type": "string",
+                  "enum": [
+                    "manual",
+                    "pause",
+                    "window",
+                    "end"
+                  ]
+                },
+                "reused": {
+                  "type": "boolean"
                 }
               }
             }
+          },
+          "avatar_split_mode": {
+            "type": "string",
+            "enum": [
+              "fixed",
+              "pause",
+              "manual"
+            ],
+            "description": "Optional cloud-only versioned planner. pause detects acoustic quiet intervals, not semantic meaning; absent retains legacy fixed-window behavior."
+          },
+          "avatar_cut_points": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMinimum": true
+            },
+            "description": "Manual ascending seconds excluding start/end. Each exact decoded segment must contain a 24fps frame and be shorter than vendor 20-second window."
+          },
+          "avatar_plan_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "Optional hash returned by local preview; changed audio/plan fails before upstream dispatch."
+          },
+          "replacement_of_job_id": {
+            "type": "string"
+          },
+          "replacement_source_asset_id": {
+            "type": "string"
+          },
+          "replacement_segments": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "One-based segments regenerated for this new immutable take; all other clips reuse original proof references."
           }
         },
         "required": [
@@ -49805,6 +50231,137 @@
           }
         },
         "description": "Adoption requires all four confirmations. Rework requires a non-empty note. CAS appends an immutable review; no inference or publication."
+      },
+      "AvatarCutPreview": {
+        "type": "object",
+        "required": [
+          "id",
+          "duration_seconds",
+          "segments"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "duration_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "index",
+                "start_seconds",
+                "duration_seconds",
+                "status"
+              ],
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "start_seconds": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "duration_seconds": {
+                  "type": "number",
+                  "minimum": 0,
+                  "exclusiveMinimum": true
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "queued",
+                    "dispatching",
+                    "remote_pending",
+                    "done"
+                  ]
+                },
+                "cut_reason": {
+                  "type": "string",
+                  "enum": [
+                    "manual",
+                    "pause",
+                    "window",
+                    "end"
+                  ]
+                },
+                "reused": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "AvatarCutPreviewInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "audio_asset_id",
+          "avatar_split_mode"
+        ],
+        "properties": {
+          "audio_asset_id": {
+            "type": "string"
+          },
+          "avatar_split_mode": {
+            "type": "string",
+            "enum": [
+              "fixed",
+              "pause",
+              "manual"
+            ],
+            "description": "Optional cloud-only versioned planner. pause detects acoustic quiet intervals, not semantic meaning; absent retains legacy fixed-window behavior."
+          },
+          "avatar_cut_points": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMinimum": true
+            },
+            "description": "Manual ascending seconds excluding start/end. Each exact decoded segment must contain a 24fps frame and be shorter than vendor 20-second window."
+          }
+        }
+      },
+      "AvatarReplacementInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_asset_id",
+          "expected_project_version",
+          "segments",
+          "confirmed"
+        ],
+        "properties": {
+          "source_asset_id": {
+            "type": "string"
+          },
+          "expected_project_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "segments": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "confirmed": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        }
       }
     },
     "securitySchemes": {
