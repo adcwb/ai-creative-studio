@@ -15,7 +15,8 @@ import (
 
 func testStore(t *testing.T) *FileStore {
 	t.Helper()
-	s, err := OpenStore(t.TempDir())
+	// Let nativefs create the private directory with its own Windows ACL.
+	s, err := OpenStore(filepath.Join(t.TempDir(), "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

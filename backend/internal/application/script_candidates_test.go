@@ -162,7 +162,7 @@ func TestScriptCandidateAdoptionHasOneWinnerAndRejectsInvalidOutput(t *testing.T
 
 func TestScriptCandidateHTTPRolesOwnershipAndOriginalReceipt(t *testing.T) {
 	s := testStore(t)
-	auth, e := OpenAuthStore(t.TempDir())
+	auth, e := OpenAuthStore(filepath.Join(t.TempDir(), "auth"))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -227,7 +227,7 @@ func TestScriptCandidateHTTPRolesOwnershipAndOriginalReceipt(t *testing.T) {
 }
 
 func TestScriptCandidateFileRestartKeepsSourceCandidateAndDecision(t *testing.T) {
-	dir := t.TempDir()
+	dir := filepath.Join(t.TempDir(), "store")
 	s, e := OpenStore(dir)
 	if e != nil {
 		t.Fatal(e)

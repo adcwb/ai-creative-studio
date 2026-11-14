@@ -62,9 +62,12 @@ func (p *OpenAICreativeProvider) responsesJSON(ctx context.Context, input, instr
 		return e
 	}
 	var response struct {
-		Object string          `json:"object"`
-		Status string          `json:"status"`
-		Error  json.RawMessage `json:"error"`
+		Object            string          `json:"object"`
+		Status            string          `json:"status"`
+		Error             json.RawMessage `json:"error"`
+		IncompleteDetails struct {
+			Reason string `json:"reason"`
+		} `json:"incomplete_details"`
 		Output []struct {
 			Type    string `json:"type"`
 			Role    string `json:"role"`
@@ -75,7 +78,13 @@ func (p *OpenAICreativeProvider) responsesJSON(ctx context.Context, input, instr
 			} `json:"content"`
 		} `json:"output"`
 	}
-	if json.Unmarshal(raw, &response) != nil || response.Object != "response" || response.Status != "completed" || len(response.Error) > 0 && string(response.Error) != "null" {
+	if json.Unmarshal(raw, &response) != nil || response.Object != "response" {
+		return providerFailure("invalid_provider_response")
+	}
+	if response.Status == "incomplete" && response.IncompleteDetails.Reason == "max_output_tokens" {
+		return providerFailure("provider_output_truncated")
+	}
+	if response.Status != "completed" || len(response.Error) > 0 && string(response.Error) != "null" {
 		return providerFailure("invalid_provider_response")
 	}
 	messages := 0

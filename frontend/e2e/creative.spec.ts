@@ -1,4 +1,4 @@
-import { navigateTo, openProject, projectStep, openCreativeTools } from './support/navigation'
+import { navigateTo, openProject, projectStep, openVersionHistory } from './support/navigation'
 import { randomUUID } from 'node:crypto'
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 import type { DramaProject } from '../src/drama'
@@ -29,10 +29,8 @@ async function open(page: Page, project: DramaProject) {
 test('analysis and synthetic image generation persist through actual asynchronous APIs', async ({page, request}, info) => {
   const project = await create(request, `创作任务-${info.project.name}-${randomUUID()}`)
   await open(page, project)
-  await openCreativeTools(page)
-  await page.getByRole('button', {name: '分析已保存需求', exact: true}).click()
-  await expect(page.locator('.creative-analysis')).toContainText('待澄清问题')
-  await expect(page.locator('.creative-analysis')).toContainText('local-rules')
+  await write(request, `/projects/${project.id}/analysis`, {expected_version: project.version})
+  await expect.poll(async () => (await (await request.get(`${api}/projects/${project.id}/creative-jobs${query}`)).json() as {kind: string; status: string}[]).some(job => job.kind === 'analysis' && job.status === 'succeeded')).toBe(true)
   await projectStep(page, 'production')
   await page.getByLabel('创作或修改要求', {exact: true}).fill('合成演示：雨夜钟楼色卡')
   await page.getByRole('button', {name: '生成候选', exact: true}).click()
@@ -79,8 +77,7 @@ test('shots can be added reordered removed and restored from persisted history',
   const saved = await (await request.get(`${api}/projects/${project.id}${query}`)).json() as DramaProject
   expect(saved.storyboard!.shots).toHaveLength(3)
   expect(saved.storyboard!.shots[2].description).toBe('新增镜头：合成灯光特写')
-  await openCreativeTools(page)
-  await page.getByText(/剧本与分镜版本历史（/).click()
+  await openVersionHistory(page)
   await page.getByRole('button', {name: '恢复此分镜版本', exact: true}).first().click()
   await page.getByRole('button', {name: '确认恢复历史版本', exact: true}).click()
   await expect.poll(async () => (await (await request.get(`${api}/projects/${project.id}${query}`)).json()).version).toBeGreaterThan(saved.version)

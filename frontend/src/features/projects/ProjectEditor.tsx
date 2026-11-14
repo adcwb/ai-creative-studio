@@ -42,7 +42,7 @@ export function ProjectEditor(props: {
       {(!props.id || editor.project) && <>
         {props.section === 'brief' && <><ProjectBrief state={state}/>{editor.project&&<PersonalCopyPanel project={editor.project.id} disabled={editor.locked||editor.dirty||state.mediaDirty}/>}</>}
         {props.id && editor.project && <>
-          {props.section === 'script' && <ProjectScript state={state} />}
+          {props.section === 'script' && <ProjectScript key={`${props.space}:${props.id}`} state={state} />}
           {props.section === 'storyboard' && <ProjectStoryboard state={state} />}
           {props.section === 'references' && <ProjectReferences space={props.space} projectId={editor.project.id} shots={editor.project.storyboard?.shots ?? []} disabled={editor.locked || editor.dirty} />}
           {(props.section === 'production' || props.section === 'review') && <><ProductionBoard key={editor.project.id} project={editor.project} space={props.space} disabled={editor.locked || editor.dirty} onDirtyChange={state.setToolsDirty} />{props.section === 'review' && <Link className="button-link" to={`/publish/${editor.project.id}`}>{t('准备发布')}</Link>}</>}

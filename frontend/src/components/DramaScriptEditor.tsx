@@ -25,7 +25,7 @@ export function DramaScriptEditor({script, provider, editing, disabled, dirty, o
   }
   return <section className="panel drama-script" aria-labelledby={`${prefix}-heading`}>
     <div className="section-heading"><div><span className="eyebrow">{draftOnly ? "CANDIDATE / YOUR DECISION" : "THE CURRENT DRAFT"}</span><h2 id={`${prefix}-heading`}>{translate(draftOnly ? "候选剧本" : "当前剧本")}</h2></div><span>{editing ? translate("编辑中 · 尚未保存") : translate(draftOnly ? "独立候选 · 尚未采纳" : "已持久保存")}</span></div>
-    <p className="drama-source">{provider === 'manual' ? translate('手工创作 · 已保存的当前版本。') : !provider || provider.startsWith('mock') ? translate("mock-script · 程序生成的模拟剧本，非真实 AI 创作。") : translate("{p0} · 模型生成来源，可能包含人工编辑；真实效果与费用未验证。", {p0: provider})}</p>
+    <p className="drama-source">{provider === 'manual' ? translate('手工创作 · 已保存的当前版本。') : !provider || provider.startsWith('mock') ? translate("mock-script · 程序生成的模拟剧本，非真实 AI 创作。") : translate('AI 生成，可继续编辑。')}</p>
     {!editing && <button type="button" className="drama-edit-button" disabled={disabled} onClick={onEdit}>{translate("编辑剧本")}</button>}
     <fieldset disabled={disabled}>
       {editing ? <div className="drama-script-intro"><label htmlFor={`${prefix}-script-title`}>{translate("剧本标题")}</label><input id={`${prefix}-script-title`} value={script.title} onChange={event => onChange({...script, title: event.target.value})} /><label htmlFor={`${prefix}-script-logline`}>{translate("故事梗概")}</label><textarea id={`${prefix}-script-logline`} value={script.logline} onChange={event => onChange({...script, logline: event.target.value})} /></div> : <div className="drama-script-intro"><h3>{script.title}</h3><p>{script.logline}</p></div>}

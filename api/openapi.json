@@ -35685,7 +35685,21 @@
             "enum": [
               "mock_script_failed",
               "invalid_script_output",
-              "writing_context_changed"
+              "writing_context_changed",
+              "invalid_provider_output",
+              "invalid_provider_response",
+              "provider_output_truncated",
+              "provider_error",
+              "provider_timeout",
+              "provider_auth_failed",
+              "provider_rate_limited",
+              "provider_rejected",
+              "provider_input_capacity",
+              "provider_input_count_unavailable",
+              "provider_unavailable",
+              "model_runtime_denied",
+              "execution_governance_denied",
+              "execution_interrupted"
             ]
           },
           "model": {
@@ -36014,12 +36028,12 @@
           "candidate_only": {
             "type": "boolean",
             "default": false,
-            "description": "Current UI sends true: persist an independent validated candidate without changing the official script. Omission preserves the legacy API auto-apply contract. Explicit adoption is a separate version-checked action."
+            "description": "The script editor omits this field: a successful generation becomes the current editable script and the previous script is retained in version history. True preserves the compatible independent-candidate workflow with separate explicit adoption. Failure never replaces the current script."
           },
           "context_snapshot_id": {
             "type": "string",
             "pattern": "^[a-f0-9]{32}$",
-            "description": "Optional fixed canonical episode context. Requires candidate_only and an authorized gateway text selection. Required problems block generation; script_required alone does not block writing a first draft. Checked again before provider requests and after native input counting."
+            "description": "Optional fixed canonical episode context for direct generation or an independent candidate. Requires an authorized gateway text selection. Required problems block generation; script_required alone does not block writing a first draft. Checked again before provider requests and after native input counting."
           }
         }
       },
@@ -36328,7 +36342,21 @@
             "type": "string",
             "enum": [
               "mock_storyboard_failed",
-              "invalid_storyboard_output"
+              "invalid_storyboard_output",
+              "invalid_provider_output",
+              "invalid_provider_response",
+              "provider_output_truncated",
+              "provider_error",
+              "provider_timeout",
+              "provider_auth_failed",
+              "provider_rate_limited",
+              "provider_rejected",
+              "provider_input_capacity",
+              "provider_input_count_unavailable",
+              "provider_unavailable",
+              "model_runtime_denied",
+              "execution_governance_denied",
+              "execution_interrupted"
             ]
           },
           "source_script_version": {

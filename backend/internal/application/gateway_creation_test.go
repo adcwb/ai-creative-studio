@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -112,7 +113,7 @@ func TestGatewayCreationRoutesRejectOmittedChoiceBeforeAnyMockTask(t *testing.T)
 
 func TestGatewayCreationRejectsLegacyModelAndCapabilityMismatch(t *testing.T) {
 	s := testStore(t)
-	auth, err := OpenAuthStore(t.TempDir())
+	auth, err := OpenAuthStore(filepath.Join(t.TempDir(), "auth"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +122,7 @@ func TestGatewayCreationRejectsLegacyModelAndCapabilityMismatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	tenant := auth.spaces(user.ID)[0]["id"]
-	auth.models, err = OpenModelConfigStore(t.TempDir(), bytes.Repeat([]byte{19}, 32))
+	auth.models, err = OpenModelConfigStore(filepath.Join(t.TempDir(), "models"), bytes.Repeat([]byte{19}, 32))
 	if err != nil {
 		t.Fatal(err)
 	}

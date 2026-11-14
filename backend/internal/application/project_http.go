@@ -135,17 +135,15 @@ func registerProjectRoutes(mux *http.ServeMux, repo ProjectRepository) {
 		if !decodeProject(w, r, &in) {
 			return
 		}
-		if in.CandidateOnly {
-			if s, ok := repo.(*FileStore); ok {
-				g, found, e := s.replayScriptCandidate(space, r.PathValue("id"), key, in)
-				if e != nil {
-					storeError(w, e)
-					return
-				}
-				if found {
-					respond(w, 200, g)
-					return
-				}
+		if s, ok := repo.(*FileStore); ok {
+			g, found, e := s.replayScriptGeneration(space, r.PathValue("id"), key, in)
+			if e != nil {
+				storeError(w, e)
+				return
+			}
+			if found {
+				respond(w, 200, g)
+				return
 			}
 		}
 		if !resolveModelRequest(w, r, repo, &in.ModelRequest, "text", "script_generation") {

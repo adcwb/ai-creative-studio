@@ -80,6 +80,12 @@ func creativeFailure(err error) (string, string) {
 	if errors.Is(err, diagnostics.ErrPanic) {
 		code = "execution_interrupted"
 	}
+	if code == "provider_output_truncated" {
+		return code, "模型输出达到长度上限，剧本未完整生成；请提高模型输出上限或缩小本次创作范围。当前内容已保留，未自动重试。"
+	}
+	if code == "invalid_provider_output" {
+		return code, "模型返回的内容不符合剧本所需结构；请核对模型的结构化输出设置。当前内容已保留，未自动重试。"
+	}
 	if code == "invalid_outline_output" {
 		return code, "模型返回的季集纲结构或范围无效，未采纳为正式计划；请检查模型的结构化输出能力。"
 	}
@@ -163,13 +169,22 @@ func (p *OpenAICreativeProvider) request(ctx context.Context, method, path strin
 	return b, nil
 }
 func strictCreativeJSON(data []byte, out any) error {
+	// Some compatible models wrap their otherwise complete JSON in a code fence.
+	// Accept only a single full wrapper; never extract JSON from arbitrary prose.
+	data = bytes.TrimSpace(data)
+	for _, prefix := range []string{"```json\n", "```json\r\n", "```\n", "```\r\n"} {
+		if bytes.HasPrefix(data, []byte(prefix)) && bytes.HasSuffix(data, []byte("\n```")) {
+			data = bytes.TrimSpace(data[len(prefix) : len(data)-4])
+			break
+		}
+	}
 	d := json.NewDecoder(bytes.NewReader(data))
 	d.DisallowUnknownFields()
 	if err := d.Decode(out); err != nil {
-		return providerFailure("invalid_provider_response")
+		return providerFailure("invalid_provider_output")
 	}
 	if d.Decode(&struct{}{}) != io.EOF {
-		return providerFailure("invalid_provider_response")
+		return providerFailure("invalid_provider_output")
 	}
 	return nil
 }
@@ -234,7 +249,13 @@ func (p *OpenAICreativeProvider) jsonBounded(ctx context.Context, in any, instru
 			} `json:"message"`
 		} `json:"choices"`
 	}
-	if json.Unmarshal(b, &response) != nil || len(response.Choices) != 1 || response.Choices[0].FinishReason != "stop" || response.Choices[0].Message.Refusal != "" {
+	if json.Unmarshal(b, &response) != nil || len(response.Choices) != 1 {
+		return providerFailure("invalid_provider_response")
+	}
+	if response.Choices[0].FinishReason == "length" {
+		return providerFailure("provider_output_truncated")
+	}
+	if response.Choices[0].FinishReason != "stop" || response.Choices[0].Message.Refusal != "" {
 		return providerFailure("invalid_provider_response")
 	}
 	return strictCreativeJSON([]byte(response.Choices[0].Message.Content), out)
@@ -303,7 +324,7 @@ func (p *OpenAICreativeProvider) Script(ctx context.Context, in ProjectInput) (S
 	}
 	s, err = NormalizeScript(s)
 	if err != nil {
-		return Script{}, providerFailure("invalid_provider_response")
+		return Script{}, providerFailure("invalid_provider_output")
 	}
 	return s, nil
 }

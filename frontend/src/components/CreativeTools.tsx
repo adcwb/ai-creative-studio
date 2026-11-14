@@ -37,6 +37,7 @@ export function CreativeTools({project, space, disabled, historyOnly = false, on
   const [history, setHistory] = useState<Revision[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [pollRevision, setPollRevision] = useState(0)
   const [uncertain, setUncertain] = useState(false)
   const [confirm, setConfirm] = useState<Revision | null>(null)
   const pending = useRef<{path: string; body: string; key: string; restore: boolean} | null>(null)
@@ -59,11 +60,12 @@ export function CreativeTools({project, space, disabled, historyOnly = false, on
         request<{assets: {id: string; name: string; character: string; kind: string}[]}>(`${prefix}/media?${query}`, {signal}),
       ])
       if (!signal.aborted) {setJobs(result); setReferences(media.assets)}
+      return result.some(job => job.status === 'queued' || job.status === 'running')
     } catch (failure) {
       if (!signal.aborted) setError(errorMessage(failure, t('创作任务读取失败')))
       throw failure
     }
-  }, 2000, `${prefix}?${query}`)
+  }, 2000, `${prefix}?${query}:${pollRevision}`)
   async function execute() {
     const attempt = pending.current
     if (!attempt || flight.current) return
@@ -72,6 +74,7 @@ export function CreativeTools({project, space, disabled, historyOnly = false, on
       const result = await request<CreativeJob | DramaProject>(attempt.path, {method: 'POST', headers: {'Content-Type': 'application/json', 'Idempotency-Key': attempt.key}, body: attempt.body})
       if (!live.current) return
       setUncertain(false); pending.current = null
+      setPollRevision(value => value + 1)
       if (attempt.restore) {setConfirm(null); onRestore()} else {const job = result as CreativeJob; setJobs(previous => [job, ...previous.filter(item => item.id !== job.id)])}
     } catch (failure) {if (live.current) {const unknown = !(failure instanceof ApiError) || failure.status >= 500; setUncertain(unknown); setError(unknown ? t("结果尚未确认，请重试同一请求。") : errorMessage(failure, t("操作失败")))}} finally {flight.current = false; if (live.current) setBusy(false)}
   }

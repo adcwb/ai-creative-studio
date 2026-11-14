@@ -53,8 +53,8 @@ func writingProblems(snapshot story.ContextSnapshot) bool {
 	return false
 }
 func (s *FileStore) prepareWritingContext(space, id string, in ScriptGenerationInput) (story.ContextSnapshot, error) {
-	if !in.CandidateOnly || !story.ID.MatchString(in.ContextID) || in.selection == nil || in.selection.GatewayID == "" || in.selection.FeatureKey != "script_generation" {
-		return story.ContextSnapshot{}, projectInputError("正式故事上下文只适用于已选网关文本模型的独立候选")
+	if !story.ID.MatchString(in.ContextID) || in.selection == nil || in.selection.GatewayID == "" || in.selection.FeatureKey != "script_generation" {
+		return story.ContextSnapshot{}, projectInputError("正式故事上下文需要选择可用的网关文本模型")
 	}
 	ctx := context.Background()
 	snapshot, e := s.writingSnapshot(ctx, space, id, in.ContextID)

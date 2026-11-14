@@ -28,9 +28,16 @@ type ScriptAdoptionInput struct {
 
 // Replays are receipts, not permission for a new execution. Current membership
 // is checked by HTTP middleware; a later disabled model must not hide acceptance.
-func (s *FileStore) replayScriptCandidate(space, project, key string, in ScriptGenerationInput) (ScriptGeneration, bool, error) {
+func (s *FileStore) replayScriptGeneration(space, project, key string, in ScriptGenerationInput) (ScriptGeneration, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// For a new direct request, preserve model validation before project lookup.
+	// Only an existing receipt can bypass resolving a model for a fresh call.
+	if !in.CandidateOnly {
+		if _, found := s.data.ProjectReceipts[projectReceiptKey(space, key)]; !found {
+			return ScriptGeneration{}, false, nil
+		}
+	}
 	if _, e := s.projectLocked(space, project); e != nil {
 		return ScriptGeneration{}, false, e
 	}

@@ -300,6 +300,10 @@ const messages: Record<string, string> = {
   "请填写 3–1000 个字符的画面描述。": "Enter a visual description of 3–1,000 characters."
 }
 Object.assign(messages, {
+ '生成设置': 'Generation settings',
+ '重试读取历史': 'Retry loading history',
+ '模拟剧本': 'Simulated script',
+ 'AI 生成，可继续编辑。': 'Generated with AI, ready to edit.',
  "来源：剧本版本 {p0}。": "Source script version {p0}.",
   "第 {p0} 场": "Scene {p0}",
   "第 {p0} 场标题": "Scene {p0} title",
@@ -471,4 +475,27 @@ Object.assign(messages, {
  "故事资料结果未确认，请保留草稿并使用原请求核对": "The story material result is unconfirmed. Keep your draft and check using the original request."
 })
 Object.assign(messages, {'故事圣经尚未填写规则、主线或人物，请补充后再核对。': 'The story bible has no rules, arc, or characters yet. Add material before reviewing it.'})
+Object.assign(messages, {
+ 'AI 剧本': 'AI script',
+ '修改简报': 'Edit brief',
+ '生成依据：已保存简报': 'Source: saved brief',
+ '生成后直接保存为当前剧本，可继续编辑；旧稿可从版本历史恢复。': 'The generated script is saved as your current draft, ready to edit. Previous drafts remain in version history.',
+ 'AI 生成剧本': 'Generate script with AI',
+ '正在生成剧本…': 'Generating script…',
+ '重新生成': 'Regenerate',
+ '确认重新生成剧本': 'Confirm script regeneration',
+ '确认重新生成': 'Confirm regeneration',
+ '将根据当前简报重新生成剧本，成功后替换当前内容，旧稿可从版本历史恢复。': 'Generate a new script from the saved brief. On success it replaces the current draft, which remains in version history.',
+ '已有分镜会保留，生成新剧本后需要复核。': 'Existing storyboards are preserved and will need review after regeneration.',
+ '本次未能生成完整剧本，当前内容已保留。': 'A complete script could not be generated. Your current content is preserved.',
+ '简报已更新，当前剧本仍保留原内容；需要按新简报创作时，可重新生成。': 'The brief has changed. The current script is preserved; regenerate to use the new brief.',
+ '下一步：生成分镜': 'Next: create storyboard',
+ '版本历史': 'Version history',
+ '正在读取版本历史…': 'Loading version history…',
+ '核对原恢复请求': 'Check original restore request',
+ '恢复结果尚未确认，请核对原请求。': 'The restore result is unconfirmed. Check the original request.',
+ '本次仅依据已保存简报生成剧本，不包含正式故事资料。': 'This script uses only the saved brief, without canonical story material.',
+ '模型输出达到长度上限，剧本未完整生成；请提高模型输出上限或缩小本次创作范围。当前内容已保留，未自动重试。': 'The model reached its output limit before completing the script. Increase the output limit or reduce the scope. Current content is preserved; no automatic retry was made.',
+ '模型返回的内容不符合剧本所需结构；请核对模型的结构化输出设置。当前内容已保留，未自动重试。': 'The model output does not match the required script structure. Check its structured output settings. Current content is preserved; no automatic retry was made.'
+})
 export default messages
