@@ -58,6 +58,7 @@ export function ModelManagementPanel({space, onDirtyChange}: {space: Space; onDi
     try {const result = await request<{reachable: boolean; models: string[]; http_status?: number; error_code?: string}>(`/ai-gateways/${item.id}/check${query}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({expected_version: item.version})}); setNotice(result.reachable ? t('连接成功，发现 {count} 个模型；生成能力尚未验证。', {count: result.models.length}) : t('模型目录检查失败，可手动添加模型。状态：{status}', {status: result.http_status ?? result.error_code ?? 'unknown'}))}
     catch (reason) {setError(errorMessage(reason, t('网关检查失败')))} finally {setBusy(false)}
   }
+  const visibleModels = report?.models.filter(item => !filter || item.gateway_id === filter) ?? []
   return <section className="model-management">
     <div className="model-management-overview"><p>{t('先连接 AI 网关，再添加模型，最后为每个创作功能指定模型。')}</p>{report && <dl><div><dt>{t('AI 网关')}</dt><dd>{report.gateways.length}</dd></div><div><dt>{t('网关模型')}</dt><dd>{report.models.length}</dd></div><div><dt>{t('已绑定功能')}</dt><dd>{report.bindings.filter(item => item.enabled).length} / {report.features.length}</dd></div></dl>}</div>
     <div className="model-management-tabs" role="tablist" aria-label={t('模型管理')}>
@@ -78,10 +79,10 @@ export function ModelManagementPanel({space, onDirtyChange}: {space: Space; onDi
         {gateway && <ModelEditorDialog title={t(gateway.id ? '编辑 AI 网关' : '添加 AI 网关')} busy={busy} error={error} onClose={() => closeEditor('gateway')}><GatewayForm key={`${gateway.id}-${gateway.version}`} value={gateway} secretStorage={report.secret_storage_available} busy={busy} onDirty={markDirty} onCancel={() => closeEditor('gateway')} onSave={(value, credential) => save(value.id ? `/ai-gateways/${value.id}` : '/ai-gateways', value.id ? 'PATCH' : 'POST', {expected_version: gateway.version, gateway: value, credential})} /></ModelEditorDialog>}
       </div>
       <div role="tabpanel" id="model-panel-models" aria-labelledby="model-tab-models" hidden={tab !== 'models'} className="panel model-management-panel">
-        <div className="section-heading"><div><h2>{t('网关模型')}</h2><p>{t('填写网关实际接受的模型 ID，并声明已支持的能力。')}</p></div><button disabled={busy || !report.gateways.length} onClick={() => openModel({...blankModel, gateway_id: filter || report.gateways[0]?.id || ''})}>{t('添加模型')}</button><button disabled={busy || !report.secret_storage_available || !filter || !report.gateways.some(item => item.id === filter && item.enabled && item.secret_status === 'encrypted')} onClick={() => {const selected = report.gateways.find(item => item.id === filter); if (selected) void syncModels(selected)}}>{t('同步模型')}</button></div>
-        <label className="model-gateway-filter">{t('按网关筛选')}<select value={filter} onChange={event => setFilter(event.target.value)}><option value="">{t('全部网关')}</option>{report.gateways.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-        <p className="drama-help">{t('选择网关后可同步目录。新模型需确认能力后启用；已有配置不会覆盖。')} {t('能力标签由管理员声明，目录连接成功不代表生成能力或效果已验证。')}</p>
-        {!report.models.filter(item => !filter || item.gateway_id === filter).length ? <p className="model-management-empty">{t('尚无网关模型。')}</p> : <div className="table-scroll"><table><thead><tr><th>{t('模型')}</th><th>{t('AI 网关')}</th><th>{t('模型能力')}</th><th>{t('功能引用')}</th><th>{t('状态')}</th><th>{t('操作')}</th></tr></thead><tbody>{report.models.filter(item => !filter || item.gateway_id === filter).map(item => <tr key={item.id}><td><strong>{item.name}</strong><small>{item.model}</small></td><td>{report.gateways.find(value => value.id === item.gateway_id)?.name}</td><td><div className="model-capability-tags">{item.capabilities.map(capability => <span key={capability}>{t(capabilityNames[capability] ?? capability)}</span>)}</div></td><td>{report.bindings.filter(value => value.model_config_id === item.id).map(value => t(report.features.find(feature => feature.key === value.feature_key)?.name ?? value.feature_key)).join(' / ') || '—'}</td><td>{t(item.pending ? '待配置' : item.enabled ? '已启用' : '已停用')}</td><td><button disabled={busy} onClick={() => openModel({...item})}>{t('编辑')}</button></td></tr>)}</tbody></table></div>}
+        <div className="section-heading model-catalog-heading"><div><h2>{t('网关模型')}</h2><p>{t('填写网关实际接受的模型 ID，并声明已支持的能力。')}</p></div><div className="model-catalog-actions"><button className="primary" disabled={busy || !report.gateways.length} onClick={() => openModel({...blankModel, gateway_id: filter || report.gateways[0]?.id || ''})}>{t('添加模型')}</button><button disabled={busy || !report.secret_storage_available || !filter || !report.gateways.some(item => item.id === filter && item.enabled && item.secret_status === 'encrypted')} onClick={() => {const selected = report.gateways.find(item => item.id === filter); if (selected) void syncModels(selected)}}>{t('同步模型')}</button></div></div>
+        <div className="model-catalog-toolbar"><label className="model-gateway-filter">{t('按网关筛选')}<select value={filter} onChange={event => setFilter(event.target.value)}><option value="">{t('全部网关')}</option>{report.gateways.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><span className="model-catalog-count">{t('显示 {count} 个模型', {count: visibleModels.length})}</span></div>
+        <p className="drama-help model-catalog-note">{t('选择网关后可同步目录。新模型需确认能力后启用；已有配置不会覆盖。')} {t('能力标签由管理员声明，目录连接成功不代表生成能力或效果已验证。')}</p>
+        {!visibleModels.length ? <p className="model-management-empty">{t('尚无网关模型。')}</p> : <GatewayModelsTable models={visibleModels} report={report} busy={busy} onEdit={openModel} />}
         {model && <ModelEditorDialog title={t(model.id ? '编辑网关模型' : '添加网关模型')} busy={busy} error={error} onClose={() => closeEditor('model')}><GatewayModelForm key={`${model.id}-${model.version}`} value={model} gateways={report.gateways} busy={busy} onDirty={markDirty} onCancel={() => closeEditor('model')} onSave={value => save(value.id ? `/gateway-models/${value.id}` : '/gateway-models', value.id ? 'PATCH' : 'POST', {expected_version: model.version, model: value})} /></ModelEditorDialog>}
       </div>
 
@@ -105,6 +106,26 @@ function FeatureBindingRow({feature, binding, report, busy, onDirty, onSave}: {f
     <td><div className="feature-binding-options"><label><input type="checkbox" checked={draft.enabled} disabled={busy} onChange={event => setDraft({...draft, enabled: event.target.checked})} />{t('启用')}</label><label><input type="checkbox" checked={draft.allow_override} disabled={busy} onChange={event => setDraft({...draft, allow_override: event.target.checked})} />{t('允许本次切换')}</label>{feature.capability === 'speech' && <input aria-label={t('默认音色')} placeholder={t('默认音色')} value={draft.voice ?? ''} maxLength={128} disabled={busy} onChange={event => setDraft({...draft, voice: event.target.value})} />}</div></td>
     <td><span className={`model-readiness ${status === '配置就绪' ? 'is-ready' : ''}`}>{t(status)}</span></td><td><button disabled={busy || !draft.model_config_id || !changed} onClick={() => void onSave(draft)}>{t('保存绑定')}</button></td>
   </tr>
+}
+
+function GatewayModelsTable({models, report, busy, onEdit}: {models: GatewayModel[]; report: ModelManagementReport; busy: boolean; onEdit: (model: GatewayModel) => void}) {
+  const {t} = useI18n()
+  return <div className="gateway-model-list"><table className="gateway-model-table" aria-label={t('网关模型')}>
+    <colgroup><col className="gateway-model-col-name"/><col className="gateway-model-col-gateway"/><col className="gateway-model-col-capabilities"/><col/><col className="gateway-model-col-status"/><col className="gateway-model-col-actions"/></colgroup>
+    <thead><tr>{['模型', 'AI 网关', '模型能力', '功能引用', '状态', '操作'].map(label => <th key={label} scope="col">{t(label)}</th>)}</tr></thead>
+    <tbody>{models.map(item => {
+      const bindings = report.bindings.filter(value => value.model_config_id === item.id)
+      const status = item.pending ? 'pending' : item.enabled ? 'enabled' : 'disabled'
+      return <tr key={item.id}>
+        <td className="gateway-model-identity"><strong title={item.name}>{item.name}</strong>{item.model !== item.name && <small><code title={item.model}>{item.model}</code></small>}</td>
+        <td className="gateway-model-gateway" data-label={t('AI 网关')}>{report.gateways.find(value => value.id === item.gateway_id)?.name}</td>
+        <td className="gateway-model-capabilities" data-label={t('模型能力')}>{item.capabilities.length ? <div className="model-capability-tags">{item.capabilities.map(capability => <span key={capability}>{t(capabilityNames[capability] ?? capability)}</span>)}</div> : <span className="gateway-model-muted">{t('未声明能力')}</span>}</td>
+        <td className="gateway-model-references" data-label={t('功能引用')}>{bindings.length ? <ul className="model-reference-tags">{bindings.map(value => <li key={value.feature_key}>{t(report.features.find(feature => feature.key === value.feature_key)?.name ?? value.feature_key)}</li>)}</ul> : <span className="gateway-model-muted">{t('未绑定功能')}</span>}</td>
+        <td className="gateway-model-state"><span className={`gateway-model-status is-${status}`}>{t(item.pending ? '待配置' : item.enabled ? '已启用' : '已停用')}</span></td>
+        <td className="gateway-model-actions"><button type="button" disabled={busy} onClick={() => onEdit({...item})}>{t('编辑')}</button></td>
+      </tr>
+    })}</tbody>
+  </table></div>
 }
 
 function ModelEditorDialog({title, busy, error, onClose, children}: {title: string; busy: boolean; error: string; onClose: () => void; children: ReactNode}) {
