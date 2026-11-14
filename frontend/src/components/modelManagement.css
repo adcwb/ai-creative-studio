@@ -1,4 +1,4 @@
-.model-management {display:grid;gap:18px;min-width:0}
+.model-management {display:grid;grid-template-columns:minmax(0,1fr);gap:18px;min-width:0}
 .model-management-overview {display:flex;align-items:center;justify-content:space-between;gap:24px}
 .model-management-overview p {color:var(--ink-muted);max-width:48em}
 .model-management-overview dl {display:flex;gap:28px;margin:0;flex-shrink:0}

@@ -20,7 +20,7 @@ US-ANT-CI-2：保留现有三主题、C 端桌面/手机风格。图像候选应
 | FR-ANT-CI-2 | auth/PG中的剧本测试仍找“生成剧本候选”，e2e英文找Generate script candidate；creation/writer也遗留候选主流程 | 当前正式规格已明确直接生成保存。主流程测试改为实际生成、编辑、历史/上下文；旧候选兼容接口保留幂等、原稿不可变、CAS冲突及明确采纳验收，不重新把旧UI接回产品 |
 | FR-ANT-CI-3 | PG auth以原生option的disabled属性检查Ant Select，且选项未打开 | 打开真实下拉，核对ARIA禁用语义，验证密钥输入仍不出现；不能删除缺密钥的负向覆盖 |
 | FR-ANT-CI-4 | auth对比度瞬时读取2.045/4.407；本地就绪状态通过。Ant输入在目录加载期间禁用、主题CSS有过渡 | 等待控件可用，并按状态轮询原4.5对比度门槛；保留阈值，不采集加载/动画中间帧当最终主题 |
-| FR-ANT-CI-5 | consumer在语言切换/视口变化后瞬时横向溢出断言失败；本地原样桌面/手机均通过 | 使用原条件的自动等待完成重排；持续溢出仍失败，不放宽宽度断言 |
+| FR-ANT-CI-5 | consumer英文页在1366px持续溢出；首轮仅按重排等待不足。完整16项功能列表+DejaVu Sans本地复现1371px文档宽度，默认auto网格轨道被表格的最小内容宽度撑大 | 显式minmax(0,1fr)轨道和Tabs min-width:0，让表格在内部滚动，不能用隐藏文档溢出掩盖。新增桌面/手机、四种字体、视口变化及末行操作可达验收，保留原宽度断言 |
 | FR-ANT-CI-6 | Go file/PG other分组`TestVisionOutputMetadataAndMalformedResults`仍把完整JSON围栏当伪造；共享解析器已明确只接受单个完整围栏 | 区分格式包装与字段伪造。增加五类供应商的围栏/纯JSON结果等价检查；继续拒绝元数据伪造、null集合、未知字段、说明文字、多对象、无效内容，不修改解析器放宽策略 |
 | FR-ANT-CI-7 | e2e structure找不到隐藏在“保留角色与场次关联”详情里的升级按钮 | 按用户实际操作先展开；原稿/镜头引用、失败保稿、原请求恢复断言不变 |
 | FR-ANT-CI-8 | 实际1920px/手机截图中的历史缩略图被Ant Button的controlHeight压成约40px | 仅为预览按钮恢复内容决定高度；新增预览框应完整容纳至少190px图片的几何断言。普通按钮样式/触控目标不受影响 |
@@ -57,3 +57,9 @@ US-ANT-CI-2：保留现有三主题、C 端桌面/手机风格。图像候选应
 初次改写writer兼容验收时遗漏selectOption导入，已由实际执行发现并修正，随后桌面/手机3项各自通过。legacy候选只通过保留接口测试，不恢复已下线的主流程UI；直接剧本的用户路径、系列上下文和失败保稿保持独立验收。
 
 本地日志及截图留在`/workspace/artifacts/antd-ci/`。缩略图修复后已实际查看完整预览截图；未修改三主题风格、普通按钮尺寸、生产网关或用户测试能力标记。最新远端和云结果以推送后精确SHA核验，不部署生产。
+
+## 首轮云验证与收尾
+
+已安全推送首轮修复 `8e26c989fb24ced843fd7440aa525d9537fcd87a`，运行[43586544475](https://github.com/adcwb/ai-creative-studio/actions/runs/43586544475)。静态、六组Go race、auth/routing/e2e全部设备、PostgreSQL workers/恢复、双容器和API/媒体/布局集成均通过。网关手机通过，桌面consumer持续溢出；据此纠正FR-ANT-CI-5并修复实际布局，而不是延长等待。Windows PostgreSQL原生通过，文件模式出现一次`TestSeriesExportSnapshotsSurviveReordering`合成失败；未将其归因于Ant Design；该Windows文件job单独重跑于11:01 UTC通过，本地同一导出race重复20次通过28.544s。原日志只有execution_interrupted，无底层原因，暂记为未复现的间歇失败，未声称已修复根因。发布须等待布局修复提交的新一轮完整Checks。
+
+本地新增核验：真实PG other分组race 386.134s通过，file a-m分组380.580s通过；live_eval、local_models十二项及恢复脚本通过。布局修复前，完整功能列表配合DejaVu Sans稳定复现1366→1371px溢出；修复后四字体桌面专项通过，真实consumer桌面/手机各1项通过，lint/类型/构建再次通过。完整新增四字体回归桌面/手机2项通过21.5s，包含末行Save routing滚动可达，已实际查看截图；不新增设备跳过。最终云结果按后续实际检查记录，不把未结束状态记为通过。

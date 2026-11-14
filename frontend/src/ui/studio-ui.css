@@ -21,6 +21,7 @@
 .image-page .composer .prompt-suggestion .ant-btn {margin-right:8px}
 .runtime-model-picker .studio-select {margin-top:7px;font-weight:400}
 .runtime-model-picker .ant-btn {margin-top:8px}
+.studio-model-tabs {min-width:0}
 .studio-model-tabs .ant-tabs-nav {margin-bottom:20px}
 .studio-gateway-table .ant-table {background:var(--surface)}
 .studio-gateway-table .gateway-actions {display:flex;gap:6px;flex-wrap:wrap;min-width:0}
