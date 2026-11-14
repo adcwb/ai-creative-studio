@@ -118,6 +118,7 @@ type avatarWork struct {
 	referenceMIME, audioMIME, route                 string
 	referencePath, audioPath, videoPath, outputPath string
 	duration                                        float64
+	exactAudioSamples                               int64
 }
 
 // executeDigitalHuman keeps inference and encoding on private files. Speech is
@@ -332,7 +333,11 @@ func composeAvatarFiles(ctx context.Context, work *avatarWork) error {
 	if _, duration, e := validateMedia(work.videoPath, "video/mp4"); e != nil || duration+0.1 < work.duration {
 		return providerFailure("invalid_provider_response")
 	}
-	err := ffmpeg(ctx, "-protocol_whitelist", "file,pipe", "-i", work.videoPath, "-protocol_whitelist", "file,pipe", "-i", work.audioPath, "-map", "0:v:0", "-map", "1:a:0", "-vf", "scale=w=trunc(iw/2)*2:h=trunc(ih/2)*2,drawtext=font='sans':text='AI Generated':fontsize=20:fontcolor=white:box=1:boxcolor=black@0.6:x=12:y=12", "-t", seconds(work.duration), "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", work.outputPath)
+	length := seconds(work.duration)
+	if work.exactAudioSamples > 0 {
+		length = sampleSeconds(work.exactAudioSamples)
+	}
+	err := ffmpeg(ctx, "-protocol_whitelist", "file,pipe", "-i", work.videoPath, "-protocol_whitelist", "file,pipe", "-i", work.audioPath, "-map", "0:v:0", "-map", "1:a:0", "-vf", "scale=w=trunc(iw/2)*2:h=trunc(ih/2)*2,drawtext=font='sans':text='AI Generated':fontsize=20:fontcolor=white:box=1:boxcolor=black@0.6:x=12:y=12", "-t", length, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", work.outputPath)
 	if err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()

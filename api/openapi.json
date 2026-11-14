@@ -37026,6 +37026,46 @@
             "items": {
               "$ref": "#/components/schemas/AvatarReview"
             }
+          },
+          "avatar_can_resume": {
+            "type": "boolean",
+            "description": "Derived from durable proof; false when any segment submission is unconfirmed."
+          },
+          "avatar_segments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "index",
+                "start_seconds",
+                "duration_seconds",
+                "status"
+              ],
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "start_seconds": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "duration_seconds": {
+                  "type": "number",
+                  "minimum": 0,
+                  "exclusiveMinimum": true
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "queued",
+                    "dispatching",
+                    "remote_pending",
+                    "done"
+                  ]
+                }
+              }
+            }
           }
         },
         "required": [
@@ -49712,6 +49752,12 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "compared_job_id": {
+            "type": "string"
+          },
+          "compared_asset_id": {
+            "type": "string"
           }
         }
       },
@@ -49752,6 +49798,10 @@
           "expected_version": {
             "type": "integer",
             "minimum": 0
+          },
+          "compared_job_id": {
+            "type": "string",
+            "description": "Optional completed take from this project with the same authorized likeness and speech. Exact comparison output is fixed by the server."
           }
         },
         "description": "Adoption requires all four confirmations. Rework requires a non-empty note. CAS appends an immutable review; no inference or publication."

@@ -115,9 +115,20 @@ func TestDigitalHumanReviewHTTPRequiresCurrentWriterAndCSRF(t *testing.T) {
 			if err = s.creative.updateJob(job); err != nil {
 				t.Fatal(err)
 			}
+			other, _, e := s.createCreativeJob(space, p.ID, "review-secure-alternative", in)
+			if e != nil {
+				t.Fatal(e)
+			}
+			if e = s.executeCreativeJob(context.Background(), &other); e != nil {
+				t.Fatal(e)
+			}
+			other.Status = "succeeded"
+			if e = s.creative.updateJob(other); e != nil {
+				t.Fatal(e)
+			}
 			h := SecureHandler(s, "http://localhost:5173", auth, AuthOptions{})
 			path := "/api/v1/projects/" + p.ID + "/creative-jobs/" + job.ID + "/avatar-reviews?space_id=" + space
-			body := projectJSON(t, AvatarReviewInput{AssetID: job.AssetID, Outcome: "adopted", Identity: true, LipSync: true, Audio: true, Disclosure: true})
+			body := projectJSON(t, AvatarReviewInput{ComparedJobID: other.ID, AssetID: job.AssetID, Outcome: "adopted", Identity: true, LipSync: true, Audio: true, Disclosure: true})
 			authRequest(t, h, "POST", path, body, token, "", 403)
 			viewer, vt, vs, e := auth.login("review-viewer@example.test", "synthetic-review-password", true)
 			if e != nil {
@@ -142,7 +153,7 @@ func TestDigitalHumanReviewHTTPRequiresCurrentWriterAndCSRF(t *testing.T) {
 			authRequest(t, h, "POST", path, body, ft, fs.CSRF, 403)
 			response := authRequest(t, h, "POST", path, body, token, session.CSRF, 200)
 			var review AvatarReview
-			if json.Unmarshal(response.Body.Bytes(), &review) != nil || review.ReviewedBy != actor {
+			if json.Unmarshal(response.Body.Bytes(), &review) != nil || review.ReviewedBy != actor || review.ComparedJobID != other.ID || review.ComparedAssetID != other.AssetID {
 				t.Fatal("review actor not server bound", response.Body.String())
 			}
 		})

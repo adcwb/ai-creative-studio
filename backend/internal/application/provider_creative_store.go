@@ -56,6 +56,8 @@ type CreativeJobInput struct {
 	Character             string `json:"character,omitempty"`
 }
 type CreativeJob struct {
+	AvatarSegments         []avatarSegmentProgress `json:"avatar_segments,omitempty"`
+	AvatarCanResume        bool                    `json:"avatar_can_resume,omitempty"`
 	AvatarReviews          []AvatarReview          `json:"avatar_reviews,omitempty"`
 	CloudTransferConfirmed bool                    `json:"cloud_transfer_confirmed,omitempty"`
 	AvatarCheckpoint       *avatarCheckpoint       `json:"avatar_checkpoint,omitempty"`
@@ -759,7 +761,7 @@ func RunCreativeWorker(ctx context.Context, s *FileStore) (workerErr error) {
 			c.mu.Unlock()
 			return err
 		}
-		runCtx, cancel := context.WithTimeout(tracing.WithParent(ctx, job.TraceParent), 10*time.Minute)
+		runCtx, cancel := context.WithTimeout(tracing.WithParent(ctx, job.TraceParent), s.creativeJobTimeout(job))
 		c.cancels[job.ID] = cancel
 		c.mu.Unlock()
 		err := diagnostics.Invoke(runCtx, "worker_panic", func() error { return s.executeCreativeJob(runCtx, &job) })
@@ -1339,8 +1341,7 @@ type asyncReferenceImageProvider interface {
 func cloneCreativeJob(job CreativeJob) CreativeJob {
 	job.AvatarReviews = append([]AvatarReview(nil), job.AvatarReviews...)
 	if job.AvatarCheckpoint != nil {
-		cp := *job.AvatarCheckpoint
-		job.AvatarCheckpoint = &cp
+		job.AvatarCheckpoint = cloneAvatarCheckpoint(job.AvatarCheckpoint)
 	}
 	job.OutlineContext = cloneOutlineSnapshot(job.OutlineContext)
 	if job.OutlineResult != nil {

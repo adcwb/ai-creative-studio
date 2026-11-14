@@ -30,6 +30,15 @@ func validateVoiceAuthorizations(d creativeDisk) error {
 		}
 	}
 	for _, j := range d.Jobs {
+		for _, v := range j.AvatarReviews {
+			if v.ComparedJobID != "" {
+				other, ok := d.Jobs[v.ComparedJobID]
+				if !ok || other.SpaceID != j.SpaceID || other.ProjectID != j.ProjectID || other.AvatarID != j.AvatarID || other.AudioAssetID != j.AudioAssetID || other.Status != "succeeded" || !isAvatarKind(other.Kind) || other.AssetID != v.ComparedAssetID {
+					return errors.New("invalid avatar take comparison")
+				}
+			}
+		}
+
 		if !validAvatarCheckpoint(j) || !validateAvatarReviews(j) {
 			return errors.New("invalid avatar checkpoint")
 		}

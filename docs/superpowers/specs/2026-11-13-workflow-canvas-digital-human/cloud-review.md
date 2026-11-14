@@ -59,3 +59,6 @@ REFERENCE_S3_SECRET_KEY=<私有凭据>
 ## 来源与验证策略
 
 官方协议仅取 [wan2.2-s2v API](https://www.alibabacloud.com/help/en/model-studio/wan-s2v-api)，2026-11-14核对，页面更新2026-10-27。纯HTTP本地合成供应商来自此合同，由Go httptest实际接收上传/POST/GET/DELETE及验证状态；真实本地PostgreSQL作为存储，不将数据库模拟成HTTP。仓库没有相关Postman simulation，环境未安装Postman CLI，未进行团队mock发现；沿用项目已有HTTP协议测试，未对真实服务发请求。详见validation.md最终记录。
+
+
+后续增量已实现自动分段、原固定计划恢复及同源多take比较，见 [segments-takes.md](segments-takes.md)；本文件中此前单段边界保留为阶段记录，当前状态以tasks.md为准。实时/3D及真实服务仍未验收。

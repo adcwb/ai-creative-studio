@@ -50,7 +50,7 @@ func runQueuedCreative(ctx context.Context, q jobqueue.Queue, s *FileStore, kind
 		if err = q.Dispatch(ctx, j); err != nil {
 			return err
 		}
-		runCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+		runCtx, cancel := context.WithTimeout(ctx, s.creativeJobTimeout(job))
 		defer cancel()
 		if kind == "creative_resume" && isAvatarKind(job.Kind) && avatarRecoveryAvailable(job) {
 			err = s.executeCreativeJob(runCtx, &job)

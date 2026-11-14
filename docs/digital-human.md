@@ -87,3 +87,10 @@ LIP_SYNC_TIMEOUT_SECONDS=120
 任务ID确认后保存remote_pending，可通过原resume操作只查询原云任务并取回结果；未确认的提交只留dispatching，不会重新POST。云任务完成后进入既有engine_done/composed后期恢复。输入读取签名24小时到期不等于对象删除：成功/供应商失败会尝试删除，异常及取消由部署方配置的avatar-inputs/生命周期负责清理；撤销不保证停止已开始的云端计算。
 
 新界面使用 `kind=digital_human_authorized` 和 `voice_authorization_id`；旧 `digital_human` 每任务声音声明保留本地兼容，不能用于新云路线。`POST projects/{id}/creative-jobs/{jobId}/avatar-reviews` 追加固定成片人工审片，使用expected_version和原请求键；采用需四项确认，返工需具体意见，跨租户、只读和缺失CSRF拒绝。新审片/云字段沿原CreativeJob存储，无额外表；不能混跑旧writer。此前声音授权表仍须按已记录的离线迁移更新。
+
+
+## 自动分段与多版本对比
+
+长配音现可自动解码为固定48kHz采样计划，通常18秒一段以适配百炼不足20秒的原生窗口，逐段保存任务ID和已确认视频，再用完整原配音合成。断点恢复复用已确认段、查询原ID、继续原计划未提交段；未知提交停下，不自动重发。多段后期统一24fps及第一段实际尺寸，不宣称模型原生24fps或4K，接缝和人物动作须人工审片。原单段记录兼容。
+
+同一项目、同一形象授权与音频可生成多个take并保留旧版；选择另一版本后双播放器对比、选择试听声音、同时从头播放/暂停。人工采用记录固定比较成片与意见，不自动覆盖时间轴或外部发布。只读成员可比较，不可修改审片。详细合同、恢复/升级与未完成项见 [自动分段与take规格](superpowers/specs/2026-11-13-workflow-canvas-digital-human/segments-takes.md)。

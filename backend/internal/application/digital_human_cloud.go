@@ -187,6 +187,13 @@ func (s *FileStore) executeCloudAvatar(ctx context.Context, job *CreativeJob, wo
 	if err := p.allowed(*job); err != nil {
 		return err
 	}
+	info, statErr := os.Stat(work.audioPath)
+	if statErr != nil {
+		return statErr
+	}
+	if job.AvatarCheckpoint != nil && job.AvatarCheckpoint.Format == 2 || job.AvatarCheckpoint == nil && (work.duration >= 20 || info.Size() >= 15*1000*1000) {
+		return s.executeSegmentedCloudAvatar(ctx, job, work, p)
+	}
 	if err := p.validate(work); err != nil {
 		return err
 	}

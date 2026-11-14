@@ -14,15 +14,17 @@ import (
 )
 
 type avatarCheckpoint struct {
-	RemoteID         string    `json:"remote_id,omitempty"`
-	CloudDestination string    `json:"cloud_destination,omitempty"`
-	CloudImageKey    string    `json:"cloud_image_key,omitempty"`
-	CloudAudioKey    string    `json:"cloud_audio_key,omitempty"`
-	Format           int       `json:"format"`
-	Phase            string    `json:"phase"`
-	SourceSHA256     string    `json:"source_sha256"`
-	Engine           *BlobInfo `json:"engine,omitempty"`
-	Composed         *BlobInfo `json:"composed,omitempty"`
+	TotalSamples     int64           `json:"total_samples,omitempty"`
+	Segments         []avatarSegment `json:"segments,omitempty"`
+	RemoteID         string          `json:"remote_id,omitempty"`
+	CloudDestination string          `json:"cloud_destination,omitempty"`
+	CloudImageKey    string          `json:"cloud_image_key,omitempty"`
+	CloudAudioKey    string          `json:"cloud_audio_key,omitempty"`
+	Format           int             `json:"format"`
+	Phase            string          `json:"phase"`
+	SourceSHA256     string          `json:"source_sha256"`
+	Engine           *BlobInfo       `json:"engine,omitempty"`
+	Composed         *BlobInfo       `json:"composed,omitempty"`
 }
 
 func avatarCheckpointKey(job CreativeJob, stage string) string {
@@ -34,7 +36,13 @@ func validAvatarCheckpoint(job CreativeJob) bool {
 	if cp == nil {
 		return true
 	}
-	if !isAvatarKind(job.Kind) || cp.Format != 1 || len(cp.SourceSHA256) != 64 {
+	if !isAvatarKind(job.Kind) || (cp.Format != 1 && cp.Format != 2) || len(cp.SourceSHA256) != 64 {
+		return false
+	}
+	if cp.Format == 2 && !validAvatarSegments(job) {
+		return false
+	}
+	if cp.Format == 1 && (len(cp.Segments) > 0 || cp.TotalSamples != 0) {
 		return false
 	}
 	if cp.CloudDestination != "" || cp.RemoteID != "" || cp.CloudImageKey != "" || cp.CloudAudioKey != "" {
@@ -42,11 +50,14 @@ func validAvatarCheckpoint(job CreativeJob) bool {
 		if job.Provider != wanAvatarProvider || !job.CloudTransferConfirmed || len(cp.CloudDestination) != 64 || cp.CloudImageKey != "avatar-inputs/"+opaque+"/image" || cp.CloudAudioKey != "avatar-inputs/"+opaque+"/audio" {
 			return false
 		}
-		if cp.Phase != "dispatching" && !wanTaskID.MatchString(cp.RemoteID) {
+		if cp.Format == 1 && cp.Phase != "dispatching" && !wanTaskID.MatchString(cp.RemoteID) {
 			return false
 		}
 	} else if cp.Phase == "remote_pending" {
 		return false
+	}
+	if cp.Phase == "segments" {
+		return cp.Format == 2
 	}
 	if cp.Phase == "remote_pending" {
 		return cp.Engine == nil && cp.Composed == nil
@@ -63,7 +74,7 @@ func validAvatarCheckpoint(job CreativeJob) bool {
 	return cp.Composed != nil && validBlobInfo(*cp.Composed) && cp.Composed.Key == avatarCheckpointKey(job, "composed")
 }
 func avatarRecoveryAvailable(job CreativeJob) bool {
-	return avatarCheckpointReady(job) || (job.AvatarCheckpoint != nil && validAvatarCheckpoint(job) && job.AvatarCheckpoint.Phase == "remote_pending")
+	return avatarSegmentsRecoverable(job) || avatarCheckpointReady(job) || (job.AvatarCheckpoint != nil && validAvatarCheckpoint(job) && job.AvatarCheckpoint.Phase == "remote_pending")
 }
 func avatarCheckpointReady(job CreativeJob) bool {
 	return job.AvatarCheckpoint != nil && validAvatarCheckpoint(job) && (job.AvatarCheckpoint.Phase == "engine_done" || job.AvatarCheckpoint.Phase == "composed")
@@ -99,23 +110,28 @@ func (c *creativeStore) recordAvatarCheckpoint(ctx context.Context, job *Creativ
 	}
 	prior := old.AvatarCheckpoint
 	if prior == nil {
-		if checkpoint.Phase != "dispatching" {
+		if checkpoint.Phase != "dispatching" && !(checkpoint.Format == 2 && checkpoint.Phase == "segments") {
 			return ErrConflict
 		}
 	} else {
-		if prior.SourceSHA256 != checkpoint.SourceSHA256 || prior.CloudDestination != checkpoint.CloudDestination || prior.CloudImageKey != checkpoint.CloudImageKey || prior.CloudAudioKey != checkpoint.CloudAudioKey || prior.RemoteID != "" && prior.RemoteID != checkpoint.RemoteID {
+		if prior.Format != checkpoint.Format || prior.SourceSHA256 != checkpoint.SourceSHA256 || prior.CloudDestination != checkpoint.CloudDestination || prior.CloudImageKey != checkpoint.CloudImageKey || prior.CloudAudioKey != checkpoint.CloudAudioKey || prior.RemoteID != "" && prior.RemoteID != checkpoint.RemoteID {
+			return ErrConflict
+		}
+		if prior.Format == 2 && prior.Phase != checkpoint.Phase && !validSegmentAdvance(prior, &checkpoint) {
 			return ErrConflict
 		}
 		if prior.Phase == checkpoint.Phase {
 			a, _ := projectFingerprint("cp", job.ID, prior)
 			b, _ := projectFingerprint("cp", job.ID, checkpoint)
-			if a != b {
+			if a != b && !(prior.Format == 2 && validSegmentAdvance(prior, &checkpoint)) {
 				return ErrConflict
 			}
-			job.AvatarCheckpoint = prior
-			return nil
+			if a == b {
+				job.AvatarCheckpoint = prior
+				return nil
+			}
 		}
-		if !((prior.Phase == "dispatching" && (checkpoint.Phase == "engine_done" || checkpoint.Phase == "remote_pending") || prior.Phase == "remote_pending" && checkpoint.Phase == "engine_done") || prior.Phase == "engine_done" && checkpoint.Phase == "composed") {
+		if !(prior.Format == 2 && prior.Phase == checkpoint.Phase && validSegmentAdvance(prior, &checkpoint) || prior.Format == 2 && prior.Phase == "segments" && checkpoint.Phase == "engine_done" || ((prior.Phase == "dispatching" && (checkpoint.Phase == "engine_done" || checkpoint.Phase == "remote_pending") || prior.Phase == "remote_pending" && checkpoint.Phase == "engine_done") || prior.Phase == "engine_done" && checkpoint.Phase == "composed")) {
 			return ErrConflict
 		}
 	}
@@ -149,6 +165,10 @@ func (s *FileStore) restoreAvatarCheckpoint(ctx context.Context, job *CreativeJo
 	}
 	if !avatarCheckpointReady(*job) {
 		return false, providerFailure("execution_outcome_unknown")
+	}
+	if job.AvatarCheckpoint.Format == 2 {
+		work.exactAudioSamples = job.AvatarCheckpoint.TotalSamples
+		work.duration = float64(work.exactAudioSamples) / 48000
 	}
 	err = s.materializeAvatarMedia(ctx, *job.AvatarCheckpoint.Engine, work.videoPath)
 	return err == nil, err
@@ -203,9 +223,18 @@ func (s *FileStore) restoreAvatarComposed(ctx context.Context, job *CreativeJob,
 }
 func publicCreativeJob(job CreativeJob) CreativeJob {
 	job = cloneCreativeJob(job)
+	job.AvatarSegments = nil
+	job.AvatarCanResume = false
 	job.RuntimeSelection = nil
 	if job.AvatarCheckpoint != nil {
 		job.AvatarRecoveryPhase = job.AvatarCheckpoint.Phase
+		job.AvatarCanResume = avatarRecoveryAvailable(job)
+		for i, v := range job.AvatarCheckpoint.Segments {
+			job.AvatarSegments = append(job.AvatarSegments, avatarSegmentProgress{Index: i + 1, Start: float64(v.Start) / 48000, Duration: float64(v.Samples) / 48000, Status: v.Phase})
+		}
+		if job.AvatarCheckpoint.Format == 2 && !job.AvatarCanResume {
+			job.AvatarRecoveryPhase = "dispatching"
+		}
 		job.AvatarCheckpoint = nil
 	}
 	return job
@@ -272,6 +301,11 @@ func avatarCheckpointReferences(d creativeDisk) ([]BlobInfo, error) {
 			return nil, ErrBlobIntegrity
 		}
 		if job.AvatarCheckpoint != nil {
+			for _, seg := range job.AvatarCheckpoint.Segments {
+				if seg.Video != nil {
+					refs = append(refs, *seg.Video)
+				}
+			}
 			if job.AvatarCheckpoint.Engine != nil {
 				refs = append(refs, *job.AvatarCheckpoint.Engine)
 			}

@@ -8,19 +8,22 @@ import (
 // Each review is an immutable creator decision about one exact output. It is
 // neither automated quality certification nor an external publishing action.
 type AvatarReview struct {
-	ID         string    `json:"id"`
-	Version    int       `json:"version"`
-	AssetID    string    `json:"asset_id"`
-	Outcome    string    `json:"outcome"`
-	Identity   bool      `json:"identity_confirmed"`
-	LipSync    bool      `json:"lip_sync_confirmed"`
-	Audio      bool      `json:"audio_confirmed"`
-	Disclosure bool      `json:"disclosure_confirmed"`
-	Note       string    `json:"note,omitempty"`
-	ReviewedBy string    `json:"reviewed_by"`
-	CreatedAt  time.Time `json:"created_at"`
+	ComparedJobID   string    `json:"compared_job_id,omitempty"`
+	ComparedAssetID string    `json:"compared_asset_id,omitempty"`
+	ID              string    `json:"id"`
+	Version         int       `json:"version"`
+	AssetID         string    `json:"asset_id"`
+	Outcome         string    `json:"outcome"`
+	Identity        bool      `json:"identity_confirmed"`
+	LipSync         bool      `json:"lip_sync_confirmed"`
+	Audio           bool      `json:"audio_confirmed"`
+	Disclosure      bool      `json:"disclosure_confirmed"`
+	Note            string    `json:"note,omitempty"`
+	ReviewedBy      string    `json:"reviewed_by"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 type AvatarReviewInput struct {
+	ComparedJobID   string `json:"compared_job_id,omitempty"`
 	ExpectedVersion int    `json:"expected_version"`
 	AssetID         string `json:"asset_id"`
 	Outcome         string `json:"outcome"`
@@ -92,8 +95,19 @@ func (s *FileStore) reviewAvatar(space, project, id, key, actor string, in Avata
 			return AvatarReview{}, projectInputError("原始形象或配音不可用，请核对后再采用；历史审片保留")
 		}
 	}
+	comparedAsset := ""
+	if in.ComparedJobID != "" {
+		other, ok := c.data.Jobs[in.ComparedJobID]
+		if !ok || other.ID == job.ID || other.SpaceID != space || other.ProjectID != project || !isAvatarKind(other.Kind) || other.Status != "succeeded" || other.AvatarID != job.AvatarID || other.AudioAssetID != job.AudioAssetID || other.AssetID == "" {
+			return AvatarReview{}, projectInputError("只能对比本项目同形象、同配音的已完成版本")
+		}
+		if a, ok := mediaAsset(state, other.AssetID); !ok || a.Kind != "video" {
+			return AvatarReview{}, ErrInvalidProjectInput
+		}
+		comparedAsset = other.AssetID
+	}
 	reviewID, _ := projectFingerprint("avatar-review-record", id, len(job.AvatarReviews)+1)
-	v := AvatarReview{ID: reviewID, Version: len(job.AvatarReviews) + 1, AssetID: in.AssetID, Outcome: in.Outcome, Identity: in.Identity, LipSync: in.LipSync, Audio: in.Audio, Disclosure: in.Disclosure, Note: note, ReviewedBy: actor, CreatedAt: time.Now().UTC()}
+	v := AvatarReview{ComparedJobID: in.ComparedJobID, ComparedAssetID: comparedAsset, ID: reviewID, Version: len(job.AvatarReviews) + 1, AssetID: in.AssetID, Outcome: in.Outcome, Identity: in.Identity, LipSync: in.LipSync, Audio: in.Audio, Disclosure: in.Disclosure, Note: note, ReviewedBy: actor, CreatedAt: time.Now().UTC()}
 	old := job
 	job.AvatarReviews = append(append([]AvatarReview(nil), job.AvatarReviews...), v)
 	c.data.Jobs[id] = job
@@ -127,7 +141,7 @@ func registerAvatarReviewRoutes(mux *http.ServeMux, s *FileStore) {
 func validateAvatarReviews(job CreativeJob) bool {
 	for i, v := range job.AvatarReviews {
 		expectedID, _ := projectFingerprint("avatar-review-record", job.ID, i+1)
-		if v.ID != expectedID {
+		if (v.ComparedJobID == "") != (v.ComparedAssetID == "") || v.ComparedJobID == job.ID || v.ID != expectedID {
 			return false
 		}
 		if !isAvatarKind(job.Kind) || job.Status != "succeeded" || v.Version != i+1 || v.AssetID != job.AssetID || v.ReviewedBy == "" || v.CreatedAt.IsZero() || (v.Outcome != "adopted" && v.Outcome != "rework") || v.Outcome == "adopted" && !(v.Identity && v.LipSync && v.Audio && v.Disclosure) || v.Outcome == "rework" && v.Note == "" {
