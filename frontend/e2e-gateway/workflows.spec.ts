@@ -11,21 +11,23 @@ async function fixture(page:Page){
  const upload=await page.request.post(api+`/projects/${project.id}/media/uploads`+query+'&filename=reference.png&role=reference',{headers:{...headers,'Content-Type':'image/png','Idempotency-Key':randomUUID()},data:image});expect(upload.status()).toBe(200);const media=await upload.json()
  return {project,media,space,query,headers,session,write}
 }
+async function revealSteps(page:Page){const list=page.locator('.workflow-step-list');if(await list.getAttribute('open')===null)await list.locator('summary').click()}
 test('canvas persists dragging and revisions, then pauses for a real human before owned media output',async({page},info)=>{
  const f=await fixture(page);if(info.project.name==='desktop')await page.setViewportSize({width:1920,height:1080})
- await page.goto(`/workflows/${f.project.id}`);await page.getByRole('button',{name:'已有素材审片模板',exact:true}).click();await page.locator('.workflow-step-list summary').click();await page.locator('.workflow-step-list').getByRole('button',{name:'项目素材',exact:true}).click();await selectOption(page.getByRole('combobox',{name:'项目素材',exact:true}), f.media.uploaded_asset_id)
+ await page.goto(`/workflows/${f.project.id}`);await page.getByRole('button',{name:'已有素材审片模板',exact:true}).click();await revealSteps(page);await page.locator('.workflow-step-list').getByRole('button',{name:'项目素材',exact:true}).click();await selectOption(page.getByRole('combobox',{name:'项目素材',exact:true}), f.media.uploaded_asset_id)
  await page.getByRole('textbox',{name:'流程名称',exact:true}).fill('固定素材先审后用')
  const saving=page.waitForResponse(r=>r.url().includes('/workflows?')&&r.request().method()==='POST');await page.getByRole('button',{name:'保存流程修订',exact:true}).click();const saved=await(await saving).json();await expect(page.getByRole('button',{name:'运行已保存流程',exact:true})).toBeEnabled()
  if(info.project.name==='desktop'){
   const node=page.locator('.react-flow__node[data-id="source"]');const b=await node.boundingBox();expect(b).not.toBeNull();await page.mouse.move(b!.x+80,b!.y+30);await page.mouse.down();await page.mouse.move(b!.x+140,b!.y+70,{steps:8});await page.mouse.up();await expect(page.getByRole('button',{name:'运行已保存流程',exact:true})).toBeDisabled();const update=page.waitForResponse(r=>r.url().includes(`/workflows/${saved.id}?`)&&r.request().method()==='PUT');await page.getByRole('button',{name:'保存流程修订',exact:true}).click();await update
   const detail=await(await page.request.get(api+`/projects/${f.project.id}/workflows/${saved.id}`+f.query)).json();expect(detail.version).toBe(2);expect(detail.revision.graph.nodes.find((n:{id:string})=>n.id==='source').x).not.toBe(20)
  }
+ if(info.project.name==='mobile')await page.getByRole('button',{name:'画布',exact:true}).click()
  const beforeZoom=await page.locator('.react-flow__viewport').evaluate(e=>new DOMMatrix(getComputedStyle(e).transform).a)
  await page.getByRole('button',{name:'放大画布',exact:true}).click()
  await expect.poll(()=>page.locator('.react-flow__viewport').evaluate(e=>new DOMMatrix(getComputedStyle(e).transform).a)).toBeGreaterThan(beforeZoom)
  const viewSave=page.waitForResponse(r=>r.url().includes(`/workflows/${saved.id}?`)&&r.request().method()==='PUT');await page.getByRole('button',{name:'保存流程修订',exact:true}).click();await viewSave
  const viewDetail=await(await page.request.get(api+`/projects/${f.project.id}/workflows/${saved.id}`+f.query)).json();expect(viewDetail.revision.graph.viewport.zoom).toBeGreaterThan(beforeZoom)
- await page.reload();await expect.poll(()=>page.locator('.react-flow__viewport').evaluate(e=>new DOMMatrix(getComputedStyle(e).transform).a)).toBeCloseTo(viewDetail.revision.graph.viewport.zoom,3)
+ await page.reload();if(info.project.name==='mobile')await page.getByRole('button',{name:'画布',exact:true}).click();await expect.poll(()=>page.locator('.react-flow__viewport').evaluate(e=>new DOMMatrix(getComputedStyle(e).transform).a)).toBeCloseTo(viewDetail.revision.graph.viewport.zoom,3)
  await expectControlValue(page.getByRole('textbox',{name:'流程名称',exact:true}), '固定素材先审后用');await page.screenshot({path:`/tmp/canvas-${info.project.name}.png`,fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);expect((await page.getByRole('textbox',{name:'流程名称',exact:true}).boundingBox())!.width).toBeGreaterThan(180)
  if(info.project.name==='desktop'){for(const theme of ['paper','screening','forest']){await page.evaluate(({user,theme})=>localStorage.setItem('studio.preferences.v1:'+encodeURIComponent(user),theme),{user:f.session.user.id,theme});await page.reload();await expect(page.locator('.user-workspace')).toHaveAttribute('data-theme',theme);await expect(page.locator('.workflow-node').first()).toBeVisible();await page.screenshot({path:`/tmp/canvas-${theme}-desktop.png`,fullPage:true})}}
  const starting=page.waitForResponse(r=>r.url().includes(`/workflows/${saved.id}/runs?`)&&r.request().method()==='POST');await page.getByRole('button',{name:'运行已保存流程',exact:true}).click();const run=await(await starting).json()
@@ -104,7 +106,7 @@ test('creators add and connect a literal copy template from the canvas controls'
  const detail=await(await page.request.get(api+`/projects/${f.project.id}/workflows/${saved.id}`+f.query)).json(),step=detail.revision.graph.nodes.find((n:{kind:string})=>n.kind==='template')
  expect(step.text).toBe('海报主体：{{input}}。保留右上角标题空间。')
  expect(detail.revision.graph.edges).toContainEqual({source:'description',target:step.id,input:'prompt'})
- await page.reload();await page.locator('.workflow-step-list summary').click();await page.locator('.workflow-step-list').getByRole('button',{name:'海报文案',exact:true}).click()
+ await page.reload();await revealSteps(page);await page.locator('.workflow-step-list').getByRole('button',{name:'海报文案',exact:true}).click()
  await expectControlValue(panel.getByRole('textbox',{name:'描述与文案',exact:true}), step.text)
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true)
  await page.screenshot({path:`/tmp/canvas-template-editor-${info.project.name}.png`,fullPage:true})

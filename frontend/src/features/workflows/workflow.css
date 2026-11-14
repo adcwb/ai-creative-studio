@@ -17,3 +17,46 @@
 
 .workflow-studio label:has(input[type=checkbox]){display:flex;align-items:center;justify-content:flex-start;gap:8px}
 .workflow-studio input[type=checkbox]{width:auto;min-width:0;flex:0 0 auto}
+.workflow-studio>.series-heading {display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:12px}
+.workflow-studio>.series-heading h2 {margin:0 0 6px}
+.workflow-studio>.series-heading p {margin:0;color:var(--ink-muted);font-size:var(--text-sm);line-height:1.6}
+.workflow-directory {margin-bottom:12px}
+.workflow-directory label {flex-direction:row;align-items:center;gap:12px}
+.workflow-directory select {width:240px;max-width:100%}
+.workflow-editor {padding:18px}
+.workflow-editor>.workflow-toolbar {margin-bottom:10px;gap:10px}
+.workflow-editor>.media-actions {margin:8px 0}
+.workflow-editor>.drama-help {margin:8px 0;font-size:var(--text-xs)}
+.workflow-editor>.editing-note {margin:10px 0}
+.workflow-canvas {height:clamp(420px,50dvh,640px)}
+.workflow-expand {margin-top:10px;min-height:44px}
+.workflow-view-switch {display:flex;gap:8px;margin:12px 0}
+.workflow-view-switch button {min-height:44px;flex:1}
+.workflow-view-switch button[aria-pressed=true] {background:var(--primary);color:var(--primary-contrast,#fff);border-color:var(--primary)}
+.workflow-step-list[open] {display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:8px}
+.workflow-step-list>summary {width:100%;cursor:pointer}
+.workflow-step-list button {margin:0;min-height:44px}
+.workflow-step-list button[aria-pressed=true] {border-color:var(--primary);box-shadow:inset 0 0 0 1px var(--primary)}
+.workflow-expanded-dialog .workflow-canvas {height:calc(100dvh - 230px);min-height:300px}
+@media(max-width:760px){
+ .workflow-studio>.series-heading {align-items:flex-start;flex-wrap:wrap}
+ .workflow-directory {display:grid;grid-template-columns:auto minmax(0,1fr);align-items:end;margin-bottom:8px}
+ .workflow-view-switch {margin:6px 0}
+ .workflow-directory button {min-height:44px}
+ .workflow-directory label {flex-direction:column;align-items:stretch}
+ .workflow-directory select {width:100%}
+ .workflow-editor {padding:16px;display:flex;flex-direction:column}
+ .workflow-editor>* {order:3}
+ .workflow-editor>.workflow-save-toolbar {order:0}
+ .workflow-editor>.workflow-view-switch {order:1}
+ .workflow-editor>.workflow-layout {order:2}
+ .workflow-editor>.error {order:0}
+ .workflow-save-toolbar label {min-width:0;grid-column:1/-1}
+ .workflow-save-toolbar button {grid-column:1/-1}
+ .workflow-canvas {height:380px}
+ .workflow-canvas .react-flow__controls button {width:44px;height:44px}
+ .workflow-step-list[open] {flex-direction:column}
+ .workflow-step-list button {text-align:left;margin:0;width:100%}
+ .workflow-properties {margin-top:12px}
+ .workflow-expanded-dialog .studio-dialog-body {padding:8px}
+}

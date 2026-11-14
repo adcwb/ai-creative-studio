@@ -17,3 +17,6 @@
 .system-config-save {display:flex;align-items:center;justify-content:space-between;gap:20px;padding-top:20px;border-top:1px solid var(--border)}
 .system-config-save p {font-size:var(--text-xs);color:var(--ink-muted);line-height:1.7}
 @media(max-width:760px){.system-config-fields{grid-template-columns:minmax(0,1fr)}.system-config-save{align-items:start;flex-direction:column}.system-config-panel .section-heading{flex-wrap:wrap}}
+.config-field-footer button {min-height:32px;min-width:44px;padding:6px 8px;border-radius:6px}
+.config-field-footer button:hover {background:var(--surface-soft)}
+@media(max-width:760px){.config-field-footer button{min-height:44px;padding:10px 8px}}

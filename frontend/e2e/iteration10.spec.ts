@@ -59,6 +59,8 @@ for (const language of ['zh-CN', 'en'] as const) {
     expect(timeline.video_overlays[0].keyframes).toHaveLength(2)
 
     const poster=page.locator('.poster-editor')
+    const openPoster=async()=>{const panel=page.locator('.media-poster');if(await panel.getAttribute('open')===null)await panel.locator('summary').click()}
+    await openPoster()
     await poster.getByRole('button',{name:label('重载海报与素材','Reload poster and assets'),exact:true}).click()
     await poster.getByRole('button',{name:label('添加文字图层','Add text layer'),exact:true}).click()
     await poster.getByRole('textbox',{name:label('图层文字','Layer text'),exact:true}).fill('Synthetic poster — 合成海报')
@@ -92,10 +94,12 @@ for (const language of ['zh-CN', 'en'] as const) {
     mkdirSync('/tmp/studio-iteration10-screenshots',{recursive:true})
     for (const [name,locator] of [['timeline',preview],['poster',poster],['social',social]] as const) {
       await projectStep(page, name === 'social' ? 'publish' : 'media')
+      if(name==='poster')await openPoster()
       await locator.screenshot({path:`/tmp/studio-iteration10-screenshots/${name}-${language}-${info.project.name}.png`})
     }
     await page.reload()
     await reopenProject()
+    await openPoster()
     await expectControlValue(page.locator('.poster-editor').getByRole('textbox',{name:label('图层文字','Layer text'),exact:true}), 'Synthetic poster — 合成海报')
     await expectControlValue(page.getByRole('combobox',{name:label('输出清晰度','Output resolution'),exact:true}), '2160p')
     await projectStep(page, 'publish')

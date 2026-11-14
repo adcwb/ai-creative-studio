@@ -55,13 +55,14 @@ class CIPartitionsTest(unittest.TestCase):
                 result = self.launch('ci_browser_tests.sh', STUDIO_CI_BROWSER_SUITE=suite, STUDIO_CI_BROWSER_DEVICE=device)
                 self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.calls()
-        self.assertEqual(len(calls), 6)
-        self.assertEqual({call[3] for call in calls}, {'playwright.config.ts', 'playwright.routing.config.ts', 'playwright.auth.config.ts'})
+        self.assertEqual(len(calls), 8)
+        self.assertEqual({call[3] for call in calls}, {'playwright.config.ts', 'playwright.routing.config.ts', 'playwright.auth.config.ts', 'playwright.consumer.config.ts'})
         self.assertEqual({call[5] for call in calls}, {'desktop', 'mobile'})
+        self.assertEqual(sum(call[3] == 'playwright.consumer.config.ts' for call in calls), 2)
         self.assertTrue(all(call[-1] == '--workers=1' for call in calls))
         for suite, device in [('unknown', 'desktop'), ('auth', 'unknown')]:
             self.assertNotEqual(self.launch('ci_browser_tests.sh', STUDIO_CI_BROWSER_SUITE=suite, STUDIO_CI_BROWSER_DEVICE=device).returncode, 0)
-        self.assertEqual(len(self.calls()), 6)
+        self.assertEqual(len(self.calls()), 8)
 
     def test_gateway_selection_keeps_every_spec_in_its_own_process(self):
         # Run the real launcher using Node; replace only its child Playwright CLI.

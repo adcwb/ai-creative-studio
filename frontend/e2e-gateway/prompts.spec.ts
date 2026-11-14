@@ -41,6 +41,8 @@ async function setup(page: Page, configured = true, referenceImages = false) {
     configuredModel = model
     expect((await page.request.put(api + '/model-features/image_generation' + query, {headers, data: {expected_version: 0, binding: {feature_key: 'image_generation', model_config_id: model.id, enabled: true, allow_override: true}}})).status()).toBe(200)
     if (referenceImages) expect((await page.request.put(api + '/model-features/image_edit' + query, {headers, data:{expected_version:0,binding:{feature_key:'image_edit',model_config_id:model.id,enabled:true,allow_override:true}}})).status()).toBe(200)
+    const picker=page.locator('.creation-controls > .compact-runtime-control details')
+    if(await picker.getAttribute('open')===null)await picker.locator('summary').click()
     await page.getByRole('button', {name: '刷新模型目录', exact: true}).click()
     await expectControlValue(page.getByRole('combobox', {name: '模型选择', exact: true}), model.id)
   }

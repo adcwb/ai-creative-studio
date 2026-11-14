@@ -9,8 +9,8 @@ button:where(:not([class*="ant-"]):not([class*="adm-"])):hover:not(:disabled) { 
 button:where(:not([class*="ant-"]):not([class*="adm-"])):disabled { cursor: not-allowed; opacity: .52; }
 /* Keyboard focus also covers disclosure summaries and custom focusable controls. */
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
-select:where(:not([class*="ant-"]):not([class*="adm-"])), textarea:where(:not([class*="ant-"]):not([class*="adm-"])), input:where(:not([class*="ant-"]):not([class*="adm-"])) { width: 100%; min-width: 0; border: 1px solid var(--control-border); border-radius: var(--radius-sm); color: var(--ink); background: var(--surface-input); padding: 11px var(--space-3); }
-select:where(:not([class*="ant-"]):not([class*="adm-"])):enabled:hover, textarea:where(:not([class*="ant-"]):not([class*="adm-"])):enabled:hover, input:where(:not([class*="ant-"]):not([class*="adm-"])):enabled:hover { border-color: var(--link); }
+select:where(:not([class*="ant-"]):not([class*="adm-"])), textarea:where(:not([class*="ant-"]):not([class*="adm-"])), input:where(:not([type="checkbox"]):not([type="radio"]):not([class*="ant-"]):not([class*="adm-"])) { width: 100%; min-width: 0; border: 1px solid var(--control-border); border-radius: var(--radius-sm); color: var(--ink); background: var(--surface-input); padding: 11px var(--space-3); }
+select:where(:not([class*="ant-"]):not([class*="adm-"])):enabled:hover, textarea:where(:not([class*="ant-"]):not([class*="adm-"])):enabled:hover, input:where(:not([type="checkbox"]):not([type="radio"]):not([class*="ant-"]):not([class*="adm-"])):enabled:hover { border-color: var(--link); }
 button, a, summary, select, input { touch-action: manipulation; }
 select:where(:not([class*="ant-"]):not([class*="adm-"])) { min-height: 44px; }
 textarea:where(:not([class*="ant-"]):not([class*="adm-"])) { resize: vertical; min-height: 146px; line-height: 1.8; }

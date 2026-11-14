@@ -27,3 +27,6 @@
 .tiktok-photo-list .media-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
 .social-account-states { list-style: none; padding: 0; overflow-wrap: anywhere; }
 .social-account-states li { padding: .5rem 0; }
+
+.social-handoff label:has(input[type="checkbox"]) {display:flex;align-items:flex-start;gap:10px;line-height:1.7}
+.social-handoff input[type="checkbox"] {width:16px;height:16px;flex:0 0 16px;margin:4px 0 0;accent-color:var(--primary)}

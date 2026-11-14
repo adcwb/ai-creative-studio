@@ -12,7 +12,7 @@ import { NotFoundPage } from './NotFoundPage'
 const descriptions: Record<string, [string, string]> = {
   backend: ['后端配置', '管理服务、登录、存储与网关的部署配置。'],
   spaces: ['团队空间', '个人创作与团队协作，各有独立的内容和访问权限。'],
-  organization: ['组织与成员', '管理工作空间与成员的访问权限。'],
+  organization: ['成员与权限', '管理工作空间与成员的访问权限。'],
   models: ['模型管理', '管理 AI 网关、网关模型以及每个创作功能的默认绑定。'],
   billing: ['模型使用统计', '查看网关与模型的调用次数、成功率、耗时和使用量。'],
 }

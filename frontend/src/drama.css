@@ -156,3 +156,8 @@
 @media(max-width:700px){.revision-comparison{grid-template-columns:minmax(0,1fr)}}
 
 .revision-comparison img,.revision-comparison video,.revision-comparison audio{max-width:100%;max-height:220px;object-fit:contain}
+.media-editing,.media-poster {margin-top:18px;border-top:1px solid var(--border);padding-top:16px;min-width:0}
+.media-editing>summary,.media-poster>summary {cursor:pointer;font-weight:600;padding:8px 0;min-height:44px}
+.media-empty-state {padding:24px;margin-top:16px;border:1px dashed var(--border);border-radius:10px;background:var(--surface-soft)}
+.media-empty-state h3 {margin:0 0 8px}
+.media-empty-state p {line-height:1.7;margin-bottom:16px}

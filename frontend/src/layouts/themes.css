@@ -63,3 +63,10 @@
 .user-workspace .sidebar .navigation-group[data-active=true]>.group-toggle {color:var(--accent)}
 .user-workspace .sidebar .app-nav a>span,.user-workspace .sidebar .group-toggle>span:not(.group-chevron){min-width:0;white-space:normal;overflow-wrap:anywhere}
 .user-workspace .sidebar .app-nav a>.icon{flex-shrink:0}
+/* Settings use the same reading edge and type scale as the creative workspace. */
+.preferences-page {max-width:1180px;margin:0}
+.preferences-page .page-heading {margin-bottom:20px}
+.preferences-page .page-heading h1 {font-size:var(--text-page);font-weight:650}
+.settings-shortcuts {display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px}
+.preferences-page .preference-section {padding:24px 0}
+@media(max-width:760px){.settings-shortcuts .button-link{flex:1 1 150px;min-height:44px}.preferences-page .preference-section{padding:20px 0}}

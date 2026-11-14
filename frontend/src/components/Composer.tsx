@@ -28,11 +28,12 @@ export function Composer({space, catalog, capability, draft, busy, retryTask, pr
     <ConfigProvider componentDisabled={busy || !catalog}><form onSubmit={event => {event.preventDefault(); if (!invalid && catalog && !busy && ready) onSubmit()}}>
       <fieldset disabled={busy || !catalog}>
         <legend className="sr-only">{t("图像创作参数")}</legend>
-        <label htmlFor="kind">{t("创作类型")}</label>
-        <StudioSelect id="kind" value={draft.kind} onChange={event => onChange({...draft, kind: event as TaskInput['kind']})}>{kindOptions.map(kind => <option key={kind} value={kind}>{t(kindLabels[kind])}</option>)}</StudioSelect>
+
         <div className="prompt-label"><label htmlFor="prompt">{t("描述你的画面")}</label><Button htmlType="button" className="prompt-optimize-button" disabled={busy || optimizer.busy || !!invalid || !optimizer.choice?.model.available} onClick={() => {void optimizer.optimize()}}><Icon name={optimizer.busy ? 'refresh' : 'spark'} className={optimizer.busy ? 'spinning' : ''}/>{t(optimizer.busy ? '优化中…' : 'AI 优化')}</Button></div>
-        <Input.TextArea ref={instance => {promptRef.current = instance?.resizableTextArea?.textArea ?? null}} id="prompt" value={draft.prompt} onChange={event => onChange({...draft, prompt: event.target.value})} placeholder={t("描述主体、环境、光线与构图，让灵感更具体一些……")} rows={5} maxLength={2000} aria-describedby="prompt-hint prompt-count" aria-invalid={draft.prompt.length > 0 && !!invalid} />
+        <Input.TextArea ref={instance => {promptRef.current = instance?.resizableTextArea?.textArea ?? null}} id="prompt" value={draft.prompt} onChange={event => onChange({...draft, prompt: event.target.value})} placeholder={t("描述主体、环境、光线与构图，让灵感更具体一些……")} rows={4} maxLength={2000} aria-describedby="prompt-hint prompt-count" aria-invalid={draft.prompt.length > 0 && !!invalid} />
         <div className="field-footer"><span id="prompt-hint">{draft.prompt.length > 0 && invalid ? invalid : t("3–1000 个字符 · 不输入敏感信息")}</span><span id="prompt-count">{[...draft.prompt.trim()].length} / 1000</span></div>
+        <details className="composer-details"><summary>{t("更多创作设定")}</summary><label htmlFor="kind">{t("创作类型")}</label>
+        <StudioSelect id="kind" value={draft.kind} onChange={event => onChange({...draft, kind: event as TaskInput['kind']})}>{kindOptions.map(kind => <option key={kind} value={kind}>{t(kindLabels[kind])}</option>)}</StudioSelect></details>
         <details className="prompt-optimizer-settings"><summary>{t('优化模型')}</summary><RuntimeModelPicker gatewayOnly space={space} capability="text" preview={{operation:'prompt_optimization',input:{}}} value={optimizer.choice} onChange={optimizer.setChoice} disabled={busy || optimizer.busy}/></details>
         {!optimizer.choice && <p className="optimizer-hint">{t('AI 优化需要配置“提示词优化”文本模型，可展开优化模型设置。')}</p>}
         {optimizer.error && <p className="error" role="alert">{optimizer.error}</p>}

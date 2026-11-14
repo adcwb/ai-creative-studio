@@ -2,7 +2,7 @@ import {Button, Input} from 'antd'
 import {StudioSelect} from '../ui/StudioSelect'
 import {gatewayCreationRequired} from '../creationGateway'
 import {Link} from 'react-router-dom'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {useRuntimeCatalog} from '../hooks/useRuntimeCatalog'
 import { useAppWorkspace } from '../app/workspace'
 import { useI18n } from '../i18n'
@@ -10,10 +10,11 @@ import { previewFeature, readinessNames } from '../gatewayModels'
 
 import { initialRuntimeChoice, type RuntimeChoice, type RuntimePreview } from '../runtimeSelection'
 
-export function RuntimeModelPicker({space, capability, value, onChange, preview, disabled = false, gatewayOnly = false, fixedVoice = false}: {
-  space: string; capability: string; value: RuntimeChoice | null; onChange: (value: RuntimeChoice | null) => void; disabled?: boolean; preview?: RuntimePreview; gatewayOnly?: boolean; fixedVoice?: boolean
+export function RuntimeModelPicker({space, capability, value, onChange, preview, disabled = false, gatewayOnly = false, fixedVoice = false, compact = false}: {
+  space: string; capability: string; value: RuntimeChoice | null; onChange: (value: RuntimeChoice | null) => void; disabled?: boolean; preview?: RuntimePreview; gatewayOnly?: boolean; fixedVoice?: boolean; compact?: boolean
 }) {
   const {t} = useI18n()
+  const [expanded, setExpanded] = useState(false)
   const requireGateway = gatewayOnly && gatewayCreationRequired
   const session = useAppWorkspace()?.session
   const demo = session?.mode === 'demo'
@@ -35,7 +36,7 @@ export function RuntimeModelPicker({space, capability, value, onChange, preview,
   const requiredCapability = feature === 'image_edit' ? 'image_edit' : feature === 'subtitle_alignment' ? 'asr_timestamps' : capability
   const options = catalog.models.filter(model => (!requireGateway || !!model.gateway_id) && model.capability === capability && (!model.gateway_id || (model.capabilities?.includes(requiredCapability) && (!binding || binding.allow_override || model.id === binding.model_config_id))) && (!binding || !!model.gateway_id)).map(model => requireGateway && !binding ? {...model, available: false} : model)
   const stale = !!value && !options.some(model => model.id === value.model.id && model.version === value.model.version && model.available === value.model.available)
-  return <fieldset className="runtime-model-picker" disabled={disabled}>
+  const picker = <fieldset className="runtime-model-picker" disabled={disabled}>
     <legend>{t('本次执行模型')}</legend>
     {catalog.moderation_mode === 'disabled' && <p className="drama-help">{t('内容审核暂未启用，生成结果未经本项目自动审核。')}</p>}
     {requireGateway && !binding && <p role="alert">{t('此功能尚未绑定网关模型，请联系组织管理员配置。')} <Link to="/settings/models">{t('模型管理')}</Link></p>}
@@ -45,7 +46,7 @@ export function RuntimeModelPicker({space, capability, value, onChange, preview,
       <option value="" disabled={!!binding}>{t(binding || requireGateway ? '请选择此功能的模型' : '未选择组织模型')}</option>
       {options.filter(model => !value?.model.gateway_id || model.gateway_id === value.model.gateway_id).map(model => <option key={model.id} value={model.id}>{model.name ?? model.provider} / {model.model}{model.is_default ? ` · ${t('组织默认')}` : ''}{!model.available ? ` · ${t('暂不可执行')}` : ''}</option>)}
     </StudioSelect></label>
-    <Button htmlType="button" onClick={() => {onChange(null); refresh()}}>{t('刷新模型目录')}</Button>
+    <Button htmlType="button" onClick={() => {if (compact) setExpanded(true); onChange(null); refresh()}}>{t('刷新模型目录')}</Button>
     {options.length === 0 && <p>{t('此能力尚无启用的组织模型。')}</p>}
     {value?.model.reason_code && <p role="status">{t(readinessNames[value.model.reason_code] ?? value.model.reason_code)}</p>}
     {(error || stale) && <p role="alert">{t('模型目录已失效，请刷新并重新确认。')}</p>}
@@ -54,4 +55,10 @@ export function RuntimeModelPicker({space, capability, value, onChange, preview,
       {!catalog.governance_ready && <p role="status">{t('内容审核尚未就绪，请联系部署管理员。')}</p>}
     </>}
   </fieldset>
+  if (!compact) return picker
+  const attention = !value || !value.model.available || stale || !!error || !catalog.governance_ready
+  return <div className="compact-runtime-control"><details className="compact-runtime-picker" open={expanded || attention} onToggle={event => {if (attention) {if (!event.currentTarget.open) event.currentTarget.open = true} else setExpanded(event.currentTarget.open)}}>
+    <summary><span>{t('本次执行模型')} · <strong>{value?.model.name ?? value?.model.model ?? t('请选择此功能的模型')}</strong></span><span>{t('更换模型')}</span></summary>
+    {picker}
+  </details>{catalog.moderation_mode === 'disabled' && !expanded && !attention && <p className="drama-help">{t('内容审核暂未启用，生成结果未经本项目自动审核。')}</p>}</div>
 }

@@ -11,7 +11,8 @@
     "test": "vitest run src",
     "test:e2e": "playwright test",
     "test:routing": "playwright test --config playwright.routing.config.ts",
-    "test:gateway": "node ../scripts/gateway_browser_check.mjs"
+    "test:gateway": "node ../scripts/gateway_browser_check.mjs",
+    "test:consumer": "playwright test --config playwright.consumer.config.ts"
   },
   "dependencies": {
     "@met4citizen/talkinghead": "1.8.2",

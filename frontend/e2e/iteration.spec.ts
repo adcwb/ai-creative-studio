@@ -102,6 +102,7 @@ test('task details use the backend; keyboard close and cancelled editing create 
   await page.goto('/')
   const draft = 'Synthetic untouched draft before editing'
   await page.getByLabel('描述你的画面').fill(draft)
+  await page.getByText('更多创作设定',{exact:true}).click()
   await selectOption(page.getByLabel('创作类型'), 'general')
   await selectOption(page.getByLabel('画面比例'), '1:1')
   await selectOption(page.getByLabel('视觉风格'), 'illustration')

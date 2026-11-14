@@ -14,3 +14,8 @@ esac
 # Each matrix cell has its own runner, backend and temporary data. One worker
 # retains fixture ordering and actual registration rate limits within that cell.
 node node_modules/@playwright/test/cli.js test --config "$config" --project "$STUDIO_CI_BROWSER_DEVICE" --workers=1
+
+# Product-mode checks use the normal gateway-only UI after the legacy routing fixtures stop.
+if [[ "$STUDIO_CI_BROWSER_SUITE" == routing ]]; then
+  node node_modules/@playwright/test/cli.js test --config playwright.consumer.config.ts --project "$STUDIO_CI_BROWSER_DEVICE" --workers=1
+fi

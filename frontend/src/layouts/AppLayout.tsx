@@ -91,7 +91,7 @@ export function AppLayout() {
     {error && !isPersonalSettings ? <div className="error space-error" role="alert">{t('无法加载工作空间：')}{error} <button onClick={refreshSpaces}>{t('重新加载空间')}</button></div>
       : !loaded ? <div className="loading-block" role="status">{t('正在加载工作空间…')}</div>
       : space || isOrganization ? <Outlet key={spaceID} context={context} />
-      : <section className="page-empty"><h1>{t('没有可用组织')}</h1><p>{t('请创建组织或联系组织管理员。')}</p><Link to="/settings/organization">{t('组织与成员')}</Link></section>}
+      : <section className="page-empty"><h1>{t('没有可用组织')}</h1><p>{t('请创建组织或联系组织管理员。')}</p><Link to="/settings/spaces">{t('管理团队空间')}</Link></section>}
     {(pending || blocker.state === 'blocked') && <ConfirmDialog title={t('离开当前编辑？')} message={t('未保存的本地草稿将丢失。如果有请求正在提交或结果尚未确认，服务端可能已保存，离开不会撤销请求。')} confirmLabel={t('放弃本地草稿并继续')} onCancel={() => {setPending(null); if (blocker.state === 'blocked') blocker.reset()}} onConfirm={() => {
       setDirty(false)
       setImageDirty(false)

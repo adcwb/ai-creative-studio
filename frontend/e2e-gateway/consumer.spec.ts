@@ -71,7 +71,8 @@ test('workspace guidance, honest model state and persistent navigation preserve 
     await expect(page.locator('.provider-badge')).toHaveText('当前工作空间')
   }
   await navigateTo(page,'/settings/models')
-  await expect(page.getByText('配置就绪',{exact:true})).toBeVisible()
+  const imageBinding=page.locator('.feature-binding-table tbody tr').filter({has:page.getByText('图像创作',{exact:true})})
+  await expect(imageBinding.locator(info.project.name==='mobile'?'.feature-binding-mobile-summary>span':'.model-readiness')).toHaveText('配置就绪')
   await expect(page.getByText('配置就绪仅表示本地配置条件满足，不代表上游能力、凭据或生成效果已经实测。',{exact:true})).toBeVisible()
   await page.screenshot({path:`/tmp/studio-consumer/models-${info.project.name}.png`})
   const after = await (await page.request.get(api+'/model-management'+query)).json()

@@ -25,6 +25,9 @@ test('English model bindings contain their table across fallback fonts and viewp
   await expect(page.locator('#model-panel-bindings .table-scroll')).toBeInViewport()
   // Horizontal overflow belongs to the desktop table, never the document.
   // A phone renders cards; either layout must keep the final action reachable.
+  const row=page.locator('.feature-binding-table tbody tr').last()
+  const expand=row.getByRole('button',{name:'Expand settings',exact:true})
+  if(await expand.isVisible())await expand.click()
   const action = page.locator('.feature-binding-table tbody tr').last().getByRole('button', {name:'Save routing',exact:true})
   await action.scrollIntoViewIfNeeded()
   await expect(action).toBeInViewport()

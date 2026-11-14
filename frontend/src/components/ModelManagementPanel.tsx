@@ -19,6 +19,10 @@ export function ModelManagementPanel({space, onDirtyChange}: {space: Space; onDi
   const [gateway, setGateway] = useState<AIGateway | null>(null)
   const [model, setModel] = useState<GatewayModel | null>(null)
   const [filter, setFilter] = useState('')
+  const [featureQuery, setFeatureQuery] = useState('')
+  const [capabilityFilter, setCapabilityFilter] = useState('')
+  const [needsSetup, setNeedsSetup] = useState(false)
+  const [expandedFeatures, setExpandedFeatures] = useState<Record<string, boolean>>({})
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
@@ -62,10 +66,17 @@ export function ModelManagementPanel({space, onDirtyChange}: {space: Space; onDi
     catch (reason) {setError(errorMessage(reason, t('网关检查失败')))} finally {setBusy(false)}
   }
   const visibleModels = report?.models.filter(item => !filter || item.gateway_id === filter) ?? []
+  function matchesFeature(feature: FeatureDefinition) {
+    const binding = report?.bindings.find(item => item.feature_key === feature.key)
+    const query = featureQuery.trim().toLocaleLowerCase()
+    return (!query || `${t(feature.name)} ${feature.key}`.toLocaleLowerCase().includes(query)) && (!capabilityFilter || capabilityFilter === feature.capability) && (!needsSetup || !binding?.enabled || featureModelStatus(report!, binding.model_config_id, feature.capability) !== '配置就绪')
+  }
   const panels = report ? {bindings:(<div id="model-panel-bindings" hidden={tab !== 'bindings'} className="panel model-management-panel">
         <div className="section-heading"><div><h2>{t('功能使用哪个模型')}</h2><p>{t('每个功能独立选择网关与模型，同一个模型可以被多个功能共用。')}</p></div></div>
         {!report.gateways.length && <div className="model-management-empty"><p>{t('尚未配置 AI 网关。先添加网关，再添加可用模型。')}</p><Button onClick={() => {setTab('gateways'); openGateway({...blankGateway})}}>{t('添加 AI 网关')}</Button></div>}
-        <p className="drama-help">{t('配置就绪仅表示本地配置条件满足，不代表上游能力、凭据或生成效果已经实测。')}</p><div className="table-scroll"><table className="feature-binding-table"><thead><tr><th>{t('创作功能')}</th><th>{t('AI 网关')}</th><th>{t('模型')}</th><th>{t('调用设置')}</th><th>{t('状态')}</th><th>{t('操作')}</th></tr></thead><tbody>{report.features.map(feature => {const binding = report.bindings.find(item => item.feature_key === feature.key); return <FeatureBindingRow key={`${feature.key}-${binding?.version ?? 0}`} feature={feature} binding={binding} report={report} busy={busy} onDirty={markDirty} onSave={value => save(`/model-features/${feature.key}`, 'PUT', {expected_version: binding?.version ?? 0, binding: value})} />})}</tbody></table></div>
+        <div className="feature-binding-filters"><label>{t('查找创作功能')}<Input type="search" value={featureQuery} onChange={event => setFeatureQuery(event.target.value)} /></label><label>{t('按能力筛选')}<StudioSelect aria-label={t('按能力筛选')} value={capabilityFilter} onChange={setCapabilityFilter}><option value="">{t('全部能力')}</option>{[...new Set(report.features.map(feature => feature.capability))].map(value => <option key={value} value={value}>{t(capabilityNames[value] ?? value)}</option>)}</StudioSelect></label><Checkbox checked={needsSetup} onChange={event => setNeedsSetup(event.target.checked)}>{t('仅看待配置')}</Checkbox></div>
+        {!report.features.some(matchesFeature) && <p role="status">{t('没有符合筛选条件的功能')}</p>}
+        <p className="drama-help">{t('配置就绪仅表示本地配置条件满足，不代表上游能力、凭据或生成效果已经实测。')}</p><div className="table-scroll"><table className="feature-binding-table"><thead><tr><th>{t('创作功能')}</th><th>{t('AI 网关')}</th><th>{t('模型')}</th><th>{t('调用设置')}</th><th>{t('状态')}</th><th>{t('操作')}</th></tr></thead><tbody>{report.features.map(feature => {const binding = report.bindings.find(item => item.feature_key === feature.key); return <FeatureBindingRow key={`${feature.key}-${binding?.version ?? 0}`} feature={feature} hidden={!matchesFeature(feature)} expanded={Boolean(expandedFeatures[feature.key])} onExpand={() => setExpandedFeatures(old => ({...old, [feature.key]: !old[feature.key]}))} binding={binding} report={report} busy={busy} onDirty={markDirty} onSave={value => save(`/model-features/${feature.key}`, 'PUT', {expected_version: binding?.version ?? 0, binding: value})} />})}</tbody></table></div>
       </div>),
 gateways:(<div id="model-panel-gateways" hidden={tab !== 'gateways'} className="panel model-management-panel">
         <div className="section-heading"><div><h2>{t('AI 网关')}</h2><p>{t('每个网关独立保存服务地址和加密凭据，其下模型共用连接。')}</p></div><Button disabled={busy} onClick={() => openGateway({...blankGateway})}>{t('添加 AI 网关')}</Button></div>
@@ -90,7 +101,7 @@ models:(<div id="model-panel-models" hidden={tab !== 'models'} className="panel 
   </section>
 }
 
-function FeatureBindingRow({feature, binding, report, busy, onDirty, onSave}: {feature: FeatureDefinition; binding?: FeatureBinding; report: ModelManagementReport; busy: boolean; onDirty: (key: string, value: boolean) => void; onSave: (value: FeatureBinding) => Promise<boolean>}) {
+function FeatureBindingRow({feature, hidden, expanded, onExpand, binding, report, busy, onDirty, onSave}: {feature: FeatureDefinition; hidden: boolean; expanded: boolean; onExpand: () => void; binding?: FeatureBinding; report: ModelManagementReport; busy: boolean; onDirty: (key: string, value: boolean) => void; onSave: (value: FeatureBinding) => Promise<boolean>}) {
   const {t} = useI18n()
   const initial = binding ?? {feature_key: feature.key, model_config_id: '', enabled: true, allow_override: true, version: 0, voice: ''}
   const [draft, setDraft] = useState<FeatureBinding>(initial)
@@ -99,7 +110,7 @@ function FeatureBindingRow({feature, binding, report, busy, onDirty, onSave}: {f
   useEffect(() => {onDirty(feature.key, changed); return () => onDirty(feature.key, false)}, [changed, feature.key, onDirty])
   const models = report.models.filter(item => item.gateway_id === gatewayID && item.capabilities.includes(feature.capability))
   const status = !draft.enabled ? '已停用' : featureModelStatus(report, draft.model_config_id, feature.capability)
-  return <tr><td><strong>{t(feature.name)}</strong><small>{t(capabilityNames[feature.capability] ?? feature.capability)}</small></td>
+  return <tr hidden={hidden} className="feature-binding-row" data-expanded={expanded}><td><strong>{t(feature.name)}</strong><small>{t(capabilityNames[feature.capability] ?? feature.capability)}</small><div className="feature-binding-mobile-summary"><span>{t(status)}{changed && ` · ${t('未保存')}`}</span><Button aria-expanded={expanded} onClick={onExpand}>{t(expanded ? '收起配置' : '展开配置')}</Button></div></td>
     <td><StudioSelect aria-label={t('{feature} AI 网关', {feature: t(feature.name)})} value={gatewayID} disabled={busy} onChange={event => {setGatewayID(event); setDraft({...draft, model_config_id: ''})}}><option value="">{t('选择网关')}</option>{report.gateways.map(item => <option key={item.id} value={item.id} disabled={!item.enabled}>{item.name}{!item.enabled ? ` (${t('已停用')})` : ''}</option>)}</StudioSelect></td>
     <td><StudioSelect aria-label={t('{feature} 模型', {feature: t(feature.name)})} value={draft.model_config_id} disabled={busy || !gatewayID} onChange={event => setDraft({...draft, model_config_id: event})}><option value="">{t('选择模型')}</option>{models.map(item => <option key={item.id} value={item.id} disabled={!item.enabled}>{item.name} / {item.model}</option>)}</StudioSelect>{gatewayID && !models.length && <small>{t('此网关没有满足能力的模型')}</small>}</td>
     <td><div className="feature-binding-options"><Checkbox  checked={draft.enabled} disabled={busy} onChange={event => setDraft({...draft, enabled: event.target.checked})}>{t('启用')}</Checkbox><Checkbox  checked={draft.allow_override} disabled={busy} onChange={event => setDraft({...draft, allow_override: event.target.checked})}>{t('允许本次切换')}</Checkbox>{feature.capability === 'speech' && <Input aria-label={t('默认音色')} placeholder={t('默认音色')} value={draft.voice ?? ''} maxLength={128} disabled={busy} onChange={event => setDraft({...draft, voice: event.target.value})} />}</div></td>

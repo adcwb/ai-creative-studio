@@ -11,3 +11,9 @@
 .prompt-variable-editor{display:grid;gap:16px}.prompt-variable-row{border:1px solid var(--border);border-radius:var(--radius-md);padding:16px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.prompt-preview-result{display:grid;gap:8px;margin-top:20px}.prompt-variable-row legend{font-weight:600;padding:0 6px}@media(max-width:640px){.prompt-variable-row{grid-template-columns:1fr}}
 
 .prompt-reference-editor summary{cursor:pointer;font-weight:600}.prompt-bound-references{padding-left:20px}.prompt-bound-references li{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:10px 0}.prompt-bound-references img{width:64px;height:64px;object-fit:contain;background:var(--surface-soft);border-radius:var(--radius-sm)}.prompt-bound-references span{flex:1;min-width:120px;overflow-wrap:anywhere}.prompt-bound-references small{display:block;color:var(--ink-muted)}.prompt-picker-option{display:flex;flex-direction:column;align-items:flex-start;gap:8px;width:100%;overflow-wrap:anywhere}.prompt-reference-editor{border-top:1px solid var(--border);padding-top:16px}
+
+.prompt-editor-form {display:flex;flex-direction:column;min-height:0;flex:1}
+.prompt-editor .studio-dialog-body>.composer-help {margin-top:0}
+.prompt-editor .prompt-fields input,.prompt-editor .prompt-fields select,.prompt-editor .prompt-fields textarea {font-weight:400}
+.prompt-editor .studio-dialog-actions {margin:0;justify-content:flex-end}
+.prompt-editor .studio-dialog-actions button {min-height:44px;min-width:130px}

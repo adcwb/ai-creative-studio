@@ -38,6 +38,7 @@
 .studio-confirm .studio-dialog-body p {margin:0;line-height:1.8}
 @media(max-width:760px){
  .studio-dialog-header,.studio-dialog-body {padding:16px}
+ .studio-dialog-header .ant-btn {min-width:44px;min-height:44px}
  .studio-dialog-actions {padding:14px 16px}
  .studio-dialog-actions .ant-btn {min-height:44px;flex:1}
  .studio-dialog-content .model-editor-error {margin:12px 16px 0}
@@ -48,7 +49,7 @@
  .studio-gateway-table .ant-table-tbody>tr {display:grid;grid-template-columns:minmax(0,1fr) auto;padding:16px;gap:12px;border-bottom:1px solid var(--border)}
  .studio-gateway-table .ant-table-tbody>tr>.ant-table-cell {display:block;padding:0!important;border:0!important;min-width:0;max-width:none}
  .studio-gateway-table .ant-table-cell:nth-child(2),.studio-gateway-table .ant-table-cell:last-child {grid-column:1/-1}
- .studio-gateway-table .gateway-actions .ant-btn {min-height:40px}
+ .studio-gateway-table .gateway-actions .ant-btn {min-height:44px}
  .studio-gateway-table .ant-table-cell:last-child {padding-top:8px!important;border-top:1px solid var(--border)!important}
  .studio-model-tabs .ant-tabs-tab {font-size:var(--text-sm)}
  .studio-model-tabs .ant-tabs-tab+.ant-tabs-tab {margin-left:22px}
@@ -57,3 +58,55 @@
 }
 /* Image previews keep their image-defined height, rather than Button's controlHeight. */
 .task-gallery .result-preview.ant-btn {display:block;height:auto;padding:0;line-height:normal}
+.compact-runtime-control {min-width:0;margin-bottom:16px}
+.compact-runtime-picker {border:1px solid var(--border);border-radius:8px;background:var(--surface);min-width:0}
+.compact-runtime-picker>summary {cursor:pointer;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:16px;min-height:48px;font-size:var(--text-sm)}
+.compact-runtime-picker>summary>span:first-child {min-width:0;overflow-wrap:anywhere}
+.compact-runtime-picker>summary>span:last-child {flex-shrink:0;color:var(--link)}
+.compact-runtime-picker>summary:focus-visible {outline:3px solid var(--focus);outline-offset:2px}
+.compact-runtime-picker .runtime-model-picker {margin:0;border:0;border-top:1px solid var(--border);padding:16px;min-width:0}
+.compact-runtime-picker .runtime-model-picker legend {padding:0;font-size:var(--text-sm)}
+.compact-runtime-picker .runtime-model-picker label {display:block;margin-bottom:12px}
+.compact-runtime-picker .runtime-model-picker p {font-size:var(--text-xs);line-height:1.6}
+.image-page .creation-grid {margin-top:16px}
+.image-page .creation-controls {gap:14px}
+.image-page .creation-controls>.compact-runtime-control {margin-bottom:0}
+.image-page .composer {padding:20px}
+.image-page .composer .section-heading {margin-bottom:12px}
+.image-page .composer .prompt-label {margin-top:0}
+.image-page .composer .parameter-grid {margin-top:12px;gap:12px}
+.image-page .composer .composer-help {font-size:var(--text-xs);line-height:1.5;margin:10px 0}
+.composer-details {margin:8px 0;font-size:var(--text-xs)}
+.composer-details>summary {cursor:pointer;color:var(--link);padding:6px 0}
+.composer-details[open]>label {margin-top:10px}
+.image-page .creation-controls>.templates {margin:6px 0 0;padding:20px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+.image-page .creation-controls .template-grid {grid-template-columns:minmax(0,1fr);gap:10px}
+.image-page .creation-controls .template-card {padding:12px;min-height:76px}
+.image-page .creation-controls .template-art {width:44px;height:54px}
+.image-page .creation-controls .templates .section-heading {align-items:flex-start;flex-direction:column;gap:4px;margin-bottom:10px}
+.image-page .creation-controls .templates .section-heading>span {font-size:var(--text-xs)}
+.image-page .template-explanation {font-size:var(--text-xs)}
+.image-page .prompt-tabs {gap:6px}
+.image-page .prompt-tabs button {font-size:var(--text-xs);padding-inline:10px}
+.compact-generation {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 20px;align-items:center;padding:18px 24px}
+.compact-generation .section-heading {grid-column:1;margin:0}
+.compact-generation>p {grid-column:1;margin:0;font-size:var(--text-sm)}
+.compact-generation>button {grid-column:2;grid-row:1/span 2}
+.compact-generation .drama-generation-state {grid-column:1/-1}
+@media(max-width:760px){
+ .user-workspace .ant-btn {min-height:44px}
+ .image-page .creation-grid {margin-top:12px}
+ .image-page .prompt-tabs button {min-height:44px}
+ .image-page .image-continue-actions {margin-bottom:12px;gap:8px}
+ .image-page .image-continue-actions>span {display:none}
+ .image-page .page-heading {margin-bottom:12px}
+ .image-page .composer {padding:16px}
+ .image-page .composer .composer-bottom {margin-top:10px;gap:8px}
+ .image-page .composer .ant-btn-primary {min-height:48px}
+ .image-page .composer .prompt-optimize-button.ant-btn {height:44px}
+ .image-page .creation-controls>.templates {padding:16px}
+ .compact-runtime-picker>summary {padding:10px 12px;gap:10px}
+ .compact-generation {display:flex;align-items:stretch;flex-direction:column;padding:16px;gap:10px}
+ .compact-generation .section-heading>span {display:none}
+ .compact-generation>button {min-height:44px;align-self:flex-start}
+}

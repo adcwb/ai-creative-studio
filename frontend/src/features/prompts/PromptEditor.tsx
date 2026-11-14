@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from 'react'
 import {ApiError, errorMessage, kindLabels, promptError, request, type Catalog, type TaskInput} from '../../api'
 import {useNavigationTask} from '../../app/navigationGuard'
-import {Icon} from '../../components/Icon'
+import {StudioDialog} from '../../ui/StudioDialog'
 import {useI18n} from '../../i18n'
 import './prompts.css'
 import {ReferenceBindingsEditor} from './ReferenceBindingsEditor'
@@ -9,7 +9,6 @@ import {pendingKey, type PendingPrompt, type PromptMetadata, type PromptRecipe, 
 
 export function PromptEditor({space, actor, initial, seed, catalog, recovery, onSaved, onClose}: {space: string; actor: string; initial: PromptResult | null; seed: TaskInput; catalog: Catalog | null; recovery?: PendingPrompt | null; onSaved: (r: PromptResult) => void; onClose: () => void}) {
   const {t} = useI18n()
-  const dialog = useRef<HTMLDialogElement>(null)
   const [metadata, setMetadata] = useState<PromptMetadata>(() => recovery?.metadata ?? (initial?.template ? {...initial.template} : {name: '', description: '', category: '', tags: [], visibility: 'private'}))
   const [recipe, setRecipe] = useState<PromptRecipe>(() => recovery?.recipe ?? initial?.version ?? {syntax: 'plain', body: seed.prompt, defaults: {kind: seed.kind, ratio: seed.ratio, style: seed.style}, notes: ''})
   const [tags, setTags] = useState(() => metadata.tags.join(', '))
@@ -23,7 +22,7 @@ export function PromptEditor({space, actor, initial, seed, catalog, recovery, on
   const pending = useRef<PendingPrompt | null>(recovery ?? null)
   const active = useRef(true)
   useNavigationTask(dirty || busy || uncertain)
-  useEffect(() => {active.current = true; const previous = document.activeElement as HTMLElement | null; const current = dialog.current; current?.showModal(); return () => {active.current = false; current?.close(); previous?.focus()}}, [])
+  useEffect(() => {active.current = true; return () => {active.current = false}}, [])
   function close() {if (busy) return; if ((dirty || uncertain) && !window.confirm(t('放弃本次未保存修改？未确认的保存请求仍可稍后恢复。'))) return; onClose()}
   const changingVisibility = Boolean(initial && metadata.visibility === 'organization' && initial.template.visibility === 'private')
   const invalid = !metadata.name.trim() || [...metadata.name.trim()].length > 80 || promptError(recipe.body) || (changingVisibility && !shareConfirmed)
@@ -52,13 +51,12 @@ export function PromptEditor({space, actor, initial, seed, catalog, recovery, on
       setError(errorMessage(reason, t('提示词保存失败，请保留草稿重试。')) + (reason instanceof ApiError && reason.field ? ` (${reason.field})` : ''))
     } finally {if (active.current) setBusy(false)}
   }
-  return <dialog ref={dialog} className="detail-dialog prompt-editor" aria-labelledby="prompt-editor-title" onCancel={event => {event.preventDefault(); close()}}>
-    <div className="dialog-header"><div><span className="eyebrow">YOUR CREATIVE RECIPE</span><h2 id="prompt-editor-title">{t(initial && !copyAsNew ? '编辑我的提示词' : '保存自己的提示词')}</h2></div><button className="icon-button" aria-label={t('关闭提示词编辑')} onClick={close} disabled={busy}><Icon name="close" /></button></div>
+  return <StudioDialog title={t(initial && !copyAsNew ? '编辑我的提示词' : '保存自己的提示词')} onClose={close} busy={busy} closeLabel={t('关闭提示词编辑')} className="prompt-editor" width={820}>
+    <form className="prompt-editor-form" onSubmit={event => {event.preventDefault(); void save()}}><div className="studio-dialog-body">
     <p className="composer-help">{t('保存只记录配方，不会生成图像。每次编辑会保留一个新版本。')}</p>
     {error && <p className="error" role="alert">{error}</p>}
     {conflict && <p className="notice">{t('其他人已更新此提示词。你的草稿仍在，请复制文字后关闭并重新打开，核对新版再保存。')} <button type="button" onClick={() => {setCopyAsNew(true); setConflict(false); setError('')}}>{t('另存为新提示词')}</button></p>}
     {uncertain && <p className="notice" role="status">{t('保存结果尚未确认。请重试原请求，避免创建重复版本。')}</p>}
-    <form onSubmit={event => {event.preventDefault(); void save()}}>
       <fieldset disabled={busy || uncertain || conflict} className="prompt-fields"><legend className="sr-only">{t('提示词配方')}</legend>
         <label>{t('提示词名称')}<input autoFocus value={metadata.name} maxLength={80} required onChange={event => changeMetadata({name: event.target.value})} /></label>
         <label>{t('简述')}<input value={metadata.description} maxLength={500} onChange={event => changeMetadata({description: event.target.value})} /></label>
@@ -76,7 +74,7 @@ export function PromptEditor({space, actor, initial, seed, catalog, recovery, on
         {metadata.visibility === 'organization' && <p className="composer-help prompt-wide">{t('组织成员可以读取所有历史版本，有编辑权的成员可以修改。改回私有不会撤回已经进入任务历史的内容。')}</p>}
         {changingVisibility && <label className="prompt-wide prompt-checkbox"><input type="checkbox" checked={shareConfirmed} onChange={event => setShareConfirmed(event.target.checked)} />{t('我确认向当前组织共享此提示词的所有历史版本')}</label>}
       </fieldset>
-      <div className="dialog-actions"><button type="button" onClick={close} disabled={busy}>{t('取消')}</button><button className="primary" type="submit" disabled={busy || conflict || (!uncertain && Boolean(invalid))}>{t(busy ? '保存中…' : uncertain ? '重试原保存请求' : initial && !copyAsNew ? '保存新版本' : '保存提示词')}</button></div>
+      </div><div className="studio-dialog-actions"><button type="button" data-dialog-cancel onClick={close} disabled={busy}>{t('取消')}</button><button className="primary" type="submit" disabled={busy || conflict || (!uncertain && Boolean(invalid))}>{t(busy ? '保存中…' : uncertain ? '重试原保存请求' : initial && !copyAsNew ? '保存新版本' : '保存提示词')}</button></div>
     </form>
-  </dialog>
+  </StudioDialog>
 }
