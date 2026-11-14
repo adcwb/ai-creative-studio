@@ -31,6 +31,42 @@ func TestTypedCardNormalizationAndIsolation(t *testing.T) {
 	}
 }
 
+func TestPropIsDistinctImmutableCardWithoutChangingOldDigest(t *testing.T) {
+	old := library.Card{Name: "旧商品", Product: &library.Product{Model: "clock"}}
+	digest, err := library.Digest(old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(old)
+	if err != nil || strings.Contains(string(raw), `"prop"`) {
+		t.Fatal("old JSON shape changed", err)
+	}
+	var reread library.Card
+	if err = json.Unmarshal(raw, &reread); err != nil {
+		t.Fatal(err)
+	}
+	after, err := library.Digest(reread)
+	if err != nil || after != digest {
+		t.Fatal("old digest changed", err)
+	}
+	input := library.Card{Name: " 铜钥匙 ", Prop: &library.Prop{Condition: " 缺失一齿 ", StoryFunction: "打开密室", ContinuityNotes: "本集不能恢复"}}
+	result, err := library.Normalize("prop", input)
+	if err != nil || result.Prop.Condition != "缺失一齿" || result.Name != "铜钥匙" {
+		t.Fatal(result, err)
+	}
+	result.Prop.Condition = "完好"
+	if input.Prop.Condition != " 缺失一齿 " {
+		t.Fatal("prop version aliased input")
+	}
+	input.Product = &library.Product{}
+	if _, err = library.Normalize("prop", input); err == nil {
+		t.Fatal("prop/product mixed content accepted")
+	}
+	if _, err = library.Normalize("product", library.Card{Name: "wrong", Prop: &library.Prop{}}); err == nil {
+		t.Fatal("prop silently treated as product")
+	}
+}
+
 func TestNativeVoicePresetIsImmutablePublicMetadataWithExactModelAlias(t *testing.T) {
 	model := "vendor/" + strings.Repeat("a", 170) + "@latest"
 	in := library.Card{Name: "音色", Voice: &library.Voice{Performance: "只作创作备注", NativePreset: &library.NativeVoicePreset{ModelConfigID: "model", Provider: "gateway-speech", Model: model, Voice: "native-voice"}}}

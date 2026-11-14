@@ -60,6 +60,6 @@ export async function chooseLanguage(page: Page, locale: string) {
 }
 export async function openVersionHistory(page: Page) {
   await projectStep(page, 'script')
-  const tools = page.locator('.panel.drama-history')
+  const tools = page.locator('details.panel.drama-history').filter({has: page.getByText('版本历史', {exact: true})})
   if (await tools.getAttribute('open') === null) await tools.locator('summary').first().click()
 }

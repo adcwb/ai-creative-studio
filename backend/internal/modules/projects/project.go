@@ -27,6 +27,7 @@ type ProjectUpdate struct {
 }
 
 type Project struct {
+	PersonalCopyID               string                `json:"personal_copy_id,omitempty"`
 	MigrationSource              *MigrationSource      `json:"migration_source,omitempty"`
 	StructureVersion             int                   `json:"structure_version,omitempty"`
 	StructureMappings            []StructureMapping    `json:"structure_mappings,omitempty"`

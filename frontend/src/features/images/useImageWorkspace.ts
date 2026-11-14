@@ -1,3 +1,4 @@
+import {hasPermission} from '../../permissions'
 import {creationCapability} from '../../creationGateway'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
@@ -50,7 +51,7 @@ export function useImageController(active = true) {
     if (outcome === 'provider_changed') refreshCapability()
     if (outcome === 'created' && editing) {setEditing(null); setDraft(blankDraft)}
   }
-  return {space, actor: session.user?.id ?? "demo-user", readOnly: selectedSpace?.role === "viewer", chooseSavedTemplate, capability, capabilityError, refreshCapability, studio, runtimeChoice, setRuntimeChoice, draft, setDraft, editing, detailId, setDetailId, promptRef, preview, effectiveCapability, savedIds, running, chooseTemplate, editTask, cancelEdit, startNew, openDetail, submitDraft}
+  return {space, actor: session.user?.id ?? "demo-user", readOnly: !hasPermission(selectedSpace,'workspace.write'), chooseSavedTemplate, capability, capabilityError, refreshCapability, studio, runtimeChoice, setRuntimeChoice, draft, setDraft, editing, detailId, setDetailId, promptRef, preview, effectiveCapability, savedIds, running, chooseTemplate, editTask, cancelEdit, startNew, openDetail, submitDraft}
 }
 
 export function useImageWorkspace() {return useOutletContext<{image: ReturnType<typeof useImageController>}>().image}

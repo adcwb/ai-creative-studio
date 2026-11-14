@@ -145,7 +145,7 @@ func (s *FileStore) libraryMediaSourcesVisited(ctx context.Context, project, spa
 				if s.library == nil {
 					return nil, "", "", errRuntimeDenied
 				}
-				v, e := s.library.Version(ctx, space, b.AssetID, b.VersionID)
+				v, e := s.sharedLibraryVersion(ctx, space, media.LibrarySource{ShareID: b.ShareID, AssetID: b.AssetID, VersionID: b.VersionID})
 				if e != nil {
 					return nil, "", "", e
 				}
@@ -157,7 +157,7 @@ func (s *FileStore) libraryMediaSourcesVisited(ctx context.Context, project, spa
 				}
 				markRecoveredLineage(ctx)
 				expected = v.References[i].SHA256
-				sources = append(sources, media.LibrarySource{AssetID: b.AssetID, VersionID: b.VersionID})
+				sources = append(sources, media.LibrarySource{ShareID: b.ShareID, AssetID: b.AssetID, VersionID: b.VersionID})
 				inherited, e := s.referenceLineage(ctx, space, v.References[i], visiting)
 				if e != nil {
 					return nil, "", "", e
@@ -560,7 +560,7 @@ func (m *MediaStore) lineageState(project, space string) (MediaState, error) {
 func (s *FileStore) referenceLineage(ctx context.Context, space string, ref library.Reference, visiting map[string]bool) ([]media.LibrarySource, error) {
 	sources := []media.LibrarySource{}
 	for _, parent := range ref.LibrarySources {
-		sources = append(sources, media.LibrarySource{AssetID: parent.AssetID, VersionID: parent.VersionID})
+		sources = append(sources, media.LibrarySource{ShareID: parent.ShareID, AssetID: parent.AssetID, VersionID: parent.VersionID})
 	}
 	if ref.ProvenanceVersion == 1 {
 		return uniqueLibrarySources(sources), nil
@@ -590,7 +590,7 @@ func (s *FileStore) prepareReferenceLineage(ctx context.Context, space string, r
 	out.ProvenanceVersion = 1
 	out.LibrarySources = nil
 	for _, source := range sources {
-		out.LibrarySources = append(out.LibrarySources, library.Source{AssetID: source.AssetID, VersionID: source.VersionID})
+		out.LibrarySources = append(out.LibrarySources, library.Source{ShareID: source.ShareID, AssetID: source.AssetID, VersionID: source.VersionID})
 	}
 	return out, nil
 }

@@ -118,7 +118,7 @@ func registerRuntimeCatalog(mux *http.ServeMux, s *FileStore) {
 			if !e.Enabled || e.Lifecycle != "active" {
 				continue
 			}
-			result.Models = append(result.Models, RuntimeModelOption{ID: e.ID, Version: tenant.Version, Provider: e.Provider, Model: e.Model, Capability: e.Capability, IsDefault: e.IsDefault, Available: ready && runtimeRoleAllowed(scope.Role) && s.runtime.entryAllowed(e, scope.SpaceID, e.Capability, tenant.Version)})
+			result.Models = append(result.Models, RuntimeModelOption{ID: e.ID, Version: tenant.Version, Provider: e.Provider, Model: e.Model, Capability: e.Capability, IsDefault: e.IsDefault, Available: ready && canExecute && s.runtime.entryAllowed(e, scope.SpaceID, e.Capability, tenant.Version)})
 		}
 		sort.Slice(result.Models, func(i, j int) bool { return result.Models[i].ID < result.Models[j].ID })
 		respond(w, 200, result)

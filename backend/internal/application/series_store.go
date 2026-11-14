@@ -19,6 +19,10 @@ func (s *FileStore) openSeries(dir string) error {
 	if s.pg != nil {
 		db = s.pg.db
 	}
+	s.personalCopies, err = openPersonalCopies(dir, db)
+	if err != nil {
+		return err
+	}
 	s.revisions, err = revisionrepo.Open(filepath.Join(dir, "revisions"), db)
 	if err != nil {
 		return err
@@ -51,7 +55,7 @@ func (s *FileStore) openSeries(dir string) error {
 	s.configureSeriesMedia()
 	for _, p := range s.data.Projects {
 		if err = s.readySeriesProject(p.SpaceID, p); err != nil {
-			if errors.Is(err, ErrNotFound) && s.validPendingMigration(context.Background(), p) {
+			if errors.Is(err, ErrNotFound) && (s.validPendingMigration(context.Background(), p) || p.PersonalCopyID != "" && s.validPendingPersonalCopy(p)) {
 				continue
 			}
 			return err
@@ -114,6 +118,18 @@ func (s *FileStore) CreateSeriesEpisode(ctx context.Context, a series.Actor, key
 }
 
 func (s *FileStore) readySeriesProject(space string, p Project) error {
+	if p.PersonalCopyID != "" {
+		j, e := s.personalCopies.get(p.PersonalCopyID)
+		if e != nil {
+			return e
+		}
+		if j.TargetSpace != space || j.TargetID != p.ID {
+			return ErrBlobIntegrity
+		}
+		if j.State != "completed" {
+			return ErrNotFound
+		}
+	}
 	if p.StructureVersion != 0 && p.StructureVersion != 2 {
 		return projectInputError("项目结构版本不受支持，请使用兼容版本的编辑器")
 	}

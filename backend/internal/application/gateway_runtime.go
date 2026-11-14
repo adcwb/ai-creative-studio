@@ -98,6 +98,7 @@ func (r *ModelRuntime) executeGateway(ctx context.Context, q RuntimeSelection, d
 	switch q.Capability {
 	case "text":
 		providers.PromptOptimizer = api
+		providers.OutlinePlanner = gatewayOutlinePlanner{api: api}
 		if q.FeatureKey == "story_continuity" {
 			providers.StoryCheck = gatewayStoryCheck{api: api}
 		}
@@ -141,6 +142,8 @@ func operationFeature(operation string, in *CreativeJobInput) string {
 		return ""
 	}
 	switch in.Kind {
+	case "outline":
+		return "script_generation"
 	case "analysis":
 		return "brief_analysis"
 	case "image":

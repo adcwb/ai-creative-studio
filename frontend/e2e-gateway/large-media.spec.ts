@@ -25,9 +25,23 @@ test('continue editing a large original recovers a lost completion without dupli
  // Wait for the actual completion response to be discarded. Hashing and
  // sending a real 36MiB source may take longer than an assertion's 5s window.
  let discarded!:()=>void;const completionDiscarded=new Promise<void>(resolve=>{discarded=resolve})
- let lost=false;await page.route('**/media/upload-sessions/*/complete?*',async route=>{if(!lost){lost=true;const response=await route.fetch();expect(response.status()).toBe(200);await route.abort('failed');discarded()}else await route.continue()})
- await page.reload();await page.locator('.result-preview').first().click();await page.getByRole('button',{name:'继续编辑',exact:true}).click();await completionDiscarded;await expect(page.locator('.detail-dialog').getByRole('alert')).toBeVisible()
- await page.getByRole('button',{name:'继续编辑',exact:true}).click();await expect(page).toHaveURL(/\/studio\/workspaces\//)
+ let completedSession='';let lost=false;await page.route('**/media/upload-sessions/*/complete?*',async route=>{if(!lost){lost=true;const response=await route.fetch();expect(response.status()).toBe(200);const accepted=await response.json();expect(accepted.state).toBe('completed');completedSession=accepted.id;await route.abort('failed');discarded()}else await route.continue()})
+ await page.reload()
+ const card=page.locator('.task').filter({hasText:'Synthetic large original continuation'})
+ await card.getByRole('button',{name:'放大查看',exact:true}).click()
+ const viewer=page.getByRole('dialog',{name:'查看原图',exact:true})
+ await expect(viewer).toBeVisible()
+ await expect.poll(()=>viewer.locator('img').evaluate((image:HTMLImageElement)=>image.naturalWidth)).toBe(4096)
+ await viewer.getByRole('button',{name:'关闭大图',exact:true}).click()
+ await card.getByRole('button',{name:'查看详情',exact:true}).click()
+ const detail=page.getByRole('dialog',{name:'任务详情',exact:true})
+ await detail.getByRole('button',{name:'继续编辑',exact:true}).click();await completionDiscarded;await expect(detail.getByRole('alert')).toBeVisible()
+ // Retry re-hashes the real source before asking for the original session.
+ // Wait for that acknowledgement, then assert navigation without a longer timeout.
+ const recovered=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname.endsWith('/media/upload-sessions'))
+ await detail.getByRole('button',{name:'继续编辑',exact:true}).click()
+ const replay=await recovered;expect(replay.status()).toBe(201);expect(await replay.json()).toMatchObject({id:completedSession,state:'completed'})
+ await expect(page).toHaveURL(/\/studio\/workspaces\//)
  const project=page.url().split('/').pop()!
  const media=await(await page.request.get(api+'/projects/'+project+'/media'+query)).json();expect(media.assets).toHaveLength(1);expect(media.assets[0]).toMatchObject({content_sha256:createHash('sha256').update(png).digest('hex'),name:`source-${task.id}.png`})
  expect((await(await page.request.get(api+'/projects'+query)).json()).filter((p:{kind:string})=>p.kind==='image')).toHaveLength(1)

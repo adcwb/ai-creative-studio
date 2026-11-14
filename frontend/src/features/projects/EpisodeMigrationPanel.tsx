@@ -1,3 +1,4 @@
+import {hasPermission} from '../../permissions'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {Link} from 'react-router-dom'
 import {errorMessage, request} from '../../api'
@@ -33,7 +34,7 @@ export function EpisodeMigrationPanel({space,project,disabled}:{space:string;pro
 }
 function MigrationWorkspace({space,project,disabled}:{space:string;project:DramaProject;disabled:boolean}){
  const {t}=useI18n();const {session}=useAppWorkspace()
- const readonly=session.spaces?.find(s=>s.id===space)?.role==='viewer'
+ const readonly=!hasPermission(session.spaces?.find(s=>s.id===space),'workspace.write')
  const base=`/projects/${project.id}/episode-migrations`
  const [revision,setRevision]=useState(0),[source,setSource]=useState<SourceSummary|null>(null),[sourceError,setSourceError]=useState('')
  const [root,setRoot]=useState(''),[season,setSeason]=useState<SeriesEntry|null>(null),[ep,setEp]=useState(0),[ordinal,setOrdinal]=useState('')

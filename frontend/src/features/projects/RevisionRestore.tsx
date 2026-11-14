@@ -1,0 +1,32 @@
+import {useCallback,useEffect,useState} from 'react'
+import {ApiError,baseURL,errorMessage,request} from '../../api'
+import {useAppWorkspace} from '../../app/workspace'
+import {restoreSourceKey} from './revisionRecovery'
+import {useI18n} from '../../i18n'
+import {useSeriesWrite} from '../series/useSeriesWrite'
+interface RestoreClip {id:string;asset_id:string;subtitle:string;duration:number;audio_asset_id:string;audio_volume:number;preserve_source_audio?:boolean;source_audio_volume?:number;subtitle_cues?:{text:string;start:number;end:number}[]}
+interface PreviewAsset {id:string;kind:string;name:string;file_url:string}
+interface Plan {assets:PreviewAsset[];current_timeline:{clips:RestoreClip[]};project_version:number;media_version:number;episode_number:number;changed:boolean;timeline:{clips:RestoreClip[]}}
+export function RevisionRestore({project,space,revision,timelines,disabled,onRestored,onBusyChange}:{project:string;space:string;revision:string;timelines:Record<string,{clips:{id:string;subtitle:string}[]}>;disabled:boolean;onRestored:()=>void;onBusyChange:(v:boolean)=>void}){
+ const {session}=useAppWorkspace(),{t}=useI18n(),marker=restoreSourceKey(session.user?.id??'demo-user',space,project),base=`/projects/${project}/revisions/${revision}`
+ const saved=useCallback(()=>{setPlan(null);setConfirmed(false);setNotice(true);try{sessionStorage.removeItem(marker)}catch{/* In-page recovery remains available. */}onRestored()},[onRestored,marker])
+ const write=useSeriesWrite(`revision:restore:${project}`,base+'/restore-timeline','POST',saved,e=>e instanceof ApiError&&e.status===409&&e.code==='version_conflict')
+ const recovery=write.recovery
+ const [component,setComponent]=useState(String(recovery?.component??'subtitles')),[episode,setEpisode]=useState(Number(recovery?.episode_number??1)),[clip,setClip]=useState(String(recovery?.clip_id??timelines[String(recovery?.episode_number??1)]?.clips?.[0]?.id??''))
+ const clips=timelines[String(episode)]?.clips??[]
+ const [plan,setPlan]=useState<Plan|null>(null),[confirmed,setConfirmed]=useState(false),[error,setError]=useState(''),[reading,setReading]=useState(false),[notice,setNotice]=useState(false)
+ const locked=disabled||write.busy||write.uncertain
+ useEffect(()=>{onBusyChange(write.busy||write.uncertain);return()=>onBusyChange(false)},[write.busy,write.uncertain,onBusyChange])
+ async function preview(){setReading(true);setError('');setPlan(null);setConfirmed(false);setNotice(false);try{setPlan(await request<Plan>(`${base}/restore-plan?${new URLSearchParams({space_id:space,component,clip_id:component==='timeline'?'':clip,episode_number:String(episode)})}`))}catch(e){setError(errorMessage(e,t('恢复预览读取失败')))}finally{setReading(false)}}
+ function change(){setPlan(null);setConfirmed(false);setNotice(false)}
+ async function restore(){try{sessionStorage.setItem(marker,revision)}catch{/* The write hook reports unavailable recovery storage. */}await write.save(body)}
+ const mediaURL=(value:string)=>value.startsWith('/')?baseURL+value:value
+ const assetName=(id:string)=>plan?.assets.find(a=>a.id===id)?.name||id||t('无')
+ const body={component,clip_id:component==='timeline'?'':clip,episode_number:episode,expected_project_version:plan?.project_version??0,expected_media_version:plan?.media_version??0}
+ return <section className="series-form" aria-label={t('从修订恢复剪辑')}><h4>{t('从修订恢复剪辑')}</h4><p>{t('先保存当前剪辑，再预览需要恢复的部分。只恢复剪辑内容，不恢复旧权限、模型任务或发布状态。')}</p>
+ <fieldset disabled={locked||reading}><label>{t('恢复范围')}<select value={component} onChange={e=>{setComponent(e.target.value);change()}}><option value="subtitles">{t('此镜头的字幕')}</option><option value="audio">{t('此镜头的声音')}</option><option value="clip">{t('完整镜头')}</option><option value="timeline">{t('完整剪辑')}</option></select></label><label>{t('剪辑集数')}<select value={episode} onChange={e=>{setEpisode(Number(e.target.value));setClip(timelines[e.target.value]?.clips?.[0]?.id??'');change()}}>{Object.keys(timelines).sort((a,b)=>Number(a)-Number(b)).map(n=><option key={n} value={n}>{t('第 {p0} 集',{p0:n})}</option>)}</select></label>{component!=='timeline'&&<label>{t('要恢复的镜头')}<select value={clip} onChange={e=>{setClip(e.target.value);change()}}><option value="">{t('选择镜头')}</option>{clips.map((v,i)=><option key={v.id} value={v.id}>{i+1} · {v.subtitle||v.id}</option>)}</select></label>}<button disabled={!Number.isSafeInteger(episode)||episode<1||(component!=='timeline'&&!clip.trim())} onClick={()=>void preview()}>{t(reading?'正在核对…':'预览恢复结果')}</button></fieldset>
+ {error&&<p role="alert" className="error">{error}</p>}{write.error&&<p role="alert" className="error">{write.error}</p>}{write.storageNotice&&<p role="status">{write.storageNotice}</p>}
+ {plan&&<><p>{t('来源：项目版本 {project} · 素材版本 {media}',{project:plan.project_version,media:plan.media_version})}</p><div className="revision-comparison">{[{title:'当前剪辑',timeline:plan.current_timeline},{title:'恢复后剪辑',timeline:plan.timeline}].map(column=><section key={column.title}><h5>{t(column.title)}</h5><ul className="drama-history">{(column.timeline.clips??[]).map((v,i)=><li key={v.id}><strong>{t('镜头 {number}',{number:i+1})}</strong> · {v.duration}s<p>{assetName(v.asset_id)}</p>{plan.assets.filter(a=>a.id===v.asset_id).map(a=>a.kind==='image'?<img key={a.id} src={mediaURL(a.file_url)} alt={a.name} loading="lazy"/>:a.kind==='video'?<video key={a.id} controls preload="metadata" src={mediaURL(a.file_url)}/>:null)}<p>{v.subtitle}</p><p>{t('配音：{asset} · 音量 {volume}',{asset:assetName(v.audio_asset_id),volume:v.audio_volume??1})}</p>{plan.assets.filter(a=>a.id===v.audio_asset_id&&a.kind==='audio').map(a=><audio key={a.id} controls preload="metadata" src={mediaURL(a.file_url)}/>)}<p>{t(v.preserve_source_audio?'保留素材原声':'不保留素材原声')}</p>{Boolean(v.subtitle_cues?.length)&&<p>{t('字幕时间段 {count} 处',{count:v.subtitle_cues!.length})}</p>}</li>)}</ul></section>)}</div><p>{t('素材预览未渲染剪辑效果，恢复后需要重新合成成片。')}</p>{!plan.changed&&<p>{t('所选内容与当前剪辑相同。')}</p>}<label><input type="checkbox" disabled={locked} checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>{t('已核对预览，确认覆盖所选剪辑内容')}</label><button className="primary" disabled={locked||!confirmed||!plan.changed} onClick={()=>void restore()}>{t('确认恢复剪辑')}</button></>}
+ {write.uncertain&&<><p role="status">{t('恢复结果待核对，请使用原请求重试。不会重复覆盖后来的修改。')}</p><button disabled={disabled||write.busy} onClick={()=>void restore()}>{t('使用原请求核对结果')}</button></>}{notice&&<p role="status">{t('剪辑已恢复，历史成片保留；需要新的成片时请重新合成。')}</p>}
+ </section>
+}

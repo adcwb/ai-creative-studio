@@ -150,3 +150,9 @@
 .model-config-panel input:not([type=checkbox]), .governance-panel input { width: 100%; max-width: 420px; }
 
 .media-assets img { aspect-ratio: 4 / 3; object-fit: contain; }
+
+.revision-comparison { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
+.revision-comparison section,.team-space-actions { min-width:0; overflow-wrap:anywhere; }
+@media(max-width:700px){.revision-comparison{grid-template-columns:minmax(0,1fr)}}
+
+.revision-comparison img,.revision-comparison video,.revision-comparison audio{max-width:100%;max-height:220px;object-fit:contain}

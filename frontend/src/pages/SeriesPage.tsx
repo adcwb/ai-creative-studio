@@ -1,4 +1,6 @@
+import {hasPermission} from '../permissions'
 import {WritingWorkspace} from '../features/series/WritingWorkspace'
+import {SeasonDelivery} from '../features/series/SeasonDelivery'
 import {useEffect,useState} from 'react'
 import {Link,useNavigate,useParams} from 'react-router-dom'
 import {useAppWorkspace} from '../app/workspace'
@@ -30,7 +32,7 @@ function SeriesWorkspace({id}:{id:string}){
  const close=()=>setMode('')
  const onSaved=()=>{setMode('');refresh()}
  const season=seasons.items.find(n=>n.id===selected)??seasons.items[0]
- const writable=space?.role!=='viewer'
+ const writable=hasPermission(space,'workspace.write')
 
  return <div className="projects-page series-page"><Link className="project-back" to="/projects?view=series">{t('返回系列目录')}</Link>
  {error&&<div className="error" role="alert">{error}<button onClick={refresh}>{t('重新读取目录')}</button></div>}
@@ -50,15 +52,16 @@ function SeriesWorkspace({id}:{id:string}){
  {mode==='season'&&season&&<SeriesForm key={season.id} kind="season" item={season} onCancel={close} onSaved={onSaved} onRefresh={refresh}/>}
  {mode==='move-season'&&season&&<SeriesMoveForm item={season} parent={root} onCancel={close} onSaved={onSaved}/>}
  {season&&<WritingWorkspace root={root.id} season={season}/>}
+ {season&&<SeasonDelivery key={`${space!.id}:${season.id}`} space={space!.id} season={season.id}/>}
  {season&&<EpisodeDirectory key={`${season.id}:${mode!==''}`} root={root} season={season} revision={revision} refresh={refresh} disabled={mode!==''}/>}
  </>}
  </div>
 }
 function EpisodeDirectory({root,season,revision,refresh,disabled}:{root:SeriesEntry;season:SeriesEntry;revision:number;refresh:()=>void;disabled:boolean}){
  const {t}=useI18n();const {space,requestLeave}=useAppWorkspace();const navigate=useNavigate()
- const list=useDirectory(`/seasons/${season.id}/episodes`,space!.id,revision)
+ const list=useDirectory(`/seasons/${season.id}/episodes?include_production=true`,space!.id,revision)
  const [mode,setMode]=useState(''),[selected,setSelected]=useState('')
- const writable=space?.role!=='viewer'
+ const writable=hasPermission(space,'workspace.write')
  const item=list.items.find(n=>n.id===selected)
  const close=()=>setMode('')
  const saved=()=>{setMode('');refresh()}
@@ -68,7 +71,7 @@ function EpisodeDirectory({root,season,revision,refresh,disabled}:{root:SeriesEn
  {mode==='move'&&item&&!disabled&&<SeriesMoveForm key={item.id} item={item} parent={season} onCancel={close} onSaved={saved}/>}
  {list.loading&&<p className="loading-block" role="status">{t('正在读取剧集…')}</p>}{list.error&&<div className="error" role="alert">{list.error}<button onClick={refresh}>{t('重新读取目录')}</button></div>}
  {!list.loading&&!list.error&&!list.items.length&&<section className="panel page-empty"><h3>{t('这一季的故事等待开场')}</h3><p>{t('添加第一集，写下本集的冲突、转折与结尾。')}</p></section>}
- <div className="project-grid">{list.items.map(n=><article className="project-card series-episode-card" key={n.id}><div className="project-card-icon"><span>{t('第 {p0} 集',{p0:n.ordinal??1})}</span><span>{t(episodeStatus[n.status]??'待创作')}</span></div><h3><Link to={`/projects/${n.project_id}/brief`}>{n.title}</Link></h3><p>{n.summary}</p><div className="project-card-footer"><span>{n.profile.duration_seconds}{t('秒')} · {n.profile.output_resolution}</span></div><div className="series-card-actions"><Link className="button-link" to={`/projects/${n.project_id}/brief`}>{t('进入这一集')}</Link>{writable&&<><button disabled={disabled} onClick={()=>requestLeave(()=>{setSelected(n.id);setMode('edit')})}>{t('制作设置')}</button><button disabled={disabled} onClick={()=>requestLeave(()=>{setSelected(n.id);setMode('move')})}>{t('调整集号')}</button></>}</div></article>)}</div>
+ <div className="project-grid">{list.items.map(n=><article className="project-card series-episode-card" key={n.id}><div className="project-card-icon"><span>{t('第 {p0} 集',{p0:n.ordinal??1})}</span><span>{t('手动标记：{status}',{status:t(episodeStatus[n.status]??'待创作')})}</span></div><h3><Link to={`/projects/${n.project_id}/brief`}>{n.title}</Link></h3><p>{n.summary}</p>{n.production&&<div className="episode-production"><strong>{t("制作进展")}</strong><p>{t(n.production.script?"已有剧本":"等待剧本")} · {t(n.production.storyboard_stale?"分镜需随剧本复查":n.production.storyboard?"已有分镜":"等待分镜")}</p><p>{t("镜头已选 {adopted}/{shots} · 待处理审片 {reviews}",{adopted:n.production.adopted_shots,shots:n.production.shots,reviews:n.production.open_reviews})}</p><p>{t(n.production.export_id?"已有正式成片，交付前请核对版本":"尚无正式成片")}</p><div className="series-card-actions"><Link to={`/projects/${n.project_id}/script`}>{t("编剧工作区")}</Link><Link to={`/projects/${n.project_id}/storyboard`}>{t("镜头工作区")}</Link><Link to={`/projects/${n.project_id}/media`}>{t("审片与成片")}</Link></div></div>}<div className="project-card-footer"><span>{n.profile.duration_seconds}{t('秒')} · {n.profile.output_resolution}</span></div><div className="series-card-actions"><Link className="button-link" to={`/projects/${n.project_id}/brief`}>{t('进入这一集')}</Link>{writable&&<><button disabled={disabled} onClick={()=>requestLeave(()=>{setSelected(n.id);setMode('edit')})}>{t('制作设置')}</button><button disabled={disabled} onClick={()=>requestLeave(()=>{setSelected(n.id);setMode('move')})}>{t('调整集号')}</button></>}</div></article>)}</div>
  {list.next_cursor&&<button disabled={list.more||list.loading} onClick={()=>void list.loadMore()}>{list.more?t('正在读取…'):t('加载更多剧集')}</button>}
  </section>
 }

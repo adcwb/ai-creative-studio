@@ -1,3 +1,4 @@
+import {LibraryImpact} from './LibraryImpact'
 import {NativeVoiceEditor} from './NativeVoiceEditor'
 import {LibraryAuthorization} from './LibraryAuthorization'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -74,10 +75,11 @@ export function LibraryEditor({space, initial, kind, readOnly, onSaved, onClose}
   }
   return <section className="panel library-editor" aria-labelledby="library-editor-title">
     <header className="section-heading"><h2 id="library-editor-title">{t(initial ? '编辑资产卡' : '建立资产卡')} · {t(kindLabels[kind])}</h2><button type="button" disabled={busy || uncertain || authorizationPending} onClick={onClose}>{t('返回资产列表')}</button></header>
-    <p className="drama-help">{t(kind==='style'||kind==='voice'?'版本固定保存创作意图；新版本不会自动改变已有作品。使用时请明确选择版本。':'版本固定引用；新版本不会自动改变已有镜头。参考图改善一致性，不保证锁脸或商品细节完全一致。')}</p>{kind==='voice'&&<p className="editing-note">{t('声音卡分别保存表演意图与可选原生音色；原生音色只传入音色标识，备注不会作为对白朗读。保存不会调用模型，也不代表克隆授权。')}</p>}{kind==='style'&&<p className="drama-help">{t('记录色彩、线条、构图与质感。保存参考不会自动获得使用许可，也不会改变已有作品。')}</p>}
+    <p className="drama-help">{t(kind==='prop'?'记录道具外观、剧情用途和状态，按每集需要固定版本；新版本不会自动修复旧镜头中的磨损。':kind==='style'||kind==='voice'?'版本固定保存创作意图；新版本不会自动改变已有作品。使用时请明确选择版本。':'版本固定引用；新版本不会自动改变已有镜头。参考图改善一致性，不保证锁脸或商品细节完全一致。')}</p>{kind==='voice'&&<p className="editing-note">{t('声音卡分别保存表演意图与可选原生音色；原生音色只传入音色标识，备注不会作为对白朗读。保存不会调用模型，也不代表克隆授权。')}</p>}{kind==='style'&&<p className="drama-help">{t('记录色彩、线条、构图与质感。保存参考不会自动获得使用许可，也不会改变已有作品。')}</p>}
     {initial?.asset.status === 'archived' && <p role="status">{t('已归档，历史版本仍可查看。')}</p>}
     {error && <p className="error" role="alert">{error}</p>}
     {uncertain && <button disabled={busy} onClick={() => void submit()}>{t('使用原请求核对结果')}</button>}
+    {initial && <LibraryImpact key={`${space}:${initial.asset.id}:${initial.asset.head_version_id}`} space={space} asset={initial.asset.id}/>}
     <form onSubmit={event => {event.preventDefault(); void submit()}}>
       <fieldset disabled={locked} className="library-card-fields"><label>{t('资产名称')}<input required maxLength={80} value={card.name} onChange={event => changeCard({name: event.target.value})} /></label><label>{t('描述')}<textarea maxLength={2000} value={card.description} onChange={event => changeCard({description: event.target.value})} /></label>
         {cardFields[kind].map(([field, label]) => <label key={field}>{t(label)}<textarea maxLength={2000} value={cardText(card,kind,field)} onChange={event => changeCard({[kind]: {...card[kind], [field]: event.target.value}})} /></label>)}

@@ -1,3 +1,4 @@
+import {hasPermission} from '../../permissions'
 import {useCallback,useEffect,useRef,useState} from 'react'
 import {errorMessage,request} from '../../api'
 import {useAppWorkspace} from '../../app/workspace'
@@ -30,11 +31,11 @@ export function StoryChecksPanel({space,episode,snapshot,onChanged,onPendingChan
  const running=write.busy||Boolean(check&&['queued','running'].includes(check.state))
  const ready=Boolean(choice?.model.gateway_id)&&runtimeReady(choice,preview)&&snapshot.context.problems.length===0
  return <section className="story-snapshots" aria-label={t('AI故事连续性检查')}><h3>{t('请AI辅助审阅连续性')}</h3><p className="drama-help">{t('使用真实网关文本模型核对这份资料与剧本。AI可能误判悬念或人物误认，请逐条判断；检查不会自动修改正式资料。')}</p>
- {!write.uncertain&&<RuntimeModelPicker space={space} capability="text" gatewayOnly value={choice} onChange={setChoice} preview={preview} disabled={running||currentSpace?.role==='viewer'}/>}
+ {!write.uncertain&&<RuntimeModelPicker space={space} capability="text" gatewayOnly value={choice} onChange={setChoice} preview={preview} disabled={running||!hasPermission(currentSpace,'workspace.write')}/>}
  {!!snapshot.context.problems.length&&<p className="editing-note">{t('请先处理这份快照中的资料或剧本问题，再保存新快照开始检查。')}</p>}
  {write.uncertain&&<p className="editing-note">{t('上次检查请求尚未确认。使用原选择核对，不会自动创建第二次调用。')}</p>}
  {(write.error||error||jobs.error)&&<p className="error" role="alert">{write.error||error||jobs.error}</p>}{write.storageNotice&&<p role="status">{write.storageNotice}</p>}
- {currentSpace?.role!=='viewer'&&<button type="button" className="primary" disabled={running||(!write.uncertain&&!ready)} onClick={()=>{const submit=()=>void write.save({context_snapshot_id:snapshot.id,...runtimeFields(choice)});if(reviewPending&&!write.uncertain)requestLeave(submit);else submit()}}>{write.busy?t('正在提交…'):write.uncertain?t('核对原检查请求'):t('发起一次AI连续性检查')}</button>}
+ {hasPermission(currentSpace,'workspace.write')&&<button type="button" className="primary" disabled={running||(!write.uncertain&&!ready)} onClick={()=>{const submit=()=>void write.save({context_snapshot_id:snapshot.id,...runtimeFields(choice)});if(reviewPending&&!write.uncertain)requestLeave(submit);else submit()}}>{write.busy?t('正在提交…'):write.uncertain?t('核对原检查请求'):t('发起一次AI连续性检查')}</button>}
  <div className="series-heading"><h3>{t('本集检查记录')}</h3><button type="button" onClick={()=>setRevision(n=>n+1)}>{t('刷新检查记录')}</button></div>
  {jobs.loading&&<p role="status">{t('正在读取检查记录…')}</p>}{!jobs.loading&&!jobs.error&&!jobs.items.length&&<p className="page-empty">{t('还没有检查记录。保存资料或查看历史不会触发模型调用。')}</p>}
  {jobs.items.map(job=><article className="story-card" key={job.id}><div><h4>{t(stateNames[job.state]??'检查未完成')}</h4><p>{job.model}</p><time dateTime={job.created_at}>{new Date(job.created_at).toLocaleString()}</time></div><button type="button" disabled={loading} onClick={()=>{const open=()=>void read(job.id);if(reviewPending)requestLeave(open);else open()}}>{t('查看检查结果')}</button></article>)}{jobs.next_cursor&&<button type="button" disabled={jobs.more} onClick={()=>void jobs.loadMore()}>{t('加载更多检查')}</button>}

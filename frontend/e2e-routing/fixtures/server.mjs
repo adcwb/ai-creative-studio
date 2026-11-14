@@ -93,7 +93,14 @@ const server = http.createServer(async (req, res) => {
     const task = {...baseTask, ...input, id: 'image-' + (state.tasks.length + 1), space_id: spaceID}
     state.tasks.push(task); state.receipts.set(key, task); return send(task, 201)
   }
-  if (path === '/tasks') return send(state.tasks.filter(task => task.space_id === spaceID))
+  if (path === '/tasks') {
+    const tasks = state.tasks.filter(task => task.space_id === spaceID).sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
+    if (!url.searchParams.has('page') && !url.searchParams.has('page_size')) return send(tasks)
+    const requested = Number(url.searchParams.get('page') ?? 1), size = Number(url.searchParams.get('page_size') ?? 6)
+    if (!Number.isInteger(requested) || requested < 1 || !Number.isInteger(size) || size < 1 || size > 100) return send({error: {code: 'invalid_input', message: '分页参数无效'}}, 400)
+    const page = Math.min(requested, Math.max(1, Math.ceil(tasks.length / size)))
+    return send({items: tasks.slice((page - 1) * size, page * size), total: tasks.length, page, page_size: size, running: tasks.filter(task => ['queued', 'running'].includes(task.status)).length})
+  }
   if (path === '/assets') return send(state.assets.filter(asset => asset.space_id === spaceID))
   if (path.startsWith('/library/assets')) {
     if (req.method !== 'GET' && state.role === 'viewer') return send({error: {code: 'role_denied', message: '只读成员不能修改内容'}}, 403)

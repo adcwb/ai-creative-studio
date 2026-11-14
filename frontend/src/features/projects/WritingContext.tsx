@@ -1,3 +1,4 @@
+import {hasPermission} from '../../permissions'
 import {StoryContextSourcePicker} from '../series/StoryContextSourcePicker'
 import {useSeriesEpisode} from '../series/episodeContext'
 import {StoryEvidenceViewer} from '../series/StoryEvidenceViewer'
@@ -46,7 +47,7 @@ export function WritingSourceReview({episode,space,contextID,projectVersion,onCh
  useEffect(()=>onChange(current?{id:current.id,ready:ready&&!write.busy&&!write.uncertain&&current.project_version===projectVersion,changed}:noReview),[current,ready,changed,projectVersion,write.busy,write.uncertain,onChange])
  return <section className="editing-note" aria-label={t('写作来源对照')}><h4>{t('写作来源对照')}</h4><p>{t('采纳前核对生成时与现在的正式资料。变化只作为创作判断依据，不会自动改候选或重新调用模型。')}</p>{error&&<p className="error" role="alert">{error}</p>}
  <button type="button" disabled={write.busy||write.uncertain} onClick={()=>setRevision(n=>n+1)}>{t('核对生成时的来源')}</button>
- {original&&<><details><summary>{t('生成时采用的正式资料')}</summary><ContextMaterial snapshot={original}/></details><button type="button" disabled={write.busy||workspaceSpace?.role==='viewer'} onClick={()=>void write.save(original.context.selection)}>{t(write.uncertain?'核对原资料准备请求':'准备现在的对照资料')}</button></>}
+ {original&&<><details><summary>{t('生成时采用的正式资料')}</summary><ContextMaterial snapshot={original}/></details><button type="button" disabled={write.busy||!hasPermission(workspaceSpace,'workspace.write')} onClick={()=>void write.save(original.context.selection)}>{t(write.uncertain?'核对原资料准备请求':'准备现在的对照资料')}</button></>}
  {current&&current.id!==original?.id&&<details open><summary>{t('本次核对的正式资料')}</summary><ContextMaterial snapshot={current}/></details>}{!ready&&<p role="status">{t('来源已更新或尚未核对，请准备现在的对照资料后再决定。')}</p>}{write.error&&<p role="alert" className="error">{write.error}</p>}{write.storageNotice&&<p role="status">{write.storageNotice}</p>}
  </section>
 }
