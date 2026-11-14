@@ -58,8 +58,8 @@ export async function chooseLanguage(page: Page, locale: string) {
     if (previous !== '/settings/preferences') {await page.goBack(); await expect.poll(() => new URL(page.url()).pathname).toBe(previous)}
   }
 }
-export async function openCreativeTools(page: Page) {
+export async function openVersionHistory(page: Page) {
   await projectStep(page, 'script')
-  const tools = page.locator('.project-tools')
+  const tools = page.locator('.panel.drama-history')
   if (await tools.getAttribute('open') === null) await tools.locator('summary').first().click()
 }

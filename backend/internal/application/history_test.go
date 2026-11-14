@@ -2,11 +2,12 @@ package application
 
 import (
 	"errors"
+	"path/filepath"
 	"testing"
 )
 
 func TestHistoryRestoreDurableIdempotentAndIsolated(t *testing.T) {
-	dir := t.TempDir()
+	dir := filepath.Join(t.TempDir(), "store")
 	s, e := OpenStore(dir)
 	if e != nil {
 		t.Fatal(e)
@@ -57,7 +58,7 @@ func TestHistoryRestoreDurableIdempotentAndIsolated(t *testing.T) {
 }
 
 func TestStoryboardHistoryRestoreKeepsSourceAndIncrementsVersion(t *testing.T) {
-	s, e := OpenStore(t.TempDir())
+	s, e := OpenStore(filepath.Join(t.TempDir(), "store"))
 	if e != nil {
 		t.Fatal(e)
 	}

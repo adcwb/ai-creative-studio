@@ -107,13 +107,13 @@ try {
         await expect(page.getByLabel('项目名称')).toBeVisible()
       }
       if (state === 'empty') await expect(page.locator('.drama-brief')).toBeVisible()
-      else if (state === 'failed') await expect(page.getByRole('region', {name: '生成模拟剧本', exact: true})).toContainText('mock_script_failed')
+      else if (state === 'failed') await expect(page.getByRole('region', {name: '模拟剧本', exact: true})).toContainText('mock_script_failed')
       else await expect(page.locator('.drama-scene')).toHaveCount(3)
       if (state === 'editing') await page.getByRole('button',{name:'编辑剧本',exact:true}).click()
       const geometry = await checkProjectLayout(page, expect)
       expect(errors).toEqual([]); measurements.push({state,name:view.name,...geometry})
       if (state==='generated' && ['desktop-1440','mobile-390'].includes(view.name)) await page.screenshot({path:join(output,`script-${view.name}.png`),fullPage:true})
-      const lastControl = state==='editing' ? page.getByRole('button',{name:'保存剧本',exact:true}) : state==='empty' ? page.getByRole('button',{name:'创建项目',exact:true}) : page.locator('.project-tools > summary')
+      const lastControl = state==='editing' ? page.getByRole('button',{name:'保存剧本',exact:true}) : state==='empty' ? page.getByRole('button',{name:'创建项目',exact:true}) : page.locator('.panel.drama-history > summary')
       await lastControl.scrollIntoViewIfNeeded(); await expect(lastControl).toBeInViewport()
       if (state==='long') {await page.locator('.drama-scene').last().locator('.drama-dialogue p').last().scrollIntoViewIfNeeded();await expect(page.locator('.drama-scene').last().locator('.drama-dialogue p').last()).toBeInViewport()}
     }

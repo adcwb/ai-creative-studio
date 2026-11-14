@@ -221,7 +221,7 @@ func (s *FileStore) UpdateProject(space, id, key string, in ProjectUpdate) (Proj
 func (s *FileStore) CreateScriptGeneration(space, id, key string, in ScriptGenerationInput) (ScriptGeneration, bool, error) {
 	contextSHA := ""
 	if in.ContextID != "" {
-		if g, found, e := s.replayScriptCandidate(space, id, key, in); e != nil || found {
+		if g, found, e := s.replayScriptGeneration(space, id, key, in); e != nil || found {
 			return g, false, e
 		}
 		snapshot, e := s.prepareWritingContext(space, id, in)

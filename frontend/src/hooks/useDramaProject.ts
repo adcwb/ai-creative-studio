@@ -108,7 +108,7 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
     }
   }
 
-  function submit(operation: Operation) {
+  function submit(operation: Operation, contextID = '') {
     if (inFlight.current || uncertain || generationActive(project) || loading || conflict) return
     const error = operation === 'create' || operation === 'brief' ? projectDraftError(draft) : operation === 'script' && script ? scriptDraftError(script) : operation === 'storyboard' ? storyboardDraftError(shots) : ''
     if (error) {setActionError(error); return}
@@ -116,13 +116,13 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
     if (operation === 'generateStoryboard' && !project?.script) return
     if (operation === 'structure' && (briefDirty || editingScript || editingStoryboard)) return
     const selected = operation === 'generateStoryboard' ? storyboardChoice : runtimeChoice
-    const preview = {operation: operation === 'generateStoryboard' ? 'storyboard' as const : 'script' as const, project_id: id ?? '', input: {expected_version: baseline?.version, ...(operation === 'generate' ? {candidate_only: true} : {})}}
+    const preview = {operation: operation === 'generateStoryboard' ? 'storyboard' as const : 'script' as const, project_id: id ?? '', input: {expected_version: baseline?.version, ...(operation === 'generate' && contextID ? {context_snapshot_id: contextID} : {})}}
     if ((operation === 'generate' || operation === 'generateStoryboard') && !creationReady(selected, preview)) return
     const query = new URLSearchParams({space_id: space})
     const projectPath = `/projects/${encodeURIComponent(id ?? '')}`
     const basePath = `${operation === 'create' ? '/projects' : operation === 'generate' ? `${projectPath}/generations` : operation === 'script' ? `${projectPath}/script` : operation === 'storyboard' ? `${projectPath}/storyboard` : operation === 'generateStoryboard' ? `${projectPath}/storyboard-generations` : operation === 'structure' ? `${projectPath}/structure-upgrades` : projectPath}?${query}`
     const path = operation === 'generate' || operation === 'generateStoryboard' ? creationPath(basePath) : basePath
-    const body = JSON.stringify(operation === 'create' ? {structure_version: 2, title: draft.title.trim(), brief: draft.brief.trim()} : operation === 'brief' ? {title: draft.title.trim(), brief: draft.brief.trim(), expected_version: baseline?.version} : operation === 'script' ? {script, expected_version: baseline?.version} : operation === 'storyboard' ? {shots, expected_version: baseline?.version} : operation === 'structure' ? {expected_version: baseline?.version} : {expected_version: baseline?.version, ...(operation === 'generate' ? {candidate_only: true} : {}), ...(selected ? {...runtimeFields(selected), expected_provider: selected.model.provider, expected_model: selected.model.model} : expectedProvider ? {expected_provider: expectedProvider, expected_model: expectedModel ?? ''} : {})})
+    const body = JSON.stringify(operation === 'create' ? {structure_version: 2, title: draft.title.trim(), brief: draft.brief.trim()} : operation === 'brief' ? {title: draft.title.trim(), brief: draft.brief.trim(), expected_version: baseline?.version} : operation === 'script' ? {script, expected_version: baseline?.version} : operation === 'storyboard' ? {shots, expected_version: baseline?.version} : operation === 'structure' ? {expected_version: baseline?.version} : {expected_version: baseline?.version, ...(operation === 'generate' && contextID ? {context_snapshot_id: contextID} : {}), ...(selected ? {...runtimeFields(selected), expected_provider: selected.model.provider, expected_model: selected.model.model} : expectedProvider ? {expected_provider: expectedProvider, expected_model: expectedModel ?? ''} : {})})
     if (attempt.current?.path !== path || attempt.current.body !== body) attempt.current = {operation, path, body, key: crypto.randomUUID()}
     void execute(attempt.current)
   }
@@ -137,5 +137,6 @@ export function useDramaProject(space: string, id: string | null, onProject: (pr
   function cancelBrief() {setDraft({title: baselineRef.current?.title ?? '', brief: baselineRef.current?.brief ?? ''}); setActionError('')}
 
   return {shots, setShots, editingStoryboard, setEditingStoryboard, storyboardDirty, cancelStoryboard, project, baseline, draft, setDraft, script, setScript, editingScript, setEditingScript, loading, loadError, actionError, conflict, notice, busy, uncertain, dirty, briefDirty, scriptDirty, historyRevision, submit, reload, cancelScript, cancelBrief,
+    uncertainOperation: uncertain ? attempt.current?.operation : undefined,
     retry: () => {if (attempt.current) void execute(attempt.current)}, locked: Boolean(busy) || uncertain || generationActive(project) || loading || conflict}
 }
