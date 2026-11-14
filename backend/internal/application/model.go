@@ -15,6 +15,7 @@ type Input struct {
 }
 
 type Task struct {
+	HistoryDeleted   bool              `json:"history_deleted,omitempty"`
 	TraceParent      string            `json:"trace_parent,omitempty"`
 	RuntimeSelection *RuntimeSelection `json:"runtime_selection,omitempty"`
 	UpstreamID       string            `json:"upstream_id,omitempty"`
@@ -40,6 +41,7 @@ type Task struct {
 }
 
 func (t Task) Public() Task {
+	t.HistoryDeleted = false
 	t.RuntimeSelection = nil
 	t.SVG = ""
 	t.Key = ""

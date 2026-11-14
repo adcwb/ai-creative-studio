@@ -11,7 +11,7 @@ export function useWorkspace(space: string, reading = true) {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [running, setRunning] = useState(0)
-  const pageSize = 6
+  const pageSize = 4
   const [assets, setAssets] = useState<Asset[]>([])
   const [loading, setLoading] = useState(true)
   const [connectionError, setConnectionError] = useState('')
@@ -146,6 +146,22 @@ export function useWorkspace(space: string, reading = true) {
   }
 
   function changePage(next: number) {setLoading(true); setPage(next)}
+  async function deleteHistory(id?: string) {
+    if (inFlight.current || saveInFlight.current) return
+    const controller = new AbortController()
+    pending.current.add(controller)
+    inFlight.current = true; setBusy(true); clearFeedback(); mutation.current += 1
+    try {
+      await request<{deleted: number}>(`/tasks${id ? '/' + encodeURIComponent(id) : ''}/history${query}`, {method: 'DELETE', signal: controller.signal})
+      if (active.current && !controller.signal.aborted) setNotice(translate(id ? '创作记录已删除。' : '已清空已结束的创作记录，进行中的任务已保留。'))
+    } catch (error) {
+      if (active.current && !controller.signal.aborted) setActionError(errorMessage(error, translate('未能确认删除结果，请刷新创作记录。')))
+      throw error
+    } finally {
+      pending.current.delete(controller); inFlight.current = false
+      if (active.current && !controller.signal.aborted) {setBusy(false); setRevision(value => value + 1)}
+    }
+  }
   return {catalog, catalogError, tasks, assets, loading, connectionError, actionError, notice, busy, saving, page, pageSize, total, running, changePage,
-    create, resume, save, newAttempt, clearFeedback, updateTask, reconnect: () => setRevision(value => value + 1)}
+    create, resume, save, deleteHistory, newAttempt, clearFeedback, updateTask, reconnect: () => setRevision(value => value + 1)}
 }

@@ -11,6 +11,180 @@
     }
   ],
   "paths": {
+    "/api/v1/tasks/{id}/history": {
+      "delete": {
+        "operationId": "deleteImageTaskHistory",
+        "summary": "Permanently remove a completed image creation from history",
+        "description": "Requires workspace.write and normal session CSRF validation. Only succeeded and failed records are removed from history. Queued and running tasks remain. No model call, cancellation, asset deletion or restore operation. Repeated removal is safe.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "History permanently removed. Execution receipts and saved asset source bytes remain available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "deleted"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "deleted": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "当前空间中无此记录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A selected task is still queued or running."
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/history": {
+      "delete": {
+        "operationId": "clearImageTaskHistory",
+        "summary": "Permanently clear completed image creation history in the current space",
+        "description": "Requires workspace.write and normal session CSRF validation. Only succeeded and failed records are removed from history. Queued and running tasks remain. No model call, cancellation, asset deletion or restore operation. Repeated removal is safe.",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "History permanently removed. Execution receipts and saved asset source bytes remain available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "deleted"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "deleted": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "当前空间中无此记录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A selected task is still queued or running."
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "operationId": "health",
@@ -132,7 +306,7 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 100,
-              "default": 6
+              "default": 4
             }
           }
         ],

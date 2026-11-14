@@ -20,7 +20,7 @@ func listTasks(w http.ResponseWriter, r *http.Request, tasks []Task) {
 		respond(w, 200, tasks)
 		return
 	}
-	page, size := 1, 6
+	page, size := 1, 4
 	var err error
 	if q.Has("page") {
 		page, err = strconv.Atoi(q.Get("page"))

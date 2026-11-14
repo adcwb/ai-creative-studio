@@ -34,7 +34,7 @@ func TestTaskPaginationCompatibilityBoundariesAndIsolation(t *testing.T) {
 	for _, test := range []struct {
 		query       string
 		page, count int
-	}{{"&page=1&page_size=6", 1, 6}, {"&page=2&page_size=6", 2, 2}, {"&page=999999999&page_size=6", 2, 2}, {"&page_size=100", 1, 8}} {
+	}{{"&page=1", 1, 4}, {"&page=2", 2, 4}, {"&page=1&page_size=6", 1, 6}, {"&page=2&page_size=6", 2, 2}, {"&page=999999999&page_size=6", 2, 2}, {"&page_size=100", 1, 8}} {
 		w := read(test.query)
 		var page TaskPage
 		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &page) != nil || page.Page != test.page || len(page.Items) != test.count || page.Total != 8 || page.Running != 0 {

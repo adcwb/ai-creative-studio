@@ -33,6 +33,7 @@ func Handler(repo Repository, origin string) http.Handler {
 	registerProjectRoutes(mux, repo)
 	registerStoryboardRoutes(mux, repo)
 	if store, ok := repo.(*FileStore); ok {
+		registerTaskHistory(mux, store)
 		store.media.resumePendingExports()
 		store.startStoryChecks()
 		registerSeriesRoutes(mux, store)
@@ -148,7 +149,7 @@ func Handler(repo Repository, origin string) http.Handler {
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, X-CSRF-Token, X-Chunk-SHA256")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, POST, PUT, PATCH, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS")
 		}
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(204)

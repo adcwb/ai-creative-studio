@@ -23,7 +23,7 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5178')
   res.setHeader('Access-Control-Allow-Credentials', 'true')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-CSRF-Token, Idempotency-Key')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
   if (req.method === 'OPTIONS') {res.writeHead(204); res.end(); return}
   const url = new URL(req.url, 'http://127.0.0.1:5189')
   const path = url.pathname.replace(/^\/api\/v1/, '')
@@ -87,6 +87,16 @@ const server = http.createServer(async (req, res) => {
     if (input.expected_version !== (old?.version ?? 0)) return send({error: {code: 'model_config_conflict', message: '配置已更新'}}, 409)
     state.management.bindings = [...state.management.bindings.filter(item => item.feature_key !== key), {...input.binding, feature_key: key, version: (old?.version ?? 0) + 1}]; state.management.version++; return send(state.management)
   }
+  if (req.method === 'DELETE' && (path === '/tasks/history' || /^\/tasks\/[^/]+\/history$/.test(path))) {
+    if (state.role === 'viewer') return send({error: {code: 'role_denied', message: '只读成员不能删除记录'}}, 403)
+    const id = path === '/tasks/history' ? null : path.split('/')[2]
+    const task = id && state.tasks.find(t => t.id === id && t.space_id === spaceID)
+    if (id && !task) return send({error: {code: 'not_found', message: '记录不存在'}}, 404)
+    if (task && !['succeeded', 'failed'].includes(task.status)) return send({error: {code: 'conflict', message: '任务仍在执行'}}, 409)
+    let deleted = 0
+    for (const row of state.tasks) if (row.space_id === spaceID && (!id || row.id === id) && !row.history_deleted && ['succeeded', 'failed'].includes(row.status)) {row.history_deleted = true; deleted++}
+    return send({deleted})
+  }
   if (path === '/tasks' && req.method === 'POST') {
     const key = req.headers['idempotency-key']
     if (state.receipts.has(key)) return send(state.receipts.get(key))
@@ -94,9 +104,9 @@ const server = http.createServer(async (req, res) => {
     state.tasks.push(task); state.receipts.set(key, task); return send(task, 201)
   }
   if (path === '/tasks') {
-    const tasks = state.tasks.filter(task => task.space_id === spaceID).sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
+    const tasks = state.tasks.filter(task => task.space_id === spaceID && !task.history_deleted).sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
     if (!url.searchParams.has('page') && !url.searchParams.has('page_size')) return send(tasks)
-    const requested = Number(url.searchParams.get('page') ?? 1), size = Number(url.searchParams.get('page_size') ?? 6)
+    const requested = Number(url.searchParams.get('page') ?? 1), size = Number(url.searchParams.get('page_size') ?? 4)
     if (!Number.isInteger(requested) || requested < 1 || !Number.isInteger(size) || size < 1 || size > 100) return send({error: {code: 'invalid_input', message: '分页参数无效'}}, 400)
     const page = Math.min(requested, Math.max(1, Math.ceil(tasks.length / size)))
     return send({items: tasks.slice((page - 1) * size, page * size), total: tasks.length, page, page_size: size, running: tasks.filter(task => ['queued', 'running'].includes(task.status)).length})

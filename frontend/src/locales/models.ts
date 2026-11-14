@@ -1,4 +1,7 @@
 const models: Record<string, string> = {
+ '显示 {count} 个模型': 'Showing {count} models',
+ '未声明能力': 'No capabilities declared',
+ '未绑定功能': 'No feature bindings',
  '厂商': 'Vendor',
  '百炼视频使用原生异步生成与任务查询接口。': 'Bailian video uses native asynchronous generation and task polling.',
  '通用 OpenAI 兼容': 'Generic OpenAI compatible',

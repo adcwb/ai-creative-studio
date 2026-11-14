@@ -519,7 +519,7 @@ func (s *FileStore) List(space string) []Task {
 	defer s.mu.Unlock()
 	out := []Task{}
 	for _, t := range s.data.Tasks {
-		if t.SpaceID == space {
+		if t.SpaceID == space && !t.HistoryDeleted {
 			out = append(out, t.Public())
 		}
 	}

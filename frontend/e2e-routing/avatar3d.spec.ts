@@ -58,12 +58,13 @@ test('unavailable WebGL reports a recoverable error without a fake avatar',async
 })
 test('unknown custom upload can recover its original server receipt after refresh without retaining or resending the binary',async({page,request},info)=>{
  const {model}=await setup(page,request,info)
- let uploads=0,key=''
+ let uploads=0,key='',registered=false
+ const recovered={...model,id:'recovered-model',name:'我的模型',builtin:'',license_reference:'original-permission'}
  await page.route('**/api/v1/projects/story-1/avatar-3d-models?*',async r=>{
-  if(r.request().method()==='POST'){uploads++;key=r.request().headers()['idempotency-key'];expect(r.request().postDataBuffer()?.toString()).toContain('original-permission');return r.fulfill({status:503,json:{error:{code:'store_unavailable',message:'保存结果暂时无法确认'}}})}
-  return r.fulfill({json:[]})
+  if(r.request().method()==='POST'){registered=true;uploads++;key=r.request().headers()['idempotency-key'];expect(r.request().postDataBuffer()?.toString()).toContain('original-permission');return r.fulfill({status:503,json:{error:{code:'store_unavailable',message:'保存结果暂时无法确认'}}})}
+  return r.fulfill({json:registered?[recovered]:[]})
  })
- await page.route('**/api/v1/projects/story-1/avatar-3d-models/requests/*/result?*',r=>{expect(r.request().url()).toContain(`/requests/${key}/result`);return r.fulfill({json:{...model,id:'recovered-model',name:'我的模型',builtin:'',license_reference:'original-permission'}})})
+ await page.route('**/api/v1/projects/story-1/avatar-3d-models/requests/*/result?*',r=>{expect(r.request().url()).toContain(`/requests/${key}/result`);return r.fulfill({json:recovered})})
  await page.goto('/digital-humans/3d/story-1')
  await page.locator('summary').filter({hasText:'添加三维角色'}).click()
  await page.getByRole('textbox',{name:'角色名称',exact:true}).fill('我的模型')
@@ -80,5 +81,6 @@ test('unknown custom upload can recover its original server receipt after refres
  expect(await page.getByLabel('选择GLB文件',{exact:true}).evaluate((input:HTMLInputElement)=>input.files?.length)).toBe(0)
  await page.getByRole('button',{name:'核对原模型登记',exact:true}).click()
  await expect(page.getByRole('combobox',{name:'三维角色',exact:true})).toHaveValue('recovered-model')
- expect(uploads).toBe(1)
+ const listed=await page.evaluate(async()=>await(await fetch('http://127.0.0.1:5189/api/v1/projects/story-1/avatar-3d-models?space_id=personal-demo',{credentials:'include'})).json() as {id:string}[])
+ expect(listed.map(v=>v.id)).toContain('recovered-model');expect(uploads).toBe(1)
 })
