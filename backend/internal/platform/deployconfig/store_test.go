@@ -153,3 +153,68 @@ func TestEmbeddedURLSecretsAndModerationMode(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestAvatarFileProtocolConfigurationPersistsAndLoadsOnlyOnRestart(t *testing.T) {
+	old := beforeLoad
+	t.Cleanup(func() { beforeLoad = old })
+	for _, key := range []string{"DIGITAL_HUMAN_PHOTO_COMMAND", "DIGITAL_HUMAN_PHOTO_MODEL", "DIGITAL_HUMAN_PHOTO_PROTOCOL", "DIGITAL_HUMAN_PHOTO_TIMEOUT_SECONDS", "DIGITAL_HUMAN_LICENSE_ACK", "LIP_SYNC_PROTOCOL", "LIP_SYNC_TIMEOUT_SECONDS"} {
+		t.Setenv(key, "")
+	}
+	s := configStore(t)
+	initial, err := s.Report()
+	if err != nil {
+		t.Fatal(err)
+	}
+	changes := map[string]*string{"DIGITAL_HUMAN_PHOTO_COMMAND": pointer(filepath.Join(t.TempDir(), "trusted-engine")), "DIGITAL_HUMAN_PHOTO_MODEL": pointer("synthetic-contract"), "DIGITAL_HUMAN_PHOTO_PROTOCOL": pointer("files-v1"), "DIGITAL_HUMAN_PHOTO_TIMEOUT_SECONDS": pointer("180"), "DIGITAL_HUMAN_LICENSE_ACK": pointer("false"), "LIP_SYNC_PROTOCOL": pointer("files-v1"), "LIP_SYNC_TIMEOUT_SECONDS": pointer("240")}
+	saved, err := s.Save(initial.Version, changes)
+	if err != nil || !saved.RestartRequired {
+		t.Fatal(saved, err)
+	}
+	for key, value := range changes {
+		if got := findField(t, saved, key); got.Value != *value || got.Group != "providers" || !got.Pending {
+			t.Fatal(key, got)
+		}
+		if os.Getenv(key) != "" {
+			t.Fatal("applied without restart", key)
+		}
+	}
+	if err = Load(); err != nil {
+		t.Fatal(err)
+	}
+	for key, value := range changes {
+		if os.Getenv(key) != *value {
+			t.Fatal("startup did not apply", key)
+		}
+	}
+	reopened, err := Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := reopened.Report()
+	if err != nil || report.RestartRequired {
+		t.Fatal(report, err)
+	}
+	for _, bad := range []struct{ key, value string }{{"DIGITAL_HUMAN_PHOTO_PROTOCOL", "shell"}, {"LIP_SYNC_PROTOCOL", "files-v2"}, {"DIGITAL_HUMAN_PHOTO_TIMEOUT_SECONDS", "0"}, {"LIP_SYNC_TIMEOUT_SECONDS", "2147483648"}, {"DIGITAL_HUMAN_LICENSE_ACK", "yes"}} {
+		if _, err = reopened.Save(report.Version, map[string]*string{bad.key: pointer(bad.value)}); !errors.Is(err, ErrInput) {
+			t.Fatal("accepted invalid engine configuration", bad, err)
+		}
+	}
+}
+
+func TestDedicatedCloudAvatarSettingsArePrivateAndExplicit(t *testing.T) {
+	defs := map[string]Field{}
+	for _, f := range definitions() {
+		defs[f.Key] = f
+	}
+	if !defs["DIGITAL_HUMAN_CLOUD_API_KEY"].Secret || defs["DIGITAL_HUMAN_CLOUD_WORKSPACE"].Secret {
+		t.Fatal("incorrect cloud config secret classification")
+	}
+	for _, item := range []struct{ key, value string }{{"DIGITAL_HUMAN_PHOTO_PROVIDER", "dashscope-s2v"}, {"DIGITAL_HUMAN_CLOUD_RESOLUTION", "720P"}} {
+		if !validValue(item.key, item.value) {
+			t.Fatal(item)
+		}
+	}
+	if validValue("DIGITAL_HUMAN_PHOTO_PROVIDER", "generic-video") || validValue("DIGITAL_HUMAN_CLOUD_RESOLUTION", "4K") {
+		t.Fatal("unimplemented cloud capability accepted")
+	}
+}

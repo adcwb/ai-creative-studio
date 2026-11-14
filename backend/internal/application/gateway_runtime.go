@@ -142,6 +142,8 @@ func operationFeature(operation string, in *CreativeJobInput) string {
 		return ""
 	}
 	switch in.Kind {
+	case "text":
+		return "workflow_text"
 	case "outline":
 		return "script_generation"
 	case "analysis":

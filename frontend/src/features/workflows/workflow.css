@@ -1,0 +1,19 @@
+.workflow-studio{min-width:0}.workflow-directory,.workflow-toolbar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:20px}.workflow-directory label,.workflow-toolbar label{display:flex;flex-direction:column;gap:8px;max-width:100%;min-width:180px}.workflow-editor{min-width:0}.workflow-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px}.workflow-layout>div,.workflow-properties{min-width:0}.workflow-canvas{height:560px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface);color:var(--ink)}.workflow-properties{padding:18px;background:var(--surface-subtle,var(--surface));border:1px solid var(--border);border-radius:12px}.workflow-properties label{display:flex;flex-direction:column;gap:8px;margin-block:14px;font-size:13px}.workflow-properties input,.workflow-properties select,.workflow-properties textarea{width:100%;min-width:0}.workflow-properties textarea{min-height:140px}.workflow-properties .runtime-model-picker{margin-block:16px}.workflow-node{width:190px;padding:18px;background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:12px;box-shadow:0 2px 8px #0000000a;overflow-wrap:anywhere}.workflow-node strong,.workflow-node .eyebrow{display:block}.workflow-node p{font-size:12px;line-height:1.5;color:var(--ink-muted);margin-bottom:0}.react-flow__node.selected .workflow-node{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary)}.workflow-node .react-flow__handle{width:12px;height:12px;background:var(--primary);border:2px solid var(--surface)}.workflow-canvas .react-flow__edge-path{stroke:var(--ink-muted);stroke-width:2}.workflow-step-list{margin-top:14px}.workflow-step-list button{margin:8px}.workflow-run article{margin-top:16px}.workflow-result{max-width:100%;max-height:280px;object-fit:contain;display:block}.workflow-run label:has(input[type=checkbox]){display:flex;align-items:center;gap:8px}.workflow-canvas .react-flow__controls button{background:var(--surface);color:var(--ink);border-color:var(--border)}
+@media(max-width:1000px){.workflow-layout{grid-template-columns:minmax(0,1fr)}.workflow-canvas{height:400px}.workflow-properties{max-width:none}.workflow-toolbar>*{max-width:100%}.workflow-directory label,.workflow-toolbar label{flex:1;min-width:0}.workflow-node{font-size:13px}.workflow-step-list button{min-height:44px}}
+
+.workflow-node-state{display:block;font-size:12px;color:var(--ink-muted);margin-top:6px}
+
+@media(max-width:600px){
+ .workflow-toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end}
+ .workflow-toolbar label{grid-column:1/-1;display:flex;width:100%;min-width:0;max-width:none}
+ .workflow-toolbar input,.workflow-toolbar select{width:100%;min-width:0}
+ .workflow-toolbar button{width:100%;min-height:44px;white-space:normal;padding:10px}
+ .workflow-directory{align-items:stretch}.workflow-directory label{flex-basis:100%}
+ .workflow-canvas{height:300px}
+}
+
+.workflow-canvas{--xy-attribution-background-color:var(--surface);--xy-attribution-color:var(--ink-muted);--xy-controls-button-background-color-hover:var(--surface-soft)}
+.workflow-canvas .react-flow__controls button svg{fill:currentColor}
+
+.workflow-studio label:has(input[type=checkbox]){display:flex;align-items:center;justify-content:flex-start;gap:8px}
+.workflow-studio input[type=checkbox]{width:auto;min-width:0;flex:0 0 auto}

@@ -83,6 +83,7 @@ type ModelManagementReport struct {
 func modelFeatures() []FeatureDefinition {
 	return []FeatureDefinition{
 		{"prompt_optimization", "提示词优化", "text"},
+		{"workflow_text", "流程文本处理", "text"},
 		{"brief_analysis", "创意分析", "text"}, {"script_generation", "剧本生成", "text"}, {"storyboard_planning", "分镜规划", "text"}, {"story_continuity", "故事连续性检查", "text"},
 		{"image_generation", "图像创作", "image"}, {"character_image", "角色参考图", "image"}, {"shot_image", "镜头图片", "image"},
 		{"image_edit", "图片编辑", "image_edit"}, {"shot_video", "镜头视频", "video"}, {"speech_synthesis", "配音", "speech"},

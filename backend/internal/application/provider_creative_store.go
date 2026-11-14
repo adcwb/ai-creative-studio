@@ -23,6 +23,13 @@ import (
 )
 
 type CreativeJobInput struct {
+	AvatarSplitMode        string    `json:"avatar_split_mode,omitempty"`
+	AvatarCutPoints        []float64 `json:"avatar_cut_points,omitempty"`
+	AvatarPlanSHA          string    `json:"avatar_plan_sha256,omitempty"`
+	replacement            *avatarReplacementPrepared
+	CloudTransferConfirmed bool   `json:"cloud_transfer_confirmed,omitempty"`
+	VoiceAuthorizationID   string `json:"voice_authorization_id,omitempty"`
+	TextInstruction        string `json:"text_instruction,omitempty"`
 	OutlineScopeSHA256     string `json:"outline_scope_sha256,omitempty"`
 	outlineSnapshot        *outlineSnapshot
 	UseDirectorContext     bool                 `json:"use_director_context,omitempty"`
@@ -53,6 +60,21 @@ type CreativeJobInput struct {
 	Character             string `json:"character,omitempty"`
 }
 type CreativeJob struct {
+	AvatarSplitMode        string                  `json:"avatar_split_mode,omitempty"`
+	AvatarCutPoints        []float64               `json:"avatar_cut_points,omitempty"`
+	AvatarPlanSHA          string                  `json:"avatar_plan_sha256,omitempty"`
+	ReplacementOf          string                  `json:"replacement_of_job_id,omitempty"`
+	ReplacementSegments    []int                   `json:"replacement_segments,omitempty"`
+	ReplacementSourceAsset string                  `json:"replacement_source_asset_id,omitempty"`
+	AvatarSegments         []avatarSegmentProgress `json:"avatar_segments,omitempty"`
+	AvatarCanResume        bool                    `json:"avatar_can_resume,omitempty"`
+	AvatarReviews          []AvatarReview          `json:"avatar_reviews,omitempty"`
+	CloudTransferConfirmed bool                    `json:"cloud_transfer_confirmed,omitempty"`
+	AvatarCheckpoint       *avatarCheckpoint       `json:"avatar_checkpoint,omitempty"`
+	AvatarRecoveryPhase    string                  `json:"avatar_recovery_phase,omitempty"`
+	VoiceAuthorizationID   string                  `json:"voice_authorization_id,omitempty"`
+	TextInstruction        string                  `json:"text_instruction,omitempty"`
+	TextResult             string                  `json:"text_result,omitempty"`
 	OutlineContext         *outlineSnapshot        `json:"outline_context,omitempty"`
 	OutlineResult          *outlineCandidateResult `json:"outline_result,omitempty"`
 	DirectorContext        *DirectorSnapshot       `json:"director_context,omitempty"`
@@ -101,15 +123,18 @@ type CreativeJob struct {
 	Source                ProjectInput      `json:"source"`
 }
 type creativeReceipt struct {
-	AvatarID    string `json:"avatar_id,omitempty"`
-	Fingerprint string `json:"fingerprint"`
-	JobID       string `json:"job_id"`
+	ReviewVersion        int    `json:"review_version,omitempty"`
+	VoiceAuthorizationID string `json:"voice_authorization_id,omitempty"`
+	AvatarID             string `json:"avatar_id,omitempty"`
+	Fingerprint          string `json:"fingerprint"`
+	JobID                string `json:"job_id"`
 }
 type creativeDisk struct {
-	DigitalHumans map[string]DigitalHuman    `json:"digital_humans,omitempty"`
-	Version       int                        `json:"version"`
-	Jobs          map[string]CreativeJob     `json:"jobs"`
-	Receipts      map[string]creativeReceipt `json:"receipts"`
+	VoiceAuthorizations map[string]VoiceAuthorization `json:"voice_authorizations,omitempty"`
+	DigitalHumans       map[string]DigitalHuman       `json:"digital_humans,omitempty"`
+	Version             int                           `json:"version"`
+	Jobs                map[string]CreativeJob        `json:"jobs"`
+	Receipts            map[string]creativeReceipt    `json:"receipts"`
 }
 type creativeStore struct {
 	avatarPhoto            PhotoAvatarProvider
@@ -145,6 +170,9 @@ func openCreativeStore(dir string, database ...*sql.DB) (*creativeStore, error) 
 	if len(database) > 0 {
 		var err error
 		c.pg, err = attachPostgres(database[0], "creative", &c.data, &c.mu)
+		if err == nil {
+			err = wrapCreativeValidation(c)
+		}
 		return c, err
 	}
 	b, err := os.ReadFile(c.path)
@@ -159,7 +187,7 @@ func openCreativeStore(dir string, database ...*sql.DB) (*creativeStore, error) 
 				return nil, errors.New("invalid creative job")
 			}
 			if j.Status == "running" {
-				if (j.Kind == "video" || (j.Kind == "image" && j.Provider == "jimeng-images")) && j.UpstreamID != "" {
+				if avatarRecoveryAvailable(j) || (j.Kind == "video" || (j.Kind == "image" && j.Provider == "jimeng-images")) && j.UpstreamID != "" {
 					j.Status = "queued"
 				} else {
 					j.Status = "failed"
@@ -178,6 +206,9 @@ func openCreativeStore(dir string, database ...*sql.DB) (*creativeStore, error) 
 	return c, nil
 }
 func (c *creativeStore) saveLocked() error {
+	if err := validateVoiceAuthorizations(c.data); err != nil {
+		return err
+	}
 	if c.pg != nil {
 		return c.pg.save(c.data)
 	}
@@ -280,7 +311,19 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	if in.ExpectedVersion < 1 {
 		return CreativeJob{}, false, ErrInvalidProjectInput
 	}
-	if in.Kind != "outline" && in.Kind != "analysis" && in.Kind != "image" && in.Kind != "speech" && in.Kind != "video" && in.Kind != "vision" && in.Kind != "consistency" && in.Kind != "music" && in.Kind != "lip_sync" && in.Kind != "sound_effect" && in.Kind != "digital_human" {
+	if in.Kind != "digital_human_authorized" && in.Kind != "text" && in.Kind != "outline" && in.Kind != "analysis" && in.Kind != "image" && in.Kind != "speech" && in.Kind != "video" && in.Kind != "vision" && in.Kind != "consistency" && in.Kind != "music" && in.Kind != "lip_sync" && in.Kind != "sound_effect" && !isAvatarKind(in.Kind) {
+		return CreativeJob{}, false, ErrInvalidProjectInput
+	}
+	if in.Kind == "text" {
+		var e error
+		in.TextInstruction, e = normalizeProjectText(in.TextInstruction, "文本处理要求", 3, 2000)
+		if e != nil {
+			return CreativeJob{}, false, e
+		}
+		if in.selection == nil || in.selection.GatewayID == "" || in.selection.FeatureKey != "workflow_text" {
+			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
+	} else if in.TextInstruction != "" {
 		return CreativeJob{}, false, ErrInvalidProjectInput
 	}
 	if in.ImageParameters != nil {
@@ -318,6 +361,9 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	fingerprint, _ := projectFingerprint("creative", id, in)
+	if in.replacement != nil {
+		fingerprint = in.replacement.fingerprint
+	}
 	rk := projectReceiptKey(space, key)
 	if r, ok := c.data.Receipts[rk]; ok {
 		if r.Fingerprint != fingerprint {
@@ -363,7 +409,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	if in.selection != nil {
 		caps = in.selectedCaps
 	}
-	if in.Kind == "digital_human" {
+	if isAvatarKind(in.Kind) {
 		// This release only runs operator-installed avatar engines. Do not allow
 		// a generic video model selection to bypass the avatar capability gate.
 		if in.selection != nil || !in.VoiceConfirmed {
@@ -374,6 +420,17 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 			return CreativeJob{}, false, e
 		}
 		in.VoiceConsentReference = consent
+		if in.Kind == "digital_human_authorized" {
+			v, e := s.voiceAuthorizationLocked(space, id, in.VoiceAuthorizationID, in.AudioAssetID)
+			if e != nil {
+				return CreativeJob{}, false, e
+			}
+			if v.ConsentReference != consent {
+				return CreativeJob{}, false, ErrInvalidProjectInput
+			}
+		} else if in.VoiceAuthorizationID != "" {
+			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
 		avatar, e := c.avatarLocked(space, id, in.AvatarID)
 		if e != nil {
 			return CreativeJob{}, false, e
@@ -382,7 +439,20 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 			return CreativeJob{}, false, ErrInvalidProjectInput
 		}
 		in.ReferenceAssetID = avatar.ReferenceAssetID
+		if !validAvatarSplitSpec(in.AvatarSplitMode, in.AvatarCutPoints, in.AvatarPlanSHA) {
+			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
 		caps = c.avatarCaps(avatar.Route)
+		if (in.AvatarSplitMode != "" || len(in.AvatarCutPoints) > 0 || in.AvatarPlanSHA != "") && caps.Provider != wanAvatarProvider {
+			return CreativeJob{}, false, ErrInvalidProjectInput
+		}
+		if caps.Provider == wanAvatarProvider {
+			cloud, ok := c.avatarPhoto.(*avatarCloud)
+			if !ok || in.Kind != "digital_human_authorized" || !in.CloudTransferConfirmed || !cloud.tenants[space] {
+				return CreativeJob{}, false, providerFailure("avatar_cloud_transfer_denied")
+			}
+		}
+
 		media := s.media.Get(id, space)
 		reference, found := mediaAsset(media, avatar.ReferenceAssetID)
 		if !found {
@@ -401,7 +471,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		if avatar.Route == "video" && audio.Duration > reference.Duration+0.1 {
 			return CreativeJob{}, false, projectInputError("配音不能长于参考视频，请裁剪配音或更换视频")
 		}
-	} else if in.AvatarID != "" || in.VoiceConfirmed || in.VoiceConsentReference != "" {
+	} else if in.AvatarSplitMode != "" || len(in.AvatarCutPoints) > 0 || in.AvatarPlanSHA != "" || in.CloudTransferConfirmed || in.VoiceAuthorizationID != "" || in.AvatarID != "" || in.VoiceConfirmed || in.VoiceConsentReference != "" {
 		return CreativeJob{}, false, ErrInvalidProjectInput
 	}
 	libraryPins, libraryContext, err := s.compileLibraryInputs(context.Background(), id, space, &in, caps)
@@ -417,7 +487,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	if (in.Kind == "vision" || in.Kind == "consistency") && in.ReferenceAssetID == "" {
 		return CreativeJob{}, false, projectInputError("图像理解需要选择项目图片")
 	}
-	if in.ReferenceAssetID != "" && in.Kind != "digital_human" {
+	if in.ReferenceAssetID != "" && !isAvatarKind(in.Kind) {
 		if in.Kind != "image" && in.Kind != "video" && in.Kind != "vision" && in.Kind != "consistency" && in.Kind != "lip_sync" {
 			return CreativeJob{}, false, ErrInvalidProjectInput
 		}
@@ -452,7 +522,7 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 		if e != nil || (audioMIME != "audio/wav" && audioMIME != "audio/mpeg") {
 			return CreativeJob{}, false, ErrInvalidProjectInput
 		}
-	} else if in.AudioAssetID != "" && in.Kind != "digital_human" {
+	} else if in.AudioAssetID != "" && !isAvatarKind(in.Kind) {
 		return CreativeJob{}, false, ErrInvalidProjectInput
 	}
 
@@ -511,16 +581,26 @@ func (s *FileStore) createCreativeJob(space, id, key string, in CreativeJobInput
 	if err != nil {
 		return CreativeJob{}, false, err
 	}
-	job := CreativeJob{LibraryMediaPins: pins, PromptSource: in.promptSnapshot, ImageParameters: in.ImageParameters, ReferenceAssetIDs: append([]string(nil), in.ReferenceAssetIDs...), FirstFrameAssetID: in.FirstFrameAssetID, LastFrameAssetID: in.LastFrameAssetID, MotionReferenceAssetID: in.MotionReferenceAssetID, TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), AudioAssetID: in.AudioAssetID, ComparisonAssetID: in.ComparisonAssetID, MaskAssetID: in.MaskAssetID, ReferenceAssetID: in.ReferenceAssetID, ID: jid, SpaceID: space, ProjectID: id, Kind: in.Kind, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Prompt: in.Prompt, ShotID: in.ShotID, Character: in.Character, Source: ProjectInput{Title: p.Title, Brief: p.Brief}, CreatedAt: now, UpdatedAt: now}
+	job := CreativeJob{VoiceAuthorizationID: in.VoiceAuthorizationID, TextInstruction: in.TextInstruction, LibraryMediaPins: pins, PromptSource: in.promptSnapshot, ImageParameters: in.ImageParameters, ReferenceAssetIDs: append([]string(nil), in.ReferenceAssetIDs...), FirstFrameAssetID: in.FirstFrameAssetID, LastFrameAssetID: in.LastFrameAssetID, MotionReferenceAssetID: in.MotionReferenceAssetID, TraceParent: in.traceParent, RuntimeSelection: cloneRuntimeSelection(in.selection), AudioAssetID: in.AudioAssetID, ComparisonAssetID: in.ComparisonAssetID, MaskAssetID: in.MaskAssetID, ReferenceAssetID: in.ReferenceAssetID, ID: jid, SpaceID: space, ProjectID: id, Kind: in.Kind, Provider: caps.Provider, Model: caps.Model, Status: "queued", SourceVersion: p.Version, Prompt: in.Prompt, ShotID: in.ShotID, Character: in.Character, Source: ProjectInput{Title: p.Title, Brief: p.Brief}, CreatedAt: now, UpdatedAt: now}
 	job.DirectorContext = director
 	job.OutlineContext = cloneOutlineSnapshot(in.outlineSnapshot)
 	if director != nil {
 		job.DirectorSourceVersion, job.DirectorSourceSHA256 = director.ProjectVersion, director.SHA256
 	}
-	job.AvatarID, job.VoiceConsentReference, job.VoiceConfirmed, job.AIGenerated = in.AvatarID, in.VoiceConsentReference, in.VoiceConfirmed, in.Kind == "digital_human"
+	job.AvatarSplitMode = in.AvatarSplitMode
+	job.AvatarCutPoints = append([]float64(nil), in.AvatarCutPoints...)
+	job.AvatarPlanSHA = in.AvatarPlanSHA
+	job.CloudTransferConfirmed = in.CloudTransferConfirmed
+	job.AvatarID, job.VoiceConsentReference, job.VoiceConfirmed, job.AIGenerated = in.AvatarID, in.VoiceConsentReference, in.VoiceConfirmed, isAvatarKind(in.Kind)
 	job.LibraryInputs, job.LibraryInputContext = cloneLibraryInputPins(libraryPins), libraryContext
-	if in.Kind == "digital_human" {
+	if isAvatarKind(in.Kind) {
 		job.VoiceConsentBy = in.consentActor
+	}
+	if in.replacement != nil {
+		if err = s.attachAvatarReplacementLocked(space, id, key, &job, in.replacement); err != nil {
+			return CreativeJob{}, false, err
+		}
+		jid = job.ID
 	}
 	c.data.Jobs[jid] = job
 	c.data.Receipts[rk] = creativeReceipt{Fingerprint: fingerprint, JobID: jid}
@@ -709,7 +789,7 @@ func RunCreativeWorker(ctx context.Context, s *FileStore) (workerErr error) {
 			c.mu.Unlock()
 			return err
 		}
-		runCtx, cancel := context.WithTimeout(tracing.WithParent(ctx, job.TraceParent), 10*time.Minute)
+		runCtx, cancel := context.WithTimeout(tracing.WithParent(ctx, job.TraceParent), s.creativeJobTimeout(job))
 		c.cancels[job.ID] = cancel
 		c.mu.Unlock()
 		err := diagnostics.Invoke(runCtx, "worker_panic", func() error { return s.executeCreativeJob(runCtx, &job) })
@@ -770,7 +850,7 @@ func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob
 			return err
 		}
 	}
-	if job.Kind == "digital_human" {
+	if isAvatarKind(job.Kind) {
 		return s.executeDigitalHuman(ctx, job)
 	}
 	if job.Kind == "outline" {
@@ -795,6 +875,20 @@ func (s *FileStore) executeCreativeJobWith(ctx context.Context, job *CreativeJob
 	}()
 	var mime, role string
 	var err error
+	if job.Kind == "text" {
+		if managed == nil || textProvider == nil {
+			return providerFailure("unsupported_capability")
+		}
+		adapter, ok := textProvider.(workflowTextProvider)
+		if !ok {
+			return providerFailure("unsupported_capability")
+		}
+		job.TextResult, err = adapter.TransformCreativeText(ctx, job.TextInstruction, job.Prompt)
+		if err == nil {
+			err = s.execution.ReviewResult(ctx, ExecutionRequest{ID: "creative:" + job.ID, Selection: job.RuntimeSelection, Tenant: job.SpaceID, Provider: job.Provider, Model: job.Model, Capability: "text", Text: job.TextResult})
+		}
+		return err
+	}
 	if job.Kind == "analysis" {
 		if !textCaps.Ready || job.Provider != textCaps.Provider || (job.Provider != "mock-text" && (job.Model == "" || job.Model != textCaps.Model || textProvider == nil)) {
 			return providerFailure("provider_unavailable")
@@ -1187,10 +1281,23 @@ func (s *FileStore) resumeCreativeJob(space, id, jid, key string) (CreativeJob, 
 	if _, running := c.cancels[jid]; running {
 		return CreativeJob{}, ErrGenerationActive
 	}
-	if (job.Kind != "video" && !(job.Kind == "image" && job.Provider == "jimeng-images")) || job.UpstreamID == "" || (job.Status != "failed" && job.Status != "cancelled") {
+	avatarRecovery := isAvatarKind(job.Kind) && avatarRecoveryAvailable(job)
+	if (!avatarRecovery && ((job.Kind != "video" && !(job.Kind == "image" && job.Provider == "jimeng-images")) || job.UpstreamID == "")) || (job.Status != "failed" && job.Status != "cancelled") {
 		return CreativeJob{}, ErrConflict
 	}
-	if c.pg != nil {
+	if avatarRecovery {
+		if (s.pg != nil && s.blobs == nil) || !c.avatarLicenseConfirmed {
+			return CreativeJob{}, ErrProviderNotReady
+		}
+		if _, e := c.avatarLocked(space, id, job.AvatarID); e != nil {
+			return CreativeJob{}, e
+		}
+		if job.Kind == "digital_human_authorized" {
+			if _, e := s.voiceAuthorizationLocked(space, id, job.VoiceAuthorizationID, job.AudioAssetID); e != nil {
+				return CreativeJob{}, e
+			}
+		}
+	} else if c.pg != nil {
 		if (job.Kind != "video" && !(job.Kind == "image" && job.Provider == "jimeng-images")) || job.RuntimeSelection == nil {
 			return CreativeJob{}, ErrExecutionGovernance
 		}
@@ -1260,6 +1367,12 @@ type asyncReferenceImageProvider interface {
 }
 
 func cloneCreativeJob(job CreativeJob) CreativeJob {
+	job.AvatarCutPoints = append([]float64(nil), job.AvatarCutPoints...)
+	job.ReplacementSegments = append([]int(nil), job.ReplacementSegments...)
+	job.AvatarReviews = append([]AvatarReview(nil), job.AvatarReviews...)
+	if job.AvatarCheckpoint != nil {
+		job.AvatarCheckpoint = cloneAvatarCheckpoint(job.AvatarCheckpoint)
+	}
 	job.OutlineContext = cloneOutlineSnapshot(job.OutlineContext)
 	if job.OutlineResult != nil {
 		v := *job.OutlineResult

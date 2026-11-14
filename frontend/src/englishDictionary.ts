@@ -21,5 +21,6 @@ import director from './locales/director'
 import animatic from './locales/animatic'
 import revisions from './locales/revisions'
 import creatorWorkflow from './locales/creatorWorkflow'
-const dictionaries: Record<string, string> = {...drama, ...mediaLegacy, ...core, ...governance, ...runtime, ...mediaComposite, ...poster, ...social, ...douyin, ...navigation, ...digitalHuman, ...library, ...production, ...models, ...appearance, ...mediaOutput, ...prompts, ...writer, ...director, ...animatic, ...revisions, ...creatorWorkflow, ...consumer}
+import workflows from './locales/workflows'
+const dictionaries: Record<string, string> = {...drama, ...mediaLegacy, ...core, ...governance, ...runtime, ...mediaComposite, ...poster, ...social, ...douyin, ...navigation, ...digitalHuman, ...library, ...production, ...models, ...appearance, ...mediaOutput, ...prompts, ...writer, ...director, ...animatic, ...revisions, ...creatorWorkflow, ...workflows, ...consumer}
 export default dictionaries

@@ -28,4 +28,8 @@ FR5 MUST：个人空间保持仅本人，团队改名/退出不能移动作品�
 
 实现位置、接口、迁移与未完成边界见 [implementation.md](implementation.md)；精确验证记录见 [validation.md](validation.md)。
 
+发布记录：源码与本规格包已推送为 `486ef479b4906aa6c3ddc6a37516d33c0da818de`；[CI 43475422718](https://github.com/adcwb/ai-creative-studio/actions/runs/43475422718) 的 25 项检查全部成功。没有部署生产。运行后的验收补记在下一阶段本地文档提交中归档，不据此虚构额外远端代码。
+
+[第 6–10 项原清单的具体剩余缺口](remaining-gaps.md)单独列明已实现、未覆盖与未验收。
+
 补齐工作见 [第6–10项继续实施](../2026-11-13-creator-completion/README.md) 与 [具体缺口](remaining-gaps.md)。

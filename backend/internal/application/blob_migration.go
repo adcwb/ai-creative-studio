@@ -102,6 +102,24 @@ func MigrateBlobStorage(ctx context.Context, dir string, store BlobStore, toFile
 			}
 		}
 	}
+	avatarRefs, e := fileAvatarCheckpointReferences(dir)
+	if e != nil {
+		return report, e
+	}
+	for _, ref := range avatarRefs {
+		path := filepath.Join(dir, "media", filepath.Base(ref.Key))
+		var actual BlobInfo
+		var err error
+		if toFile {
+			actual, err = store.Stat(ctx, ref.Key)
+		} else {
+			actual, err = localBlobInfo(ctx, ref.Key, path)
+		}
+		if err != nil || actual != ref {
+			return report, ErrBlobIntegrity
+		}
+		objects = append(objects, migrationBlob{ref.Key, path})
+	}
 	renderRefs, e := fileRenderReferences(filepath.Join(dir, "media", "render-checkpoints"))
 	if e != nil {
 		return report, e

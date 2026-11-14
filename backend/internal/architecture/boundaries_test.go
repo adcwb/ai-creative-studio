@@ -16,6 +16,9 @@ func TestBusinessModuleDependencies(t *testing.T) {
 	root := filepath.Join("..", "modules")
 	allowed := map[string]map[string]bool{
 		"projects": {"governance": true},
+		// Workflow values reuse the pure, non-evaluating prompt compiler.
+		// Prompt modules remain subject to the same no-I/O dependency rules below.
+		"workflows": {"prompts": true},
 		// A continuity snapshot pins one pure script value, never application state.
 		"story": {"projects": true, "governance": true},
 		// An animatic pins pure storyboard values, never project execution state.

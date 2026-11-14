@@ -69,6 +69,29 @@ func providerFailure(code string) error { return &ProviderError{Code: code} }
 
 func providerMessage(code string) string {
 	switch code {
+	case "avatar_authorization_revoked":
+		return "形象或声音授权已撤销，不能继续生成或新增采用；历史作品与审片记录保留。"
+	case "avatar_plan_changed":
+		return "切点预览与实际音频计划不一致，未派发生成；请重新预览确认。"
+	case "avatar_cloud_transfer_denied":
+		return "云数字人需要当前空间获准外传素材，并由创作者明确确认；未发送模型请求。"
+	case "avatar_cloud_configuration_changed":
+		return "云数字人的原服务或素材目的地已改变，不能用新配置核对旧任务。"
+	case "avatar_cloud_input_window":
+		return "wan2.2-s2v原生窗口要求照片边长400–7000像素、音频小于15MB且不足20秒；请先在剪辑页制作短段，不会自动截断。"
+	case "avatar_cloud_task_failed":
+		return "原云数字人任务失败或取消，未重新提交；请核对供应商任务记录。"
+	case "avatar_cloud_task_unknown":
+		return "原云数字人任务未知或已过查询有效期，未重新提交；请核对供应商记录。"
+	}
+
+	switch code {
+	case "avatar_checkpoint_invalid":
+		return "已保存的口播检查点未通过完整性校验；未重新调用引擎。请检查共享存储或恢复匹配备份。"
+	case "avatar_source_changed":
+		return "口播来源与已固定的检查点不一致；未重新调用引擎。请核对原始形象、配音及授权。"
+	case "avatar_legacy_protocol_limit":
+		return "当前数字人执行器仍使用旧版 JSON 媒体协议，输入超过其内存边界；请由部署方切换 files-v1 文件协议，素材未截断。"
 	case "writing_context_changed":
 		return "本集正式资料或剧本来源已变化，未发送新的生成请求；请核对并重新准备写作上下文。旧稿与候选保留。"
 	case "alignment_source_unpinned":

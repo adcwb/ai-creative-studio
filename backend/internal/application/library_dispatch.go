@@ -82,7 +82,7 @@ func libraryMediaPurpose(kind, mime string) string {
 	if strings.HasPrefix(mime, "audio/") {
 		return "voice_reference"
 	}
-	if kind == "video" || kind == "lip_sync" || kind == "digital_human" {
+	if kind == "video" || kind == "lip_sync" || isAvatarKind(kind) {
 		return "video_reference"
 	}
 	return "image_reference"
@@ -134,6 +134,11 @@ func (s *FileStore) withLibraryDispatchGuard(ctx context.Context, job *CreativeJ
 	inputPins := cloneLibraryInputPins(job.LibraryInputs)
 	input := creativeJobMediaInput(job)
 	guard := func(ctx context.Context) error {
+		if job.Kind == "digital_human" {
+			if err := s.checkAvatarJob(ctx, job); err != nil {
+				return err
+			}
+		}
 		if e := s.checkLibraryInputPins(ctx, job.SpaceID, inputPins); e != nil {
 			return e
 		}

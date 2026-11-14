@@ -5,3 +5,5 @@
 .digital-human-studio audio, .digital-human-studio video { width: 100%; max-width: 100%; margin-block: .75rem; }
 .digital-human-studio video { max-height: 360px; }
 .digital-human-studio .editing-note p { overflow-wrap: anywhere; }
+
+.avatar-review-sources{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}.avatar-review-sources>div{min-width:0}.avatar-review-sources img{display:block;max-width:100%;max-height:280px;object-fit:contain}.avatar-review textarea{width:100%;min-height:90px}.avatar-review label{margin-block:12px}.avatar-review p{overflow-wrap:anywhere}@media(max-width:700px){.avatar-review-sources{grid-template-columns:minmax(0,1fr)}}

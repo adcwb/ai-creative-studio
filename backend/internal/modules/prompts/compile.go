@@ -196,3 +196,60 @@ func Compile(r Recipe, values map[string]string) (Compilation, error) {
 	}
 	return Compilation{Text: text, Characters: n, SHA256: TextSHA(text), Defaults: r.Defaults, Variables: resolved}, nil
 }
+
+// ExpandLiteral replaces explicit variable tokens once. Values are literal text,
+// never parsed as expressions or expanded again. Callers own their input-window
+// contracts via maxCharacters. Expansion stops before allocating past that
+// text window; this is not a project or generation quota.
+func ExpandLiteral(body string, values map[string]string, maxCharacters int) (string, error) {
+	tokens, err := parse(body)
+	if err != nil {
+		return "", err
+	}
+	used := map[string]bool{}
+	characters := 0
+	var out strings.Builder
+	for _, token := range tokens {
+		if token.name == "" {
+			characters += utf8.RuneCountInString(token.text)
+			if characters > maxCharacters {
+				return "", &FieldError{"prompt_expanded_too_long", "body"}
+			}
+			out.WriteString(token.text)
+			continue
+		}
+		value, ok := values[token.name]
+		if !ok {
+			return "", &FieldError{"prompt_variable_missing", token.name}
+		}
+		used[token.name] = true
+		characters += utf8.RuneCountInString(value)
+		if characters > maxCharacters {
+			return "", &FieldError{"prompt_expanded_too_long", "body"}
+		}
+		out.WriteString(value)
+	}
+	for name := range values {
+		if !used[name] {
+			return "", &FieldError{"prompt_variable_unknown", name}
+		}
+	}
+	return out.String(), nil
+}
+
+// LiteralNames returns only explicit token names; no expression is evaluated.
+func LiteralNames(body string) ([]string, error) {
+	tokens, err := parse(body)
+	if err != nil {
+		return nil, err
+	}
+	names := []string{}
+	seen := map[string]bool{}
+	for _, token := range tokens {
+		if token.name != "" && !seen[token.name] {
+			names = append(names, token.name)
+			seen[token.name] = true
+		}
+	}
+	return names, nil
+}

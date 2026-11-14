@@ -209,7 +209,9 @@ func CheckLeaseTx(ctx context.Context, tx *sql.Tx, j Job) error {
 
 // ResumeTx schedules an explicitly requested read-only recovery attempt. The
 // caller must validate a durable upstream ID and free-query policy before this
-// transaction. It never authorizes another generation submission.
+// transaction. It never independently authorizes another generation submission.
+// Avatar callers may resume only the still-unsubmitted segments of a fixed,
+// originally authorized plan, after current permissions and consent are checked.
 func ResumeTx(ctx context.Context, tx *sql.Tx, j Job) error {
 	if j.TenantID == "" || j.ID == "" || (j.Kind != "creative_resume" && j.Kind != "image_resume") || j.IdempotencyKey == "" || !json.Valid(j.Payload) || len(j.Payload) > 65536 {
 		return errors.New("invalid recovery job")

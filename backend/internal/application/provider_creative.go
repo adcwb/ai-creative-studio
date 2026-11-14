@@ -69,6 +69,9 @@ func newCreativeProvider(key, endpoint string, client *http.Client) *OpenAICreat
 	return &OpenAICreativeProvider{key: key, endpoint: endpoint, client: &c, textModel: CreativeTextModel, speechModel: CreativeSpeechModel, videoModel: CreativeVideoModel}
 }
 func creativeFailure(err error) (string, string) {
+	if errors.Is(err, errRuntimeDenied) {
+		return "model_runtime_denied", "创作执行权限或模型配置已失效；请核对当前空间权限、模型和授权。任务未自动重试。"
+	}
 	code := "provider_error"
 	var e *ProviderError
 	if errors.As(err, &e) {
@@ -87,9 +90,12 @@ func creativeFailure(err error) (string, string) {
 		return code, "模型返回的季集纲结构或范围无效，未采纳为正式计划；请检查模型的结构化输出能力。"
 	}
 	if code == "execution_outcome_unknown" {
-		return code, "请求可能已发送，但结果未确认；未自动重发。请先核对网关记录，保留原请求和已保存计划。"
+		return code, "请求可能已发送，但结果未确认；未自动重发。请先核对原服务或执行器记录，保留原请求和已保存计划。"
 	}
-	if code == "provider_inline_capacity" || code == "writing_context_changed" || code == "library_use_denied" || code == "provider_input_capacity" || code == "provider_input_count_unavailable" || code == "alignment_source_unpinned" || code == "alignment_source_changed" {
+	if code == "avatar_plan_changed" || strings.HasPrefix(code, "avatar_cloud_") {
+		return code, providerMessage(code)
+	}
+	if code == "avatar_checkpoint_invalid" || code == "avatar_source_changed" || code == "avatar_legacy_protocol_limit" || code == "provider_inline_capacity" || code == "writing_context_changed" || code == "library_use_denied" || code == "provider_input_capacity" || code == "provider_input_count_unavailable" || code == "alignment_source_unpinned" || code == "alignment_source_changed" {
 		return code, providerMessage(code)
 	}
 	return code, "创作服务执行未完成（" + code + "）；旧稿保留，远端结果或费用可能不确定，未自动重试。"

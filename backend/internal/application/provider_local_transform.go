@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,7 +21,11 @@ import (
 // command. It receives only bounded synthetic/user-authorized media and a model
 // identifier via JSON stdin; the parent's credentials/environment are not inherited.
 // Actual aligner/lip-sync models are deliberately not bundled or downloaded.
-type LocalTransform struct{ command, model string }
+type LocalTransform struct {
+	command, model string
+	protocol       string
+	timeout        time.Duration
+}
 
 func configureLocalTransform(prefix, provider string) (*LocalTransform, Capabilities) {
 	command, model := os.Getenv(prefix+"_COMMAND"), os.Getenv(prefix+"_MODEL")
@@ -36,10 +41,32 @@ func configureLocalTransform(prefix, provider string) (*LocalTransform, Capabili
 		c.ReasonCode = "invalid_local_transform_configuration"
 		return nil, c
 	}
+	protocol := os.Getenv(prefix + "_PROTOCOL")
+	if protocol == "" {
+		protocol = "json-v1"
+	}
+	if protocol != "json-v1" && (protocol != "files-v1" || (prefix != "DIGITAL_HUMAN_PHOTO" && prefix != "LIP_SYNC")) {
+		c.ReasonCode = "invalid_local_transform_configuration"
+		return nil, c
+	}
+	timeout := 120 * time.Second
+	if raw := os.Getenv(prefix + "_TIMEOUT_SECONDS"); raw != "" {
+		seconds, e := strconv.ParseInt(raw, 10, 32)
+		if e != nil || seconds < 1 {
+			c.ReasonCode = "invalid_local_transform_configuration"
+			return nil, c
+		}
+		timeout = time.Duration(seconds) * time.Second
+	}
 	c.localExecution = true
 	c.Ready = true
 	c.Message = "本地可替换模型适配已配置，准确率/口型质量未验证；结果需人工复核。"
-	return &LocalTransform{command: command, model: model}, c
+	if protocol == "files-v1" {
+		c.Message = "文件协议执行器已配置；不设项目素材大小或时长额度，实际能力取决于引擎；效果与许可需人工验收。"
+	} else if prefix == "DIGITAL_HUMAN_PHOTO" || prefix == "LIP_SYNC" {
+		c.Message = "旧版 JSON 执行器：单项输入10MiB、输出32MiB的协议内存边界；长素材请由部署方切换文件协议。效果与许可未验证。"
+	}
+	return &LocalTransform{command: command, model: model, protocol: protocol, timeout: timeout}, c
 }
 func (t *LocalTransform) run(ctx context.Context, input any, maxOutput int) ([]byte, error) {
 	if t == nil || !filepath.IsAbs(t.command) {
@@ -49,7 +76,11 @@ func (t *LocalTransform) run(ctx context.Context, input any, maxOutput int) ([]b
 	if err != nil || len(data) > 48<<20 {
 		return nil, providerFailure("provider_rejected")
 	}
-	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	timeout := t.timeout
+	if timeout <= 0 {
+		timeout = 120 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	dir, err := nativefs.MkdirTemp("", "studio-transform-*")
 	if err != nil {

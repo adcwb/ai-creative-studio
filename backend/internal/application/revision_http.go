@@ -77,6 +77,7 @@ func revisionNext(space, project, kind, branch, after string) string {
 }
 func registerRevisionRoutes(mux *http.ServeMux, s *FileStore) {
 	registerRevisionRestoreRoutes(mux, s)
+	registerWorkflowRoutes(mux, s)
 	base := "/api/v1/projects/{id}"
 	scope := func(w http.ResponseWriter, r *http.Request, write bool) (string, string, bool) {
 		var space, key string
