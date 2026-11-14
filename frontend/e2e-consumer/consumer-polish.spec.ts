@@ -132,6 +132,7 @@ test('storyboard and workflow put creative content within reach and expanded can
     await page.screenshot({ path: info.outputPath('storyboard-first-screen.png') });
     await page.goto('/workflows/story-1');
     if (info.project.name === 'mobile') {
+        expect((await page.getByRole('combobox',{name:'已保存流程',exact:true}).boundingBox())!.width).toBeGreaterThan(200);
         await expect(page.getByRole('button', { name: '步骤列表', exact: true })).toHaveAttribute('aria-pressed', 'true');
         await expect(page.locator('.workflow-step-list')).toHaveAttribute('open', '');
         await expect(page.locator('.workflow-step-list button').first()).toBeInViewport();

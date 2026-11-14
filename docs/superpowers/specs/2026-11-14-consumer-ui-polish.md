@@ -1,6 +1,6 @@
 # 创作界面易用性与视觉一致性
 
-- 状态：Implementing；2026-11-14。用户已授权本轮全部 UI 清单，未授权推送或部署。
+- 状态：Verified（本地软件与截图验收）；2026-11-14。用户已授权本轮全部 UI 清单，未授权推送或部署。
 - 代码基线：`173d764def4154a0068ad85d5e5d4db45ea575b0`（Ant Design 迁移后的 master）。
 - 范围：创作首屏、分镜与画布、提示词弹层、三套主题对比度、授权复选框、剪辑空态、设置导航、手机模型绑定、触控和空间术语。
 - 不包含：新后端协议、数据迁移、生产模型配置、真实付费生成和新增配额。
@@ -48,6 +48,35 @@
 - [x] T-03：FR-05、FR-06 剪辑空态、入口与空间术语。
 - [x] T-04：FR-07、FR-08 手机模型筛选及工作流布局。
 - [x] T-05：新增正常网关模式 `e2e-consumer`，独立于 legacy-fixtures，并接入现有 routing CI 矩阵，不删减旧覆盖。
-- [ ] T-06：相关与全面前端回归、真实后端合成网关测试、最终截图核验。
+- [x] T-06：相关与全面前端回归、真实后端合成网关测试、最终截图核验。
 
 新测试使用本地合成 HTTP 响应，不证明外部模型效果。截图与自动化记录见 `/workspace/artifacts/consumer-ui-polish/`；最终结果在本节补充。没有执行真实付费生成、生产配置修改、部署或推送。物理手机、Safari、软键盘及读屏器验收仍需真实设备。
+
+
+## 最终验收记录（2026-11-14）
+
+实现提交：[`fe167a1`](https://github.com/adcwb/ai-creative-studio/commit/fe167a165dbaa3919c70f1cf41e1981903dc38bb)。当前仅在本地分支 `feat/consumer-ui-polish`，可用 `git show fe167a1` 查看；GitHub 链接在用户后续批准推送后才可访问。本次没有推送或部署。
+
+| 检查 | 实际结果与边界 |
+| --- | --- |
+| 静态与构建 | ESLint、TypeScript、生产构建、3433 条中英文静态覆盖通过；构建仍提示既有大分块建议，不影响构建成功 |
+| 前端单元测试 | 28 文件、89 测试通过 |
+| CI 分区合同 | `scripts/tests/test_ci_*.py`，11 测试通过；routing 矩阵顺序追加正常网关模式，不删除旧覆盖 |
+| 安全登录与空间 | 24 项真实本地后端浏览器测试通过，包含注册、团队创建、权限、后端配置、偏好和持久化失败提示 |
+| 原有路由回归 | 桌面 79 通过；手机 77 通过、2 项按既有条件仅桌面执行而跳过；没有新增跳过 |
+| 新正常网关模式 | 最终干净复跑 20/20 通过，桌面 1920×1080、手机 390×844；包含缺失模型、固定提示词操作区、三主题对比度、筛选草稿、离页确认、完整可见的首个工作流步骤、展开画布、44px 触控、剪辑空态、授权框与设置入口 |
+| 真实后端与合成上游 | creation 10、consumer 2、prompts 16、workflows 10，共 38 项通过；覆盖真实 HTTP 请求、审片采用、MP4 导出、提示词版本冲突/断线恢复、参考素材、流程拖动/缩放与人工选择。外部供应商未参与 |
+| 原有端到端 | 全量首次运行 104/108 通过，4 项旧海报测试未执行新增的展开步骤；补齐可见操作后，`iteration10.spec.ts` 中英文、桌面/手机共 4 项全部复验通过。没有再整套重复 108 项 |
+
+正常模式的首次手机验收也发现工作流按钮底部超出首屏约 11px；修复多余间距后保持完整视口断言，并干净重跑全部 20 项通过。没有放宽断言、增加超时或跳过失败测试。最终截图复核还将手机已保存流程选择器放入填满可用宽度的主列，新增宽度断言；分镜/工作流桌面和手机两项定向复验均通过，完整首屏及 44px 控件断言继续保留。此细节补丁随本验收记录提交。
+
+### 代码和截图证据
+
+- [创作首页](../../../frontend/src/pages/ImagePage.tsx)、[创作表单](../../../frontend/src/components/Composer.tsx)、[执行模型摘要](../../../frontend/src/components/RuntimeModelPicker.tsx)。
+- [提示词弹层](../../../frontend/src/features/prompts/PromptEditor.tsx)、[主题令牌](../../../frontend/src/ui/StudioTheme.tsx)、[剪辑空态](../../../frontend/src/components/MediaStudio.tsx)。
+- [手机模型筛选](../../../frontend/src/components/ModelManagementPanel.tsx)、[工作流](../../../frontend/src/features/workflows/WorkflowStudio.tsx)、[设置入口](../../../frontend/src/pages/PreferencesPage.tsx)。
+- [正常模式验收](../../../frontend/e2e-consumer/consumer-polish.spec.ts)、[配置](../../../frontend/playwright.consumer.config.ts)、[CI 接线](../../../scripts/ci_browser_tests.sh)。在已安装浏览器的环境执行 `cd frontend && npm run test:consumer`；默认证据输出 `frontend/test-results/consumer`，CI 沿用现有浏览器产物上传。
+- 本地截图：`/workspace/artifacts/consumer-ui-polish/final/` 有 26 个页面状态的截图和尺寸记录，未发现文档横向溢出或页面脚本异常；`checks/` 是最终 20 项交互验收的截图。最后的工作流和触控细节以 `checks/` 为准。
+- 同一组合成样例的页面高度比较：手机模型约 5642px → 3000px，空剪辑约 4366px → 1926px；这是该样例的布局记录，不是性能基准或对所有内容长度的承诺。
+
+本轮没有后端实现或数据库变更，没有重复 Go race、PostgreSQL、Windows、Docker 或云端 CI。没有使用真实模型、修改生产数据、配置或用户测试能力。物理手机、Safari、软键盘、读屏器、真实上游效果仍未验收；这些限制不由合成测试或 Chromium 手机视口模拟替代。

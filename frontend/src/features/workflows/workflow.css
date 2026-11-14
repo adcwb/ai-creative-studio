@@ -40,7 +40,7 @@
 .workflow-expanded-dialog .workflow-canvas {height:calc(100dvh - 230px);min-height:300px}
 @media(max-width:760px){
  .workflow-studio>.series-heading {align-items:flex-start;flex-wrap:wrap}
- .workflow-directory {display:grid;grid-template-columns:auto minmax(0,1fr);align-items:end;margin-bottom:8px}
+ .workflow-directory {display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;margin-bottom:8px}
  .workflow-view-switch {margin:6px 0}
  .workflow-directory button {min-height:44px}
  .workflow-directory label {flex-direction:column;align-items:stretch}
