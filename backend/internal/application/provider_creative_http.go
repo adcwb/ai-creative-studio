@@ -20,6 +20,9 @@ func registerCreativeRoutes(mux *http.ServeMux, s *FileStore) {
 			storeError(w, err)
 			return
 		}
+		for i := range jobs {
+			jobs[i] = publicCreativeJob(jobs[i])
+		}
 		respond(w, 200, jobs)
 	})
 	mux.HandleFunc("GET /api/v1/projects/{id}/creative-jobs/{jobId}", func(w http.ResponseWriter, r *http.Request) {
@@ -40,7 +43,7 @@ func registerCreativeRoutes(mux *http.ServeMux, s *FileStore) {
 			return
 		}
 		job.RuntimeSelection = nil
-		respond(w, 200, job)
+		respond(w, 200, publicCreativeJob(job))
 	})
 	create := func(analysis bool) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +83,7 @@ func registerCreativeRoutes(mux *http.ServeMux, s *FileStore) {
 			if created {
 				status = 202
 			}
-			respond(w, status, job)
+			respond(w, status, publicCreativeJob(job))
 		}
 	}
 	mux.HandleFunc("POST /api/v1/projects/{id}/analysis", create(true))
@@ -99,7 +102,7 @@ func registerCreativeRoutes(mux *http.ServeMux, s *FileStore) {
 			storeError(w, err)
 			return
 		}
-		respond(w, 200, job)
+		respond(w, 200, publicCreativeJob(job))
 	})
 	mux.HandleFunc("POST /api/v1/projects/{id}/creative-jobs/{jobId}/cancel", func(w http.ResponseWriter, r *http.Request) {
 		space, key, ok := projectWriteScope(w, r)
@@ -115,6 +118,6 @@ func registerCreativeRoutes(mux *http.ServeMux, s *FileStore) {
 			storeError(w, err)
 			return
 		}
-		respond(w, 200, job)
+		respond(w, 200, publicCreativeJob(job))
 	})
 }

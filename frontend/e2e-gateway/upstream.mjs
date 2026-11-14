@@ -51,7 +51,10 @@ http.createServer(async (req,res)=>{
  }
  if(req.url==='/v1/chat/completions' && body.model==='synthetic-text') {
   const instruction=body.messages?.[0]?.content??''
-  if(instruction.includes('Propose ONE editable season arc')){
+  if(instruction.includes('Transform the supplied creative text')) {
+ const input=JSON.parse(body.messages[1].content);res.end(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify({text:input.input+' / transformed'})}}],usage:{prompt_tokens:30,completion_tokens:20}}));return
+ }
+ if(instruction.includes('Propose ONE editable season arc')){
    const input=JSON.parse(body.messages[1].content),scope=input.source
    const result={title:'门外的选择 · 本地协议候选',outline:{season_id:scope.season_id,...(scope.episode_id?{episode_id:scope.episode_id}:{}),goal:'角色决定是否打开门',opening:'门外传来熟悉的敲击',conflict:'角色想相信来者，却发现钥匙缺齿',turn:'角色选择先询问只有同伴知道的细节',hook:'对方给出了本应无人知道的答案'},rationale:'本地合成策划，只验证固定来源和人工采纳，不代表真实模型质量。'}
    res.end(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(result)}}],usage:{prompt_tokens:80,completion_tokens:80}}));return

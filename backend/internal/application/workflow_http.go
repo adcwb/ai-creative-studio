@@ -13,6 +13,8 @@ import (
 
 func workflowError(out http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, errWorkflowRerunUnsafe):
+		problem(out, 409, "workflow_version_conflict", "先完成或停止当前运行；结果未知时先核对原任务。有其他未完成分支时，请从共同上游重做。旧运行保留。")
 	case errors.Is(err, w.ErrInput):
 		problem(out, 400, "invalid_workflow", "请检查步骤、连线类型、模型选择和输出；流程不能包含循环或未使用的生成步骤")
 	case errors.Is(err, w.ErrConflict), errors.Is(err, ErrVersionConflict):
@@ -55,6 +57,67 @@ func workflowNext(space, project, kind, id string) string {
 }
 func registerWorkflowRoutes(mux *http.ServeMux, s *FileStore) {
 	base := "/api/v1/projects/{id}/workflows"
+	mux.HandleFunc("POST /api/v1/projects/{id}/workflow-runs/{run_id}/reruns", func(out http.ResponseWriter, r *http.Request) {
+		space, key, ok := projectWriteScope(out, r)
+		if !ok {
+			return
+		}
+		actor, ok := r.Context().Value(authScopeKey{}).(authScope)
+		if !ok || actor.UserID == "" {
+			problem(out, 403, "role_denied", "流程重做需要安全登录身份")
+			return
+		}
+		if _, e := s.GetProject(space, r.PathValue("id")); e != nil {
+			workflowError(out, e)
+			return
+		}
+		var in struct {
+			Node      string `json:"node_id"`
+			Expected  int    `json:"expected_version"`
+			Confirmed bool   `json:"confirmed"`
+		}
+		if !decodeProject(out, r, &in) {
+			return
+		}
+		if !in.Confirmed {
+			workflowError(out, w.ErrInput)
+			return
+		}
+		d, e := s.workflows.Read(r.Context(), space, r.PathValue("id"))
+		if e != nil {
+			workflowError(out, e)
+			return
+		}
+		digest := w.Digest([]any{r.PathValue("run_id"), in.Node, in.Expected})
+		if id, replay, e := workflowReceipt(&d, key, digest, "rerun"); e != nil {
+			workflowError(out, e)
+			return
+		} else if replay {
+			respond(out, 200, d.Runs[id])
+			return
+		}
+		source, ok := d.Runs[r.PathValue("run_id")]
+		if !ok {
+			workflowError(out, workflowrepo.ErrNotFound)
+			return
+		}
+		reset, e := workflowResetNodes(source, in.Node)
+		if e != nil {
+			workflowError(out, e)
+			return
+		}
+		pins, ok := resolveWorkflowPins(out, r, s, source.Graph, reset)
+		if !ok {
+			return
+		}
+		result, e := s.rerunWorkflow(r.Context(), space, r.PathValue("id"), source.ID, in.Node, key, actor.UserID, in.Expected, pins)
+		if e != nil {
+			workflowError(out, e)
+			return
+		}
+		respond(out, 200, result)
+	})
+
 	scope := func(out http.ResponseWriter, r *http.Request, write bool) (string, string, bool) {
 		var space, key string
 		var ok bool
@@ -217,8 +280,9 @@ func registerWorkflowRoutes(mux *http.ServeMux, s *FileStore) {
 			return
 		}
 		var in struct {
-			Revision string `json:"revision_id"`
-			Expected int    `json:"expected_project_version"`
+			Values   map[string]string `json:"inputs,omitempty"`
+			Revision string            `json:"revision_id"`
+			Expected int               `json:"expected_project_version"`
 		}
 		if !decodeProject(out, r, &in) {
 			return
@@ -228,7 +292,7 @@ func registerWorkflowRoutes(mux *http.ServeMux, s *FileStore) {
 			workflowError(out, err)
 			return
 		}
-		digest := w.Digest([]any{r.PathValue("workflow_id"), in.Expected, in.Revision})
+		digest := workflowRunDigest(r.PathValue("workflow_id"), in.Expected, in.Revision, in.Values)
 		if id, replay, err := workflowReceipt(&d, key, digest, "run"); err != nil {
 			workflowError(out, err)
 			return
@@ -255,27 +319,11 @@ func registerWorkflowRoutes(mux *http.ServeMux, s *FileStore) {
 			workflowError(out, err)
 			return
 		}
-		pins := map[string]workflowPin{}
-		for _, node := range source.Graph.Nodes {
-			if !w.ModelKind(node.Kind) {
-				continue
-			}
-			job := CreativeJobInput{Kind: node.Kind, ModelRequest: ModelRequest{ModelConfigID: node.ModelID, ModelConfigVersion: node.ModelVersion, Voice: node.Voice}}
-			for _, edge := range source.Graph.Edges {
-				if edge.Target == node.ID && edge.Input == "reference" {
-					job.ReferenceAssetID = "workflow-reference"
-				}
-			}
-			if !resolveModelRequest(out, r, s, &job.ModelRequest, creativeRuntimeCapability(node.Kind), operationFeature("creative", &job)) {
-				return
-			}
-			if job.selection == nil || job.selection.GatewayID == "" {
-				problem(out, 409, "gateway_model_required", "流程生成步骤必须选择真实网关模型")
-				return
-			}
-			pins[node.ID] = workflowPin{*job.selection, job.selectedCaps.Provider, job.selectedCaps.Model}
+		pins, ok := resolveWorkflowPins(out, r, s, source.Graph, nil)
+		if !ok {
+			return
 		}
-		run, err := s.startWorkflow(r.Context(), space, r.PathValue("id"), v.ID, key, a.UserID, in.Expected, in.Revision, pins)
+		run, err := s.startWorkflow(r.Context(), space, r.PathValue("id"), v.ID, key, a.UserID, in.Expected, in.Revision, pins, in.Values)
 		if err != nil {
 			workflowError(out, err)
 			return
@@ -379,4 +427,28 @@ func registerWorkflowRoutes(mux *http.ServeMux, s *FileStore) {
 		})
 	}
 
+}
+
+func resolveWorkflowPins(out http.ResponseWriter, r *http.Request, s *FileStore, graph w.Graph, reset map[string]bool) (map[string]workflowPin, bool) {
+	pins := map[string]workflowPin{}
+	for _, node := range graph.Nodes {
+		if !w.ModelKind(node.Kind) || reset != nil && !reset[node.ID] {
+			continue
+		}
+		job := CreativeJobInput{Kind: workflowCreativeKind(node.Kind), ModelRequest: ModelRequest{ModelConfigID: node.ModelID, ModelConfigVersion: node.ModelVersion, Voice: node.Voice}}
+		for _, edge := range graph.Edges {
+			if edge.Target == node.ID && edge.Input == "reference" {
+				job.ReferenceAssetID = "workflow-reference"
+			}
+		}
+		if !resolveModelRequest(out, r, s, &job.ModelRequest, creativeRuntimeCapability(workflowCreativeKind(node.Kind)), operationFeature("creative", &job)) {
+			return nil, false
+		}
+		if job.selection == nil || job.selection.GatewayID == "" {
+			problem(out, 409, "gateway_model_required", "流程生成步骤必须选择真实网关模型")
+			return nil, false
+		}
+		pins[node.ID] = workflowPin{*job.selection, job.selectedCaps.Provider, job.selectedCaps.Model}
+	}
+	return pins, true
 }

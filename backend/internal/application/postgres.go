@@ -80,7 +80,7 @@ var pgCollections = map[string][]pgCollection{
 	"budget":          {{"limits", "studio_budget_limits", "map"}, {"entries", "studio_cost_entries", "map"}, {"changes", "studio_budget_changes", "array"}, {"dispatches", "studio_model_dispatches", "map"}},
 	"models":          {{"tenants", "studio_model_tenants", "map"}},
 	"usage":           {{"calls", "studio_model_calls", "map"}},
-	"creative":        {{"jobs", "studio_creative_jobs", "map"}, {"receipts", "studio_creative_receipts", "map"}, {"digital_humans", "studio_digital_humans", "map"}},
+	"creative":        {{"jobs", "studio_creative_jobs", "map"}, {"receipts", "studio_creative_receipts", "map"}, {"digital_humans", "studio_digital_humans", "map"}, {"voice_authorizations", "studio_voice_authorizations", "map"}},
 	"media":           {{"projects", "studio_media_projects", "map"}, {"receipts", "studio_media_receipts", "map"}},
 	"alignment":       {{"tasks", "studio_alignment_tasks", "map"}, {"receipts", "studio_alignment_receipts", "map"}},
 }
@@ -121,18 +121,19 @@ func InitPostgres(ctx context.Context, db *sql.DB) error {
 	}
 	// Adding named constraints conditionally keeps migrations restartable.
 	constraints := map[string]string{
-		"studio_personal_copy_source_fk": `ALTER TABLE studio_personal_copies ADD CONSTRAINT studio_personal_copy_source_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
-		"studio_media_project_fk":        `ALTER TABLE studio_media_projects ADD CONSTRAINT studio_media_project_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
-		"studio_sessions_user_fk":        `ALTER TABLE studio_sessions ADD CONSTRAINT studio_sessions_user_fk FOREIGN KEY(parent_id) REFERENCES studio_users(entity_id) DEFERRABLE INITIALLY DEFERRED`,
-		"studio_organization_owner_fk":   `ALTER TABLE studio_organizations ADD CONSTRAINT studio_organization_owner_fk FOREIGN KEY(parent_id) REFERENCES studio_users(entity_id) DEFERRABLE INITIALLY DEFERRED`,
-		"studio_creative_project_fk":     `ALTER TABLE studio_creative_jobs ADD CONSTRAINT studio_creative_project_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
-		"studio_alignment_project_fk":    `ALTER TABLE studio_alignment_tasks ADD CONSTRAINT studio_alignment_project_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
-		"studio_image_assets_task_fk":    `ALTER TABLE studio_image_assets ADD CONSTRAINT studio_image_assets_task_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_image_tasks(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
-		"studio_script_project_fk":       `ALTER TABLE studio_script_generations ADD CONSTRAINT studio_script_project_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
-		"studio_storyboard_project_fk":   `ALTER TABLE studio_storyboard_generations ADD CONSTRAINT studio_storyboard_project_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
-		"studio_cost_bounds":             `ALTER TABLE studio_cost_entries ADD CONSTRAINT studio_cost_bounds CHECK (tenant_id<>'' AND currency IN ('USD','EUR','GBP','CNY','CAD','AUD','CHF','HKD','SGD','JPY','KRW','KWD','BHD') AND reserved>0 AND actual>=0 AND state IN ('reserved','unknown','settled','released'))`,
-		"studio_budget_bounds":           `ALTER TABLE studio_budget_limits ADD CONSTRAINT studio_budget_bounds CHECK(tenant_id<>'' AND amount>=0 AND currency IN ('USD','EUR','GBP','CNY','CAD','AUD','CHF','HKD','SGD','JPY','KRW','KWD','BHD'))`,
-		"studio_image_status":            `ALTER TABLE studio_image_tasks ADD CONSTRAINT studio_image_status CHECK(tenant_id<>'' AND state IN ('queued','running','succeeded','failed'))`,
+		"studio_voice_authorization_project_fk": `ALTER TABLE studio_voice_authorizations ADD CONSTRAINT studio_voice_authorization_project_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
+		"studio_personal_copy_source_fk":        `ALTER TABLE studio_personal_copies ADD CONSTRAINT studio_personal_copy_source_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
+		"studio_media_project_fk":               `ALTER TABLE studio_media_projects ADD CONSTRAINT studio_media_project_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
+		"studio_sessions_user_fk":               `ALTER TABLE studio_sessions ADD CONSTRAINT studio_sessions_user_fk FOREIGN KEY(parent_id) REFERENCES studio_users(entity_id) DEFERRABLE INITIALLY DEFERRED`,
+		"studio_organization_owner_fk":          `ALTER TABLE studio_organizations ADD CONSTRAINT studio_organization_owner_fk FOREIGN KEY(parent_id) REFERENCES studio_users(entity_id) DEFERRABLE INITIALLY DEFERRED`,
+		"studio_creative_project_fk":            `ALTER TABLE studio_creative_jobs ADD CONSTRAINT studio_creative_project_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
+		"studio_alignment_project_fk":           `ALTER TABLE studio_alignment_tasks ADD CONSTRAINT studio_alignment_project_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
+		"studio_image_assets_task_fk":           `ALTER TABLE studio_image_assets ADD CONSTRAINT studio_image_assets_task_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_image_tasks(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
+		"studio_script_project_fk":              `ALTER TABLE studio_script_generations ADD CONSTRAINT studio_script_project_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
+		"studio_storyboard_project_fk":          `ALTER TABLE studio_storyboard_generations ADD CONSTRAINT studio_storyboard_project_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
+		"studio_cost_bounds":                    `ALTER TABLE studio_cost_entries ADD CONSTRAINT studio_cost_bounds CHECK (tenant_id<>'' AND currency IN ('USD','EUR','GBP','CNY','CAD','AUD','CHF','HKD','SGD','JPY','KRW','KWD','BHD') AND reserved>0 AND actual>=0 AND state IN ('reserved','unknown','settled','released'))`,
+		"studio_budget_bounds":                  `ALTER TABLE studio_budget_limits ADD CONSTRAINT studio_budget_bounds CHECK(tenant_id<>'' AND amount>=0 AND currency IN ('USD','EUR','GBP','CNY','CAD','AUD','CHF','HKD','SGD','JPY','KRW','KWD','BHD'))`,
+		"studio_image_status":                   `ALTER TABLE studio_image_tasks ADD CONSTRAINT studio_image_status CHECK(tenant_id<>'' AND state IN ('queued','running','succeeded','failed'))`,
 	}
 
 	for _, table := range []string{"studio_image_tasks", "studio_image_assets", "studio_projects", "studio_script_generations", "studio_storyboard_generations", "studio_creative_jobs", "studio_alignment_tasks"} {

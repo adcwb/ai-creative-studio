@@ -69,6 +69,10 @@ func providerFailure(code string) error { return &ProviderError{Code: code} }
 
 func providerMessage(code string) string {
 	switch code {
+	case "avatar_checkpoint_invalid":
+		return "已保存的口播检查点未通过完整性校验；未重新调用引擎。请检查共享存储或恢复匹配备份。"
+	case "avatar_source_changed":
+		return "口播来源与已固定的检查点不一致；未重新调用引擎。请核对原始形象、配音及授权。"
 	case "avatar_legacy_protocol_limit":
 		return "当前数字人执行器仍使用旧版 JSON 媒体协议，输入超过其内存边界；请由部署方切换 files-v1 文件协议，素材未截断。"
 	case "writing_context_changed":

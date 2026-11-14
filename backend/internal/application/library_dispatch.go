@@ -82,7 +82,7 @@ func libraryMediaPurpose(kind, mime string) string {
 	if strings.HasPrefix(mime, "audio/") {
 		return "voice_reference"
 	}
-	if kind == "video" || kind == "lip_sync" || kind == "digital_human" {
+	if kind == "video" || kind == "lip_sync" || isAvatarKind(kind) {
 		return "video_reference"
 	}
 	return "image_reference"

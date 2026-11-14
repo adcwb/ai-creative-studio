@@ -129,7 +129,7 @@ func (s *FileStore) executeDigitalHuman(ctx context.Context, job *CreativeJob) e
 				return nil, err
 			}
 			caps := c.avatarCaps(a.Route)
-			if !caps.Ready || caps.Provider != job.Provider || caps.Model != job.Model {
+			if (!avatarCheckpointReady(*job) && (!caps.Ready || caps.Provider != job.Provider || caps.Model != job.Model)) || !c.avatarLicenseConfirmed {
 				return nil, providerFailure("provider_unavailable")
 			}
 			if !job.VoiceConfirmed || job.VoiceConsentReference == "" || job.ReferenceAssetID != a.ReferenceAssetID {
@@ -173,13 +173,33 @@ func (s *FileStore) executeDigitalHuman(ctx context.Context, job *CreativeJob) e
 				provider = c.lipSync
 				operation = "lip_sync"
 			}
+			if restored, e := s.restoreAvatarCheckpoint(ctx, job, work); e != nil {
+				return nil, e
+			} else if restored {
+				return work, nil
+			}
 			if provider == nil {
 				return nil, providerFailure("provider_unavailable")
 			}
+			dispatchCtx := s.avatarDispatchContext(ctx, job)
 			local, fileMode := provider.(*LocalTransform)
 			if fileMode && local.protocol == "files-v1" {
-				if err := local.AvatarFiles(ctx, operation, work.referencePath, work.referenceMIME, work.audioPath, work.audioMIME, work.videoPath); err != nil {
+				{
+					sha, e := avatarSourceSHA(ctx, *job, work)
+					if e != nil {
+						return nil, e
+					}
+					if e = s.creative.recordAvatarCheckpoint(ctx, job, avatarCheckpoint{Format: 1, Phase: "dispatching", SourceSHA256: sha}); e != nil {
+						return nil, e
+					}
+				}
+				if err := local.AvatarFiles(dispatchCtx, operation, work.referencePath, work.referenceMIME, work.audioPath, work.audioMIME, work.videoPath); err != nil {
 					return nil, err
+				}
+				if job.AvatarCheckpoint != nil {
+					if e := s.saveAvatarMediaCheckpoint(ctx, job, "engine_done", work.videoPath); e != nil {
+						return nil, e
+					}
 				}
 				return work, nil
 			}
@@ -204,9 +224,9 @@ func (s *FileStore) executeDigitalHuman(ctx context.Context, job *CreativeJob) e
 			}
 			var video []byte
 			if operation == "photo_avatar" {
-				video, err = c.avatarPhoto.Animate(ctx, ref, work.referenceMIME, audio, work.audioMIME)
+				video, err = c.avatarPhoto.Animate(dispatchCtx, ref, work.referenceMIME, audio, work.audioMIME)
 			} else {
-				video, err = c.lipSync.Sync(ctx, ref, audio, work.audioMIME)
+				video, err = c.lipSync.Sync(dispatchCtx, ref, audio, work.audioMIME)
 			}
 			if err != nil {
 				return nil, err
@@ -223,7 +243,20 @@ func (s *FileStore) executeDigitalHuman(ctx context.Context, job *CreativeJob) e
 			if err := s.checkAvatarJob(ctx, job); err != nil {
 				return nil, err
 			}
-			return work, composeAvatarFiles(ctx, work)
+			if restored, e := s.restoreAvatarComposed(ctx, job, work); e != nil {
+				return nil, e
+			} else if restored {
+				return work, nil
+			}
+			if e := composeAvatarFiles(ctx, work); e != nil {
+				return nil, e
+			}
+			if job.AvatarCheckpoint != nil {
+				if e := s.saveAvatarMediaCheckpoint(ctx, job, "composed", work.outputPath); e != nil {
+					return nil, e
+				}
+			}
+			return work, nil
 		}))
 	run, err := chain.Compile(ctx)
 	if err != nil {
@@ -236,12 +269,20 @@ func (s *FileStore) executeDigitalHuman(ctx context.Context, job *CreativeJob) e
 	if err = checkLibraryDispatch(ctx); err != nil {
 		return err
 	}
+	if err = s.checkVoiceAuthorization(ctx, job); err != nil {
+		return err
+	}
 	// Serialize publication against fresh revocation, including the PostgreSQL
 	// creative row lock. Never hold it while waiting for inference/transcoding.
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if _, err = c.avatarLocked(job.SpaceID, job.ProjectID, job.AvatarID); err != nil {
 		return providerFailure("avatar_authorization_revoked")
+	}
+	if job.Kind == "digital_human_authorized" {
+		if _, e := s.voiceAuthorizationLocked(job.SpaceID, job.ProjectID, job.VoiceAuthorizationID, job.AudioAssetID); e != nil {
+			return providerFailure("avatar_authorization_revoked")
+		}
 	}
 	if saved, ok := c.data.Jobs[job.ID]; ok && saved.Status == "cancelled" {
 		return context.Canceled

@@ -14,3 +14,6 @@
 
 .workflow-canvas{--xy-attribution-background-color:var(--surface);--xy-attribution-color:var(--ink-muted);--xy-controls-button-background-color-hover:var(--surface-soft)}
 .workflow-canvas .react-flow__controls button svg{fill:currentColor}
+
+.workflow-studio label:has(input[type=checkbox]){display:flex;align-items:center;justify-content:flex-start;gap:8px}
+.workflow-studio input[type=checkbox]{width:auto;min-width:0;flex:0 0 auto}

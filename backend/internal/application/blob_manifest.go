@@ -328,6 +328,18 @@ func configureBlobStorage(s *FileStore, store BlobStore) error {
 			return errors.New("render checkpoints require a complete blob manifest")
 		}
 	}
+	if s.creative != nil {
+		refs, e := avatarCheckpointReferences(s.creative.data)
+		if e != nil {
+			return e
+		}
+		for _, ref := range refs {
+			actual, e := m.info(context.Background(), ref.Key)
+			if e != nil || actual != ref {
+				return errors.New("avatar checkpoints require a complete verified blob migration")
+			}
+		}
+	}
 	s.blobs = m
 	s.media.blobs = m
 	if remote, ok := store.(*S3BlobStore); ok {

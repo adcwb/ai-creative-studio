@@ -143,6 +143,9 @@ func (c *creativeStore) avatarLocked(space, project, id string) (DigitalHuman, e
 }
 
 func (s *FileStore) checkAvatarJob(ctx context.Context, job *CreativeJob) error {
+	if err := s.checkVoiceAuthorization(ctx, job); err != nil {
+		return err
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -162,6 +165,7 @@ func (s *FileStore) checkAvatarJob(ctx context.Context, job *CreativeJob) error 
 }
 
 func registerDigitalHumanRoutes(mux *http.ServeMux, s *FileStore) {
+	registerVoiceAuthorizationRoutes(mux, s)
 	base := "/api/v1/projects/{id}/digital-humans"
 	mux.HandleFunc("GET "+base, func(w http.ResponseWriter, r *http.Request) {
 		space, ok := spaceID(w, r)

@@ -90,13 +90,17 @@ func (s *FileStore) saveWorkflow(ctx context.Context, space, project, id, key, a
 	})
 	return out, err
 }
-func (s *FileStore) startWorkflow(ctx context.Context, space, project, id, key, actor string, expected int, revision string, pins map[string]workflowPin) (w.Run, error) {
+func (s *FileStore) startWorkflow(ctx context.Context, space, project, id, key, actor string, expected int, revision string, pins map[string]workflowPin, supplied ...map[string]string) (w.Run, error) {
 	p, err := s.GetProject(space, project)
 	if err != nil {
 		return w.Run{}, err
 	}
 	var out w.Run
-	digest := w.Digest([]any{id, expected, revision})
+	var values map[string]string
+	if len(supplied) > 0 {
+		values = supplied[0]
+	}
+	digest := workflowRunDigest(id, expected, revision, values)
 	runID := workflowKey(space, project, key, "run")
 	err = s.workflows.Update(ctx, space, project, func(d *workflowrepo.Document) error {
 		if original, replay, err := workflowReceipt(d, key, digest, "run"); err != nil {
@@ -126,7 +130,11 @@ func (s *FileStore) startWorkflow(ctx context.Context, space, project, id, key, 
 		if _, err := w.Validate(source.Graph, true); err != nil {
 			return err
 		}
-		out = w.Run{ID: runID, WorkflowID: id, RevisionID: revision, SHA256: source.SHA256, ProjectVersion: p.Version, Actor: actor, Status: "queued", Version: 1, CreatedAt: time.Now().UTC().Format(time.RFC3339Nano), Nodes: map[string]w.NodeRun{}, Graph: source.Graph}
+		resolved, e := w.ResolveInputs(source.Graph, values)
+		if e != nil {
+			return e
+		}
+		out = w.Run{Inputs: resolved, InputsSHA256: w.Digest(resolved), ID: runID, WorkflowID: id, RevisionID: revision, SHA256: source.SHA256, ProjectVersion: p.Version, Actor: actor, Status: "queued", Version: 1, CreatedAt: time.Now().UTC().Format(time.RFC3339Nano), Nodes: map[string]w.NodeRun{}, Graph: source.Graph}
 		for _, node := range source.Graph.Nodes {
 			if w.ModelKind(node.Kind) {
 				pin, ok := pins[node.ID]
@@ -291,6 +299,13 @@ func (s *FileStore) advanceWorkflow(ctx context.Context, space, project string) 
 						return workflowrepo.ErrStorage
 					}
 					if job.Status == "succeeded" {
+						if definition.Kind == "llm" {
+							n.Status = "succeeded"
+							n.Result = w.Result{Text: job.TextResult}
+							r.Nodes[nodeID] = n
+							runChanged = true
+							continue
+						}
 						state, e := s.media.GetChecked(project, space)
 						if e != nil {
 							return e
@@ -326,8 +341,15 @@ func (s *FileStore) advanceWorkflow(ctx context.Context, space, project string) 
 				case "text":
 					n.Status = "succeeded"
 					n.Result.Text = definition.Text
+				case "variable":
+					n.Status = "succeeded"
+					n.Result.Text = r.Inputs[definition.Variable]
 				case "template":
-					n.Result.Text, err = prompts.ExpandLiteral(definition.Text, map[string]string{"input": inputs["prompt"].Text}, 2000)
+					values, e := w.TemplateValues(definition.Text, r.Inputs, inputs["prompt"].Text)
+					if e != nil {
+						return e
+					}
+					n.Result.Text, err = prompts.ExpandLiteral(definition.Text, values, 2000)
 					if err != nil {
 						n.Status = "failed"
 						n.ErrorCode = "invalid_workflow"
@@ -358,7 +380,12 @@ func (s *FileStore) advanceWorkflow(ctx context.Context, space, project string) 
 					if !ok {
 						return workflowrepo.ErrStorage
 					}
-					in := CreativeJobInput{Kind: definition.Kind, ExpectedVersion: r.ProjectVersion, Prompt: inputs["prompt"].Text, ModelRequest: ModelRequest{ModelConfigID: pin.Selection.ModelID, ModelConfigVersion: pin.Selection.Version, Voice: pin.Selection.Voice, selection: cloneRuntimeSelection(&pin.Selection), selectedCaps: Capabilities{Provider: pin.Provider, Model: pin.Model, Mode: "real", Ready: true}}}
+					in := CreativeJobInput{TextInstruction: func() string {
+						if definition.Kind == "llm" {
+							return definition.Text
+						}
+						return ""
+					}(), Kind: workflowCreativeKind(definition.Kind), ExpectedVersion: r.ProjectVersion, Prompt: inputs["prompt"].Text, ModelRequest: ModelRequest{ModelConfigID: pin.Selection.ModelID, ModelConfigVersion: pin.Selection.Version, Voice: pin.Selection.Voice, selection: cloneRuntimeSelection(&pin.Selection), selectedCaps: Capabilities{Provider: pin.Provider, Model: pin.Model, Mode: "real", Ready: true}}}
 					if definition.Kind == "image" {
 						ratio := definition.Ratio
 						if ratio == "" {
@@ -551,6 +578,9 @@ func workflowStatus(nodes map[string]w.NodeRun) string {
 
 func (s *FileStore) cancelWorkflowChildren(space, project string, run w.Run) error {
 	for id, n := range run.Nodes {
+		if n.ReusedFrom != "" {
+			continue
+		}
 		jobID := n.JobID
 		if jobID == "" {
 			s.creative.mu.Lock()
@@ -569,4 +599,11 @@ func (s *FileStore) cancelWorkflowChildren(space, project string, run w.Run) err
 		}
 	}
 	return nil
+}
+
+func workflowRunDigest(id string, expected int, revision string, values map[string]string) string {
+	if len(values) == 0 {
+		return w.Digest([]any{id, expected, revision})
+	}
+	return w.Digest([]any{id, expected, revision, values})
 }

@@ -83,6 +83,25 @@ func valid(d Document, space, project string) bool {
 		}
 	}
 	for id, r := range d.Runs {
+		if r.FromRunID != "" {
+			source, ok := d.Runs[r.FromRunID]
+			if !ok || source.ID == r.ID || source.WorkflowID != r.WorkflowID || source.RevisionID != r.RevisionID || source.SHA256 != r.SHA256 || w.Digest(source.Inputs) != w.Digest(r.Inputs) || source.InputsSHA256 != r.InputsSHA256 || r.RestartNode == "" {
+				return false
+			}
+		}
+		visited := map[string]bool{r.ID: true}
+		parent := r.FromRunID
+		for parent != "" {
+			if visited[parent] {
+				return false
+			}
+			visited[parent] = true
+			prior, ok := d.Runs[parent]
+			if !ok {
+				return false
+			}
+			parent = prior.FromRunID
+		}
 		if id != r.ID || !w.ID.MatchString(id) || !w.ID.MatchString(r.Actor) || r.ProjectVersion < 1 || r.Version < 1 || r.SHA256 != w.Digest(r.Graph) {
 			return false
 		}
@@ -95,6 +114,10 @@ func valid(d Document, space, project string) bool {
 				}
 			}
 		}
+		resolved, e := w.ResolveInputs(r.Graph, r.Inputs)
+		if e != nil || r.InputsSHA256 != "" && r.InputsSHA256 != w.Digest(resolved) || len(r.Graph.Variables) > 0 && r.InputsSHA256 == "" {
+			return false
+		}
 		if !revisionMatches {
 			return false
 		}
@@ -106,6 +129,12 @@ func valid(d Document, space, project string) bool {
 		}
 		for _, node := range r.Graph.Nodes {
 			n, ok := r.Nodes[node.ID]
+			if n.ReusedFrom != "" {
+				source, ok := d.Runs[n.ReusedFrom]
+				if !ok || n.ReusedFrom != r.FromRunID || n.Status != "succeeded" || w.Digest(n.Result) != w.Digest(source.Nodes[node.ID].Result) || source.Nodes[node.ID].Status != "succeeded" {
+					return false
+				}
+			}
 			if !ok || n.NodeID != node.ID {
 				return false
 			}
@@ -134,7 +163,7 @@ func valid(d Document, space, project string) bool {
 			if _, ok := d.Workflows[receipt.ID]; !ok {
 				return false
 			}
-		case "run", "decision", "cancel", "reconcile":
+		case "run", "rerun", "decision", "cancel", "reconcile":
 			if _, ok := d.Runs[receipt.ID]; !ok {
 				return false
 			}

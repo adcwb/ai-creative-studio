@@ -236,3 +236,20 @@ func ExpandLiteral(body string, values map[string]string, maxCharacters int) (st
 	}
 	return out.String(), nil
 }
+
+// LiteralNames returns only explicit token names; no expression is evaluated.
+func LiteralNames(body string) ([]string, error) {
+	tokens, err := parse(body)
+	if err != nil {
+		return nil, err
+	}
+	names := []string{}
+	seen := map[string]bool{}
+	for _, token := range tokens {
+		if token.name != "" && !seen[token.name] {
+			names = append(names, token.name)
+			seen[token.name] = true
+		}
+	}
+	return names, nil
+}

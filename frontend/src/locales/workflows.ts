@@ -1,4 +1,18 @@
 export default {
+ '恢复只使用已校验的完成结果，继续合成或入库，不重新启动引擎；仍检查当前授权。':'Recovery uses verified completed output for composition or ingestion without restarting the engine. Current authorizations are still checked.',
+ '恢复已确认口播结果':'Recover confirmed avatar output','引擎执行结果尚未确认，未自动重新生成。请先核对执行器记录。':'The engine outcome is unconfirmed and has not been regenerated automatically. Check the original engine records first.',
+
+ '声音使用授权':'Voice usage authorization','为这份音频保存独立授权，可用于多次口播并随时撤销。声明由创作者负责，不代表平台已核验商业许可。':'Save an independent grant for this audio, reuse it for avatars and revoke it when needed. Creators are responsible for their declaration; the platform has not verified commercial rights.',
+ '声音授权读取失败，请重新读取或确认后端版本。':'Could not read voice grants. Reload or check the backend version.','已保存声音授权':'Saved voice grant','选择授权或在下方登记':'Select a grant or register one below','保存可复用声音授权':'Save reusable voice grant','确认撤销此声音授权，停止关联的新派发':'Confirm withdrawal of this voice grant and stop associated future dispatches','撤销此声音授权':'Withdraw this voice grant','此声音授权已撤销；历史成片保留，不能继续用此授权生成。':'This voice grant is withdrawn. Historical videos remain, but no new generation may use this grant.','有待核对的原请求，输入已固定，请先恢复结果。':'An earlier request needs reconciliation. Its inputs are pinned; recover the outcome first.',
+
+ '运行变量':'Run variable','文本模型':'Text model','设置运行变量':'Define run variables',
+ '将每次变化的主体、场景或语气设为变量。不要填入密钥；运行记录会保存输入。':'Make changing subjects, scenes or tone variables. Do not enter credentials; run records save these inputs.',
+ '变量标识':'Variable ID','变量显示名称':'Variable display name','默认文案':'Default copy','运行时必填':'Required for each run','移除变量':'Remove variable','添加运行变量':'Add run variable',
+ '本次运行输入':'Inputs for this run','每次运行固定这份输入；修改这里不会更改旧运行或已保存模板。':'Each run pins its inputs. Edits here do not change earlier runs or saved templates.',
+ '读取运行变量':'Read run variable','请选择变量':'Choose a variable','文本处理要求':'Text transformation instruction','已声明变量':'Declared variables','流程文本处理':'Workflow text transformation',
+ '从此步骤重新制作':'Remake from this step','此步骤及其下游将重新执行；其他已完成步骤沿用，旧运行和素材保留。结果未知时须先核对原任务。':'This step and its downstream steps will execute again. Other completed steps are reused; earlier runs and media are retained. Reconcile unconfirmed outcomes first.',
+ '确认重新执行此步骤及下游':'Confirm execution of this step and its downstream steps','开始局部重做':'Start partial remake','沿用已完成步骤，未再次调用模型':'Completed step reused without another model call','本次固定输入':'Pinned inputs',
+
  '文案模板':'Copy template',
  '使用 {{input}} 插入上一步文案，按原文替换，不执行表达式。':'Use {{input}} to insert the previous copy as literal text. Expressions are not executed.',
  '有步骤未完成，后续生成已暂停；已开始的任务会继续核对结果。':'A step did not complete. Further generation is paused while already started tasks are reconciled.',

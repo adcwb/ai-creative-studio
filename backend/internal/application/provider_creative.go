@@ -84,9 +84,9 @@ func creativeFailure(err error) (string, string) {
 		return code, "模型返回的季集纲结构或范围无效，未采纳为正式计划；请检查模型的结构化输出能力。"
 	}
 	if code == "execution_outcome_unknown" {
-		return code, "请求可能已发送，但结果未确认；未自动重发。请先核对网关记录，保留原请求和已保存计划。"
+		return code, "请求可能已发送，但结果未确认；未自动重发。请先核对原服务或执行器记录，保留原请求和已保存计划。"
 	}
-	if code == "avatar_legacy_protocol_limit" || code == "provider_inline_capacity" || code == "writing_context_changed" || code == "library_use_denied" || code == "provider_input_capacity" || code == "provider_input_count_unavailable" || code == "alignment_source_unpinned" || code == "alignment_source_changed" {
+	if code == "avatar_checkpoint_invalid" || code == "avatar_source_changed" || code == "avatar_legacy_protocol_limit" || code == "provider_inline_capacity" || code == "writing_context_changed" || code == "library_use_denied" || code == "provider_input_capacity" || code == "provider_input_count_unavailable" || code == "alignment_source_unpinned" || code == "alignment_source_changed" {
 		return code, providerMessage(code)
 	}
 	return code, "创作服务执行未完成（" + code + "）；旧稿保留，远端结果或费用可能不确定，未自动重试。"

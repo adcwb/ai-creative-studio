@@ -25,6 +25,7 @@ type Node struct {
 	X            float64 `json:"x"`
 	Y            float64 `json:"y"`
 	Text         string  `json:"text,omitempty"`
+	Variable     string  `json:"variable_name,omitempty"`
 	AssetID      string  `json:"asset_id,omitempty"`
 	AssetKind    string  `json:"asset_kind,omitempty"`
 	ModelID      string  `json:"model_config_id,omitempty"`
@@ -43,9 +44,10 @@ type Viewport struct {
 	Zoom float64 `json:"zoom"`
 }
 type Graph struct {
-	Viewport *Viewport `json:"viewport,omitempty"`
-	Nodes    []Node    `json:"nodes"`
-	Edges    []Edge    `json:"edges"`
+	Variables []Variable `json:"variables,omitempty"`
+	Viewport  *Viewport  `json:"viewport,omitempty"`
+	Nodes     []Node     `json:"nodes"`
+	Edges     []Edge     `json:"edges"`
 }
 type Revision struct {
 	ID        string `json:"id"`
@@ -68,6 +70,7 @@ type Result struct {
 	AssetKind string `json:"asset_kind,omitempty"`
 }
 type NodeRun struct {
+	ReusedFrom string `json:"reused_from_run_id,omitempty"`
 	ReviewedBy string `json:"reviewed_by,omitempty"`
 	ReviewedAt string `json:"reviewed_at,omitempty"`
 	NodeID     string `json:"node_id"`
@@ -77,6 +80,10 @@ type NodeRun struct {
 	ErrorCode  string `json:"error_code,omitempty"`
 }
 type Run struct {
+	FromRunID      string             `json:"from_run_id,omitempty"`
+	RestartNode    string             `json:"restart_node_id,omitempty"`
+	Inputs         map[string]string  `json:"inputs,omitempty"`
+	InputsSHA256   string             `json:"inputs_sha256,omitempty"`
 	ID             string             `json:"id"`
 	WorkflowID     string             `json:"workflow_id"`
 	RevisionID     string             `json:"revision_id"`
@@ -95,13 +102,15 @@ func Digest(v any) string {
 	s := sha256.Sum256(b)
 	return hex.EncodeToString(s[:])
 }
-func ModelKind(kind string) bool { return kind == "image" || kind == "speech" || kind == "video" }
+func ModelKind(kind string) bool {
+	return kind == "image" || kind == "speech" || kind == "video" || kind == "llm"
+}
 func Terminal(status string) bool {
 	return status == "succeeded" || status == "failed" || status == "cancelled" || status == "unknown"
 }
 func kindType(n Node) string {
 	switch n.Kind {
-	case "text", "template":
+	case "text", "template", "variable", "llm":
 		return "text"
 	case "asset":
 		return n.AssetKind
@@ -123,6 +132,13 @@ func Validate(g Graph, run bool) ([]string, error) {
 	if len(g.Nodes) == 0 {
 		return nil, ErrInput
 	}
+	validationInputs := map[string]string{}
+	for _, v := range g.Variables {
+		validationInputs[v.Name] = "x"
+	}
+	if _, err := ResolveInputs(g, validationInputs); err != nil {
+		return nil, err
+	}
 	nodes := map[string]Node{}
 	degree := map[string]int{}
 	children := map[string][]string{}
@@ -135,18 +151,27 @@ func Validate(g Graph, run bool) ([]string, error) {
 			return nil, ErrInput
 		}
 		switch n.Kind {
-		case "text", "template", "asset", "image", "speech", "video", "review", "output":
+		case "text", "template", "variable", "llm", "asset", "image", "speech", "video", "review", "output":
 		default:
 			return nil, ErrInput
 		}
 		if n.Kind == "asset" && (n.AssetKind != "image" && n.AssetKind != "audio" && n.AssetKind != "video") {
 			return nil, ErrInput
 		}
-		if run && ((n.Kind == "text" || n.Kind == "template") && strings.TrimSpace(n.Text) == "" || n.Kind == "asset" && !ID.MatchString(n.AssetID) || ModelKind(n.Kind) && (!ID.MatchString(n.ModelID) || n.ModelVersion < 1)) {
+		if run && ((n.Kind == "text" || n.Kind == "template" || n.Kind == "llm") && strings.TrimSpace(n.Text) == "" || n.Kind == "asset" && !ID.MatchString(n.AssetID) || ModelKind(n.Kind) && (!ID.MatchString(n.ModelID) || n.ModelVersion < 1)) {
 			return nil, ErrInput
 		}
+		if n.Kind == "variable" && (n.Variable != "" || run) {
+			if _, ok := validationInputs[n.Variable]; !ok {
+				return nil, ErrInput
+			}
+		}
 		if n.Kind == "template" && strings.TrimSpace(n.Text) != "" {
-			if _, err := prompts.ExpandLiteral(n.Text, map[string]string{"input": "x"}, 2000); err != nil {
+			values, e := TemplateValues(n.Text, validationInputs, "x")
+			if e != nil {
+				return nil, ErrInput
+			}
+			if _, err := prompts.ExpandLiteral(n.Text, values, 2000); err != nil {
 				return nil, ErrInput
 			}
 		}
@@ -187,7 +212,7 @@ func Validate(g Graph, run bool) ([]string, error) {
 		output := kindType(n)
 		for input, parent := range incoming[id] {
 			v := types[parent]
-			if input == "prompt" && v != "text" || input == "reference" && v != "image" || input == "media" && (v != "image" && v != "audio" && v != "video") {
+			if input == "prompt" && v != "text" || input == "reference" && v != "image" || input == "media" && (v != "image" && v != "audio" && v != "video" && v != "text") {
 				return nil, ErrInput
 			}
 			if input == "media" {
@@ -195,7 +220,12 @@ func Validate(g Graph, run bool) ([]string, error) {
 			}
 		}
 		if run {
-			if (ModelKind(n.Kind) || n.Kind == "template") && incoming[id]["prompt"] == "" || (n.Kind == "review" || n.Kind == "output") && incoming[id]["media"] == "" {
+			names, _ := prompts.LiteralNames(n.Text)
+			needsInput := false
+			for _, name := range names {
+				needsInput = needsInput || name == "input"
+			}
+			if (ModelKind(n.Kind) || n.Kind == "template" && needsInput) && incoming[id]["prompt"] == "" || (n.Kind == "review" || n.Kind == "output") && incoming[id]["media"] == "" {
 				return nil, ErrInput
 			}
 		}
