@@ -45,6 +45,9 @@
 
 项目内现已提供[数字人口播入口](docs/digital-human.md)：形象授权登记与撤销、TTS／录音选择、照片驱动与视频改口型任务、带 AI 标识的成片入库。默认未启用人物模型，需安装具备适当许可的执行器并完成真实样片验收。
 
+网页3D入口现提供[TalkingHead + Three.js角色与配音预览](docs/superpowers/specs/2026-11-13-workflow-canvas-digital-human/web-3d.md)：CC0示例或已授权私有GLB、已有网关文案/配音、可撤销使用声明与浏览器基础音量口型。不是中文音素对齐、照片转3D或3D成片导出；真实移动GPU、供应商效果和商业账户权益未验收。
+
+
 提供 OpenAI、Anthropic / Claude、Google / Gemini / Nano Banana、字节 Ark / 豆包、MiniMax 和即梦公开视觉 API 的可替换适配。不同厂商和型号的文本、图像、视频、语音与转写能力不同，配置型号不等于协议兼容或账户获权。
 
 OpenAI Videos / Sora 已退役并在本地拒绝；即梦视频没有已核实的可用新版官方接口。旧语音与转写接口生命周期见[候选合同核对](docs/iteration-9-followup.md)。真实账号、效果、耗时和费用尚未验证，不以 mock 结果代替。[真实验收准备](docs/live-evaluation.md)默认 dry-run，独立评测工具仍要求明确授权。创作页面已移除报价、费用确认和预算限制；配置启用模型后，在组织授权与能力匹配时直接生成；本项目自动审核默认暂时禁用，结果未经自动审核，详见[执行与兼容说明](docs/runtime-model-selection.md)。

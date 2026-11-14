@@ -349,12 +349,15 @@ func configureBlobStorage(s *FileStore, store BlobStore) error {
 }
 
 const BlobSchema = `CREATE TABLE IF NOT EXISTS studio_blobs (
- key text PRIMARY KEY CHECK(key ~ '^[a-f0-9]{64}/[a-f0-9]{64}/[a-f0-9]{32}(\.(png|mp4|srt|vtt))?$'),
+ key text PRIMARY KEY CHECK(key ~ '^[a-f0-9]{64}/[a-f0-9]{64}/[a-f0-9]{32}(\.(png|mp4|srt|vtt|glb))?$'),
  tenant_hash text NOT NULL CHECK(tenant_hash=split_part(key,'/',1)),
  project_hash text NOT NULL CHECK(project_hash=split_part(key,'/',2)),
  size bigint NOT NULL CHECK(size>=0),
  sha256 text NOT NULL CHECK(sha256 ~ '^[a-f0-9]{64}$')
 );
+ALTER TABLE studio_blobs DROP CONSTRAINT IF EXISTS studio_blobs_key_check;
+ALTER TABLE studio_blobs DROP CONSTRAINT IF EXISTS studio_blobs_key_kind_v2;
+ALTER TABLE studio_blobs ADD CONSTRAINT studio_blobs_key_kind_v2 CHECK(key ~ '^[a-f0-9]{64}/[a-f0-9]{64}/[a-f0-9]{32}(\.(png|mp4|srt|vtt|glb))?$');
 ALTER TABLE studio_blobs DROP CONSTRAINT IF EXISTS studio_blobs_size_check;
 ALTER TABLE studio_blobs DROP CONSTRAINT IF EXISTS studio_blobs_size_nonnegative;
 ALTER TABLE studio_blobs ADD CONSTRAINT studio_blobs_size_nonnegative CHECK(size>=0);`

@@ -123,6 +123,7 @@ type CreativeJob struct {
 	Source                ProjectInput      `json:"source"`
 }
 type creativeReceipt struct {
+	Avatar3DID           string `json:"avatar_3d_id,omitempty"`
 	ReviewVersion        int    `json:"review_version,omitempty"`
 	VoiceAuthorizationID string `json:"voice_authorization_id,omitempty"`
 	AvatarID             string `json:"avatar_id,omitempty"`
@@ -130,6 +131,7 @@ type creativeReceipt struct {
 	JobID                string `json:"job_id"`
 }
 type creativeDisk struct {
+	Avatars3D           map[string]Avatar3D           `json:"avatars_3d,omitempty"`
 	VoiceAuthorizations map[string]VoiceAuthorization `json:"voice_authorizations,omitempty"`
 	DigitalHumans       map[string]DigitalHuman       `json:"digital_humans,omitempty"`
 	Version             int                           `json:"version"`

@@ -80,7 +80,7 @@ var pgCollections = map[string][]pgCollection{
 	"budget":          {{"limits", "studio_budget_limits", "map"}, {"entries", "studio_cost_entries", "map"}, {"changes", "studio_budget_changes", "array"}, {"dispatches", "studio_model_dispatches", "map"}},
 	"models":          {{"tenants", "studio_model_tenants", "map"}},
 	"usage":           {{"calls", "studio_model_calls", "map"}},
-	"creative":        {{"jobs", "studio_creative_jobs", "map"}, {"receipts", "studio_creative_receipts", "map"}, {"digital_humans", "studio_digital_humans", "map"}, {"voice_authorizations", "studio_voice_authorizations", "map"}},
+	"creative":        {{"jobs", "studio_creative_jobs", "map"}, {"receipts", "studio_creative_receipts", "map"}, {"digital_humans", "studio_digital_humans", "map"}, {"voice_authorizations", "studio_voice_authorizations", "map"}, {"avatars_3d", "studio_avatar_3d_models", "map"}},
 	"media":           {{"projects", "studio_media_projects", "map"}, {"receipts", "studio_media_receipts", "map"}},
 	"alignment":       {{"tasks", "studio_alignment_tasks", "map"}, {"receipts", "studio_alignment_receipts", "map"}},
 }
@@ -121,6 +121,7 @@ func InitPostgres(ctx context.Context, db *sql.DB) error {
 	}
 	// Adding named constraints conditionally keeps migrations restartable.
 	constraints := map[string]string{
+		"studio_avatar3d_project_fk":            `ALTER TABLE studio_avatar_3d_models ADD CONSTRAINT studio_avatar3d_project_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
 		"studio_voice_authorization_project_fk": `ALTER TABLE studio_voice_authorizations ADD CONSTRAINT studio_voice_authorization_project_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
 		"studio_personal_copy_source_fk":        `ALTER TABLE studio_personal_copies ADD CONSTRAINT studio_personal_copy_source_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,
 		"studio_media_project_fk":               `ALTER TABLE studio_media_projects ADD CONSTRAINT studio_media_project_fk FOREIGN KEY(tenant_id,parent_id) REFERENCES studio_projects(tenant_id,entity_id) DEFERRABLE INITIALLY DEFERRED`,

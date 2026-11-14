@@ -8,6 +8,7 @@ func registerCreativeRoutes(mux *http.ServeMux, s *FileStore) {
 	registerDigitalHumanRoutes(mux, s)
 	registerAvatarReviewRoutes(mux, s)
 	registerAvatarCutRoutes(mux, s)
+	registerAvatar3DRoutes(mux, s)
 	registerAvatarReplacementRoutes(mux, s)
 	registerCreativeControls(mux, s)
 	mux.HandleFunc("GET /api/v1/creative-registry", func(w http.ResponseWriter, r *http.Request) { respond(w, 200, CreativeRegistry()) })

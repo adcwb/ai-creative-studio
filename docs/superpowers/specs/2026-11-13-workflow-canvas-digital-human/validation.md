@@ -128,3 +128,31 @@
 此处是针对性合并验证，未重新运行整套CI、所有PG分组或Windows原生测试。旧master对应云端[43549901697](https://github.com/adcwb/ai-creative-studio/actions/runs/43549901697)已失败（9项执行job及3项聚合job失败，Docker镜像发布跳过）；本次推送不声称这些已修复或新CI已通过。外部真实模型/S3/许可、人物艺术效果、实时/3D等边界继续按tasks.md记录；新选择的网页3D方向另阶段实施，不能以本次推送视为已完成。
 
 画布本地真实HTTP协议浏览器复验10/10通过（桌面5、手机5，各用新隔离后端）：拖动/缩放/持久修订、字面文案模板与连接、图像/配音/视频网关任务、人工选择及未知响应原请求恢复；使用本地合成供应商，不是实际付费模型。手机组37.5s，具体日志 `/tmp/canvas-avatar-merge-canvas.log`。
+
+
+## 网页3D角色本地验收（2026-11-14）
+
+状态：本地实现与有边界的验证；分支`feat/web-3d-avatar`基于已推送`8dec8da171626547c56bddf854e05b973380d5e7`，当前远端`1a691fc412f77916f34f615807df37f0c0e9fd71`是其后代，另含图像历史操作与网关布局更新。本阶段只fetch核对，未合并覆盖、未推送3D、未部署。实施提交由Git同次记录；准确合同见[web-3d.md](web-3d.md)。
+
+上一阶段已成功推送8dec8da。对应[CI 43554853078](https://github.com/adcwb/ai-creative-studio/actions/runs/43554853078)现已结束为failure，9项执行job与3项聚合失败，镜像发布跳过；不声称CI通过、不自动修复或等待其完整性，不代表网页3D已进入云验证。
+
+| 检查 | 实际结果与边界 |
+| --- | --- |
+| `go test -race ./internal/application -run 'Test(Avatar3D|DigitalHuman|Avatar|VoiceAuthorization|BlobMigration|PostgresBlob)' -count=1`，配置本地PG DSN | 通过156.190s，文件+隔离真实PG；后续新增3D检查另列下行 |
+| `go test -race ./internal/application -run '^TestAvatar3D' -count=1` | 通过26.208s，含GLB、实际源SHA、持久化、HTTP权限/撤销/Range、异常multipart及旧PG约束迁移；最后新增回执、迁移及并发专项另跑 |
+| GLB文件↔对象存储专项 | `TestAvatar3DBlobMigrationRoundTrip` race通过1.077s，使用本地S3协议替身，SHA与引用保留；非真实S3服务验收 |
+| 同键不同GLB并发 | 文件+两个PG实例并发专项race通过1.419s，仅一份回执获胜、已接受字节完整性不变 |
+| HTTP原回执与权限 | 文件/PG真实SecureHandler race通过16.548s，核对上传原回执、跨空间拒绝、未知键404；见`avatar3d-http-receipt-final.log` |
+| `go vet ./...`、`GOOS=windows GOARCH=amd64 go build ./...`、server构建 | 通过；交叉编译不是Windows原生执行或WindowsGPU验收 |
+| `go test ./...` | 未全绿；唯一失败`TestVisionOutputMetadataAndMalformedResults`，围栏JSON负向期望失败。独立detached原始8dec8da工作树同一测试也失败0.066s；未修改视觉分析生产路径或削弱其断言 |
+| 前端typecheck/lint/test/build | 类型/lint通过，28文件89单元通过，最终生产构建5.09s；TalkingHead独立懒加载chunk约910kB未压缩，构建提示大chunk，未隐藏提示 |
+| i18n/OpenAPI | 3392条静态覆盖与`openapi_spec_validator`通过；新增六个3D操作，metadata/私有Range/授权合同一致 |
+| 3D路由浏览器 | 最终桌面+手机6/6通过，约1.1分钟：实际CC0 GLB + WebGL、真实音频口型/撤销停止/页面卸载AudioContext关闭；WebGL不可用明确报错；未知上传刷新查询原回执且不重发二进制 |
+| 原作品/不可用入口回归 | 桌面+手机2/2通过16.2s，图像/视频/网页3D列表与未实现实时会话入口正确区分 |
+| 3D真实后端与网关协议浏览器 | 桌面29.3s、手机24.1s，各1/1通过；注册新隔离账户→CC0登记→真实本地文本/语音HTTP协议→人工采用→声音授权→WebGL播放。上游收到恰好一次文案与一次配音请求，不收到GLB；仅合成上游，不是付费供应商或真实艺术效果 |
+
+渲染测试使用Chromium SwiftShader。以实际canvas像素检查排除空画布，确认没有额外Google/Azure/远程角色请求，并检查手机有效DPR≤1、桌面≤1.5、无横向溢出。人工查看1920×1080页面与iPhone13尺寸截图（图片像素含手机DPR），核对标题/菜单、角色、许可表单和按钮沿用现有绿色设计。初次截图曾暴露滚动/尺寸变化后静帧画布清空，已增加显式静帧重绘并重测；最初上传恢复测试因状态文本包含按钮而定位过严，按实际状态区域修正后重跑通过，没有删除恢复行为断言。
+
+本地日志和截图：`/workspace/artifacts/workflow-canvas-digital-human/web-3d/`，代表文件`avatar3d-header-desktop.png`、`avatar3d-live-mobile.png`、`avatar3d-upload-form-mobile.png`、`avatar3d-canvas-desktop.png`；完整Go失败和原基线复现日志一并保留。不以只看DOM的测试作为3D画面证明。
+
+未执行/未完成：物理移动GPU、真实Windows原生/其他浏览器、真实TTS/模型供应商与商业权益、真人/中文音素效果、实时双向会话、照片建模、3D成片导出/3D画布节点、真实S3/OSS迁移及生产数据操作。RMS只跟随声音强弱，不识别中文字音；29.7MB压缩模型在解压/纹理/GPU后需更多设备内存，低负载模式不保证所有手机可用。授权声明是可追溯依据，不是平台替用户完成商业许可核验；已下载内容无法远程回收。

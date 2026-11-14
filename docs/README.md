@@ -70,4 +70,6 @@
 
 - [创作者返修、连续制作与团队交付](superpowers/specs/2026-11-13-creator-workflow/README.md)
 
-- [可视化创作流程与数字人（下一阶段本地规划，未实现）](superpowers/specs/2026-11-13-workflow-canvas-digital-human/README.md)
+- [可视化创作流程与数字人（分阶段实现与验收）](superpowers/specs/2026-11-13-workflow-canvas-digital-human/README.md)
+
+- [网页3D角色、许可与基础口型（本地实现，外部效果未验收）](superpowers/specs/2026-11-13-workflow-canvas-digital-human/web-3d.md)

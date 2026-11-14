@@ -31,7 +31,7 @@ const MaxBlobBytes int64 = 128 << 20
 
 var ErrBlobNotFound = errors.New("blob not found")
 var ErrBlobIntegrity = errors.New("blob integrity check failed")
-var blobKeyPattern = regexp.MustCompile(`^[a-f0-9]{64}/[a-f0-9]{64}/[a-f0-9]{32}(\.(png|mp4|srt|vtt))?$`)
+var blobKeyPattern = regexp.MustCompile(`^[a-f0-9]{64}/[a-f0-9]{64}/[a-f0-9]{32}(\.(png|mp4|srt|vtt|glb))?$`)
 
 type BlobInfo struct {
 	Key    string `json:"key"`

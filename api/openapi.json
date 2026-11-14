@@ -34561,6 +34561,1028 @@
         },
         "description": "仅支持当前provider/model匹配原任务且已持久upstream_id的异步任务；旧执行器尚未退出时409，不能并发恢复造成重复发布。"
       }
+    },
+    "/api/v1/projects/{id}/avatar-3d-models": {
+      "get": {
+        "operationId": "listAvatar3DModels",
+        "summary": "List project-owned 3D characters, including revoked history",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success; private blob keys, credentials and raw model storage metadata are omitted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Avatar3DModel"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "仅支持当前provider/model匹配原任务且已持久upstream_id的异步任务；旧执行器尚未退出时409，不能并发恢复造成重复发布。"
+      },
+      "post": {
+        "operationId": "registerAvatar3DModel",
+        "summary": "Register a fixed CC0 character or stream a private self-contained GLB and license declaration",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Secure writes require the same origin or an explicitly trusted origin."
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success; private blob keys, credentials and raw model storage metadata are omitted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Avatar3DModel"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "仅支持当前provider/model匹配原任务且已持久upstream_id的异步任务；旧执行器尚未退出时409，不能并发恢复造成重复发布。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Avatar3DInput"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "metadata",
+                  "model"
+                ],
+                "properties": {
+                  "metadata": {
+                    "$ref": "#/components/schemas/Avatar3DInput"
+                  },
+                  "model": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Self-contained GLB2. No external URIs or remote decoder extensions. GLB uint32 framing, bounded JSON lexemes and context cancellation are technical parsing protections, not project quotas."
+                  }
+                }
+              },
+              "encoding": {
+                "metadata": {
+                  "contentType": "application/json"
+                },
+                "model": {
+                  "contentType": "model/gltf-binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/avatar-3d-models/requests/{key}/result": {
+      "get": {
+        "operationId": "reconcileAvatar3DModelRegistration",
+        "summary": "Read accepted registration by original idempotency key without uploading again",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success; private blob keys, credentials and raw model storage metadata are omitted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Avatar3DModel"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "仅支持当前provider/model匹配原任务且已持久upstream_id的异步任务；旧执行器尚未退出时409，不能并发恢复造成重复发布。"
+      }
+    },
+    "/api/v1/projects/{id}/avatar-3d-models/{modelId}/revoke": {
+      "post": {
+        "operationId": "revokeAvatar3DModel",
+        "summary": "Permanently revoke a project model grant; does not recall copies already on client devices",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Secure writes require the same origin or an explicitly trusted origin."
+          },
+          {
+            "name": "modelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success; private blob keys, credentials and raw model storage metadata are omitted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Avatar3DModel"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "仅支持当前provider/model匹配原任务且已持久upstream_id的异步任务；旧执行器尚未退出时409，不能并发恢复造成重复发布。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "confirmed"
+                ],
+                "properties": {
+                  "confirmed": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/avatar-3d-models/{modelId}/file": {
+      "get": {
+        "operationId": "downloadPrivateAvatar3DModel",
+        "summary": "Stream one active private GLB after project/tenant authorization and integrity verification; builtin files are public CC0 assets",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "modelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional byte range."
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Private self-contained GLB, Cache-Control: private, no-store",
+            "content": {
+              "model/gltf-binary": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Private self-contained GLB, Cache-Control: private, no-store",
+            "content": {
+              "model/gltf-binary": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "416": {
+            "description": "Invalid or unsatisfiable byte range."
+          }
+        },
+        "description": "仅支持当前provider/model匹配原任务且已持久upstream_id的异步任务；旧执行器尚未退出时409，不能并发恢复造成重复发布。"
+      }
+    },
+    "/api/v1/projects/{id}/avatar-3d-models/{modelId}/playbacks": {
+      "post": {
+        "operationId": "checkAvatar3DPlaybackAuthorization",
+        "summary": "Check active model, current creator/caller permissions, voice grant, owned audio and upstream asset authorization before local playback; does not bill a model",
+        "parameters": [
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Organization ID authorized by the authenticated session. Demo mode alone accepts personal-demo/team-demo; client IDs never grant access."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前空间的项目 ID；未知或其他空间的对象均返回 404。"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "description": "创作域持久幂等键，同空间共享；同一次请求保持原body和key，不能通过换键消除不确定结果。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required in secure mode except login/register/SSO start."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Secure writes require the same origin or an explicitly trusted origin."
+          },
+          {
+            "name": "modelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "空间、键或输入无效。JSON 语法/类型错误、未知字段、显式 null 为 invalid_json；规范化后的缺失必需值、长度或结构语义为 invalid_input。所有错误均拒绝写入。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在或不属于当前空间；不泄露其他空间记录。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict、version_conflict、generation_active 或 storyboard_missing；保留草稿并显式处理冲突。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "version_conflict",
+                    "message": "项目版本已更新，请保留草稿并读取最新版本"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type 必须为 application/json。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "持久化失败；没有成功响应时保留同一请求键和 body 再试，不在浏览器伪造保存成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success; private blob keys, credentials and raw model storage metadata are omitted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Avatar3DPlaybackCheck"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到请求/并发/记录限额。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "供应商配置不可用；未接受新生成。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Rejected request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "仅支持当前provider/model匹配原任务且已持久upstream_id的异步任务；旧执行器尚未退出时409，不能并发恢复造成重复发布。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Avatar3DPlaybackInput"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -50388,6 +51410,172 @@
             "enum": [
               true
             ]
+          }
+        }
+      },
+      "Avatar3DInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "body",
+          "license_reference",
+          "consent_reference",
+          "confirmed"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "builtin": {
+            "type": "string",
+            "enum": [
+              "mpfb-cc0-v1"
+            ],
+            "description": "Omit for multipart custom GLB. Fixed CC0 model only; source SHA and license are pinned by the server."
+          },
+          "body": {
+            "type": "string",
+            "enum": [
+              "M",
+              "F"
+            ]
+          },
+          "license_reference": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "consent_reference": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "confirmed": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        }
+      },
+      "Avatar3DModel": {
+        "type": "object",
+        "required": [
+          "id",
+          "space_id",
+          "project_id",
+          "name",
+          "body",
+          "license_reference",
+          "consent_reference",
+          "created_by",
+          "created_at",
+          "model_sha256",
+          "profile"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "space_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "builtin": {
+            "type": "string",
+            "enum": [
+              "mpfb-cc0-v1"
+            ]
+          },
+          "body": {
+            "type": "string",
+            "enum": [
+              "M",
+              "F"
+            ]
+          },
+          "license_reference": {
+            "type": "string"
+          },
+          "consent_reference": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string",
+            "description": "Authenticated caller, never supplied by the client."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "model_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "profile": {
+            "type": "object",
+            "properties": {
+              "nodes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "morphs": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "description": "Preliminary GLB profile markers, not a claim of successful rendering or verified commercial rights. Private BlobInfo is never returned."
+          }
+        }
+      },
+      "Avatar3DPlaybackInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "audio_asset_id",
+          "voice_authorization_id"
+        ],
+        "properties": {
+          "audio_asset_id": {
+            "type": "string"
+          },
+          "voice_authorization_id": {
+            "type": "string"
+          }
+        }
+      },
+      "Avatar3DPlaybackCheck": {
+        "type": "object",
+        "required": [
+          "id",
+          "audio_asset_id",
+          "lip_sync"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "audio_asset_id": {
+            "type": "string"
+          },
+          "lip_sync": {
+            "type": "string",
+            "enum": [
+              "audio_energy"
+            ],
+            "description": "Authorization check only. Does not generate audio, certify phoneme alignment, or create an output video."
           }
         }
       }

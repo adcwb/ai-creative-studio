@@ -24,6 +24,9 @@ func isAvatarKind(kind string) bool {
 	return kind == "digital_human" || kind == "digital_human_authorized"
 }
 func validateVoiceAuthorizations(d creativeDisk) error {
+	if err := validateAvatar3DModels(d); err != nil {
+		return err
+	}
 	if err := validateAvatarDerivatives(d); err != nil {
 		return err
 	}

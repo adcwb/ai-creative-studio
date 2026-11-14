@@ -304,6 +304,14 @@ func avatarCheckpointReferences(d creativeDisk) ([]BlobInfo, error) {
 		return nil, ErrBlobIntegrity
 	}
 	refs := []BlobInfo{}
+	if err := validateAvatar3DModels(d); err != nil {
+		return nil, err
+	}
+	for _, v := range d.Avatars3D {
+		if v.Model != nil {
+			refs = append(refs, *v.Model)
+		}
+	}
 	for _, job := range d.Jobs {
 		if !validAvatarCheckpoint(job) {
 			return nil, ErrBlobIntegrity
