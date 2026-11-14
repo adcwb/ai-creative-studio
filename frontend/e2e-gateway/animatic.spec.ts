@@ -1,3 +1,4 @@
+import {selectOption, expectControlValue} from '../e2e/support/controls'
 import {test,expect,type Page} from '@playwright/test'
 import {randomUUID} from 'node:crypto'
 const api='http://localhost:8084/api/v1',upstream='http://127.0.0.1:5193'
@@ -28,10 +29,10 @@ test('independent animatic renders selected stills and temporary audio without c
  const f=await fixture(page),before=await(await request.get(upstream+'/__state')).json()
  await plan(page,f.project.id)
  await page.getByRole('spinbutton',{name:'预演时长 1（秒）',exact:true}).fill('0.6');await page.getByRole('spinbutton',{name:'预演时长 2（秒）',exact:true}).fill('0.7')
- await page.getByRole('combobox',{name:'预演声音',exact:true}).selectOption('temporary');await page.getByRole('combobox',{name:'预演临时声轨 1',exact:true}).selectOption(f.audio)
+ await selectOption(page.getByRole('combobox',{name:'预演声音',exact:true}), 'temporary');await selectOption(page.getByRole('combobox',{name:'预演临时声轨 1',exact:true}), f.audio)
  // A cutback can repeat a saved shot and image without creating a fake image or
  // imposing a per-project shot/candidate quota.
- await page.getByRole('combobox',{name:'添加预演镜头',exact:true}).selectOption('preview-a');await page.getByRole('button',{name:'加入预演',exact:true}).click();await page.getByRole('combobox',{name:'预演图片 3',exact:true}).selectOption(f.images[0]);await page.getByRole('spinbutton',{name:'预演时长 3（秒）',exact:true}).fill('0.5')
+ await selectOption(page.getByRole('combobox',{name:'添加预演镜头',exact:true}), 'preview-a');await page.getByRole('button',{name:'加入预演',exact:true}).click();await selectOption(page.getByRole('combobox',{name:'预演图片 3',exact:true}), f.images[0]);await page.getByRole('spinbutton',{name:'预演时长 3（秒）',exact:true}).fill('0.5')
  const accepted=page.waitForResponse(r=>r.request().method()==='POST'&&r.url().includes('/media/previews?'))
  await page.getByRole('button',{name:'创建独立静帧预演',exact:true}).click();const response=await accepted;expect(response.status()).toBe(202);const body=response.request().postDataJSON();expect(body).not.toHaveProperty('model_config_id');expect(body).not.toHaveProperty('budget_currency');const original=await response.json()
  expect(original.purpose).toBe('animatic');expect(original.preview_source.shots).toHaveLength(3);expect(original.preview_source.shots[0].shot.id).toBe(original.preview_source.shots[2].shot.id);expect(original.timeline.clips[0].id).not.toBe(original.timeline.clips[2].id)
@@ -71,9 +72,9 @@ test('a replay-first CAS rejection confirms an unaccepted request while preservi
  await page.getByRole('button',{name:'创建独立静帧预演',exact:true}).click();await expect(page.getByRole('button',{name:'核对原预演请求',exact:true})).toBeVisible()
  await f.write(`/projects/${f.project.id}/storyboard`,{expected_version:f.project.version,shots:f.shots.map(s=>({...s,description:'已核对的新计划'}))},'PUT')
  await page.getByRole('button',{name:'核对原预演请求',exact:true}).click();await expect(page.getByRole('button',{name:'核对原预演请求',exact:true})).toHaveCount(0)
- await expect(page.getByRole('spinbutton',{name:'预演时长 1（秒）',exact:true})).toHaveValue('0.5')
+ await expectControlValue(page.getByRole('spinbutton',{name:'预演时长 1（秒）',exact:true}), '0.5')
  await page.getByRole('button',{name:'重新核对分镜与素材',exact:true}).click();await expect(page.getByText('已读取最新分镜和素材，保留了你的选片、顺序和时长。请核对变更后再创建预演。',{exact:true})).toBeVisible()
- await expect(page.getByRole('combobox',{name:'预演图片 1',exact:true})).toHaveValue(f.images[0])
+ await expectControlValue(page.getByRole('combobox',{name:'预演图片 1',exact:true}), f.images[0])
  const accepted=page.waitForResponse(r=>r.request().method()==='POST'&&r.url().includes('/media/previews?'));await page.getByRole('button',{name:'创建独立静帧预演',exact:true}).click();expect((await accepted).status()).toBe(202)
  const history=await(await page.request.get(api+`/projects/${f.project.id}/media/previews`+f.query)).json();expect(history.items).toHaveLength(1)
 })

@@ -1,0 +1,56 @@
+.studio-select {width:100%;min-width:0;text-align:start}
+.user-workspace {--adm-color-primary:var(--primary);--adm-color-text:var(--ink);--adm-color-text-secondary:var(--ink-muted);--adm-color-weak:var(--ink-muted);--adm-color-background:var(--surface);--adm-color-box:var(--surface-soft);--adm-color-border:var(--border);--adm-font-family:var(--font-sans)}
+.studio-modal .ant-modal-container {padding:0;overflow:hidden}
+.studio-dialog-content {display:flex;flex-direction:column;max-height:calc(100dvh - 100px);min-height:0;color:var(--ink);background:var(--surface)}
+.studio-dialog-header {display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 24px;border-bottom:1px solid var(--border);flex-shrink:0}
+.studio-dialog-header h2 {margin:0;font-size:var(--text-xl)}
+.studio-dialog-header .ant-btn {flex-shrink:0}
+.studio-dialog-body {padding:24px;overflow:auto;min-height:0}
+.studio-dialog-actions {display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid var(--border);flex-shrink:0;background:var(--surface)}
+.studio-dialog-content .model-editor-form {min-height:0}
+.studio-mobile-sheet {border-radius:16px 16px 0 0;overflow:hidden;max-height:92dvh;background:var(--surface);color:var(--ink)}
+.studio-mobile-sheet .studio-dialog-content {max-height:92dvh}
+.studio-mobile-sheet .studio-dialog-actions {padding-bottom:max(16px,env(safe-area-inset-bottom))}
+.studio-mobile-sheet .adm-mask {background:rgb(14 32 24 / 55%)}
+.image-page .composer .section-heading .eyebrow,.image-page .composer .step-number {display:none}
+.image-page .composer .section-heading h2 {font-size:var(--text-lg)}
+.image-page .composer .ant-btn-primary {width:100%;min-height:44px}
+.image-page .composer .prompt-optimize-button.ant-btn {font-size:var(--text-xs);height:30px}
+.image-page .composer .parameter-grid {gap:16px}
+.image-page .composer .ant-input {line-height:1.8}
+.image-page .composer .prompt-suggestion .ant-btn {margin-right:8px}
+.runtime-model-picker .studio-select {margin-top:7px;font-weight:400}
+.runtime-model-picker .ant-btn {margin-top:8px}
+.studio-model-tabs .ant-tabs-nav {margin-bottom:20px}
+.studio-gateway-table .ant-table {background:var(--surface)}
+.studio-gateway-table .gateway-actions {display:flex;gap:6px;flex-wrap:wrap;min-width:0}
+.studio-gateway-table .ant-table-cell {overflow-wrap:anywhere}
+.studio-gateway-table small {display:block;color:var(--ink-muted);margin-top:4px;font-size:var(--text-xs)}
+.studio-gateway-table .gateway-address {font-size:var(--text-xs)}
+.model-management-panel .ant-tag {max-width:100%;white-space:normal}
+.studio-select .ant-select-input {padding:0;border:0;background:transparent;box-shadow:none}
+.model-editor-grid .studio-select {font-weight:400}
+.model-editor-body .ant-checkbox-wrapper,.feature-binding-options .ant-checkbox-wrapper {display:inline-flex;align-items:center;font-weight:400;margin:0}
+.model-editor-body .ant-checkbox-wrapper input,.feature-binding-options .ant-checkbox-wrapper input {width:14px;height:14px}
+.studio-dialog-content .model-editor-error {margin:16px 24px 0}
+.studio-dialog-content .ant-alert {flex-shrink:0}
+.studio-confirm .studio-dialog-body p {margin:0;line-height:1.8}
+@media(max-width:760px){
+ .studio-dialog-header,.studio-dialog-body {padding:16px}
+ .studio-dialog-actions {padding:14px 16px}
+ .studio-dialog-actions .ant-btn {min-height:44px;flex:1}
+ .studio-dialog-content .model-editor-error {margin:12px 16px 0}
+ .studio-dialog-content .model-editor-form .media-actions {display:flex}
+ .studio-dialog-content .model-editor-form .media-actions .ant-btn {flex:1;min-height:44px}
+ .studio-gateway-table .ant-table table,.studio-gateway-table .ant-table-tbody {display:block}
+ .studio-gateway-table .ant-table-thead,.studio-gateway-table colgroup {display:none}
+ .studio-gateway-table .ant-table-tbody>tr {display:grid;grid-template-columns:minmax(0,1fr) auto;padding:16px;gap:12px;border-bottom:1px solid var(--border)}
+ .studio-gateway-table .ant-table-tbody>tr>.ant-table-cell {display:block;padding:0!important;border:0!important;min-width:0;max-width:none}
+ .studio-gateway-table .ant-table-cell:nth-child(2),.studio-gateway-table .ant-table-cell:last-child {grid-column:1/-1}
+ .studio-gateway-table .gateway-actions .ant-btn {min-height:40px}
+ .studio-gateway-table .ant-table-cell:last-child {padding-top:8px!important;border-top:1px solid var(--border)!important}
+ .studio-model-tabs .ant-tabs-tab {font-size:var(--text-sm)}
+ .studio-model-tabs .ant-tabs-tab+.ant-tabs-tab {margin-left:22px}
+ .image-page .creation-grid {grid-template-columns:1fr}
+ .studio-select .ant-select-input,.model-editor-form .ant-input {font-size:16px}
+}

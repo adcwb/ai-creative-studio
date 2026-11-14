@@ -1,3 +1,4 @@
+import {expectControlValue, selectOption} from '../e2e/support/controls'
 import {test,expect} from '@playwright/test'
 import {navigateTo} from '../e2e/support/navigation'
 test('encrypted gateway key create, preserve, update and explicit check use only a fake upstream',async({page,request},info)=>{
@@ -27,7 +28,7 @@ test('encrypted gateway key create, preserve, update and explicit check use only
  expect(JSON.stringify(report)).not.toContain('synthetic-key-A')
  expect(await page.evaluate(()=>JSON.stringify(localStorage))).not.toContain('synthetic-key-A')
  await page.getByRole('button',{name:'编辑',exact:true}).click()
- await expect(form.getByRole('combobox',{name:'凭据操作',exact:true})).toHaveValue('keep')
+ await expectControlValue(form.getByRole('combobox',{name:'凭据操作',exact:true}), 'keep')
  await expect(form.locator('input[type=password]')).toHaveCount(0)
  await form.getByLabel('网关名称',{exact:true}).fill('Renamed synthetic gateway')
  await form.getByRole('button',{name:'保存网关',exact:true}).click()
@@ -35,8 +36,8 @@ test('encrypted gateway key create, preserve, update and explicit check use only
  await page.getByRole('button',{name:'检查连接',exact:true}).click()
  await expect(page.getByText('连接成功，发现 1 个模型；生成能力尚未验证。',{exact:true})).toBeVisible()
  await page.getByRole('button',{name:'编辑',exact:true}).click()
- await form.getByRole('combobox',{name:'凭据操作',exact:true}).selectOption('set')
- await expect(form.getByLabel('新的 API Key',{exact:true})).toHaveValue('')
+ await selectOption(form.getByRole('combobox',{name:'凭据操作',exact:true}), 'set')
+ await expectControlValue(form.getByLabel('新的 API Key',{exact:true}), '')
  await form.getByLabel('新的 API Key',{exact:true}).fill('synthetic-key-B')
  await form.getByRole('button',{name:'保存网关',exact:true}).click()
  await expect(form).toHaveCount(0)
@@ -46,7 +47,7 @@ test('encrypted gateway key create, preserve, update and explicit check use only
  await page.getByRole('button',{name:'检查连接',exact:true}).click()
  await expect(page.getByText('连接成功，发现 1 个模型；生成能力尚未验证。',{exact:true})).toBeVisible()
  await page.getByRole('button',{name:'编辑',exact:true}).click()
- await form.getByRole('combobox',{name:'凭据操作',exact:true}).selectOption('set')
+ await selectOption(form.getByRole('combobox',{name:'凭据操作',exact:true}), 'set')
  await form.getByLabel('新的 API Key',{exact:true}).fill('synthetic-rejected-key')
  await form.getByRole('button',{name:'保存网关',exact:true}).click()
  await expect(form).toHaveCount(0)
@@ -54,7 +55,7 @@ test('encrypted gateway key create, preserve, update and explicit check use only
  await expect(page.getByText(/模型目录检查失败/)).toBeVisible()
  await expect(page.locator('body')).not.toContainText('synthetic-rejected-key')
  await page.getByRole('button',{name:'编辑',exact:true}).click()
- await form.getByRole('combobox',{name:'凭据操作',exact:true}).selectOption('revoke')
+ await selectOption(form.getByRole('combobox',{name:'凭据操作',exact:true}), 'revoke')
  await form.getByRole('button',{name:'保存网关',exact:true}).click()
  await expect(form).toHaveCount(0)
  await expect(page.getByRole('cell',{name:'已撤销',exact:true})).toBeVisible()

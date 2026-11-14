@@ -1,3 +1,4 @@
+import {selectOption} from '../e2e/support/controls'
 import {expect, test, type Locator} from '@playwright/test'
 import {openNavigation, closeNavigation} from '../e2e/support/navigation'
 
@@ -47,7 +48,7 @@ for (const theme of ['forest', 'paper', 'screening']) {
     const help = await colors(dialog.locator('.drama-help'))
     expect(contrast(help.text, help.background)).toBeGreaterThanOrEqual(4.5)
     // Enable a real primary action, then check both default and hover contrast.
-    await dialog.getByLabel('凭据操作', {exact: true}).selectOption('keep')
+    await selectOption(dialog.getByLabel('凭据操作', {exact: true}), 'keep')
     const save = dialog.getByRole('button', {name: '保存网关'})
     for (const hover of [false, true]) {
       if (hover) await save.hover()

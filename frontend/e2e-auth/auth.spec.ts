@@ -1,3 +1,4 @@
+import {selectOption, expectControlValue} from '../e2e/support/controls'
 import { navigateTo, openProject, chooseLanguage, openNavigation } from '../e2e/support/navigation'
 import { test, expect } from '@playwright/test'
 
@@ -72,13 +73,13 @@ test('owner reads historical costs without budget controls and configures models
   await page.locator('.legacy-model-config > summary').click()
   await expect(page.getByRole('button',{name:'保存预算',exact:true})).toHaveCount(0)
   await expect(page.locator('.governance-panel')).toContainText('$3.00')
-  await page.getByRole('combobox',{name:'账本币种',exact:true}).selectOption('CNY')
+  await selectOption(page.getByRole('combobox',{name:'账本币种',exact:true}), 'CNY')
   await expect(page.locator('.governance-panel')).toContainText('5.00')
-  await page.getByRole('combobox',{name:'账本币种',exact:true}).selectOption('USD')
+  await selectOption(page.getByRole('combobox',{name:'账本币种',exact:true}), 'USD')
   await expect(page.locator('.governance-panel')).toContainText('$3.00')
   await chooseLanguage(page, 'en')
   await page.locator('.legacy-model-config > summary').click()
-  await expect(page.getByRole('combobox',{name:'Ledger currency',exact:true})).toHaveValue('USD')
+  await expectControlValue(page.getByRole('combobox',{name:'Ledger currency',exact:true}), 'USD')
   await expect(page.locator('.governance-panel')).toContainText('$3.00')
   await chooseLanguage(page, 'zh-CN')
   await navigateTo(page, '/settings/models')
@@ -88,19 +89,19 @@ test('owner reads historical costs without budget controls and configures models
   const secretStorage = info.config.metadata.secretStorageAvailable
   expect(typeof secretStorage).toBe('boolean')
   if (secretStorage) {
-    await expect(page.getByRole('combobox', {name: '凭据操作', exact: true})).toHaveValue('set')
+    await expectControlValue(page.getByRole('combobox', {name: '凭据操作', exact: true}), 'set')
     await expect(page.getByLabel('新的 API Key', {exact: true})).toBeEnabled()
     await expect(page.getByRole('button', {name: '保存网关', exact: true})).toBeDisabled()
     await expect(page.getByText('MODEL_CONFIG_KEK_BASE64', {exact: true})).toHaveCount(0)
   } else {
-    await expect(page.getByRole('combobox', {name: '凭据操作', exact: true})).toHaveValue('keep')
+    await expectControlValue(page.getByRole('combobox', {name: '凭据操作', exact: true}), 'keep')
     await expect(page.getByLabel('新的 API Key', {exact: true})).toHaveCount(0)
     await expect(page.getByRole('option', {name: '设置 API Key', exact: true})).toHaveJSProperty('disabled', true)
     await expect(page.getByText('MODEL_CONFIG_KEK_BASE64', {exact: true})).toBeVisible()
   }
   await page.getByLabel('网关名称',{exact:true}).fill('Synthetic declaration gateway')
   await page.getByLabel('服务地址',{exact:true}).fill('https://gateway.example.invalid/v1')
-  await page.getByRole('combobox',{name:'凭据操作',exact:true}).selectOption('keep')
+  await selectOption(page.getByRole('combobox',{name:'凭据操作',exact:true}), 'keep')
   await expect(page.getByLabel('新的 API Key', {exact: true})).toHaveCount(0)
   await expect(page.getByRole('button', {name: '保存网关', exact: true})).toBeEnabled()
   await page.getByRole('button',{name:'保存网关',exact:true}).click()
@@ -114,8 +115,8 @@ test('owner reads historical costs without budget controls and configures models
   await expect(page.locator('.model-editor-form')).toHaveCount(0)
   await navigateTo(page, '/studio')
   await page.getByRole('button', {name: '刷新模型目录', exact: true}).click()
-  const option = page.getByRole('combobox',{name:'模型选择',exact:true}).locator('option').filter({hasText:'synthetic-declaration-only'}).first()
-  await page.getByRole('combobox',{name:'模型选择',exact:true}).selectOption(await option.getAttribute('value') ?? '')
+  await page.getByRole('combobox',{name:'模型选择',exact:true}).click()
+  await page.locator('.ant-select-dropdown:visible').getByRole('option').filter({hasText:'synthetic-declaration-only'}).first().click()
   await expect(page.getByRole('checkbox', {name: '确认本次报价与可能产生的费用', exact: true})).toHaveCount(0)
   await chooseLanguage(page, 'en')
   await expect(page.getByRole('combobox', {name: 'Model selection', exact: true})).toBeVisible()

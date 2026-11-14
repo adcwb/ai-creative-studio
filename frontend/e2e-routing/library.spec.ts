@@ -1,3 +1,4 @@
+import {selectOption} from '../e2e/support/controls'
 import { expect, test } from '@playwright/test'
 
 const fixture = 'http://127.0.0.1:5189'
@@ -59,8 +60,8 @@ test('project binding survives refresh without duplicating or following a new li
   const created = await request.post(`${fixture}/api/v1/library/assets?space_id=personal-demo`, {headers: {'Idempotency-Key': 'test-binding-asset'}, data: {kind: 'character', card, references: []}})
   const original = await created.json()
   await page.goto('/projects/story-1/references')
-  await page.getByRole('combobox', {name: '创作资产', exact: true}).selectOption(original.asset.id)
-  await page.getByRole('combobox', {name: '参考版本', exact: true}).selectOption(original.version.id)
+  await selectOption(page.getByRole('combobox', {name: '创作资产', exact: true}), original.asset.id)
+  await selectOption(page.getByRole('combobox', {name: '参考版本', exact: true}), original.version.id)
   await page.getByRole('button', {name: '绑定此版本', exact: true}).click()
   await expect(page.getByRole('button', {name: '使用原请求核对结果', exact: true})).toBeEnabled()
   page.on('dialog', dialog => void dialog.accept())

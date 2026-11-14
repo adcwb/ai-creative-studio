@@ -1,3 +1,4 @@
+import {selectOption} from '../e2e/support/controls'
 import {test,expect,type Page} from '@playwright/test'
 import {randomUUID} from 'node:crypto'
 import {deflateSync} from 'node:zlib'
@@ -31,10 +32,10 @@ async function fixture(page:Page){
 async function preview(page:Page,f:Awaited<ReturnType<typeof fixture>>){
  await page.goto(`/projects/${f.source.id}/brief`)
  await page.getByText('将旧项目分集复制到系列',{exact:true}).click()
- await page.getByRole('combobox',{name:'原项目集数',exact:true}).selectOption('7')
- await page.getByRole('combobox',{name:'复制到系列',exact:true}).selectOption(f.root.id)
- await page.getByRole('combobox',{name:'目标季',exact:true}).selectOption(f.season.id)
- await page.getByRole('combobox',{name:'镜头归属 independent',exact:true}).selectOption('0')
+ await selectOption(page.getByRole('combobox',{name:'原项目集数',exact:true}), '7')
+ await selectOption(page.getByRole('combobox',{name:'复制到系列',exact:true}), f.root.id)
+ await selectOption(page.getByRole('combobox',{name:'目标季',exact:true}), f.season.id)
+ await selectOption(page.getByRole('combobox',{name:'镜头归属 independent',exact:true}), '0')
  await page.getByRole('button',{name:'预览本集复制内容',exact:true}).click()
  await expect(page.getByRole('button',{name:'确认复制本集',exact:true})).toBeEnabled()
  await expect(page.getByLabel('迁移预览',{exact:true})).toContainText('1 个场次、1 个镜头、1 份素材')

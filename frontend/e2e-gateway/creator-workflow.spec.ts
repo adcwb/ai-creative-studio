@@ -1,3 +1,4 @@
+import {selectOption} from '../e2e/support/controls'
 import {test,expect,type Page} from '@playwright/test'
 import {randomUUID} from 'node:crypto'
 test.beforeEach(async({page},info)=>{if(info.project.name==='desktop')await page.setViewportSize({width:1920,height:1080})})
@@ -57,7 +58,7 @@ test('completed real local render exposes versioned release metadata and a deliv
  await preparation.getByRole('textbox',{name:'发布标题',exact:true}).fill('门前的停顿 · 正式发布')
  await preparation.getByRole('textbox',{name:'发布简介',exact:true}).fill('本次固定成片与封面；不会自动外部发布。')
  await preparation.getByRole('textbox',{name:'标签 · 每行一个',exact:true}).fill('短剧\n雨夜')
- const cover=preparation.getByRole('combobox',{name:'交付封面',exact:true});await cover.selectOption({index:1})
+ const cover=preparation.getByRole('combobox',{name:'交付封面',exact:true});await selectOption(cover, {index:1})
  await expect(preparation.getByRole('button',{name:'保存发布资料版本',exact:true})).toBeDisabled();await preparation.getByRole('checkbox').check()
  let sent:unknown,key='';await page.route('**/delivery-metadata?*',async route=>{if(route.request().method()!=='POST'){await route.continue();return}sent=route.request().postDataJSON();key=route.request().headers()['idempotency-key'];const response=await route.fetch();expect(response.status()).toBe(200);await route.abort('failed')},{times:1})
  await preparation.getByRole('button',{name:'保存发布资料版本',exact:true}).click();await expect(preparation.getByRole('button',{name:'使用原请求核对结果',exact:true})).toBeVisible();await page.reload();await page.getByText('发布资料与版本',{exact:true}).click()

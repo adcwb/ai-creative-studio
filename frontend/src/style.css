@@ -4,16 +4,16 @@
 body { margin: 0; min-width: 320px; }
 button, select, textarea, input { font: inherit; }
 button, select, textarea, input, a { -webkit-tap-highlight-color: transparent; }
-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); cursor: pointer; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); padding: 9px 13px; transition: background 150ms, border-color 150ms, box-shadow 150ms; }
-button:hover:not(:disabled) { background: var(--surface-soft); border-color: var(--border-strong); }
-button:disabled { cursor: not-allowed; opacity: .52; }
+button:where(:not([class*="ant-"]):not([class*="adm-"])) { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); cursor: pointer; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); padding: 9px 13px; transition: background 150ms, border-color 150ms, box-shadow 150ms; }
+button:where(:not([class*="ant-"]):not([class*="adm-"])):hover:not(:disabled) { background: var(--surface-soft); border-color: var(--border-strong); }
+button:where(:not([class*="ant-"]):not([class*="adm-"])):disabled { cursor: not-allowed; opacity: .52; }
 /* Keyboard focus also covers disclosure summaries and custom focusable controls. */
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
-select, textarea, input { width: 100%; min-width: 0; border: 1px solid var(--control-border); border-radius: var(--radius-sm); color: var(--ink); background: var(--surface-input); padding: 11px var(--space-3); }
-select:enabled:hover, textarea:enabled:hover, input:enabled:hover { border-color: var(--link); }
+select:where(:not([class*="ant-"]):not([class*="adm-"])), textarea:where(:not([class*="ant-"]):not([class*="adm-"])), input:where(:not([class*="ant-"]):not([class*="adm-"])) { width: 100%; min-width: 0; border: 1px solid var(--control-border); border-radius: var(--radius-sm); color: var(--ink); background: var(--surface-input); padding: 11px var(--space-3); }
+select:where(:not([class*="ant-"]):not([class*="adm-"])):enabled:hover, textarea:where(:not([class*="ant-"]):not([class*="adm-"])):enabled:hover, input:where(:not([class*="ant-"]):not([class*="adm-"])):enabled:hover { border-color: var(--link); }
 button, a, summary, select, input { touch-action: manipulation; }
-select { min-height: 44px; }
-textarea { resize: vertical; min-height: 146px; line-height: 1.8; }
+select:where(:not([class*="ant-"]):not([class*="adm-"])) { min-height: 44px; }
+textarea:where(:not([class*="ant-"]):not([class*="adm-"])) { resize: vertical; min-height: 146px; line-height: 1.8; }
 textarea::placeholder, input::placeholder { color: var(--ink-placeholder); }
 h1, h2, h3, p { margin-top: 0; }
 h1, h2, h3 { text-wrap: balance; }

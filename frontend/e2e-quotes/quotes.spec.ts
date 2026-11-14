@@ -1,3 +1,4 @@
+import {selectOption} from '../e2e/support/controls'
 import { navigateTo, openProject } from '../e2e/support/navigation'
 import {test, expect} from '@playwright/test'
 
@@ -22,9 +23,9 @@ test('image and creative tasks queue without costs or a model worker', async ({p
  expect(binding.status()).toBe(200)
  await navigateTo(page, '/studio')
  await page.getByRole('button', {name:'刷新模型目录',exact:true}).click()
- await page.getByRole('combobox',{name:'模型选择',exact:true}).selectOption(model.id)
- await page.getByRole('combobox',{name:'创作类型',exact:true}).selectOption('general')
- await page.getByRole('combobox',{name:'画面比例',exact:true}).selectOption('1:1')
+ await selectOption(page.getByRole('combobox',{name:'模型选择',exact:true}), model.id)
+ await selectOption(page.getByRole('combobox',{name:'创作类型',exact:true}), 'general')
+ await selectOption(page.getByRole('combobox',{name:'画面比例',exact:true}), '1:1')
  await page.locator('#prompt').fill('Synthetic quoted image')
  await expect(page.getByRole('checkbox',{name:'确认本次报价与可能产生的费用',exact:true})).toHaveCount(0)
  await page.locator('#prompt').fill('Changed input needs no cost confirmation')
@@ -38,12 +39,12 @@ test('image and creative tasks queue without costs or a model worker', async ({p
  await navigateTo(page, '/projects')
  await openProject(page, project.title, 'production')
  const tools = page.locator('.production-board')
- await tools.getByLabel('制作内容', {exact: true}).selectOption('image')
+ await selectOption(tools.getByLabel('制作内容', {exact: true}), 'image')
  await tools.locator('.production-model > summary').click()
  const picker = tools.locator('.production-model .runtime-model-picker')
  await expect(picker).toHaveCount(1)
  await picker.getByRole('button',{name:'刷新模型目录',exact:true}).click()
- await picker.getByRole('combobox',{name:'模型选择',exact:true}).selectOption(model.id)
+ await selectOption(picker.getByRole('combobox',{name:'模型选择',exact:true}), model.id)
  await tools.getByLabel('创作或修改要求',{exact:true}).fill('Synthetic quoted shot')
  const generate = tools.getByRole('button',{name:'生成候选',exact:true})
  await expect(picker.getByRole('button',{name:'获取当前请求报价（不调用模型）',exact:true})).toHaveCount(0)

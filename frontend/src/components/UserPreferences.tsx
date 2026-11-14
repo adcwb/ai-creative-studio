@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { I18nProvider } from './LanguagePicker'
 import { preferenceKey, readTheme, type Theme } from '../preferences'
+import {StudioTheme} from '../ui/StudioTheme'
 export interface NavigationPreferences {collapsed: boolean; groups: Record<string, boolean>}
 const defaultNavigation: NavigationPreferences = {collapsed: false, groups: {}}
 function readNavigation(key: string): NavigationPreferences {try {const value = JSON.parse(localStorage.getItem(key) ?? 'null'); return {collapsed: value?.collapsed === true, groups: Object.fromEntries(Object.entries(value?.groups ?? {}).filter(([key,value]) => ['creative','avatars','resources','organization','system'].includes(key) && typeof value === 'boolean')) as Record<string,boolean>}} catch {return defaultNavigation}}
@@ -17,7 +18,7 @@ export function UserPreferences({userID, children}: {userID: string; children: R
     update(value)
     try {localStorage.setItem(key, value); setSaved(true)} catch {setSaved(false)}
   }
-  return <I18nProvider storageKey={userID === 'demo' ? 'studio.locale' : `${key}:locale`}><Preferences.Provider value={{theme, setTheme, saved, navigation, setNavigation}}><div className="user-workspace" data-theme={theme}>{children}</div></Preferences.Provider></I18nProvider>
+  return <I18nProvider storageKey={userID === 'demo' ? 'studio.locale' : `${key}:locale`}><Preferences.Provider value={{theme, setTheme, saved, navigation, setNavigation}}><div className="user-workspace" data-theme={theme}><StudioTheme appearance={theme}>{children}</StudioTheme></div></Preferences.Provider></I18nProvider>
 }
 // eslint-disable-next-line react-refresh/only-export-components
 export function usePreferences() {return useContext(Preferences)}

@@ -35,6 +35,7 @@ docs/
 
 | 规格 | 状态与用途 |
 | --- | --- |
+| [Ant Design UI 组件迁移](specs/2026-11-14-ant-design-ui-design.md) | 图像创作、模型管理与共用控件首轮迁移；三套主题、中英文与手机弹层，本地验收记录见方案 |
 | [安全后端错误诊断](specs/2026-11-12-safe-error-diagnostics.md) | 兼容错误响应、请求与任务关联、脱敏上游元数据、panic 与 worker 恢复；准确验收及云端状态见规格 |
 | [Token Plan 图像拒绝调查](specs/2026-11-12-bailian-image-diagnosis.md) | 本地请求与错误映射核验；生产根因须由失败记录确认，不把合成响应当成账号验证 |
 | [CI 故障修复与并行检查](specs/2026-11-12-ci-performance/README.md) | 语言、懒加载布局与最新 Actions 故障；保持完整覆盖并拆分隔离 runner，实测与提速估算分开记录 |

@@ -1,3 +1,4 @@
+import {expectControlValue, selectOption} from '../e2e/support/controls'
 import {test, expect, type Page} from '@playwright/test'
 import {readFile} from 'node:fs/promises'
 const api='http://localhost:8084/api/v1'
@@ -38,11 +39,11 @@ test('prompt suggestions require adoption, support undo and ignore obsolete resp
  await optimize.click()
  const suggestion=page.getByRole('region',{name:'优化建议'})
  await expect(suggestion).toBeVisible()
- await expect(prompt).toHaveValue(original)
+ await expectControlValue(prompt, original)
  await page.getByRole('button',{name:'使用优化结果',exact:true}).click()
- await expect(prompt).toHaveValue(original+'，柔和侧光，主体清晰，背景简洁，保留标题空间。')
+ await expectControlValue(prompt, original+'，柔和侧光，主体清晰，背景简洁，保留标题空间。')
  await page.getByRole('button',{name:'撤销优化',exact:true}).click()
- await expect(prompt).toHaveValue(original)
+ await expectControlValue(prompt, original)
  expect(await(await page.request.get(api+'/tasks'+query)).json()).toEqual([])
  await page.route('**/prompt-optimizations?**',async route=>{
   await new Promise(resolve=>setTimeout(resolve,700))
@@ -52,7 +53,7 @@ test('prompt suggestions require adoption, support undo and ignore obsolete resp
  await prompt.fill('新的画面描述，清晨山景')
  await expect(optimize).toBeEnabled()
  await expect(suggestion).toHaveCount(0)
- await expect(prompt).toHaveValue('新的画面描述，清晨山景')
+ await expectControlValue(prompt, '新的画面描述，清晨山景')
  await page.unrouteAll({behavior:'wait'})
  await expect(suggestion).toHaveCount(0)
 })
@@ -110,7 +111,7 @@ test('history pages, original downloads and nested image viewing work on desktop
  await page.screenshot({path:`test-results/image-history-${info.project.name}.png`,fullPage:true})
  await page.getByRole('button',{name:'下一页',exact:true}).click()
  await expect(page.getByText('第 2 / 2 页',{exact:true})).toBeVisible()
- await page.getByLabel('画面比例',{exact:true}).selectOption('9:16')
+ await selectOption(page.getByLabel('画面比例',{exact:true}), '9:16')
  await page.getByLabel('描述你的画面',{exact:true}).fill('新任务提交后回到第一页')
  await page.getByRole('button',{name:'创建图像',exact:true}).click()
  await expect(page.getByText('第 1 / 2 页',{exact:true})).toBeVisible()

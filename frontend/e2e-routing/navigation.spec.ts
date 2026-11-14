@@ -1,3 +1,4 @@
+import {selectOption, expectControlValue} from '../e2e/support/controls'
 import {navigateTo as navigate,chooseLanguage} from '../e2e/support/navigation'
 import { test, expect, type Page } from '@playwright/test'
 
@@ -6,7 +7,7 @@ async function switchSpace(page: Page, space: string) {
   const picker = page.getByLabel('选择组织', {exact: true})
   const toggle = page.locator('.menu-toggle')
   if (await toggle.isVisible() && await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click()
-  await picker.selectOption(space)
+  await selectOption(picker, space)
 }
 test.beforeEach(async ({request, page}) => {
   await request.post(fixture + '/__test__/reset', {data: {}})
@@ -23,7 +24,7 @@ test('independent image, assets and management routes support reload and browser
   await expect(page.getByRole('heading', {name: '素材库', exact: true})).toBeVisible()
   await expect(page.locator('.asset-card')).toHaveCount(1)
   await page.goBack()
-  await expect(page.getByLabel('描述你的画面')).toHaveValue('保留图像创作草稿')
+  await expectControlValue(page.getByLabel('描述你的画面'), '保留图像创作草稿')
   await page.goForward()
   await page.reload()
   await expect(page).toHaveURL(/\/assets$/)
@@ -40,7 +41,7 @@ test('independent image, assets and management routes support reload and browser
 
 test('project steps are routed and drafts block links, browser back and space changes', async ({page}) => {
   await page.goto('/projects/story-1/brief')
-  await expect(page.getByLabel('项目名称')).toHaveValue('钟楼来信')
+  await expectControlValue(page.getByLabel('项目名称'), '钟楼来信')
   await page.locator('.project-steps a[href$="/script"]').click()
   await expect(page.locator('.drama-script')).toBeVisible()
   await expect(page.getByLabel('创作简报', {exact: true})).toHaveCount(0)
@@ -52,7 +53,7 @@ test('project steps are routed and drafts block links, browser back and space ch
   await page.goBack()
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.getByRole('button', {name: '继续编辑', exact: true}).click()
-  await expect(page.getByLabel('第 1 场动作', {exact: true})).toHaveValue('本地未保存的剧本动作。')
+  await expectControlValue(page.getByLabel('第 1 场动作', {exact: true}), '本地未保存的剧本动作。')
   await switchSpace(page, 'team-demo')
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.getByRole('button', {name: '继续编辑', exact: true}).click()
@@ -61,7 +62,7 @@ test('project steps are routed and drafts block links, browser back and space ch
   await expect(page.locator('.drama-storyboard')).toBeVisible()
   await page.locator('.project-steps a[href$="/script"]').click()
   await page.getByRole('button', {name: '编辑剧本', exact: true}).click()
-  await expect(page.getByLabel('第 1 场动作', {exact: true})).toHaveValue('两人一起寻找旧信的主人。')
+  await expectControlValue(page.getByLabel('第 1 场动作', {exact: true}), '两人一起寻找旧信的主人。')
   await page.getByRole('button', {name: '取消剧本编辑', exact: true}).click()
   await page.locator('.project-steps a[href$="/storyboard"]').click()
   await page.reload()
@@ -83,9 +84,9 @@ test('new projects get a durable URL and organization changes leave the old proj
   await page.getByLabel('创作简报').fill('这是用于路由回归的合成故事。')
   await page.getByRole('button', {name: '创建项目', exact: true}).click()
   await expect(page).toHaveURL(/\/projects\/story-2\/brief$/)
-  await expect(page.getByLabel('项目名称')).toHaveValue('新的测试项目')
+  await expectControlValue(page.getByLabel('项目名称'), '新的测试项目')
   await page.reload()
-  await expect(page.getByLabel('项目名称')).toHaveValue('新的测试项目')
+  await expectControlValue(page.getByLabel('项目名称'), '新的测试项目')
   await switchSpace(page, 'team-demo')
   await expect(page).toHaveURL(/\/projects$/)
   await expect(page.locator('.project-card')).toHaveCount(0)
@@ -100,7 +101,7 @@ test('management forms protect unsaved model and organization changes; cost hist
   await page.getByRole('dialog', {name: '添加 AI 网关'}).getByRole('button', {name: '取消', exact: true}).click()
   await expect(page.getByRole('dialog', {name: '放弃未保存的修改？'})).toBeVisible()
   await page.getByRole('button', {name: '继续编辑', exact: true}).click()
-  await expect(page.getByLabel('网关名称', {exact: true})).toHaveValue('未保存的网关')
+  await expectControlValue(page.getByLabel('网关名称', {exact: true}), '未保存的网关')
   await page.getByRole('button', {name: '关闭编辑', exact: true}).click()
   await page.getByRole('button', {name: '放弃修改', exact: true}).click()
   await navigate(page, '/settings/billing')
@@ -128,7 +129,7 @@ test('an uncertain image submission retains its idempotency key across project n
   await expect(page.getByRole('alert')).toBeVisible()
   await navigate(page, '/projects')
   await navigate(page, '/studio')
-  await expect(page.getByLabel('描述你的画面')).toHaveValue('结果未知的测试图像')
+  await expectControlValue(page.getByLabel('描述你的画面'), '结果未知的测试图像')
   await page.getByRole('button', {name: '创建模拟图像', exact: true}).click()
   await expect.poll(() => keys.length).toBe(2)
   expect(keys[0]).toBe(keys[1])

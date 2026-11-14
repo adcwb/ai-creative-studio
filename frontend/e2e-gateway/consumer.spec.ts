@@ -1,3 +1,4 @@
+import {selectOption} from '../e2e/support/controls'
 import {mkdirSync} from 'node:fs'
 import {test, expect} from '@playwright/test'
 import {navigateTo, openNavigation, closeNavigation, chooseLanguage} from '../e2e/support/navigation'
@@ -47,12 +48,14 @@ test('workspace guidance, honest model state and persistent navigation preserve 
   await expect(guide).toHaveCount(0)
   expect(await (await page.request.get(api+'/tasks?space_id='+personal)).json()).toEqual([])
   await expect(page.getByText('模板只填入提示词与参数，不代表已经生成的作品。',{exact:true})).toBeVisible()
-  await expect(page.getByLabel('画面比例',{exact:true}).locator('option[value="9:16"]')).toHaveCount(1)
+  await page.getByLabel('画面比例',{exact:true}).click()
+  await expect(page.locator('.ant-select-dropdown:visible [data-select-value="9:16"]')).toHaveCount(1)
+  await page.getByLabel('画面比例',{exact:true}).press('Escape')
   await page.getByRole('button',{name:'保存当前描述',exact:true}).click()
   const editor=page.getByRole('dialog',{name:'保存自己的提示词',exact:true})
   await editor.getByLabel('提示词名称',{exact:true}).fill('竖屏构图草稿')
   await editor.getByLabel('提示词正文',{exact:true}).fill('固定主体，竖屏构图，用于本地参数保存测试')
-  await editor.getByLabel('画面比例',{exact:true}).selectOption('9:16')
+  await selectOption(editor.getByLabel('画面比例',{exact:true}), '9:16')
   const saved=page.waitForResponse(r=>r.url().includes('/prompt-templates?')&&r.request().method()==='POST')
   await editor.getByRole('button',{name:'保存提示词',exact:true}).click()
   const recipe=await saved

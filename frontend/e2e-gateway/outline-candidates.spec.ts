@@ -1,3 +1,4 @@
+import {selectOption} from '../e2e/support/controls'
 import {test,expect,type Page} from '@playwright/test'
 import {randomUUID} from 'node:crypto'
 const api='http://localhost:8084/api/v1',upstream='http://127.0.0.1:5193'
@@ -12,7 +13,7 @@ async function fixture(page:Page){
  return {query,headers,write,root,season,ep}
 }
 async function open(page:Page,root:string,episode:string){
- await page.goto(`/series/${root}`);await page.getByText('编剧工作台 · 季与集的节拍',{exact:true}).click();await page.getByLabel('规划范围',{exact:true}).selectOption(episode);await page.getByText('AI 季集纲候选 · 先比较再采纳',{exact:true}).click();return page.getByRole('region',{name:'集纲候选工作区',exact:true})
+ await page.goto(`/series/${root}`);await page.getByText('编剧工作台 · 季与集的节拍',{exact:true}).click();await selectOption(page.getByLabel('规划范围',{exact:true}), episode);await page.getByText('AI 季集纲候选 · 先比较再采纳',{exact:true}).click();return page.getByRole('region',{name:'集纲候选工作区',exact:true})
 }
 test('a real text request stays a candidate until explicit edited adoption, with original-request recovery',async({page,request},info)=>{
  if(info.project.name==='desktop')await page.setViewportSize({width:1920,height:1080})

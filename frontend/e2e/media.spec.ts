@@ -1,3 +1,4 @@
+import {expectControlValue, selectOption} from './support/controls'
 import { navigateTo, openProject } from './support/navigation'
 import { randomUUID } from 'node:crypto'
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
@@ -56,7 +57,7 @@ test('synthetic local timeline saves, exports and plays actual MP4 on desktop an
   await page.reload()
   await navigateTo(page, '/projects')
   await openProject(page, p.title, 'media')
-  await expect(page.getByLabel('片段 1 字幕', {exact: true})).toHaveValue(subtitle)
+  await expectControlValue(page.getByLabel('片段 1 字幕', {exact: true}), subtitle)
   await expect(page.getByLabel('成片预览', {exact: true}).first()).toBeVisible()
   expect(errors).toEqual([])
 })
@@ -88,7 +89,7 @@ test('timeline polling cannot silently overwrite a concurrent save; lost respons
   const conflict = page.waitForResponse(r => r.request().method() === 'PUT' && r.url().includes('/media/timeline'))
   await page.getByRole('button', {name: '保存时间轴', exact: true}).click()
   expect((await conflict).status()).toBe(409)
-  await expect(page.getByLabel('片段 1 字幕', {exact: true})).toHaveValue(localText)
+  await expectControlValue(page.getByLabel('片段 1 字幕', {exact: true}), localText)
   expect((await (await request.get(path + query)).json()).timeline.clips[0].subtitle).toBe(timeline.clips[0].subtitle)
   await page.getByRole('button', {name: '取消时间轴编辑', exact: true}).click()
   await page.getByLabel('片段 1 字幕', {exact: true}).fill('响应丢失后原键恢复')
@@ -110,10 +111,10 @@ test('HD portrait output, burn subtitles, fade and extra audio survive timeline 
   const seeded = await request.post(`${path}/demo${query}`, {headers: {'Idempotency-Key': randomUUID()}, data: {expected_version: 1}})
   expect(seeded.status()).toBe(200)
   await open(page, p.title)
-  await page.getByRole('combobox', {name: '输出清晰度', exact: true}).selectOption('720p')
-  await page.getByRole('combobox', {name: '成片画幅', exact: true}).selectOption('9:16')
-  await page.getByRole('combobox', {name: '字幕输出', exact: true}).selectOption('burn')
-  await page.getByLabel('片段 1 转场', {exact: true}).selectOption('fade')
+  await selectOption(page.getByRole('combobox', {name: '输出清晰度', exact: true}), '720p')
+  await selectOption(page.getByRole('combobox', {name: '成片画幅', exact: true}), '9:16')
+  await selectOption(page.getByRole('combobox', {name: '字幕输出', exact: true}), 'burn')
+  await selectOption(page.getByLabel('片段 1 转场', {exact: true}), 'fade')
   await page.getByRole('button', {name: '添加音轨', exact: true}).click()
   await page.getByLabel('音轨 1 volume', {exact: true}).fill('0.2')
   await page.getByRole('button', {name: '保存时间轴', exact: true}).click()
@@ -126,8 +127,8 @@ test('HD portrait output, burn subtitles, fade and extra audio survive timeline 
   await page.reload()
   await navigateTo(page, '/projects')
   await openProject(page, p.title, 'media')
-  await expect(page.getByRole('combobox', {name: '输出清晰度', exact: true})).toHaveValue('720p')
-  await expect(page.getByLabel('音轨 1 volume', {exact: true})).toHaveValue('0.2')
+  await expectControlValue(page.getByRole('combobox', {name: '输出清晰度', exact: true}), '720p')
+  await expectControlValue(page.getByLabel('音轨 1 volume', {exact: true}), '0.2')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 
@@ -136,8 +137,8 @@ test('two-minute portrait 4K settings save without duration quotas and explain s
   const path = `${api}/projects/${p.id}/media`
   expect((await request.post(`${path}/demo${query}`, {headers: {'Idempotency-Key': randomUUID()}, data: {expected_version: 1}})).status()).toBe(200)
   await open(page, p.title)
-  await page.getByRole('combobox', {name: '输出清晰度', exact: true}).selectOption('2160p')
-  await page.getByRole('combobox', {name: '成片画幅', exact: true}).selectOption('9:16')
+  await selectOption(page.getByRole('combobox', {name: '输出清晰度', exact: true}), '2160p')
+  await selectOption(page.getByRole('combobox', {name: '成片画幅', exact: true}), '9:16')
   for (const number of [1, 2, 3]) await page.getByLabel(`片段 ${number} 时长`, {exact: true}).fill('40')
   await expect(page.getByText('输出尺寸：2160 × 3840', {exact: true})).toBeVisible()
   await expect(page.getByText('清晰度用于剪辑合成，不代表模型原生画质。素材分辨率不足时会放大，细节以原始素材为准。', {exact: true})).toBeVisible()
@@ -186,7 +187,7 @@ test('crossfade and visual overlay validate the shortened timeline, persist and 
   const initial = await seeded.json()
   const expectedDuration = initial.timeline.clips.reduce((sum: number, clip: {duration: number}) => sum + clip.duration, 0) - 1
   await open(page, p.title)
-  await page.getByLabel('片段 1 转场', {exact: true}).selectOption('crossfade')
+  await selectOption(page.getByLabel('片段 1 转场', {exact: true}), 'crossfade')
   await page.getByLabel('片段 1 转场时长', {exact: true}).fill('1')
   await page.getByRole('button', {name: '添加画面叠层', exact: true}).click()
   await page.getByLabel('叠层 1 不透明度', {exact: true}).fill('0.5')
@@ -208,8 +209,8 @@ test('crossfade and visual overlay validate the shortened timeline, persist and 
   await page.reload()
   await navigateTo(page, '/projects')
   await openProject(page, p.title, 'media')
-  await expect(page.getByLabel('片段 1 转场', {exact: true})).toHaveValue('crossfade')
-  await expect(page.getByLabel('叠层 1 不透明度', {exact: true})).toHaveValue('0.5')
+  await expectControlValue(page.getByLabel('片段 1 转场', {exact: true}), 'crossfade')
+  await expectControlValue(page.getByLabel('叠层 1 不透明度', {exact: true}), '0.5')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 

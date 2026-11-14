@@ -1,3 +1,4 @@
+import {selectOption} from '../e2e/support/controls'
 import {test, expect} from '@playwright/test'
 
 const fixture = 'http://127.0.0.1:5189'
@@ -51,7 +52,7 @@ test('candidate adoption and review survive refresh without changing the timelin
     await route.fulfill({json: media})
   })
   await page.goto('/projects/story-1/production')
-  await page.getByLabel('当前镜头', {exact: true}).selectOption('shot-1')
+  await selectOption(page.getByLabel('当前镜头', {exact: true}), 'shot-1')
   await page.getByRole('button', {name: '候选A', exact: true}).click()
   await page.getByRole('button', {name: '设为比较基准', exact: true}).click()
   await page.getByRole('button', {name: '候选B', exact: true}).click()
@@ -62,17 +63,17 @@ test('candidate adoption and review survive refresh without changing the timelin
   await page.getByRole('button', {name: '重试同一请求', exact: true}).click()
   await expect(page.getByText('已采用此版本，剪辑保持不变。', {exact: true})).toBeVisible()
   expect(keys[0]).toBe(keys[1]); expect(media.selections).toHaveLength(1)
-  await page.getByLabel('当前镜头', {exact: true}).selectOption('shot-1')
+  await selectOption(page.getByLabel('当前镜头', {exact: true}), 'shot-1')
   await page.locator('.candidate-strip button').filter({hasText: '候选B'}).click()
   await page.getByLabel('批注或采用理由', {exact: true}).fill('保持角色服装颜色一致')
-  await page.getByLabel('负责人', {exact: true}).selectOption('user-1')
-  await page.getByLabel('优先级', {exact: true}).selectOption('high')
+  await selectOption(page.getByLabel('负责人', {exact: true}), 'user-1')
+  await selectOption(page.getByLabel('优先级', {exact: true}), 'high')
   await page.getByRole('button', {name: '添加返修批注', exact: true}).click()
   await expect(page.locator('.production-review li strong').filter({hasText:'待返修'})).toBeVisible()
   expect(media.reviews[0]).toMatchObject({assignee_id:'user-1', priority:'high'})
-  await page.getByLabel('批注负责人', {exact:true}).selectOption('')
+  await selectOption(page.getByLabel('批注负责人', {exact:true}), '')
   await expect.poll(()=>media.reviews[0].assignee_id).toBe('')
-  await page.getByLabel('批注优先级', {exact:true}).selectOption('low')
+  await selectOption(page.getByLabel('批注优先级', {exact:true}), 'low')
   await expect.poll(()=>media.reviews[0].priority).toBe('low')
   await page.getByRole('button', {name: '标记已处理', exact: true}).click()
   await expect(page.locator('.production-review li strong').filter({hasText:'已处理'})).toBeVisible()

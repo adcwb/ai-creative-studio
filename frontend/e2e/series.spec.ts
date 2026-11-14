@@ -1,3 +1,4 @@
+import {selectOption, expectControlValue} from './support/controls'
 import {test,expect,type APIRequestContext,type Page} from '@playwright/test'
 import {randomUUID} from 'node:crypto'
 import type {SeriesEntry} from '../src/features/series/types'
@@ -12,7 +13,7 @@ test('series UI creates independent episodes, preserves its visual layout and di
  await page.getByLabel('名称',{exact:true}).fill(`成长系列-${info.project.name}-${randomUUID()}`)
  await page.getByLabel('故事简介',{exact:true}).fill('两位伙伴在四季中逐渐理解彼此。')
  await page.getByLabel('目标时长（秒）',{exact:true}).fill('120')
- await page.getByRole('combobox',{name:'默认成片清晰度',exact:true}).selectOption('2160p')
+ await selectOption(page.getByRole('combobox',{name:'默认成片清晰度',exact:true}), '2160p')
  await expect(page.getByText('默认输出：2160 × 3840 像素',{exact:true})).toBeVisible()
  await noOverflow(page)
  await page.screenshot({path:`/tmp/series-form-${info.project.name}.png`,fullPage:true})
@@ -34,8 +35,8 @@ test('series UI creates independent episodes, preserves its visual layout and di
  await page.getByRole('link',{name:'进入这一集',exact:true}).click()
  await expect(page.locator('.series-context')).toContainText('第 7 集')
  await page.getByRole('link',{name:'剪辑与声音',exact:true}).click()
- await expect(page.getByRole('combobox',{name:'输出清晰度',exact:true})).toHaveValue('2160p')
- await expect(page.getByRole('combobox',{name:'成片画幅',exact:true})).toHaveValue('9:16')
+ await expectControlValue(page.getByRole('combobox',{name:'输出清晰度',exact:true}), '2160p')
+ await expectControlValue(page.getByRole('combobox',{name:'成片画幅',exact:true}), '9:16')
  await expect(page.getByLabel('打开其他集',{exact:true})).toHaveCount(0)
  await expect(page.locator('.episode-toolbar')).toContainText('第 7 集')
  await noOverflow(page)
@@ -62,7 +63,7 @@ test('an acknowledged episode with a lost response resumes after refresh without
  page.on('dialog',d=>void d.accept())
  await page.reload()
  await page.getByRole('button',{name:'添加一集',exact:true}).click()
- await expect(page.getByLabel('名称',{exact:true})).toHaveValue('原始创作种子')
+ await expectControlValue(page.getByLabel('名称',{exact:true}), '原始创作种子')
  await expect(page.getByLabel('名称',{exact:true})).toBeDisabled()
  await page.route(`**/api/v1/seasons/${season.id}/episodes?*`,route=>route.request().method()==='POST'?route.fulfill({status:403,contentType:'application/json',body:JSON.stringify({error:{code:'role_denied',message:'当前权限不能修改此系列'}})}):route.continue())
  await page.getByRole('button',{name:'核对并重试保存',exact:true}).click()
@@ -89,7 +90,7 @@ test('201 episode metadata entries remain reachable through directory pagination
  const last=page.locator('.series-episode-card').last();await expect(last).toContainText('第 201 集')
  await last.getByRole('button',{name:'调整集号',exact:true}).click()
  await page.getByLabel('新的编号',{exact:true}).fill('7')
- await page.getByRole('combobox',{name:'调整方式',exact:true}).selectOption('insert')
+ await selectOption(page.getByRole('combobox',{name:'调整方式',exact:true}), 'insert')
  await page.getByRole('button',{name:'保存编号',exact:true}).click()
  await expect(page.locator('.series-episode-card')).toHaveCount(20)
  const inserted=page.locator('.series-episode-card').filter({has:page.getByRole('link',{name:'合成剧集 201',exact:true})})

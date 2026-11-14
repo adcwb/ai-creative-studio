@@ -1,3 +1,4 @@
+import {selectOption, expectControlValue} from '../e2e/support/controls'
 import {test,expect} from '@playwright/test'
 import {randomUUID} from 'node:crypto'
 const api='http://localhost:8084/api/v1',upstream='http://127.0.0.1:5193'
@@ -12,13 +13,13 @@ test('runtime variables and actual text model survive explicit local remake with
  await write('/model-features/workflow_text',{expected_version:0,binding:{feature_key:'workflow_text',model_config_id:model.id,enabled:true,allow_override:true}},'PUT')
  const graph={variables:[{name:'subject',label:'本次主体',required:true},{name:'location',label:'本次场景',required:false,default:'garden'}],nodes:[{id:'subject',kind:'variable',label:'主体输入',variable_name:'subject',x:0,y:0},{id:'template',kind:'template',label:'描述组合',text:'{{input}} in {{location}}',x:240,y:0},{id:'llm',kind:'llm',label:'文本改写',text:'保留主体与场景，改写成清晰镜头描述。',model_config_id:model.id,model_config_version:model.version,x:480,y:0},{id:'review',kind:'review',label:'确认文案',x:720,y:0},{id:'output',kind:'output',label:'文案输出',x:960,y:0}],edges:[{source:'subject',target:'template',input:'prompt'},{source:'template',target:'llm',input:'prompt'},{source:'llm',target:'review',input:'media'},{source:'review',target:'output',input:'media'}]}
  const saved=await write(`/projects/${project.id}/workflows`,{name:'每次输入，不改模板',expected_version:0,graph}),base=`/projects/${project.id}`,before=(await(await request.get(upstream+'/__state')).json()).requests.length
- await page.goto(`/workflows/${project.id}`);await page.getByRole('combobox',{name:'已保存流程',exact:true}).selectOption(saved.id)
+ await page.goto(`/workflows/${project.id}`);await selectOption(page.getByRole('combobox',{name:'已保存流程',exact:true}), saved.id)
  await expect(page.getByRole('button',{name:'运行已保存流程',exact:true})).toBeDisabled()
  await page.getByRole('region',{name:'本次运行输入',exact:true}).getByLabel('本次主体',{exact:true}).fill('{{literal}} hero')
  await page.getByRole('region',{name:'本次运行输入',exact:true}).getByLabel('本次场景',{exact:true}).fill('studio')
  await page.locator('.workflow-step-list summary').click();await page.locator('.workflow-step-list').getByRole('button',{name:'文本改写',exact:true}).click()
- await expect(page.getByRole('textbox',{name:'文本处理要求',exact:true})).toHaveValue('保留主体与场景，改写成清晰镜头描述。')
- await expect(page.getByRole('combobox',{name:'模型选择',exact:true})).toHaveValue(model.id)
+ await expectControlValue(page.getByRole('textbox',{name:'文本处理要求',exact:true}), '保留主体与场景，改写成清晰镜头描述。')
+ await expectControlValue(page.getByRole('combobox',{name:'模型选择',exact:true}), model.id)
  await expect(page.getByRole('button',{name:'运行已保存流程',exact:true})).toBeEnabled()
  const starting=page.waitForResponse(r=>r.url().includes(`/workflows/${saved.id}/runs?`)&&r.request().method()==='POST');await page.getByRole('button',{name:'运行已保存流程',exact:true}).click();const response=await starting,original=await response.json(),originalBody=response.request().postDataJSON(),originalKey=response.request().headers()['idempotency-key']
  await expect(page.locator('.workflow-run>p[role=status]')).toContainText('等待人工选择')

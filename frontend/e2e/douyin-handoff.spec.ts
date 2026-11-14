@@ -1,3 +1,4 @@
+import {selectOption} from './support/controls'
 import { navigateTo, openProject } from './support/navigation'
 import {randomUUID} from 'node:crypto'
 import {expect, test} from '@playwright/test'
@@ -29,7 +30,7 @@ for (const locale of ['zh-CN','en']) test(`synthetic Douyin handoff requires con
   await expect(panel).toBeVisible()
   const prepare=panel.getByRole('button',{name:t('准备抖音短期分享链接','Prepare a temporary Douyin sharing link'),exact:true})
   await expect(prepare).toBeDisabled()
-  await panel.getByRole('combobox',{name:t('抖音交接素材','Douyin handoff media'),exact:true}).selectOption(`asset:${asset.id}`)
+  await selectOption(panel.getByRole('combobox',{name:t('抖音交接素材','Douyin handoff media'),exact:true}), `asset:${asset.id}`)
   await panel.getByRole('textbox',{name:t('抖音分享标题（可选）','Douyin share title (optional)'),exact:true}).fill('Synthetic handoff')
   await panel.getByRole('checkbox',{name:t('我拥有素材及相关人物、音乐的分享权利。','I have sharing rights for the media, depicted people and music.'),exact:true}).check()
   await expect(prepare).toBeDisabled()

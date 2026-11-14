@@ -1,3 +1,4 @@
+import {expectControlValue, selectOption} from './support/controls'
 import { navigateTo, openProject } from './support/navigation'
 import { randomUUID } from 'node:crypto'
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
@@ -66,7 +67,7 @@ test('alignment results cannot overwrite a newer saved timeline', async ({page, 
   timeline.clips[0].subtitle = '另一客户端已保存的字幕'
   const changed = await request.put(`${api}/projects/${project.id}/media/timeline${query}`, {headers: {'Idempotency-Key': randomUUID()}, data: {expected_version: media.version, timeline}})
   expect(changed.status()).toBe(200)
-  await expect(page.getByLabel('片段 1 字幕', {exact: true})).toHaveValue(timeline.clips[0].subtitle)
+  await expectControlValue(page.getByLabel('片段 1 字幕', {exact: true}), timeline.clips[0].subtitle)
   await expect(apply).toBeDisabled()
   await expect(page.getByRole('region', {name: '片段 1 逐句字幕', exact: true})).toContainText('来源版本已变化')
 })
@@ -77,7 +78,7 @@ test('ASR UI sends saved audio without estimate text (intercepted request only, 
   })
   const {project, media} = await fixture(page, request, `ASR请求体-${info.project.name}`)
   const audio = media.assets.find((asset: {kind: string}) => asset.kind === 'audio')
-  await page.getByLabel('片段 1 音频', {exact: true}).selectOption(audio.id)
+  await selectOption(page.getByLabel('片段 1 音频', {exact: true}), audio.id)
   await page.getByLabel('片段 1 字幕', {exact: true}).fill('这些已保存文字不得作为实际ASR的识别结果输入。')
   await page.getByRole('button', {name: '保存时间轴', exact: true}).click()
   await expect(page.getByRole('button', {name: '保存时间轴', exact: true})).toBeDisabled()

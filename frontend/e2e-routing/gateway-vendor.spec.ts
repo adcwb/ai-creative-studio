@@ -1,3 +1,4 @@
+import {expectControlValue, selectOption} from '../e2e/support/controls'
 import {expect, test} from '@playwright/test'
 
 const fixture = 'http://127.0.0.1:5189'
@@ -7,12 +8,12 @@ test('gateway vendor is saved, displayed, and restored when editing', async ({pa
   await page.getByRole('tab', {name: 'AI 网关', exact: true}).click()
   await page.getByRole('button', {name: '添加 AI 网关', exact: true}).click()
   const form = page.locator('.model-editor-form')
-  await expect(form.getByLabel('厂商', {exact: true})).toHaveValue('openai-compatible')
+  await expectControlValue(form.getByLabel('厂商', {exact: true}), 'openai-compatible')
   await form.getByLabel('网关名称', {exact: true}).fill('BaiLian')
   await form.getByLabel('服务地址', {exact: true}).fill('https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1')
-  await form.getByLabel('厂商', {exact: true}).selectOption('aliyun-bailian')
-  await expect(form.getByLabel('服务地址', {exact: true})).toHaveValue('https://token-plan.cn-beijing.maas.aliyuncs.com/api/v1')
-  await form.getByLabel('凭据操作', {exact: true}).selectOption('set')
+  await selectOption(form.getByLabel('厂商', {exact: true}), 'aliyun-bailian')
+  await expectControlValue(form.getByLabel('服务地址', {exact: true}), 'https://token-plan.cn-beijing.maas.aliyuncs.com/api/v1')
+  await selectOption(form.getByLabel('凭据操作', {exact: true}), 'set')
   await form.getByLabel('新的 API Key', {exact: true}).fill('synthetic-vendor-key')
   await form.getByRole('button', {name: '保存网关', exact: true}).click()
   await expect(form).toHaveCount(0)
@@ -21,6 +22,6 @@ test('gateway vendor is saved, displayed, and restored when editing', async ({pa
   const state = await (await request.get(`${fixture}/__test__/state`)).json()
   expect(state.management.gateways.find((g: {name: string}) => g.name === 'BaiLian')).toMatchObject({vendor: 'aliyun-bailian', base_url: 'https://token-plan.cn-beijing.maas.aliyuncs.com/api/v1'})
   await row.getByRole('button', {name: '编辑', exact: true}).click()
-  await expect(form.getByLabel('厂商', {exact: true})).toHaveValue('aliyun-bailian')
+  await expectControlValue(form.getByLabel('厂商', {exact: true}), 'aliyun-bailian')
   await expect(form.getByLabel('新的 API Key', {exact: true})).toHaveCount(0)
 })

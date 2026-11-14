@@ -1,3 +1,4 @@
+import {selectOption, expectControlValue} from '../e2e/support/controls'
 import { test, expect } from '@playwright/test'
 
 test('avatar consent, unknown-result replay and license gate', async ({page, request},info) => {
@@ -40,19 +41,19 @@ test('avatar consent, unknown-result replay and license gate', async ({page, req
   await page.goto('/projects/story-1/avatar')
   await expect(page.getByRole('heading', {name: '数字人口播', exact: true})).toBeVisible()
   await page.getByLabel('形象名称', {exact: true}).fill('测试形象')
-  await page.getByRole('combobox', {name: '形象照片或视频', exact: true}).selectOption('photo')
+  await selectOption(page.getByRole('combobox', {name: '形象照片或视频', exact: true}), 'photo')
   await page.getByLabel('形象授权依据', {exact: true}).fill('likeness-consent-001')
   await expect(page.getByRole('button', {name: '保存授权形象'})).toBeDisabled()
   await page.getByLabel('我确认有权使用此人物形象生成口播视频').check()
   await page.getByLabel('我已检查素材为单人、面部清晰且无遮挡').check()
   await page.getByRole('button', {name: '保存授权形象'}).click()
-  await expect(page.getByRole('combobox', {name: '已授权形象', exact: true})).toHaveValue('person')
+  await expectControlValue(page.getByRole('combobox', {name: '已授权形象', exact: true}), 'person')
   await expect(page.getByText('部署方尚未确认数字人引擎使用许可')).toBeVisible()
-  await page.getByRole('combobox', {name: '选择口播音频', exact: true}).selectOption('audio')
+  await selectOption(page.getByRole('combobox', {name: '选择口播音频', exact: true}), 'audio')
   await page.getByLabel('声音授权依据', {exact: true}).fill('voice-consent-001')
   await page.getByLabel('我确认有权使用所选配音制作此口播').check()
  await page.getByRole('button',{name:'保存可复用声音授权',exact:true}).click()
- await expect(page.getByRole('combobox',{name:'已保存声音授权',exact:true})).toHaveValue('voice-grant')
+ await expectControlValue(page.getByRole('combobox',{name:'已保存声音授权',exact:true}), 'voice-grant')
   await expect(page.getByRole('button', {name: '生成数字人口播', exact: true})).toBeDisabled()
   ready = true
   await expect(page.getByRole('button', {name: '生成数字人口播', exact: true})).toBeEnabled({timeout: 8000})
@@ -72,8 +73,8 @@ test('avatar consent, unknown-result replay and license gate', async ({page, req
  await page.reload();await page.getByRole('button',{name:'重试同一请求',exact:true}).click()
  await expect.poll(()=>resumes.length).toBe(2);expect(resumes[1]).toEqual(resumes[0])
  await expect(page.getByRole('button',{name:'重试同一请求',exact:true})).toHaveCount(0)
- await page.getByRole('combobox',{name:'选择口播音频',exact:true}).selectOption('audio')
- await page.getByRole('combobox',{name:'已保存声音授权',exact:true}).selectOption('voice-grant')
+ await selectOption(page.getByRole('combobox',{name:'选择口播音频',exact:true}), 'audio')
+ await selectOption(page.getByRole('combobox',{name:'已保存声音授权',exact:true}), 'voice-grant')
  await expect(page.getByRole('button',{name:'撤销此声音授权',exact:true})).toBeDisabled()
  await page.getByRole('checkbox',{name:'确认撤销此声音授权，停止关联的新派发',exact:true}).check()
  await page.getByRole('button',{name:'撤销此声音授权',exact:true}).click()

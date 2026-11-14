@@ -1,3 +1,4 @@
+import {selectOption, expectControlValue} from '../e2e/support/controls'
 import {test,expect,type Page} from '@playwright/test'
 import {execFileSync} from 'node:child_process'
 import {createHash,randomUUID} from 'node:crypto'
@@ -54,7 +55,7 @@ test('large photo rotation and a saved mask use actual chunked assets without a 
  const {query,headers}=await login(page)
  const created=await page.request.post(api+'/projects'+query,{headers,data:{title:'Synthetic large photo',brief:'Large-file photo editing fixture'}});expect(created.status()).toBe(201);const project=await created.json()
  const before=(await(await request.get('http://127.0.0.1:5193/__state')).json()).requests.length
- await page.goto(`/projects/${project.id}/media`);await page.getByLabel('素材用途',{exact:true}).selectOption('reference');await page.getByLabel('选择待编辑照片',{exact:true}).setInputFiles({name:'large-original.png',mimeType:'image/png',buffer:png});await page.getByLabel('照片旋转',{exact:true}).selectOption('90');await page.getByRole('button',{name:'保存编辑照片为新素材',exact:true}).click()
+ await page.goto(`/projects/${project.id}/media`);await selectOption(page.getByLabel('素材用途',{exact:true}), 'reference');await page.getByLabel('选择待编辑照片',{exact:true}).setInputFiles({name:'large-original.png',mimeType:'image/png',buffer:png});await selectOption(page.getByLabel('照片旋转',{exact:true}), '90');await page.getByRole('button',{name:'保存编辑照片为新素材',exact:true}).click()
  const image=page.locator('.media-assets img').first();await expect(image).toBeVisible();await expect.poll(()=>image.evaluate((v:HTMLImageElement)=>[v.naturalWidth,v.naturalHeight])).toEqual([3072,4096])
  await page.getByRole('button',{name:'绘制局部编辑遮罩',exact:true}).first().click();await page.getByRole('button',{name:'标记矩形修改区域',exact:true}).click();await page.getByRole('button',{name:'保存遮罩为新素材',exact:true}).click()
  await expect.poll(async()=>(await(await page.request.get(api+'/projects/'+project.id+'/media'+query)).json()).assets.length).toBe(2)
@@ -68,13 +69,13 @@ test('long owned audio uploads and timeline fields follow actual source and edit
  const {query,headers}=await login(page)
  const before=(await(await request.get('http://127.0.0.1:5193/__state')).json()).requests.length
  const created=await page.request.post(api+'/projects'+query,{headers,data:{title:'Synthetic long audio',brief:'Long owned media without a project duration quota'}});expect(created.status()).toBe(201);const project=await created.json()
- await page.goto(`/projects/${project.id}/media`);await page.getByLabel('素材用途',{exact:true}).selectOption('voice');await page.getByLabel('上传素材（PNG/JPEG/WAV/MP3/MP4）',{exact:true}).setInputFiles({name:'synthetic-240s.wav',mimeType:'audio/wav',buffer:wave})
+ await page.goto(`/projects/${project.id}/media`);await selectOption(page.getByLabel('素材用途',{exact:true}), 'voice');await page.getByLabel('上传素材（PNG/JPEG/WAV/MP3/MP4）',{exact:true}).setInputFiles({name:'synthetic-240s.wav',mimeType:'audio/wav',buffer:wave})
  await expect(page.getByText('素材已上传并保存',{exact:true})).toBeVisible()
  const shot=await page.request.post(api+`/projects/${project.id}/media/uploads`+query+'&filename=still.png&role=shot',{headers:{...headers,'Idempotency-Key':randomUUID(),'Content-Type':'image/png'},data:png});expect(shot.status()).toBe(200)
  let state=await(await page.request.get(api+`/projects/${project.id}/media`+query)).json();const voice=state.assets.find((a:{name:string})=>a.name==='synthetic-240s.wav');expect(voice.duration).toBeCloseTo(240,1);expect(voice.content_sha256).toBe(createHash('sha256').update(wave).digest('hex'))
  const still=state.assets.find((a:{name:string})=>a.name==='still.png')
  const saved=await page.request.put(api+`/projects/${project.id}/media/timeline`+query,{headers:{...headers,'Idempotency-Key':randomUUID()},data:{expected_version:state.version,timeline:{output_resolution:'1080p',aspect_ratio:'16:9',subtitle_mode:'soft',music_asset_id:'',music_volume:0,clips:[{id:randomUUID(),asset_id:still.id,duration:240,trim_start:0,subtitle:'',audio_asset_id:'',audio_volume:1}],audio_tracks:[{id:randomUUID(),asset_id:voice.id,start:190,trim_start:190,duration:40,volume:.5}]}}});expect(saved.status()).toBe(200)
- await page.reload();const start=page.getByLabel('音轨 1 start',{exact:true}),trim=page.getByLabel('音轨 1 trim_start',{exact:true});await expect(start).toHaveValue('190');await expect(trim).toHaveValue('190');expect(Number(await start.getAttribute('max'))).toBeCloseTo(240,1);expect(Number(await trim.getAttribute('max'))).toBeCloseTo(240,1);expect(await trim.evaluate((node:HTMLInputElement)=>node.checkValidity())).toBe(true)
+ await page.reload();const start=page.getByLabel('音轨 1 start',{exact:true}),trim=page.getByLabel('音轨 1 trim_start',{exact:true});await expectControlValue(start, '190');await expectControlValue(trim, '190');expect(Number(await start.getAttribute('max'))).toBeCloseTo(240,1);expect(Number(await trim.getAttribute('max'))).toBeCloseTo(240,1);expect(await trim.evaluate((node:HTMLInputElement)=>node.checkValidity())).toBe(true)
  state=await(await page.request.get(api+`/projects/${project.id}/media`+query)).json();expect(state.timeline.audio_tracks[0].trim_start).toBe(190)
  expect((await(await request.get('http://127.0.0.1:5193/__state')).json()).requests.length).toBe(before);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
  await page.locator('.media-studio').screenshot({path:`/tmp/long-media-timeline-${info.project.name}.png`})

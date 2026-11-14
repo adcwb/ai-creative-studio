@@ -16,6 +16,8 @@
   "dependencies": {
     "@met4citizen/talkinghead": "1.8.2",
     "@xyflow/react": "12.12.1",
+    "antd": "6.7.0",
+    "antd-mobile": "5.43.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-router-dom": "7.18.5",

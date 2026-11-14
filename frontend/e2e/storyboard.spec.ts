@@ -1,3 +1,4 @@
+import {selectOption, expectControlValue} from './support/controls'
 import { navigateTo, openProject, chooseSpace } from './support/navigation'
 import { randomUUID } from 'node:crypto'
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
@@ -58,9 +59,9 @@ test('saved script generates a real persisted storyboard; lost save response rep
   await edit(page).click()
   const text = '合成已保存画面：雨后钟楼，镜头缓缓靠近信封。'
   await description(page).fill(text)
-  await page.getByLabel('第 1 镜场景引用', {exact:true}).selectOption('2')
-  await page.getByLabel('第 1 镜景别', {exact:true}).selectOption('close_up')
-  await page.getByLabel('第 1 镜运镜', {exact:true}).selectOption('track')
+  await selectOption(page.getByLabel('第 1 镜场景引用', {exact:true}), '2')
+  await selectOption(page.getByLabel('第 1 镜景别', {exact:true}), 'close_up')
+  await selectOption(page.getByLabel('第 1 镜运镜', {exact:true}), 'track')
   await page.getByLabel('第 1 镜时长（秒）', {exact:true}).fill('12')
   await page.getByLabel('第 1 镜对白', {exact:true}).fill('合成对白：让我们一起打开这封信。')
   const keys: string[] = [], bodies: string[] = []
@@ -68,7 +69,7 @@ test('saved script generates a real persisted storyboard; lost save response rep
   await page.route(`**/api/v1/projects/${project.id}/storyboard?*`,async route=>{await route.fetch();await route.abort('failed')},{times:1})
   await save(page).click()
   await expect(page.getByRole('alert')).toContainText('提交结果尚未确认')
-  await expect(description(page)).toHaveValue(text)
+  await expectControlValue(description(page), text)
   const saved = await read(request,project.id)
   expect(saved.storyboard?.shots[0]).toMatchObject({description:text,scene_index:2,shot_size:'close_up',camera_movement:'track',duration_seconds:12,dialogue:'合成对白：让我们一起打开这封信。'})
   const response = page.waitForResponse(r=>r.request().method()==='PUT' && r.url().includes('/storyboard?'))
@@ -115,16 +116,16 @@ test('conflicting storyboard saves and navigation preserve local drafts until ex
   for(const action of [()=>navigateTo(page, '/projects'),()=>chooseSpace(page, 'team-demo'),()=>navigateTo(page, '/studio')]){
     await action();await expect(page.getByRole('dialog')).toBeVisible()
     await page.getByRole('dialog').getByRole('button',{name:'继续编辑',exact:true}).click()
-    await expect(description(page)).toHaveValue(local)
+    await expectControlValue(description(page), local)
   }
   const shots = structuredClone(project.storyboard!.shots);shots[0].description='另一客户端保存的分镜画面。'
   await write(request,`/projects/${project.id}/storyboard`,{shots,expected_version:project.version},'PUT')
   const conflict=page.waitForResponse(r=>r.request().method()==='PUT'&&r.url().includes('/storyboard?'))
   await save(page).click();expect((await conflict).status()).toBe(409)
-  await expect(description(page)).toHaveValue(local)
+  await expectControlValue(description(page), local)
   await expect(page.getByRole('alert')).toContainText('本地草稿已保留')
   await page.getByRole('button',{name:'重新读取最新项目',exact:true}).click();await page.keyboard.press('Escape')
-  await expect(description(page)).toHaveValue(local)
+  await expectControlValue(description(page), local)
   await page.getByRole('button',{name:'重新读取最新项目',exact:true}).click()
   await page.getByRole('dialog').getByRole('button',{name:/放弃/}).click()
   await expect(page.locator('.drama-storyboard')).toContainText(shots[0].description)

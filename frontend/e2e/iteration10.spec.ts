@@ -1,3 +1,4 @@
+import {selectOption, expectControlValue} from './support/controls'
 import { navigateTo, openProject, projectStep } from './support/navigation'
 import {randomUUID} from 'node:crypto'
 import {mkdirSync} from 'node:fs'
@@ -47,8 +48,8 @@ for (const language of ['zh-CN', 'en'] as const) {
     await expect.poll(sample).not.toEqual(before)
     await page.getByRole('button',{name:label('在播放头拆分片段 1','Split clip 1 at playhead'),exact:true}).click()
     await page.getByRole('button',{name:label('复制片段 1','Duplicate clip 1'),exact:true}).click()
-    await page.getByRole('combobox',{name:label('片段 1 转场','Clip 1 transition'),exact:true}).selectOption('wipeleft')
-    await page.getByRole('combobox',{name:label('输出清晰度','Output resolution'),exact:true}).selectOption('2160p')
+    await selectOption(page.getByRole('combobox',{name:label('片段 1 转场','Clip 1 transition'),exact:true}), 'wipeleft')
+    await selectOption(page.getByRole('combobox',{name:label('输出清晰度','Output resolution'),exact:true}), '2160p')
     await page.getByRole('button',{name:label('保存时间轴','Save timeline'),exact:true}).click()
     await expect(page.getByRole('button',{name:label('保存时间轴','Save timeline'),exact:true})).toBeDisabled()
     const timeline = (await (await request.get(mediaPath+query)).json()).timeline
@@ -79,8 +80,8 @@ for (const language of ['zh-CN', 'en'] as const) {
     await projectStep(page, 'publish')
     const social=page.locator('.social-center')
     await social.getByRole('button',{name:label('刷新素材与发布记录','Refresh media and publishing records'),exact:true}).click()
-    await social.getByLabel(label('目标平台','Target platform'),{exact:true}).selectOption('xiaohongshu')
-    await social.getByLabel(label('待交付素材','Media to deliver'),{exact:true}).selectOption(`asset:${overlay.id}`)
+    await selectOption(social.getByLabel(label('目标平台','Target platform'),{exact:true}), 'xiaohongshu')
+    await selectOption(social.getByLabel(label('待交付素材','Media to deliver'),{exact:true}), `asset:${overlay.id}`)
     const prepare=social.getByRole('button',{name:label('准备下载与手动发布','Prepare download for manual publishing'),exact:true})
     await expect(prepare).toBeDisabled()
     await social.getByRole('checkbox',{name:label('我确认目标平台与素材，并理解此操作只准备下载，不会自动发布。','I confirm the target platform and media, and understand this only prepares a download and does not publish automatically.'),exact:true}).check()
@@ -95,8 +96,8 @@ for (const language of ['zh-CN', 'en'] as const) {
     }
     await page.reload()
     await reopenProject()
-    await expect(page.locator('.poster-editor').getByRole('textbox',{name:label('图层文字','Layer text'),exact:true})).toHaveValue('Synthetic poster — 合成海报')
-    await expect(page.getByRole('combobox',{name:label('输出清晰度','Output resolution'),exact:true})).toHaveValue('2160p')
+    await expectControlValue(page.locator('.poster-editor').getByRole('textbox',{name:label('图层文字','Layer text'),exact:true}), 'Synthetic poster — 合成海报')
+    await expectControlValue(page.getByRole('combobox',{name:label('输出清晰度','Output resolution'),exact:true}), '2160p')
     await projectStep(page, 'publish')
     await expect(page.locator('.social-center').getByRole('link',{name:label('下载交付素材','Download prepared media'),exact:true})).toBeVisible()
     expect(errors).toEqual([])

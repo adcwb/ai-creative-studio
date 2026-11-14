@@ -1,3 +1,4 @@
+import {expectControlValue, selectOption} from './support/controls'
 import { navigateTo, openProject, projectStep, chooseLanguage } from './support/navigation'
 import { test, expect } from '@playwright/test'
 
@@ -75,10 +76,10 @@ test('English story, validation, storyboard and media controls use translated dy
   await projectStep(page, 'media')
   await page.getByRole('button', {name: 'Create synthetic demo media and timeline', exact: true}).click()
   await expect(page.getByRole('heading', {name: 'Media and final film', exact: true})).toBeVisible()
-  await expect(page.getByRole('combobox', {name: 'Output resolution', exact: true})).toHaveValue('360p')
-  await expect(page.getByRole('combobox', {name: 'Output aspect ratio', exact: true})).toHaveValue('16:9')
-  await expect(page.getByRole('combobox', {name: 'Subtitle output', exact: true})).toHaveValue('soft')
-  await page.getByRole('combobox', {name: 'Clip 1 transition', exact: true}).selectOption('fade')
+  await expectControlValue(page.getByRole('combobox', {name: 'Output resolution', exact: true}), '360p')
+  await expectControlValue(page.getByRole('combobox', {name: 'Output aspect ratio', exact: true}), '16:9')
+  await expectControlValue(page.getByRole('combobox', {name: 'Subtitle output', exact: true}), 'soft')
+  await selectOption(page.getByRole('combobox', {name: 'Clip 1 transition', exact: true}), 'fade')
   await expect(page.getByLabel('Clip 1 transition duration', {exact: true})).toBeVisible()
   await page.getByRole('button', {name: 'Save timeline', exact: true}).click()
   await expect(page.getByRole('button', {name: 'Save timeline', exact: true})).toBeDisabled()

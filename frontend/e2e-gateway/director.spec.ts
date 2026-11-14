@@ -1,3 +1,4 @@
+import {selectOption, expectControlValue} from '../e2e/support/controls'
 import {test,expect,type Page} from '@playwright/test'
 import {randomUUID} from 'node:crypto'
 const api='http://localhost:8084/api/v1',upstream='http://127.0.0.1:5193'
@@ -19,7 +20,7 @@ test('director intentions persist, model support stays explicit and adjacent ado
  const f=await fixture(page),before=await(await request.get(upstream+'/__state')).json()
  await page.goto(`/projects/${f.project.id}/storyboard`);await page.getByRole('button',{name:'编辑分镜',exact:true}).click();await page.locator('.storyboard-shot').nth(1).getByText('导演说明',{exact:true}).click();await page.getByLabel('第 2 镜：构图与留白',{exact:true}).fill('门框左边保留留白，人物望向画右。');await page.getByLabel('第 2 镜时长（秒）',{exact:true}).fill('121');await page.getByRole('button',{name:'保存分镜',exact:true}).click();await expect(page.getByRole('button',{name:'编辑分镜',exact:true})).toBeVisible()
  const saved=await(await page.request.get(api+`/projects/${f.project.id}`+f.query)).json();expect(saved.storyboard.shots[1].composition).toBe('门框左边保留留白，人物望向画右。');expect(saved.storyboard.shots[1].duration_seconds).toBe(121)
- await page.goto(`/projects/${f.project.id}/production`);await page.getByRole('combobox',{name:'当前镜头',exact:true}).selectOption('current');await expect(page.getByRole('combobox',{name:'模型选择',exact:true})).toHaveValue(f.model.id)
+ await page.goto(`/projects/${f.project.id}/production`);await selectOption(page.getByRole('combobox',{name:'当前镜头',exact:true}), 'current');await expectControlValue(page.getByRole('combobox',{name:'模型选择',exact:true}), f.model.id)
  await page.getByText('查看本次模型的导演控制',{exact:true}).click();const matrix=page.locator('details').filter({has:page.locator('summary').filter({hasText:'查看本次模型的导演控制'})});await expect(matrix).toContainText('仅提示词意图');await expect(matrix).toContainText('当前不支持')
  await page.getByText('前后镜头的衔接',{exact:true}).click();await page.getByRole('button',{name:'current.png',exact:false}).click();await page.getByRole('button',{name:'与此镜头采用版对照',exact:true}).first().click();await expect(page.locator('.production-stage > .candidate-view figure')).toHaveCount(2)
  const mediaBefore=await(await page.request.get(api+`/projects/${f.project.id}/media`+f.query)).json();expect(mediaBefore.timeline.clips).toHaveLength(0)

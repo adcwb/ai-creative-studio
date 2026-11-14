@@ -1,3 +1,4 @@
+import {expectControlValue, selectOption} from './support/controls'
 import { navigateTo, openProject, projectStep, openVersionHistory } from './support/navigation'
 import { randomUUID } from 'node:crypto'
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
@@ -23,7 +24,7 @@ async function open(page: Page, project: DramaProject) {
   await page.goto('/')
   await navigateTo(page, '/projects')
   await openProject(page, project.title, 'brief')
-  await expect(page.getByLabel('项目名称')).toHaveValue(project.title)
+  await expectControlValue(page.getByLabel('项目名称'), project.title)
 }
 
 test('analysis and synthetic image generation persist through actual asynchronous APIs', async ({page, request}, info) => {
@@ -48,10 +49,10 @@ test('photo editing uploads new cropped and rotated pixels with reference metada
   await open(page, project)
   await projectStep(page, 'media')
   const data = await page.evaluate(() => {const canvas = document.createElement('canvas'); canvas.width = 80; canvas.height = 40; const c = canvas.getContext('2d')!; c.fillStyle = '#678060'; c.fillRect(0, 0, 80, 40); return canvas.toDataURL('image/png').split(',')[1]})
-  await page.getByLabel('素材用途', {exact: true}).selectOption('reference')
-  await page.locator('.media-studio').getByLabel('关联角色', {exact: true}).selectOption(project.script!.characters[0].name)
+  await selectOption(page.getByLabel('素材用途', {exact: true}), 'reference')
+  await selectOption(page.locator('.media-studio').getByLabel('关联角色', {exact: true}), project.script!.characters[0].name)
   await page.getByLabel('选择待编辑照片', {exact: true}).setInputFiles({name: 'synthetic-photo.png', mimeType: 'image/png', buffer: Buffer.from(data, 'base64')})
-  await page.getByLabel('照片旋转', {exact: true}).selectOption('90')
+  await selectOption(page.getByLabel('照片旋转', {exact: true}), '90')
   await page.getByLabel('居中裁剪为正方形', {exact: true}).check()
   await page.getByRole('button', {name: '保存编辑照片为新素材', exact: true}).click()
   const image = page.locator('.media-assets img').first()
@@ -70,7 +71,7 @@ test('shots can be added reordered removed and restored from persisted history',
   await page.getByRole('button', {name: '添加镜头', exact: true}).click()
   await page.getByLabel('第 4 镜画面描述', {exact: true}).fill('新增镜头：合成灯光特写')
   await page.getByRole('button', {name: '上移第 4 镜', exact: true}).click()
-  await expect(page.getByLabel('第 3 镜画面描述', {exact: true})).toHaveValue('新增镜头：合成灯光特写')
+  await expectControlValue(page.getByLabel('第 3 镜画面描述', {exact: true}), '新增镜头：合成灯光特写')
   await page.getByRole('button', {name: '删除第 4 镜', exact: true}).click()
   await page.getByRole('button', {name: '保存分镜', exact: true}).click()
   await expect(page.getByRole('button', {name: '编辑分镜', exact: true})).toBeVisible()
