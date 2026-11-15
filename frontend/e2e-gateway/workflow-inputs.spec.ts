@@ -17,7 +17,7 @@ test('runtime variables and actual text model survive explicit local remake with
  await expect(page.getByRole('button',{name:'运行已保存流程',exact:true})).toBeDisabled()
  await page.getByRole('region',{name:'本次运行输入',exact:true}).getByLabel('本次主体',{exact:true}).fill('{{literal}} hero')
  await page.getByRole('region',{name:'本次运行输入',exact:true}).getByLabel('本次场景',{exact:true}).fill('studio')
- await page.locator('.workflow-step-list summary').click();await page.locator('.workflow-step-list').getByRole('button',{name:'文本改写',exact:true}).click()
+ const steps=page.locator('.workflow-step-list');if(await steps.getAttribute('open')===null)await steps.locator('summary').click();await page.locator('.workflow-step-list').getByRole('button',{name:'文本改写',exact:true}).click()
  await expectControlValue(page.getByRole('textbox',{name:'文本处理要求',exact:true}), '保留主体与场景，改写成清晰镜头描述。')
  await expectControlValue(page.getByRole('combobox',{name:'模型选择',exact:true}), model.id)
  await expect(page.getByRole('button',{name:'运行已保存流程',exact:true})).toBeEnabled()
