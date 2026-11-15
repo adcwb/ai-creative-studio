@@ -24,6 +24,7 @@ test('image and creative tasks queue without costs or a model worker', async ({p
  await navigateTo(page, '/studio')
  await page.getByRole('button', {name:'刷新模型目录',exact:true}).click()
  await selectOption(page.getByRole('combobox',{name:'模型选择',exact:true}), model.id)
+ await page.getByText('更多创作设定',{exact:true}).click()
  await selectOption(page.getByRole('combobox',{name:'创作类型',exact:true}), 'general')
  await selectOption(page.getByRole('combobox',{name:'画面比例',exact:true}), '1:1')
  await page.locator('#prompt').fill('Synthetic quoted image')

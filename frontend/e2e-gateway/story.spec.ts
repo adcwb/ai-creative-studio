@@ -118,7 +118,7 @@ test('episode cast keeps explicit identities and asset versions through lost sav
 
 test('native Responses counting is opt in and an oversized input never reaches generation',async({page,request},info)=>{
  const f=await readyStoryReview(page),before=await(await request.get('http://127.0.0.1:5193/__state')).json()
- await page.goto('/settings/preferences');await page.getByRole('button',{name:'管理当前组织的模型网关',exact:true}).click();await page.getByRole('tab',{name:'网关模型',exact:true}).click();await page.getByRole('button',{name:'编辑',exact:true}).click()
+ await page.goto('/settings/preferences');await page.getByRole('link',{name:'管理当前空间的模型',exact:true}).click();await expect(page).toHaveURL(/\/settings\/models$/);await page.getByRole('tab',{name:'网关模型',exact:true}).click();await page.getByRole('button',{name:'编辑',exact:true}).click()
  const form=page.locator('.model-editor-form');await expectControlValue(form.getByRole('combobox',{name:'文本接口',exact:true}), 'chat_completions');await expect(form.getByLabel('上游已确认支持 Responses 原生输入计数',{exact:true})).toBeDisabled()
  await selectOption(form.getByRole('combobox',{name:'文本接口',exact:true}), 'responses');await form.getByLabel('上游总上下文 token（选填）',{exact:true}).fill('2048');await form.getByLabel('上游已确认支持 Responses 原生输入计数',{exact:true}).check();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:`/tmp/native-input-model-${info.project.name}.png`,fullPage:true});await form.getByRole('button',{name:'保存模型',exact:true}).click();await expect(form).toHaveCount(0)
  expect((await(await request.get('http://127.0.0.1:5193/__state')).json()).calls).toBe(before.calls)
