@@ -38,3 +38,14 @@ func TestRuntimeInputsAreExplicitLiteralAndBoundedByTextContract(t *testing.T) {
 		t.Fatal("property expression")
 	}
 }
+
+func TestLocalTemplateLimitsApplyToExpandedText(t *testing.T) {
+	definition := Node{Kind: "template", Text: "{{subject}}{{input}}"}
+	variables := map[string]string{"subject": strings.Repeat("x", 2000)}
+	inputs := map[string]Result{"prompt": {Text: "y"}}
+
+	node, err := EvaluateLocalNode(definition, NodeRun{Status: "queued"}, variables, inputs)
+	if err != nil || node.Status != "failed" || node.ErrorCode != "invalid_workflow" {
+		t.Fatalf("expanded text exceeds its limit: node=%+v err=%v", node, err)
+	}
+}

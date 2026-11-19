@@ -39,6 +39,6 @@ test('runtime variables and actual text model survive explicit local remake with
  expect((await(await page.request.get(api+base+`/workflow-runs/${original.id}`+query)).json()).status).toBe('succeeded')
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true)
  await page.evaluate(()=>scrollTo(0,0))
- await page.screenshot({path:`/tmp/workflow-runtime-viewport-${info.project.name}.png`})
- await page.screenshot({path:`/tmp/workflow-runtime-remake-${info.project.name}.png`,fullPage:true})
+ await page.screenshot({path:info.outputPath(`workflow-runtime-viewport-${info.project.name}.png`)})
+ await page.screenshot({path:info.outputPath(`workflow-runtime-remake-${info.project.name}.png`),fullPage:true})
 })

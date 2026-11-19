@@ -16,6 +16,7 @@ backend/
     │   ├── publishing/          # 发布意图、平台、账号和交付记录
     │   └── governance/          # 模型配置、执行契约、报价摘要、币种规则
     ├── application/             # HTTP、任务编排及当前持久化协作核心
+    ├── persistence/             # 按业务拆分的文件与 PostgreSQL 仓库
     ├── platform/                # 可复用的基础设施
     │   ├── jobqueue/            # PostgreSQL 队列、租约和 fenced commit
     │   ├── tracing/             # 链路上下文、采样和导出
@@ -38,9 +39,11 @@ backend/
 
 `application/*_contracts.go` 使用类型别名和普通转发函数承接原有调用方，JSON 字段、错误身份、自定义 JSON 解码与持久化格式保持兼容。新业务规则应直接写入对应模块，并使用外部测试包验证公开边界。
 
+工作流的图校验与本地节点求值归 `modules/workflows/`，修订和运行状态持久化归 `persistence/workflowrepo/`。应用层的 `workflow_store.go` 处理保存、启动和审批，`workflow_runner.go` 调度节点并核对生成任务。
+
 ## 构建与检查
 
-使用 `go.mod` 声明的 Go 1.25.3。当前文件锁、路径保护与媒体处理面向 Linux；本机 Go 版本过新时应选择相同工具链。
+使用 `go.mod` 声明的 Go 1.25.3。后端支持 Linux 和原生 Windows。Windows 的命令构建、服务和存储检查见 [CI 脚本](../scripts/windows_ci_tests.ps1)。
 
 ```sh
 gofmt -w cmd internal
