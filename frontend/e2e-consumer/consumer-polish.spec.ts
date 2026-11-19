@@ -78,7 +78,7 @@ test('prompt recipe actions stay visible while the form scrolls and a real fixtu
     await expect(dialog).toHaveCount(0);
     await expect(page.getByLabel('描述你的画面', { exact: true })).toHaveValue('森林中的旅人，背景是清晨薄雾。');
 });
-for (const theme of ['forest', 'paper', 'screening'])
+for (const theme of ['dark', 'light'])
     test(`${theme} gateway statuses and selected tabs keep contrast after transitions`, async ({ page }, info) => {
         await page.addInitScript(theme => localStorage.setItem('studio.preferences.v1:user-1', theme), theme);
         await page.goto('/settings/models');

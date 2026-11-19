@@ -30,7 +30,7 @@ async function colors(locator: Locator) {
   })
 }
 
-for (const theme of ['forest', 'paper', 'screening']) {
+for (const theme of ['dark', 'light']) {
   test(`${theme} typography, contrast, keyboard focus and control boundaries`, async ({page}, info) => {
     await page.addInitScript(theme => localStorage.setItem('studio.preferences.v1:user-1', theme), theme)
     await page.goto('/settings/models')

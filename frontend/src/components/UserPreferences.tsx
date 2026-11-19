@@ -1,11 +1,11 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { I18nProvider } from './LanguagePicker'
-import { preferenceKey, readTheme, type Theme } from '../preferences'
+import { preferenceKey, readTheme, defaultTheme, type Theme } from '../preferences'
 import {StudioTheme} from '../ui/StudioTheme'
 export interface NavigationPreferences {collapsed: boolean; groups: Record<string, boolean>}
 const defaultNavigation: NavigationPreferences = {collapsed: false, groups: {}}
 function readNavigation(key: string): NavigationPreferences {try {const value = JSON.parse(localStorage.getItem(key) ?? 'null'); return {collapsed: value?.collapsed === true, groups: Object.fromEntries(Object.entries(value?.groups ?? {}).filter(([key,value]) => ['creative','avatars','resources','organization','system'].includes(key) && typeof value === 'boolean')) as Record<string,boolean>}} catch {return defaultNavigation}}
-const Preferences = createContext<{theme: Theme; setTheme: (theme: Theme) => void; saved: boolean; navigation: NavigationPreferences; setNavigation: (value: NavigationPreferences) => void}>({navigation: defaultNavigation, setNavigation: () => {}, theme: 'forest', setTheme: () => {}, saved: true})
+const Preferences = createContext<{theme: Theme; setTheme: (theme: Theme) => void; saved: boolean; navigation: NavigationPreferences; setNavigation: (value: NavigationPreferences) => void}>({navigation: defaultNavigation, setNavigation: () => {}, theme: defaultTheme, setTheme: () => {}, saved: true})
 // A keyed boundary is remounted on identity changes. New accounts may use the
 // anonymous language choice, never another account’s preferences. No auth is stored.
 export function UserPreferences({userID, children}: {userID: string; children: ReactNode}) {

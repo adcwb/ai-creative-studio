@@ -1,16 +1,36 @@
 import {afterEach, expect, test, vi} from 'vitest'
-import {preferenceKey, readTheme} from './preferences'
+import {defaultTheme, preferenceKey, readAppearanceHint, readTheme, rememberAppearance, resolveTheme} from './preferences'
 afterEach(() => vi.unstubAllGlobals())
-test('preference keys isolate users, and missing or invalid storage fails to forest', () => {
+test('preference keys isolate users, and missing or invalid storage fails to the dark default', () => {
  const a=preferenceKey('user-a'), b=preferenceKey('user-b')
  expect(a).not.toBe(b)
- const values=new Map([[a,'screening'],[b,'paper']])
+ const values=new Map([[a,'dark'],[b,'light']])
  vi.stubGlobal('localStorage',{getItem:(key:string)=>values.get(key) ?? null})
- expect(readTheme(a)).toBe('screening'); expect(readTheme(b)).toBe('paper')
- expect(readTheme(preferenceKey('new-user'))).toBe('forest')
- values.set(a,'unsupported'); expect(readTheme(a)).toBe('forest')
+ expect(readTheme(a)).toBe('dark'); expect(readTheme(b)).toBe('light')
+ expect(readTheme(preferenceKey('new-user'))).toBe(defaultTheme)
+ values.set(a,'unsupported'); expect(readTheme(a)).toBe(defaultTheme)
+})
+test('retired appearances keep their reading conditions instead of resetting', () => {
+ expect(resolveTheme('forest')).toBe('light')
+ expect(resolveTheme('paper')).toBe('light')
+ expect(resolveTheme('screening')).toBe('dark')
+ expect(resolveTheme(null)).toBe('dark')
+ expect(resolveTheme('')).toBe('dark')
+ const key=preferenceKey('migrated')
+ vi.stubGlobal('localStorage',{getItem:()=> 'screening'})
+ expect(readTheme(key)).toBe('dark')
 })
 test('unavailable browser storage does not prevent opening the workspace', () => {
- vi.stubGlobal('localStorage',{getItem:()=>{throw new Error('blocked')}})
- expect(readTheme(preferenceKey('user'))).toBe('forest')
+ vi.stubGlobal('localStorage',{getItem:()=>{throw new Error('blocked')},setItem:()=>{throw new Error('blocked')}})
+ expect(readTheme(preferenceKey('user'))).toBe(defaultTheme)
+ expect(readAppearanceHint()).toBe(defaultTheme)
+ expect(() => rememberAppearance('light')).not.toThrow()
+})
+test('the paint hint is device level and separate from the account key', () => {
+ const stored=new Map<string,string>()
+ vi.stubGlobal('localStorage',{getItem:(key:string)=>stored.get(key) ?? null,setItem:(key:string,value:string)=>{stored.set(key,value)}})
+ rememberAppearance('light')
+ expect(readAppearanceHint()).toBe('light')
+ expect(stored.has(preferenceKey('any-user'))).toBe(false)
+ expect(readTheme(preferenceKey('any-user'))).toBe(defaultTheme)
 })

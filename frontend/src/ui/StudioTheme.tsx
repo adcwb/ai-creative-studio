@@ -1,38 +1,50 @@
 import {ConfigProvider, theme as antTheme, type ThemeConfig} from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import enUS from 'antd/locale/en_US'
-import type {ReactNode} from 'react'
+import {useLayoutEffect, type ReactNode} from 'react'
 import {useI18n} from '../i18n'
-import type {Theme} from '../preferences'
+import {defaultTheme, rememberAppearance, type Theme} from '../preferences'
+import {applyTheme, colorSchemes, palettes} from './palettes'
 import './studio-ui.css'
 
-const palettes = {
-  forest: {primary:'#244b3b',hover:'#35604a',text:'#263e32',muted:'#63705e',surface:'#ffffff',input:'#fbfcf8',border:'#7f8d78',line:'#e0e5d9',soft:'#f0f3eb',success:'#4d6940',successBg:'#edf3e8'},
-  paper: {primary:'#80543c',hover:'#68412c',text:'#3a312c',muted:'#716254',surface:'#fffdf8',input:'#faf6ee',border:'#93816e',line:'#d9cfc1',soft:'#ece5d9',success:'#45572c',successBg:'#e9eddf'},
-  screening: {primary:'#4e6b7f',hover:'#49677b',text:'#f0eeea',muted:'#b2b8bf',surface:'#23272c',input:'#1c2025',border:'#788593',line:'#424850',soft:'#2e333a',success:'#c2dfc8',successBg:'#263c32'},
-} satisfies Record<Theme, object>
-
-export function StudioTheme({children, appearance = 'forest'}: {children: ReactNode; appearance?: Theme}) {
+export function StudioTheme({children, appearance = defaultTheme}: {children: ReactNode; appearance?: Theme}) {
   const {locale} = useI18n()
   const color = palettes[appearance]
+  // The same palette drives antd tokens and the CSS custom properties, so the
+  // two can never disagree. Cleanup restores the previous appearance, which is
+  // what lets the account shell hand control back to the boot shell on logout.
+  useLayoutEffect(() => {
+    const restore = applyTheme(appearance, document.documentElement)
+    rememberAppearance(appearance)
+    return restore
+  }, [appearance])
   const config: ThemeConfig = {
-    algorithm: appearance === 'screening' ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
+    algorithm: colorSchemes[appearance] === 'dark' ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
     token: {
-      colorPrimary:color.primary, colorPrimaryHover:color.hover, colorPrimaryActive:color.hover,
-      colorInfo:color.primary, colorText:color.text, colorTextSecondary:color.muted,
-      colorTextPlaceholder:color.muted, colorTextLabel:color.text,
-      colorBgContainer:color.surface, colorBgElevated:color.surface,
-      colorBorder:color.border, colorBorderSecondary:color.line, colorFillAlter:color.soft,
+      colorPrimary:color.primary, colorPrimaryHover:color.primaryHover, colorPrimaryActive:color.primaryActive,
+      colorInfo:color.primary, colorSuccess:color.successText, colorWarning:color.warningText, colorError:color.errorText,
+      colorTextBase:color.ink, colorText:color.ink, colorTextSecondary:color.inkMuted,
+      colorTextPlaceholder:color.inkPlaceholder, colorTextLabel:color.ink, colorTextLightSolid:color.onPrimary,
+      colorBgBase:color.canvas, colorBgLayout:color.canvas, colorBgContainer:color.surface,
+      colorBgElevated:color.surfaceSoft, colorBgSpotlight:color.forest,
+      colorBorder:color.controlBorder, colorBorderSecondary:color.border, colorFillAlter:color.surfaceSoft,
+      colorLink:color.link,
       fontFamily:'"PingFang SC", "Microsoft YaHei", system-ui, sans-serif', fontSize:14,
-      borderRadius:8, controlHeight:40, controlOutlineWidth:2,
+      borderRadius:8, controlHeight:40, controlOutlineWidth:2, wireframe:false,
     },
     components: {
-      Button: {primaryColor:'#ffffff',defaultBg:color.surface},
-      Input: {colorBgContainer:color.input},
-      Select: {colorBgContainer:color.input,optionSelectedBg:color.soft,optionSelectedColor:color.text},
-      Tabs: {itemSelectedColor:appearance === 'screening' ? '#c3dce9' : color.primary,itemHoverColor:appearance === 'screening' ? '#e0edf4' : color.hover,inkBarColor:appearance === 'screening' ? '#c3dce9' : color.primary},
-      Tag: {colorSuccess:color.success,colorSuccessBg:color.successBg,colorSuccessBorder:color.success},
-      Table: {headerBg:color.soft,headerColor:color.muted,rowHoverBg:color.soft},
+      // Hover darkens instead of lightening: lightening the dark-theme primary
+      // drops white label contrast below the 4.5:1 gate.
+      Button: {primaryColor:color.onPrimary,defaultBg:color.surface,defaultColor:color.ink,defaultBorderColor:color.controlBorder},
+      Input: {colorBgContainer:color.surfaceInput},
+      Select: {colorBgContainer:color.surfaceInput,optionSelectedBg:color.surfaceSoft,optionSelectedColor:color.ink},
+      Tabs: {itemSelectedColor:color.link,itemHoverColor:color.link,inkBarColor:color.rail},
+      Tag: {colorSuccess:color.successText,colorSuccessBg:color.successBg,colorSuccessBorder:color.successText,defaultBg:color.surfaceSoft,defaultColor:color.ink},
+      Table: {headerBg:color.surfaceSoft,headerColor:color.inkMuted,rowHoverBg:color.surfaceSoft,borderColor:color.border},
+      Modal: {headerBg:color.surface,contentBg:color.surface,titleColor:color.ink},
+      Card: {colorBgContainer:color.surface},
+      Collapse: {headerBg:color.surfaceSoft,contentBg:color.surface},
+      Alert: {colorSuccessBg:color.successBg,colorSuccessBorder:color.successText,colorWarningBg:color.warningBg,colorWarningBorder:color.warningBorder,colorErrorBg:color.errorBg,colorErrorBorder:color.errorBorder,colorInfoBg:color.surfaceSoft,colorInfoBorder:color.controlBorder},
     },
   }
   return <ConfigProvider locale={locale === 'en' ? enUS : zhCN} theme={config} button={{autoInsertSpace:false}} getPopupContainer={trigger => trigger?.closest<HTMLElement>('.studio-dialog-content, dialog, .user-workspace') ?? document.body}>{children}</ConfigProvider>

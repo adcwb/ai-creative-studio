@@ -1,4 +1,4 @@
-.poster-editor { margin-block: 1.5rem; padding: 1rem; border: 1px solid var(--border, #8885); border-radius: 12px; }
+.poster-editor { margin-block: 1.5rem; padding: 1rem; border: 1px solid var(--border); border-radius: 12px; }
 .poster-editor fieldset { display: flex; flex-wrap: wrap; gap: .7rem; min-width: 0; margin-block: .75rem; }
 .poster-editor fieldset fieldset { flex-basis: 100%; }
 .poster-editor label { display: grid; gap: .25rem; max-width: 100%; }

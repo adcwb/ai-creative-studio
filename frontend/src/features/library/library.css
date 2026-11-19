@@ -4,7 +4,7 @@
 .library-card-fields label{display:grid;gap:8px;min-width:0}
 .library-card-fields textarea{min-height:88px;resize:vertical}
 .library-card-fields .library-wide{grid-column:1/-1}
-.library-reference-input{border:1px solid var(--border,#dce4df);border-radius:12px;padding:16px;margin-top:24px}
+.library-reference-input{border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:24px}
 .library-reference-list{padding:0;list-style:none;display:grid;gap:8px}
 .library-reference-list li{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid var(--border);padding:8px 0}
 .library-identity{text-align:left;cursor:pointer;color:inherit;font:inherit}

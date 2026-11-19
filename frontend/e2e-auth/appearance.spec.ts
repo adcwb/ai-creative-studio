@@ -56,10 +56,10 @@ test('personal themes and locale persist per account, reset on logout and never 
   await page.goto('/'); await register(emailA)
   await navigateTo(page,'/settings/preferences')
   const cards=page.locator('.theme-option')
-  const themeNames=['forest','paper','screening']
+  const themeNames=['dark','light']
   for (const locale of ['zh-CN','en']) {
     await page.locator('.preferences-page .language-buttons').getByRole('button',{name:locale==='en'?'English':'简体中文',exact:true}).click()
-    for(let i=0;i<3;i++) {
+    for(let i=0;i<themeNames.length;i++) {
       await cards.nth(i).click(); await cards.nth(i).click()
       await expect(page.locator('.user-workspace')).toHaveAttribute('data-theme',themeNames[i])
       await expect(cards.nth(i)).toHaveAttribute('aria-pressed','true')
@@ -68,11 +68,11 @@ test('personal themes and locale persist per account, reset on logout and never 
     }
   }
   await page.reload()
-  await expect(page.locator('.user-workspace')).toHaveAttribute('data-theme','screening')
+  await expect(page.locator('.user-workspace')).toHaveAttribute('data-theme','light')
   await expect(page.locator('html')).toHaveAttribute('lang','en')
   await navigateTo(page,'/studio')
   await expect(page.locator('textarea').first()).toBeEnabled()
-  await screenshot(page,`studio-${info.project.name}-screening`)
+  await screenshot(page,`studio-${info.project.name}-light`)
   await expect.poll(() => page.locator('textarea').first().evaluate(el => {
     const c=getComputedStyle(el)
     function luminance(rgb: string) { const a=(rgb.match(/[\d.]+/g) ?? []).slice(0,3).map(Number).map(v=> {v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4});return a[0]*.2126+a[1]*.7152+a[2]*.0722 }
@@ -85,7 +85,7 @@ test('personal themes and locale persist per account, reset on logout and never 
   await expect(page.locator('html')).toHaveAttribute('lang','zh-CN')
   await expect(page.locator('.user-workspace')).toHaveCount(0)
   await register(emailB)
-  await expect(page.locator('.user-workspace')).toHaveAttribute('data-theme','forest')
+  await expect(page.locator('.user-workspace')).toHaveAttribute('data-theme','dark')
   await expect(page.locator('html')).toHaveAttribute('lang','zh-CN')
   await openNavigation(page)
   await expect(page.locator('[data-group=resources] .group-toggle')).toHaveAttribute('aria-expanded','false')
@@ -93,7 +93,7 @@ test('personal themes and locale persist per account, reset on logout and never 
   await logout()
   await page.locator('#auth-email').fill(emailA); await page.locator('#auth-password').fill(password)
   await page.getByRole('button',{name:'登录',exact:true}).click()
-  await expect(page.locator('.user-workspace')).toHaveAttribute('data-theme','screening')
+  await expect(page.locator('.user-workspace')).toHaveAttribute('data-theme','light')
   await expect(page.locator('html')).toHaveAttribute('lang','en')
   await openNavigation(page)
   await expect(page.locator('[data-group=resources] .group-toggle')).toHaveAttribute('aria-expanded','true')
@@ -113,13 +113,13 @@ test('personal settings remain available without an organization and report bloc
   await page.goto('/settings/preferences')
   await expect(page.locator('.preferences-page')).toBeVisible()
   await page.evaluate(() => { const original=Storage.prototype.setItem; Storage.prototype.setItem=function(key,value) {if(this===localStorage) throw new Error('synthetic blocked storage'); original.call(this,key,value)} })
-  await page.locator('.theme-option').nth(2).click()
-  await expect(page.locator('.user-workspace')).toHaveAttribute('data-theme','screening')
+  await page.locator('.theme-option').nth(1).click()
+  await expect(page.locator('.user-workspace')).toHaveAttribute('data-theme','light')
   await expect(page.getByRole('status', {name: '偏好保存状态', exact: true})).toContainText('浏览器无法保存偏好')
   await page.locator('.preferences-page').getByRole('button',{name:'English',exact:true}).click()
   await expect(page.getByRole('status', {name: 'Preference storage status', exact: true})).toContainText('Your browser cannot save preferences')
   await page.reload()
-  await expect(page.locator('.user-workspace')).toHaveAttribute('data-theme','forest')
+  await expect(page.locator('.user-workspace')).toHaveAttribute('data-theme','dark')
   await expect(page.locator('html')).toHaveAttribute('lang','zh-CN')
 })
 
