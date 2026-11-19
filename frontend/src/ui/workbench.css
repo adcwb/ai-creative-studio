@@ -1,0 +1,81 @@
+/* Layout for the shared long-content workbench. Colour, spacing, radii and
+   stacking all come from tokens; nothing here touches library class names. */
+.studio-workbench {
+  display: grid;
+  grid-template-columns: var(--workbench-columns);
+  gap: var(--space-5);
+  align-items: start;
+}
+.studio-workbench-main { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+.studio-workbench-canvas { min-width: 0; }
+.studio-workbench[data-measure] .studio-workbench-canvas { width: 100%; max-width: var(--reading-measure); margin-inline: auto; }
+
+.studio-workbench-panel {
+  position: sticky;
+  top: calc(var(--shell-topbar-height) + var(--space-5));
+  max-height: calc(100dvh - var(--shell-topbar-height) - var(--space-8));
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.studio-workbench-panel[data-collapsed] { align-items: center; padding: var(--space-2); }
+.studio-workbench-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+.studio-workbench-panel-header h2 { margin: 0; font-size: var(--text-sm); font-weight: 650; overflow-wrap: anywhere; }
+.studio-workbench-panel-body { min-height: 0; overflow-y: auto; padding: var(--space-3) var(--space-4) var(--space-4); }
+.studio-workbench-collapse, .studio-workbench-rail { min-width: 44px; min-height: 44px; padding: var(--space-2); }
+.studio-workbench-rail { width: 100%; }
+
+.studio-workbench-switcher { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.studio-workbench-switcher button { flex: 1 1 140px; min-height: 44px; }
+.studio-workbench-drawer-body { padding: var(--space-4); overflow-wrap: anywhere; }
+
+/* Sticky directly under the shell topbar; the offset follows the shell token. */
+.studio-sticky-bar {
+  position: sticky;
+  top: var(--shell-topbar-height);
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-subtle);
+}
+.studio-sticky-status { min-width: 0; color: var(--ink-muted); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.studio-sticky-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+
+/* Bottom-sticky, so the forward action is one step away at any scroll position
+   without covering other pages or needing a spacer. */
+.studio-next-step {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-dock);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+.studio-next-step-hint { margin: 0; color: var(--ink-muted); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.studio-next-step-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-left: auto; }
+.studio-next-step-actions > * { min-height: 44px; }

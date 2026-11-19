@@ -14,6 +14,12 @@ export default {
 
 "展开侧栏": "Expand sidebar",
 "收起侧栏": "Collapse sidebar",
+"下一步操作": "Next step",
+"工作区面板": "Workspace panels",
+"展开大纲": "Expand outline",
+"收起大纲": "Collapse outline",
+"展开检查器": "Expand inspector",
+"收起检查器": "Collapse inspector",
 "页面信息": "Page information",
 "项目概览": "Project overview",
 "审片与导出": "Review and export",

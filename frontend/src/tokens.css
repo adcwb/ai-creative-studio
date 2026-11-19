@@ -25,6 +25,18 @@
   --radius-md: 10px;
   --radius-lg: 14px;
   --radius-pill: 999px;
+  /* Shared shell geometry. The topbar height is redefined at the 760px shell
+     breakpoint, so every sticky layer below it follows from one token. */
+  --shell-topbar-height: 68px;
+  --workbench-outline: 260px;
+  --workbench-inspector: 320px;
+  --workbench-rail: 48px;
+  --reading-measure: 760px;
+  /* Stacking order: content < sticky bars < dock < mobile navigation < dialogs. */
+  --z-sticky: 20;
+  --z-dock: 24;
+  --z-nav-backdrop: 29;
+  --z-nav: 30;
   font-family: var(--font-sans);
   color: var(--ink);
   background: var(--canvas);

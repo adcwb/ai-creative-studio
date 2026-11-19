@@ -1,6 +1,6 @@
 # 映创工作台 UI 重构与长内容治理
 
-状态：**Implementing**（S1 主题单源已完成并验证；S2 起未开始）
+状态：**Implementing**（S1 主题单源、S2 壳层骨架已完成并验证；S3 起未开始）
 基线：分支 `refactor/workflow-structure`，提交 `fce862b9b98fc3cd8ab6d1cecb00d74597599052`，日期 2026-11-19
 基线说明：工作树 `git status` 显示 1002 个文件变更，逐文件核验后确认其中 999 个仅为 Windows CRLF 检出差异（`git diff --ignore-cr-at-eol` 为空），唯一真实内容差异是 `.gitignore` 新增 2 行。本轮审计以该提交的内容为准。
 

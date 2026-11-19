@@ -2,12 +2,12 @@
 
 规格：`docs/superpowers/specs/2026-11-19-studio-ui-refactor/`
 基线：`fce862b9b98fc3cd8ab6d1cecb00d74597599052`（分支 `refactor/workflow-structure`）
-状态：**Implementing** — S1 已完成并验证，S2 起未开始
+状态：**Implementing** — S1、S2 已完成并验证，S3 起未开始
 
 ## 步骤
 
 - [x] **S1 主题单源**：单一色板、暗房/工作室双主题、旧偏好迁移（2026-11-19 完成）
-- [ ] **S2 壳层骨架**：三栏插槽、吸顶操作栏、底部推进条、共享壳断点收敛
+- [x] **S2 壳层骨架**：三栏插槽、吸顶操作栏、底部推进条、共享壳断点收敛（2026-11-19 完成）
 - [ ] **S3 原子封装层**：11 个 Studio\* 组件、图标补齐、清除 `.ant-*` 覆盖与 `!important`
 - [ ] **S4 门面三页**：项目列表、创作工作台首页、登录
 - [ ] **S5 长内容底座**：虚拟滚动选型实测、大纲、滚动联动、页内搜索、URL 位置
@@ -101,3 +101,73 @@ mobile 设备项目、routing 其余 spec、e2e / e2e-auth / e2e-consumer / e2e-
 34 处 `.ant-*` 覆盖与 6 处 `!important` 仍在 `ui/studio-ui.css` 等文件中，按计划在 S3 由组件 token 消化。`--radius` 未定义（Avatar3DStudio 兜底 12px）留给 S3 的几何令牌清理。5 处原生 `<dialog>` 尚未收敛到 `StudioDialog`，同样在 S3。
 
 `auth.css` 的 51 处硬编码色值未动，登录页整体令牌化排在 S4。
+
+---
+
+## S2 变更说明
+
+### 新增
+
+`src/ui/StudioWorkbench.tsx` 是共享三栏骨架：左大纲、中主视区、右检查器，另有两个可选插槽 `toolbar`（吸顶）与 `nextStep`（底部推进）。列轨由组件按「插槽是否存在 + 是否收起」算出，写成引用令牌的 `--workbench-columns`，因此不需要为组合状态写一堆 CSS 分支。阅读限宽是显式 `measure` 选项，默认不限制，避免把卡片网格也压窄。
+
+侧栏面板可收起为 48px 图标轨，状态按账号存在 `studio.preferences.v1:<user>:panels`。**窄屏不另造抽屉**：≤760px 时两个面板改为按钮唤起 `StudioDialog`，复用既有弹层与焦点管理，全站仍只有一套覆盖层实现。离开窄视口时抽屉自动失效，不留残留状态。
+
+`src/ui/StickyActionBar.tsx` 吸顶在壳层顶栏之下；`src/ui/NextStepDock.tsx` 底部吸附。两者都用 `sticky` 而非 `fixed`，不需要占位元素，也不会盖住别的页面。`src/ui/workbench.css` 只管布局，颜色、间距、圆角、层级全部取自令牌，没有任何 `.ant-*` 选择器。
+
+### 修改
+
+顶栏改为吸顶，高度统一由 `--shell-topbar-height` 提供，并在 760px 断点处把该令牌重定义为 60px——吸顶层的偏移因此自动跟随，不需要第二套魔法数字。原先 `style.css` 写 78px、`app.css` 写 68px、移动态再写 60px 的三处不一致就此消除。
+
+新增层级令牌 `--z-sticky / --z-dock / --z-nav-backdrop / --z-nav` 与几何令牌 `--workbench-outline / --workbench-inspector / --workbench-rail / --reading-measure`，替换侧栏与遮罩里写死的 30 / 29；跳转链接改用 `calc(var(--z-nav) + 1)` 以保证压在吸顶栏之上。色板新增 `scrim`，移动导航遮罩不再写死 `rgb(8 24 17 / 40%)`。
+
+`app.css` 剩余 6 处硬编码色值全部令牌化：导航文字与悬停改 `--on-forest`，选中底色改 `--forest-raised`，两处主色上的白字改 `--on-primary`，分组分隔线改 `--forest-line`。至此 `app.css` 零硬编码色值。
+
+删掉 `style.css` 1240px 块里的 `.sidebar` / `.sidebar-inner` / `main` 三条声明——它们始终被 `app.css` 中更高特异性的 `.app-shell` 选择器覆盖，是死代码，也是「共享壳有两个竞争断点」这一错觉的来源。共享壳的移动边界本来就统一在 760/761，本步核实并保留；1150 / 1700 是宽度收紧，与移动边界不是同一根轴。
+
+`UserPreferences` 增加 `panels` 偏好与读写，沿用既有的按账号分域与存储失败提示。
+
+### 首个真实接入
+
+剧本页的「下一步：生成分镜」从正文末尾移入 `NextStepDock`，并置于版本历史之后成为最后一个元素，使其在整页任意滚动位置都吸附在视口底部。这是底座的第一个真实消费者，也是 S6 之前的最小验证。剧本页的三栏、分片编辑与双栏对白仍留给 S6。
+
+### 测试
+
+新增 `src/ui/StudioWorkbench.test.tsx`（5 个用例）：列轨组合、阅读限宽开关、吸顶栏与推进条的可访问名称、面板收起后只留展开轨且不挂载内容、中英文文案。用例用 `renderToStaticMarkup`，并对 antd 做最小替身——断言的是本组件的布局契约，真实 antd 渲染由浏览器套件覆盖；这同时把该文件的导入耗时从 131s 降到 0.9s。
+
+新增 `e2e-routing/workbench.spec.ts`（桌面 + 手机各 1 个用例）作为 S2 的回归门禁：在 300 / 900（桌面）与 600（手机）滚动位置断言顶栏与推进条同时在视口内，且无横向溢出。
+
+**这套断言抓到一个真实缺陷**：`workbench.css` 原先只被 `StudioWorkbench` 引入，而剧本页直接用的是 `NextStepDock`，推进条因此完全没有样式、`viewport ratio 0`。已让三个组件各自引入所需样式（打包器去重）。
+
+---
+
+## S2 验证证据
+
+| 检查 | 结果 |
+| --- | --- |
+| `npx tsc -b` | 通过 |
+| `npx eslint . --max-warnings 0` | 通过，零警告 |
+| `npx vitest run src` | 30 文件 / 102 用例全通过 |
+| `node scripts/i18n_check.cjs` | 通过，3437 条文案 |
+| `npx vite build` | 成功，2156 模块，52.4s |
+| routing 断点与溢出（640/700/760/761/900/1200） | 通过 |
+| routing 对比度与几何门禁 · desktop · dark | 通过 |
+| routing workbench · desktop 吸附 | 通过 |
+| routing workbench · mobile 吸附 | 通过 |
+
+主包 638.65 kB（gzip 213.23），比 S1 增加 0.46 kB；CSS 90.47 kB（gzip 16.90）。chunk 体积警告仍是既有状态，未调阈值。
+
+截图证据：桌面滚动 900px 时顶栏与推进条同时在位；手机 390px 宽滚动 600px 时同样成立。
+
+### 本轮未运行
+
+routing 其余 spec、mobile 设备的对比度门禁、四套需真实后端的 E2E、Go vet 与三组 race、file × postgres 矩阵。后端零改动。**本机通过不等于完整 CI 矩阵通过。**
+
+### 一处既有行为说明
+
+截图中主区左缘有一条琥珀色竖线，是 `#page-content:focus-visible` 的 3px 焦点描边（路由切换后焦点落到主区），本步之前就存在，不是新增缺陷；因为主区高于视口，只能看到它的左边缘。
+
+---
+
+## S2 已知遗留
+
+`StudioWorkbench` 目前只有剧本页的推进条在用，三栏骨架本体等 S6 接入剧本页时才获得真实页面验证。`--radius`（Avatar3DStudio 兜底 12px）仍未定义，与 34 处 `.ant-*` 覆盖、6 处 `!important`、5 处原生 `<dialog>` 一并留给 S3。

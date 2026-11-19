@@ -7,6 +7,7 @@ import { DramaScriptEditor } from '../../components/DramaScriptEditor'
 import { ProjectHistory } from '../../components/ProjectHistory'
 import { Icon } from '../../components/Icon'
 import { RuntimeModelPicker } from '../../components/RuntimeModelPicker'
+import { NextStepDock } from '../../ui/NextStepDock'
 import { WritingContextPicker, type WritingReview } from './WritingContext'
 import type { ProjectEditorState } from './useProjectEditor'
 
@@ -53,7 +54,7 @@ export function ProjectScript({state}: {state: ProjectEditorState}) {
     </section>
     {project.script_brief && project.script_brief !== project.brief && <p className="editing-note">{translate('简报已更新，当前剧本仍保留原内容；需要按新简报创作时，可重新生成。')}</p>}
     {editor.script ? <DramaScriptEditor provider={project.script_provider} script={editor.script} editing={editor.editingScript} disabled={editor.locked || toolsDirty || editor.briefDirty || editor.editingStoryboard || Boolean(editor.loadError)} dirty={editor.scriptDirty} onChange={editor.setScript} onEdit={() => editor.setEditingScript(true)} onCancel={editor.cancelScript} onSave={() => editor.submit('script')} /> : <section className="panel drama-no-script"><Icon name="script" /><h2>{translate('故事在等一个开场')}</h2><button disabled={editor.locked || toolsDirty || Boolean(editor.loadError)} onClick={() => {editor.setScript({...(project.structure_version === 2 ? {structure_version: 2 as const} : {}), title: project.title, logline: project.brief.slice(0, 300), characters: [], scenes: [{...(project.structure_version === 2 ? {id: crypto.randomUUID()} : {}), heading: translate('新场次'), action: translate('场景动作'), dialogue: [], episode_number: 1}]}); editor.setEditingScript(true)}}>{translate('开始手写剧本')}</button></section>}
-    {project.script && <Link className="button-link" to={`/projects/${id}/storyboard`}>{translate('下一步：生成分镜')}</Link>}
     <ProjectHistory project={project} space={space} disabled={editor.locked || editor.dirty || editor.editingScript} onRestore={() => editor.reload(true)} onDirtyChange={setToolsDirty} />
+    {project.script && <NextStepDock><Link className="button-link primary" to={`/projects/${id}/storyboard`}>{translate('下一步：生成分镜')}</Link></NextStepDock>}
   </>
 }

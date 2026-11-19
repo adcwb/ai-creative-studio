@@ -19,6 +19,7 @@ export interface Palette {
   warningBg: string; warningBorder: string; warningText: string
   errorBg: string; errorBorder: string; errorText: string
   focus: string
+  scrim: string
   shadowSubtle: string; shadowCard: string; shadowDialog: string
 }
 
@@ -39,6 +40,7 @@ export const palettes: Record<Theme, Palette> = {
     warningBg: '#332c18', warningBorder: '#7a6636', warningText: '#e8ce93',
     errorBg: '#3a2422', errorBorder: '#8a5a50', errorText: '#f2b3a7',
     focus: '#e3b457',
+    scrim: 'rgb(0 0 0 / 60%)',
     shadowSubtle: '0 2px 5px rgb(0 0 0 / 30%)', shadowCard: '0 5px 15px rgb(0 0 0 / 40%)',
     shadowDialog: '0 24px 90px rgb(0 0 0 / 60%)',
   },
@@ -57,6 +59,7 @@ export const palettes: Record<Theme, Palette> = {
     warningBg: '#f6f2e7', warningBorder: '#e8dfc7', warningText: '#7c6940',
     errorBg: '#fff1ec', errorBorder: '#f0d9cf', errorText: '#a54837',
     focus: '#a97f2a',
+    scrim: 'rgb(8 24 17 / 40%)',
     shadowSubtle: '0 2px 5px rgb(24 48 31 / 2%)', shadowCard: '0 5px 15px rgb(24 48 31 / 5%)',
     shadowDialog: '0 24px 90px rgb(12 31 20 / 20%)',
   },
