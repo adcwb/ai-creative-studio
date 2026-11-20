@@ -516,3 +516,30 @@ CSS 体积从 90.47 kB 降到 **89.42 kB**（gzip 16.90 → 16.66），因为删
 ### 未完成的交付物
 
 改造前后对比缺「前」：现有历史截图摄于 2026-10-23，早于 antd 迁移，不能代表基线。严谨对比需回到 `fce862b` 构建一份，本环境未做。
+
+---
+
+## 阻塞项：真实后端套件发现的回归（2026-11-20）
+
+本环境已可运行真实后端：下载 Go 1.25.3 官方工具链、`go mod download`、`go build -o bin/server ./cmd/server` 与 `./cmd/bootstrap-user` 均成功，`/healthz` 返回 `{"mode":"secure","status":"ok"}`，FFmpeg/FFprobe 就位。此前「无法运行四套后端相关 E2E」的限制**已解除**。
+
+随即在 `e2e-auth/appearance.spec.ts` 的「personal themes and locale persist per account」用例上发现失败：
+
+- 主题迁移断言通过：重载后 `data-theme` 为 `light`，符合新的双主题迁移。
+- **语言断言失败**：重载后 `html lang` 期望 `en`，实际 `zh-CN`，5 秒内始终不变。
+
+### 已确认这是本次重构引入的回归
+
+用可逆实验判定，而非推测：把 `frontend/src` 与 `frontend/e2e-auth` **一起**切回基线 `fce862b` 后运行同一用例，**通过**；切回 HEAD 后运行，**失败**。两次实验后工作树均已还原干净。
+
+（第一次只切 `src` 不切 spec 的实验不成立——新断言配旧代码会先卡在主题那步，不能作为判据。）
+
+### 已排除的原因
+
+设备级绘制提示 `studio.appearance` 不是原因：把 `main.tsx` 的外层 `StudioTheme` 改回 `defaultTheme`、去掉 `readAppearanceHint()` 后重跑，**仍然失败**。该实验后已还原。
+
+### 尚未隔离
+
+剩余嫌疑集中在 `UserPreferences` 新增的 panels 状态与 context 字段、`StudioTheme` 新增的 `useMobile` 与 `useLayoutEffect`，以及 `I18nProvider` 异步 `loadLocale` 与两处 provider 嵌套下 `document.documentElement.lang` 的写入次序。账号语言键 `studio.preferences.v1:<user>:locale` 是否被写入尚未取证。
+
+**结论：在此回归修复前，这套重构不应被判定为可交付。** 之前所有「通过」都建立在假上游套件上，而假上游套件不覆盖账号级语言持久化——这正是真实后端套件的价值，也是此前反复声明的验证缺口的具体兑现。
