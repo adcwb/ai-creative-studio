@@ -297,7 +297,8 @@ const messages: Record<string, string> = {
   "肖像概念": "Portrait concept",
   "通用图像": "General image",
   "请求失败（{p0}）": "Request failed ({p0})",
-  "请填写 3–1000 个字符的画面描述。": "Enter a visual description of 3–1,000 characters."
+  "请填写 3–1000 个字符的画面描述。": "Enter a visual description of 3–1,000 characters.",
+  '编辑本场': 'Edit this scene',
 }
 Object.assign(messages, {
  '生成设置': 'Generation settings',

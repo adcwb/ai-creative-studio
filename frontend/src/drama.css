@@ -161,3 +161,28 @@
 .media-empty-state {padding:24px;margin-top:16px;border:1px dashed var(--border);border-radius:10px;background:var(--surface-soft)}
 .media-empty-state h3 {margin:0 0 8px}
 .media-empty-state p {line-height:1.7;margin-bottom:16px}
+
+/* Reading scale for script prose. The interface baseline stays 14px; only the
+   content being read grows, per the readability contract. */
+.drama-script-intro p, .drama-action, .drama-dialogue p { font-size: var(--text-lg); line-height: 1.8; }
+.drama-script input, .drama-script textarea { font-size: var(--text-md); }
+.drama-scene > h3 { font-size: var(--text-xl); }
+
+/* Two-column dialogue: a fixed speaker column so a role's lines can be scanned
+   straight down, and the line itself in the reading measure. */
+.drama-dialogue:not(.is-editing) { border-left: 0; padding-left: 0; gap: var(--space-4); }
+.drama-dialogue:not(.is-editing) > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: var(--space-3); align-items: baseline; }
+.drama-dialogue:not(.is-editing) strong { color: var(--link); font-size: var(--text-sm); font-weight: 600; overflow-wrap: anywhere; }
+.drama-dialogue:not(.is-editing) p { margin: 0; }
+
+/* Cast moves out of the prose into a compact strip; full detail lives in the
+   inspector rather than pushing the scenes down the page. */
+.drama-cast-strip > div { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.drama-cast-strip article { display: inline-flex; align-items: center; gap: var(--space-2); padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--surface-soft); }
+.drama-cast-strip .drama-character-index { display: none; }
+.drama-cast-strip article > div { display: flex; align-items: center; gap: var(--space-2); }
+.drama-cast-strip h4 { margin: 0; font-size: var(--text-sm); }
+.drama-cast-avatar { display: grid; place-items: center; width: 24px; height: 24px; flex-shrink: 0; border-radius: var(--radius-pill); background: var(--primary); color: var(--on-primary); font-size: var(--text-2xs); }
+@media (max-width: 760px) {
+  .drama-dialogue:not(.is-editing) > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}
