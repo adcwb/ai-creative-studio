@@ -41,5 +41,12 @@ const messages: Record<string, string> = {
   '页面暂时无法加载': 'This page could not be loaded',
   '请重新加载页面，或返回创作空间继续。': 'Reload the page, or return to your creative workspace.',
   '重新加载页面': 'Reload page',
+  '项目筛选': 'Project filters',
+  '搜索项目': 'Search projects',
+  '按标题或简报搜索': 'Search by title or brief',
+  '排序方式': 'Sort order',
+  '按标题排序': 'By title',
+  '没有匹配的项目': 'No matching projects',
+  '换个关键词，或清除筛选查看全部项目。': 'Try another keyword, or clear the filter to see every project.',
 }
 export default messages

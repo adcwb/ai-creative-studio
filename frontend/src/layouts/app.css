@@ -228,3 +228,19 @@
 .space-guidance-actions a {font-size:var(--text-sm);padding:10px 0}
 @media(min-width:761px){.navigation-collapsed .sidebar-settings-shortcut{justify-content:center;padding:10px 0}.navigation-collapsed .sidebar-settings-shortcut span{display:none}}
 @media(max-width:760px){.space-guidance{padding:16px;gap:12px}.space-guidance-actions{align-items:stretch;justify-content:flex-start}.space-guidance-actions label{flex-basis:100%;max-width:none}}
+
+/* Project list: the filter bar is sticky, so the view toggle loses its tab
+   underline and outer margin and reads as a segmented control instead. */
+.projects-page .studio-sticky-bar { margin-bottom: 20px; }
+.studio-sticky-bar .project-steps { margin-bottom: 0; border-bottom: 0; gap: 6px; overflow: visible; }
+.studio-sticky-bar .project-steps > button { min-height: 40px; padding: 8px 14px; font-size: var(--text-sm); }
+.studio-sticky-bar .project-steps > button[aria-pressed=true] { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.project-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.project-filters .studio-input { width: 220px; }
+.project-filters .studio-select { width: 150px; }
+.project-count { font-weight: 600; color: var(--ink); }
+.project-card-skeleton { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); padding: 24px; }
+@media (max-width: 760px) {
+  .project-filters { flex-basis: 100%; }
+  .project-filters .studio-input, .project-filters .studio-select { flex: 1 1 140px; width: auto; }
+}
