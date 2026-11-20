@@ -53,12 +53,12 @@
 .image-page .template-grid { gap: 16px; }
 .image-page .creation-grid { grid-template-columns: minmax(300px, .85fr) minmax(0, 1.45fr); align-items: start; gap: 24px; }
 .creation-controls { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
-.creation-controls > .runtime-model-picker { margin: 0; }
-.creation-controls > .runtime-model-picker { border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; background: var(--surface); }
-.creation-controls > .runtime-model-picker legend { padding: 0 6px; font-size:var(--text-base); font-weight: 600; }
-.creation-controls > .runtime-model-picker label { display: block; font-size:var(--text-sm); }
-.creation-controls > .runtime-model-picker button { margin-top: 12px; }
-.creation-controls > .runtime-model-picker p { font-size:var(--text-xs); color: var(--ink-muted); margin: 12px 0 0; }
+.creation-params>.runtime-model-picker { margin: 0; }
+.creation-params>.runtime-model-picker { border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; background: var(--surface); }
+.creation-params>.runtime-model-picker legend { padding: 0 6px; font-size:var(--text-base); font-weight: 600; }
+.creation-params>.runtime-model-picker label { display: block; font-size:var(--text-sm); }
+.creation-params>.runtime-model-picker button { margin-top: 12px; }
+.creation-params>.runtime-model-picker p { font-size:var(--text-xs); color: var(--ink-muted); margin: 12px 0 0; }
 .creation-controls .composer { min-width: 0; }
 .app-shell .section-heading .eyebrow { display: none; }
 .page-empty { padding: 64px 24px; text-align: center; }
@@ -199,10 +199,10 @@
 /* Keep the prompt within the desktop first screen, without hiding model status. */
 .image-page>.page-heading{margin-bottom:18px}.image-page>.image-continue-actions{margin:12px 0 18px}.image-page .templates{margin-bottom:20px}
 @media(min-width:1151px){
- .image-page .creation-controls>.runtime-model-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:16px 20px}
- .image-page .creation-controls>.runtime-model-picker p{grid-column:1/-1;margin:0;line-height:1.6}
- .image-page .creation-controls>.runtime-model-picker button{grid-column:1/-1;justify-self:start;margin:0}
- .image-page .creation-controls>.runtime-model-picker label{min-width:0;margin:0}
+ .image-page .creation-params>.runtime-model-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:16px 20px}
+ .image-page .creation-params>.runtime-model-picker p{grid-column:1/-1;margin:0;line-height:1.6}
+ .image-page .creation-params>.runtime-model-picker button{grid-column:1/-1;justify-self:start;margin:0}
+ .image-page .creation-params>.runtime-model-picker label{min-width:0;margin:0}
  .image-page .composer textarea{min-height:128px}
 }
 
@@ -243,4 +243,24 @@
 @media (max-width: 760px) {
   .project-filters { flex-basis: 100%; }
   .project-filters .studio-input, .project-filters .studio-select { flex: 1 1 140px; width: auto; }
+}
+
+/* Creation workspace. Below 1400px it keeps the proven two-column flow:
+   parameters and templates left, results right. At 1400px and up the same DOM
+   becomes three columns -- templates, preview, parameters -- by dissolving the
+   controls wrapper with display:contents, so no descendant selector elsewhere
+   has to change. The preview column stays wide enough for the 2x2 history grid. */
+.creation-params { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.image-page .creation-controls { grid-column: 1; grid-row: 1; }
+.image-page .results { grid-column: 2; grid-row: 1; }
+@media (max-width: 1050px) {
+  .image-page .creation-controls, .image-page .results { grid-column: 1; grid-row: auto; }
+}
+@media (min-width: 1400px) {
+  .image-page .creation-grid { grid-template-columns: 280px minmax(0, 1fr) 300px; align-items: start; }
+  .image-page .creation-controls { display: contents; }
+  .image-page .templates { grid-column: 1; grid-row: 1; }
+  .image-page .creation-controls > .templates { margin-top: 0; }
+  .image-page .results { grid-column: 2; grid-row: 1; }
+  .image-page .creation-params { grid-column: 3; grid-row: 1; }
 }

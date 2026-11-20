@@ -65,7 +65,7 @@
 .compact-runtime-picker .runtime-model-picker p {font-size:var(--text-xs);line-height:1.6}
 .image-page .creation-grid {margin-top:16px}
 .image-page .creation-controls {gap:14px}
-.image-page .creation-controls>.compact-runtime-control {margin-bottom:0}
+.image-page .creation-params>.compact-runtime-control {margin-bottom:0}
 .image-page .composer {padding:20px}
 .image-page .composer .section-heading {margin-bottom:12px}
 .image-page .composer .prompt-label {margin-top:0}

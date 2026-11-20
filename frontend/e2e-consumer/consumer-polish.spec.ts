@@ -46,7 +46,7 @@ test('missing model errors stay visible when the compact summary is toggled', as
     const initial = await (await request.get(fixture + '/api/v1/model-management')).json();
     await request.post(fixture + '/__test__/reset', { data: { management: { ...initial, bindings: [] } } });
     await page.goto('/studio');
-    const picker = page.locator('.creation-controls > .compact-runtime-control');
+    const picker = page.locator('.creation-controls .compact-runtime-control');
     const error = picker.getByRole('alert');
     await expect(error).toContainText('此功能尚未绑定网关模型');
     await picker.locator('summary').click();
