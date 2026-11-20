@@ -299,6 +299,15 @@ const messages: Record<string, string> = {
   "请求失败（{p0}）": "Request failed ({p0})",
   "请填写 3–1000 个字符的画面描述。": "Enter a visual description of 3–1,000 characters.",
   '编辑本场': 'Edit this scene',
+  '剧本导航': 'Script navigation',
+  '场次大纲': 'Scene outline',
+  '本场信息': 'This scene',
+  '查找剧本正文': 'Find in script',
+  '已定位到匹配场次': 'Jumped to the matching scene',
+  '滚动或点击大纲定位场次': 'Scroll or pick a scene from the outline',
+  '场景属性': 'Scene attributes',
+  '对白条数': 'Dialogue lines',
+  '动作字数': 'Action length',
 }
 Object.assign(messages, {
  '生成设置': 'Generation settings',

@@ -48,5 +48,15 @@ const messages: Record<string, string> = {
   '按标题排序': 'By title',
   '没有匹配的项目': 'No matching projects',
   '换个关键词，或清除筛选查看全部项目。': 'Try another keyword, or clear the filter to see every project.',
+  '未命名': 'Untitled',
+  '当前位置': 'Current position',
+  '上一{unit}': 'Previous {unit}',
+  '下一{unit}': 'Next {unit}',
+  '第 {p0} {unit} / 共 {p1}': '{unit} {p0} of {p1}',
+  '查找正文': 'Find in text',
+  '无匹配': 'No matches',
+  '上一个匹配': 'Previous match',
+  '下一个匹配': 'Next match',
+  '关闭查找': 'Close find',
 }
 export default messages

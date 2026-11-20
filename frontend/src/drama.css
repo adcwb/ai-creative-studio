@@ -186,3 +186,15 @@
 @media (max-width: 760px) {
   .drama-dialogue:not(.is-editing) > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
+
+/* Scene inspector: cast detail lives here rather than in the prose. */
+.scene-inspector h3 { margin: 0 0 var(--space-3); font-size: var(--text-sm); }
+.scene-inspector h3 + dl, .scene-inspector ul + h3 { margin-top: var(--space-5); }
+.scene-inspector-cast { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.scene-inspector-cast li { display: flex; gap: var(--space-2); align-items: flex-start; }
+.scene-inspector-cast strong { display: block; font-size: var(--text-sm); }
+.scene-inspector-cast small { color: var(--ink-muted); font-size: var(--text-2xs); line-height: 1.7; }
+.scene-inspector dl { margin: 0; display: grid; gap: var(--space-2); }
+.scene-inspector dl > div { display: flex; justify-content: space-between; gap: var(--space-3); font-size: var(--text-xs); }
+.scene-inspector dt { color: var(--ink-muted); }
+.scene-inspector dd { margin: 0; font-variant-numeric: tabular-nums; }
