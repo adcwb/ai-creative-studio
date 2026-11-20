@@ -90,5 +90,9 @@ const messages: Record<string, string> = {
   '尾帧': 'Last frame',
   '运动参考': 'Motion reference',
   '固定库版本': 'Pinned library versions',
+  '尚未配置 AI 网关': 'No AI gateway configured yet',
+  '先添加网关，再添加可用模型。': 'Add a gateway first, then add the models it can serve.',
+  '这里还没有提示词': 'No prompts here yet',
+  '保存当前描述，积累自己的创作灵感。': 'Save the current description and build up your own creative library.',
 }
 export default messages

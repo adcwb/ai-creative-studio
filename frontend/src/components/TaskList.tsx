@@ -1,4 +1,6 @@
 import {Button} from 'antd'
+import {StudioEmpty} from '../ui/StudioEmpty'
+import {StudioSkeleton} from '../ui/StudioSkeleton'
 import {useState} from 'react'
 import {useI18n} from '../i18n'
 import {baseURL, errorMessage, kindLabels, type Catalog, type Task} from '../api'
@@ -33,7 +35,7 @@ export function TaskList({tasks, loading, error, total, page, pageSize, onPage, 
   const pages = Math.max(1, Math.ceil(total / pageSize))
   return <section className="panel results" aria-labelledby="results-title" aria-busy={loading}>
     <div className="section-heading"><h2 id="results-title">{t('创作记录')}<span className="count">{total}</span></h2><div className="history-actions"><span className="live-label"><span/>{t('自动更新')}</span>{!readOnly && <Button htmlType="button" disabled={busy || loading || !total} onClick={() => askDelete('all')}>{t('清空历史')}</Button>}</div></div>
-    {loading ? <div className="loading-block" role="status"><Icon name="refresh" className="spinning"/>{t('正在加载任务…')}</div> : !tasks.length ? <div className="empty"><Icon name="image"/><h3>{t(error ? '暂时无法读取创作记录' : '给你的灵感，一张画布')}</h3><p>{t(error ? '连接恢复后，你的任务会出现在这里。' : '选用上方模板，或写下自己的描述。')}</p></div> : <div className="task-list task-gallery">{tasks.map(task => <article className="task" key={task.id} data-provider={task.provider}>
+    {loading ? <div className="task-list task-gallery" aria-busy="true">{[0,1,2,3].map(index => <StudioSkeleton key={index} shape="media" />)}</div> : !tasks.length ? <StudioEmpty kind={error ? 'no-access' : 'empty'} icon="image" title={t(error ? '暂时无法读取创作记录' : '给你的灵感，一张画布')} description={t(error ? '连接恢复后，你的任务会出现在这里。' : '选用上方模板，或写下自己的描述。')} /> : <div className="task-list task-gallery">{tasks.map(task => <article className="task" key={task.id} data-provider={task.provider}>
       {task.result_url ? <Button htmlType="button" className="result-preview" aria-label={t('放大查看')} onClick={() => setViewing(task)}><img loading="lazy" decoding="async" width={task.result_width || 1024} height={task.result_height || 1024} src={`${baseURL}${task.result_url}`} alt={resultImageAlt(task)}/></Button> : <Button htmlType="button" className="task-placeholder" onClick={() => onDetail(task)}><Icon name={task.status === 'failed' ? 'image' : 'spark'}/><span>{t(task.status === 'failed' ? '未生成图像' : '画面正在准备中')}</span></Button>}
       <div className="task-top"><span className={`status ${task.status}`}><span/>{taskStatusLabel(task)}</span><span className="task-resolution" aria-label={t('分辨率')}>{task.result_width && task.result_height ? `${task.result_width} × ${task.result_height} px` : t(task.status === 'succeeded' ? '分辨率未知' : '暂无分辨率')}</span><time dateTime={task.created_at}>{formatDate(task.created_at, {month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'})}</time></div>
       <p className="task-prompt">{task.prompt}</p>

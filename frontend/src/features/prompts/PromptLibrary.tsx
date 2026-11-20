@@ -1,4 +1,8 @@
 import {Link} from 'react-router-dom'
+import {StudioError} from '../../ui/StudioError'
+import {StudioButton} from '../../ui/StudioButton'
+import {StudioEmpty} from '../../ui/StudioEmpty'
+import {StudioSkeleton} from '../../ui/StudioSkeleton'
 import {useEffect, useRef, useState, type ReactNode} from 'react'
 import {errorMessage, request, type Catalog, type TaskInput} from '../../api'
 import {Icon} from '../../components/Icon'
@@ -81,11 +85,11 @@ export function PromptLibrary({space, actor, readOnly, catalog, draft, disabled,
     <div className="prompt-tabs" role="group" aria-label={t('提示词来源')}>{[['builtin', '内置灵感'], ['mine', '我的提示词'], ['organization', '组织共享']].map(([value, label]) => <button type="button" key={value} aria-pressed={tab === value} onClick={() => filter(() => setTab(value))}>{t(label)}</button>)}<button type="button" disabled={disabled || readOnly || Boolean(pending)} onClick={() => openEditor(null)}><Icon name="spark" />{t('保存当前描述')}</button></div>
     {pending && <p className="notice" role="status">{t('有一条保存请求尚未确认。')} <button onClick={() => setEditor({initial: pending.initial, seed: {prompt: pending.recipe.body, ...pending.recipe.defaults}, recovery: pending})}>{t('恢复并核对保存')}</button></p>}
     {notice && <p className="notice" role="status">{notice}</p>}
-    {error && <p className="error" role="alert">{error} <button onClick={refresh}>{t('重新加载')}</button></p>}
+    {error && <StudioError message={error} action={<StudioButton onClick={refresh}>{t('重新加载')}</StudioButton>} />}
     {tab === 'builtin' ? builtin : <>
       <div className="prompt-toolbar"><label>{t('搜索提示词')}<input type="search" value={search} maxLength={100} onChange={event => filter(() => setSearch(event.target.value))} /></label><label>{t('分类')}<input value={category} maxLength={80} onChange={event => filter(() => setCategory(event.target.value))} /></label><label>{t('标签')}<input value={tag} maxLength={40} onChange={event => filter(() => setTag(event.target.value))} /></label><label>{t('显示状态')}<select aria-label={t('显示状态')} value={status} onChange={event => filter(() => setStatus(event.target.value))}><option value="active">{t('使用中')}</option><option value="archived">{t('已归档')}</option></select></label><label className="prompt-checkbox"><input type="checkbox" checked={favoriteOnly} onChange={event => filter(() => setFavoriteOnly(event.target.checked))} />{t('只看收藏')}</label></div>
-      {loading && <p role="status">{t('正在读取提示词…')}</p>}
-      {!loading && !error && items.length === 0 && <div className="empty"><Icon name="spark" /><p>{t('这里还没有提示词。保存当前描述，积累自己的创作灵感。')}</p></div>}
+      {loading && <div className="template-grid" aria-busy="true">{[0,1].map(index => <StudioSkeleton key={index} shape="card" rows={2} />)}</div>}
+      {!loading && !error && items.length === 0 && <StudioEmpty icon="spark" title={t('这里还没有提示词')} description={t('保存当前描述，积累自己的创作灵感。')} />}
       <div className="template-grid">{items.map(item => <article className="prompt-library-card" key={item.template.id}><h3>{item.template.name}</h3><p>{item.template.description || item.version.body}</p><span className="prompt-card-meta">{item.template.category} {item.template.tags.map(x => `#${x}`).join(' ')} · {t('版本 {number}', {number: item.version.number})}</span><div className="prompt-card-actions">{item.version.reference_bindings?.length ? <Link className="button-link primary" to="/projects">{t('在项目制作中使用')}</Link> : <button className="primary" disabled={disabled || busy || item.template.status !== 'active'} onClick={() => {void choose(item)}}>{t('选用提示词')}</button>}<button disabled={busy} onClick={() => {void showHistory(item)}}>{t('版本记录')}</button><button aria-pressed={item.favorite} disabled={busy} onClick={() => {void mutate(item, 'favorite')}}>{t(item.favorite ? '取消收藏' : '收藏')}</button>{!readOnly && <><button disabled={busy || item.template.status !== 'active' || Boolean(pending)} onClick={() => openEditor(item)}>{t('编辑')}</button><button disabled={busy || Boolean(pending)} onClick={() => {void mutate(item, 'copy')}}>{t('复制为我的提示词')}</button><button disabled={busy} onClick={() => {void mutate(item, item.template.status === 'active' ? 'archive' : 'restore')}}>{t(item.template.status === 'active' ? '归档' : '恢复使用')}</button></>}</div></article>)}</div>
       {next && <button disabled={loading} onClick={() => setCursor(next)}>{t('加载更多提示词')}</button>}
     </>}

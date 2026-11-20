@@ -1,4 +1,6 @@
 import {Button, Checkbox, ConfigProvider, Input, Tabs} from 'antd'
+import {StudioEmpty} from '../ui/StudioEmpty'
+import {StudioButton} from '../ui/StudioButton'
 import {StudioSelect} from '../ui/StudioSelect'
 import {StudioError} from '../ui/StudioError'
 import {Icon} from './Icon'
@@ -75,7 +77,7 @@ export function ModelManagementPanel({space, onDirtyChange}: {space: Space; onDi
   }
   const panels = report ? {bindings:(<div id="model-panel-bindings" hidden={tab !== 'bindings'} className="panel model-management-panel">
         <div className="section-heading"><div><h2>{t('功能使用哪个模型')}</h2><p>{t('每个功能独立选择网关与模型，同一个模型可以被多个功能共用。')}</p></div></div>
-        {!report.gateways.length && <div className="model-management-empty"><p>{t('尚未配置 AI 网关。先添加网关，再添加可用模型。')}</p><Button onClick={() => {setTab('gateways'); openGateway({...blankGateway})}}>{t('添加 AI 网关')}</Button></div>}
+        {!report.gateways.length && <StudioEmpty icon="settings" title={t('尚未配置 AI 网关')} description={t('先添加网关，再添加可用模型。')} action={<StudioButton variant="primary" onClick={() => {setTab('gateways'); openGateway({...blankGateway})}}>{t('添加 AI 网关')}</StudioButton>} />}
         <div className="feature-binding-filters"><label>{t('查找创作功能')}<Input className="studio-input" type="search" value={featureQuery} onChange={event => setFeatureQuery(event.target.value)} /></label><label>{t('按能力筛选')}<StudioSelect aria-label={t('按能力筛选')} value={capabilityFilter} onChange={setCapabilityFilter}><option value="">{t('全部能力')}</option>{[...new Set(report.features.map(feature => feature.capability))].map(value => <option key={value} value={value}>{t(capabilityNames[value] ?? value)}</option>)}</StudioSelect></label><Checkbox className="studio-checkbox" checked={needsSetup} onChange={event => setNeedsSetup(event.target.checked)}>{t('仅看待配置')}</Checkbox></div>
         {!report.features.some(matchesFeature) && <p role="status">{t('没有符合筛选条件的功能')}</p>}
         <p className="drama-help">{t('配置就绪仅表示本地配置条件满足，不代表上游能力、凭据或生成效果已经实测。')}</p><div className="table-scroll"><table className="feature-binding-table"><thead><tr><th>{t('创作功能')}</th><th>{t('AI 网关')}</th><th>{t('模型')}</th><th>{t('调用设置')}</th><th>{t('状态')}</th><th>{t('操作')}</th></tr></thead><tbody>{report.features.map(feature => {const binding = report.bindings.find(item => item.feature_key === feature.key); return <FeatureBindingRow key={`${feature.key}-${binding?.version ?? 0}`} feature={feature} hidden={!matchesFeature(feature)} expanded={Boolean(expandedFeatures[feature.key])} onExpand={() => setExpandedFeatures(old => ({...old, [feature.key]: !old[feature.key]}))} binding={binding} report={report} busy={busy} onDirty={markDirty} onSave={value => save(`/model-features/${feature.key}`, 'PUT', {expected_version: binding?.version ?? 0, binding: value})} />})}</tbody></table></div>
@@ -83,7 +85,7 @@ export function ModelManagementPanel({space, onDirtyChange}: {space: Space; onDi
 gateways:(<div id="model-panel-gateways" hidden={tab !== 'gateways'} className="panel model-management-panel">
         <div className="section-heading"><div><h2>{t('AI 网关')}</h2><p>{t('每个网关独立保存服务地址和加密凭据，其下模型共用连接。')}</p></div><Button disabled={busy} onClick={() => openGateway({...blankGateway})}>{t('添加 AI 网关')}</Button></div>
         {!report.secret_storage_available && <p className="notice">{t('部署尚未配置凭据加密密钥，可以保存连接信息，配置密钥后再录入 API Key。')} <code>MODEL_CONFIG_KEK_BASE64</code> {t('由部署管理员为所有 API 与 worker 注入同一加密主密钥并重启；不要在此输入主密钥。')}</p>}
-        {!report.gateways.length ? <p className="model-management-empty">{t('尚无 AI 网关。')}</p> : <GatewayTable report={report} busy={busy} onEdit={openGateway} onCheck={item => {void check(item)}} onSync={item => {void syncModels(item)}} onAddModel={item => {setTab('models');setFilter(item.id);openModel({...blankModel,gateway_id:item.id})}} />}
+        {!report.gateways.length ? <StudioEmpty icon="settings" title={t('尚无 AI 网关。')} /> : <GatewayTable report={report} busy={busy} onEdit={openGateway} onCheck={item => {void check(item)}} onSync={item => {void syncModels(item)}} onAddModel={item => {setTab('models');setFilter(item.id);openModel({...blankModel,gateway_id:item.id})}} />}
         {gateway && <ModelEditorDialog title={t(gateway.id ? '编辑 AI 网关' : '添加 AI 网关')} busy={busy} error={error} onClose={() => closeEditor('gateway')}><GatewayForm key={`${gateway.id}-${gateway.version}`} value={gateway} secretStorage={report.secret_storage_available} busy={busy} onDirty={markDirty} onCancel={() => closeEditor('gateway')} onSave={(value, credential) => save(value.id ? `/ai-gateways/${value.id}` : '/ai-gateways', value.id ? 'PATCH' : 'POST', {expected_version: gateway.version, gateway: value, credential})} /></ModelEditorDialog>}
       </div>),
 models:(<div id="model-panel-models" hidden={tab !== 'models'} className="panel model-management-panel">
@@ -96,7 +98,7 @@ models:(<div id="model-panel-models" hidden={tab !== 'models'} className="panel 
   return <section className="model-management">
     <div className="model-management-overview"><p>{t('先连接 AI 网关，再添加模型，最后为每个创作功能指定模型。')}</p>{report && <dl><div><dt>{t('AI 网关')}</dt><dd>{report.gateways.length}</dd></div><div><dt>{t('网关模型')}</dt><dd>{report.models.length}</dd></div><div><dt>{t('已绑定功能')}</dt><dd>{report.bindings.filter(item => item.enabled).length} / {report.features.length}</dd></div></dl>}</div>
 
-    {error && !gateway && !model && <p className="error" role="alert">{error} <Button htmlType="button" disabled={busy} onClick={() => setRevision(value => value + 1)}>{t('重新读取')}</Button></p>}
+    {error && !gateway && !model && <StudioError message={error} action={<StudioButton disabled={busy} onClick={() => setRevision(value => value + 1)}>{t('重新读取')}</StudioButton>} />}
     {notice && <p className="notice" role="status">{notice}</p>}
     {!report ? <p role="status">{t('正在读取模型配置…')}</p> : <><Tabs className="studio-model-tabs" classNames={{item:'studio-tab-item'}} moreIcon={<Icon name="more" />} activeKey={tab} onChange={value => setTab(value as typeof tab)} items={([['bindings', '功能绑定'], ['gateways', 'AI 网关'], ['models', '网关模型']] as const).map(([key, name]) => ({key, label:t(name), forceRender:true, children:panels?.[key]}))} /></>}
     {discardEditor && <ConfirmDialog title={t('放弃未保存的修改？')} message={t('关闭后，本次修改将不会保存。')} confirmLabel={t('放弃修改')} onConfirm={() => closeEditor(discardEditor, true)} onCancel={() => setDiscardEditor(null)} />}
