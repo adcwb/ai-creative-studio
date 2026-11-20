@@ -1,4 +1,8 @@
 import {hasPermission} from '../permissions'
+import {StudioSkeleton} from '../ui/StudioSkeleton'
+import {StudioEmpty} from '../ui/StudioEmpty'
+import {StudioButton} from '../ui/StudioButton'
+import {StudioError} from '../ui/StudioError'
 import { useEffect, useRef, useState } from 'react'
 import { useAppWorkspace } from '../app/workspace'
 import { ApiError, errorMessage, request } from '../api'
@@ -51,8 +55,8 @@ export function LibraryPage() {
     {recovery && <div className="editing-note"><p>{t('发现未确认的资产保存请求，请先核对结果。')}</p><button disabled={opening || !hasPermission(space,'workspace.write')} onClick={() => void recover()}>{t('使用原请求核对结果')}</button></div>}
     {editor ? <LibraryEditor key={editor.key} space={space!.id} initial={editor.initial} kind={editor.initial?.asset.kind ?? kind} readOnly={!hasPermission(space,'workspace.write')} onClose={() => requestLeave(() => setEditor(null))} onSaved={result => {setEditor({initial: result, key: `${result.asset.id}:${result.asset.head_version_id}:${result.asset.status}`}); setRevision(v => v + 1)}} /> : <>
       <div className="library-toolbar"><label>{t('资产类型')}<select value={kind} onChange={event => {setKind(event.target.value as LibraryKind); setCursor('')}}>{Object.entries(kindLabels).map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}</select></label><label>{t('状态')}<select value={status} onChange={event => {setStatus(event.target.value); setCursor('')}}><option value="active">{t('可用')}</option><option value="archived">{t('已归档')}</option></select></label><button disabled={!!recovery || !hasPermission(space,'workspace.write')} onClick={() => setEditor({initial: null, key: 'new'})}>{t('建立资产卡')}</button></div>
-      {loaded !== loadKey && <p role="status">{t('正在读取资产…')}</p>}{error && <div className="error" role="alert">{error}<button onClick={() => setRevision(v => v + 1)}>{t('重试')}</button></div>}
-      {loaded === loadKey && !error && <><div className="project-grid">{items.map(asset => <button type="button" className="project-card library-identity" key={asset.id} disabled={opening || !!recovery} onClick={() => void open(asset)}><span>{t(kindLabels[asset.kind])}</span><h2>{asset.name}</h2><p>{t(asset.status === 'archived' ? '已归档' : '可用')}</p><time>{formatDate(asset.updated_at)}</time></button>)}</div>{items.length === 0 && <section className="panel page-empty"><h2>{t('还没有此类资产')}</h2><p>{t(kind==='voice'?'先写下角色的音色与表演意图，后续版本可继续细化。':kind==='style'?'先保存这部作品的色彩、线条和构图方向。':'先建立资产卡，再添加项目中的多角度参考图。')}</p></section>}<div className="media-actions">{cursor && <button onClick={() => setCursor('')}>{t('返回第一页')}</button>}{next && <button onClick={() => setCursor(next)}>{t('下一页')}</button>}</div></>}
+      {loaded !== loadKey && <div className="project-grid" aria-busy="true">{[0,1,2].map(index => <StudioSkeleton key={index} shape="card" rows={2} />)}</div>}{error && <StudioError message={error} action={<StudioButton onClick={() => setRevision(v => v + 1)}>{t('重试')}</StudioButton>} />}
+      {loaded === loadKey && !error && <><div className="project-grid">{items.map(asset => <button type="button" className="project-card library-identity" key={asset.id} disabled={opening || !!recovery} onClick={() => void open(asset)}><span>{t(kindLabels[asset.kind])}</span><h2>{asset.name}</h2><p>{t(asset.status === 'archived' ? '已归档' : '可用')}</p><time>{formatDate(asset.updated_at)}</time></button>)}</div>{items.length === 0 && <StudioEmpty icon="layers" title={t('还没有此类资产')} description={t(kind==='voice'?'先写下角色的音色与表演意图，后续版本可继续细化。':kind==='style'?'先保存这部作品的色彩、线条和构图方向。':'先建立资产卡，再添加项目中的多角度参考图。')} />}<div className="media-actions">{cursor && <button onClick={() => setCursor('')}>{t('返回第一页')}</button>}{next && <button onClick={() => setCursor(next)}>{t('下一页')}</button>}</div></>}
     </>}
   </div>
 }

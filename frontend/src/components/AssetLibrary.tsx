@@ -1,4 +1,8 @@
 import { useI18n } from '../i18n'
+import {StudioSkeleton} from '../ui/StudioSkeleton'
+import {StudioEmpty} from '../ui/StudioEmpty'
+import {StudioButton} from '../ui/StudioButton'
+import {StudioError} from '../ui/StudioError'
 import { useEffect, useState } from 'react'
 import { baseURL, errorMessage, kindLabels, request, type Asset, type Catalog } from '../api'
 import { resultImageAlt, resultOriginLabel } from '../providerPresentation'
@@ -41,7 +45,7 @@ export function AssetLibrary({space, catalog, total, onCreate, onDetail}: {space
       <div><label htmlFor="asset-kind">{t("素材类型")}</label><select id="asset-kind" value={kind} onChange={event => setKind(event.target.value)}><option value="">{t("全部类型")}</option>{kinds.map(value => <option key={value} value={value}>{t(kindLabels[value])}</option>)}</select></div>
       <button type="button" className="clear-filters" disabled={!hasFilter && !search} onClick={() => {setSearch(''); setKind('')}}>{t("清除筛选")}</button>
     </form>
-    {invalid ? <p id="search-error" className="error" role="alert">{t("搜索关键词最多 100 个字符。")}</p> : error ? <div className="error" role="alert">{t("无法查询素材：")}{t(error)} <button onClick={() => setRevision(value => value + 1)}>{t("重新查询")}</button></div> : !loaded ? <div className="loading-block" role="status">{t("正在查询素材…")}</div> : result.assets.length === 0 ? <div className="empty"><div className="empty-art" aria-hidden="true"><Icon name={hasFilter ? 'search' : 'grid'} /></div><h3>{hasFilter ? t("没有找到匹配素材") : t("为灵感留个位置")}</h3><p>{hasFilter ? t("试试其他关键词或类型，已保存的素材仍在库中。") : t("完成任务后保存到素材库，让每一次灵感都有迹可循。")}</p><button onClick={hasFilter ? () => {setSearch(''); setKind('')} : onCreate}>{hasFilter ? t("清除条件") : t("去创作第一张图像")}<Icon name="arrow" /></button></div> : <>
+    {invalid ? <p id="search-error" className="error" role="alert">{t("搜索关键词最多 100 个字符。")}</p> : error ? <StudioError message={`${t("无法查询素材：")}${t(error)}`} action={<StudioButton onClick={() => setRevision(value => value + 1)}>{t("重新查询")}</StudioButton>} /> : !loaded ? <div className="asset-grid" aria-busy="true">{[0,1,2,3].map(index => <StudioSkeleton key={index} shape="media" />)}</div> : result.assets.length === 0 ? <StudioEmpty kind={hasFilter ? 'no-results' : 'empty'} icon={hasFilter ? 'search' : 'grid'} title={hasFilter ? t("没有找到匹配素材") : t("为灵感留个位置")} description={hasFilter ? t("试试其他关键词或类型，已保存的素材仍在库中。") : t("完成任务后保存到素材库，让每一次灵感都有迹可循。")} action={<StudioButton variant="primary" onClick={hasFilter ? () => {setSearch(''); setKind('')} : onCreate}>{hasFilter ? t("清除条件") : t("去创作第一张图像")}</StudioButton>} /> : <>
       <p className="query-summary" role="status">{t("找到 {count} 件素材",{count:result.assets.length})}{hasFilter ? t(" · 当前筛选结果") : ''}</p>
       <div className="asset-grid">{result.assets.map(asset => <article key={asset.id} className="asset-card" data-provider={asset.provider}><button type="button" className="asset-preview" aria-label={t("查看素材任务详情")} onClick={() => onDetail(asset.task_id)}><img loading="lazy" decoding="async" width={asset.result_width || 1024} height={asset.result_height || 1024} src={`${baseURL}${asset.result_url}`} alt={resultImageAlt(asset)} /><span>{t("查看详情")}<Icon name="arrow" /></span></button><div className="asset-information"><span className="origin-label">{resultOriginLabel(asset)}</span><p>{asset.prompt}</p><TaskMetadata task={asset} catalog={catalog} /></div></article>)}</div>
     </>}
