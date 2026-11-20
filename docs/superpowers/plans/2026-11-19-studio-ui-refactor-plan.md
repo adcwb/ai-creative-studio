@@ -543,3 +543,22 @@ CSS 体积从 90.47 kB 降到 **89.42 kB**（gzip 16.90 → 16.66），因为删
 剩余嫌疑集中在 `UserPreferences` 新增的 panels 状态与 context 字段、`StudioTheme` 新增的 `useMobile` 与 `useLayoutEffect`，以及 `I18nProvider` 异步 `loadLocale` 与两处 provider 嵌套下 `document.documentElement.lang` 的写入次序。账号语言键 `studio.preferences.v1:<user>:locale` 是否被写入尚未取证。
 
 **结论：在此回归修复前，这套重构不应被判定为可交付。** 之前所有「通过」都建立在假上游套件上，而假上游套件不覆盖账号级语言持久化——这正是真实后端套件的价值，也是此前反复声明的验证缺口的具体兑现。
+
+### 修复尝试与一处自我更正（同日续）
+
+**更正**：先前记为「已隔离到 `StudioTheme` 的 `useMobile`」不成立。那两次实验跑的是自建探针，而探针**不复现真实用例的失败**——真实用例断言在 `page.reload()` 之后，探针查的是会话内切换。用探针做的隔离不能作数。
+
+已试过且**均未修复**真实用例的方向：
+
+1. 去掉设备级绘制提示 `readAppearanceHint`。
+2. 把 `useMobile` 的 `getSnapshot` 改为模块级缓存单个 `MediaQueryList`。
+3. 从 `StudioTheme` 移除 `useMobile`，响应式尺寸退回业务 CSS。
+4. 把 `applyTheme` 的注入点从 `StudioTheme`（位于 locale provider 之上）下移到 `UserPreferences`（位于其内），启动着色改为 React 挂载前一次性调用。
+
+以上四次实验后工作树均已还原。
+
+**已取到的事实**：完整循环（zh-CN → 主题卡 ×2 → en → 主题卡 ×2）后，账号键 `studio.preferences.v1:<user>:locale` 的值是 `zh-CN` 而非 `en`，且 `.locale-feedback` 不出现——说明 `loadLocale('en')` 没有走 `.catch` 失败分支。简化流程（注册 → 偏好页 → 点 English → 点一张主题卡 → 重载）则**正常**，账号键为 `en`、重载后 lang 为 `en`。
+
+因此触发条件与「语言切换与主题切换交替多次」有关，而非单次切换。下一步应从 `I18nProvider` 的 `requestedLocale` / `revision` 状态机与 `setActiveLocale(locale)` 的渲染期写入入手，配合完整循环取证，而不是再用简化探针。
+
+**状态：回归未修复，重构仍不可判定为可交付。**
