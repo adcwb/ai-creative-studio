@@ -8,10 +8,22 @@ import {pendingRestoreRevision} from './revisionRecovery'
 import {RevisionRestore} from './RevisionRestore'
 import {DirectorDirection} from './DirectorWorkspace'
 import {readSeriesRecovery,useSeriesWrite} from '../series/useSeriesWrite'
+import {ParamSnapshot} from '../../domain/ParamSnapshot'
 
+// The manifest already carries a full parameter snapshot for every generated
+// shot. It was typed as unknown[], so the UI could not show what a revision was
+// actually made from. Field names follow the API's ProductionRevisionJobSource.
+interface LibraryVersionRef {asset_id:string;version_id:string}
+interface RevisionContext {id?:string;kind?:string;label?:string;body?:string}
+interface RevisionJobSource {
+  id:string;asset_id:string;kind:string;shot_id?:string
+  prompt:string;prompt_source?:string;director_context?:string;visual_context?:string
+  reference_asset_ids?:string[];first_frame_asset_id?:string;last_frame_asset_id?:string
+  motion_reference_asset_id?:string;library_versions?:LibraryVersionRef[]
+}
 interface Branch {id:string;name:string;head_revision_id:string;version:number}
 interface Summary {id:string;branch_id:string;label:string;content_sha256:string;actor:string;project_version:number;media_version:number;created_at:string;parent_id:string}
-interface Detail extends Summary {manifest:{brief:{title:string;brief:string};script:DramaScript|null;storyboard:StoryboardPlan|null;timeline:{aspect_ratio:string;output_resolution?:string;clips:{id:string;asset_id:string;duration:number;subtitle:string}[]};poster:{width:number;height:number;layers:unknown[]}|null;sources:{episode_timelines?:Record<string,{clips:{id:string;subtitle:string}[]}>;script_origin:string;assets:{asset:{id:string;name:string}}[];contexts:unknown[];library_versions:unknown[];jobs:unknown[]}}}
+interface Detail extends Summary {manifest:{brief:{title:string;brief:string};script:DramaScript|null;storyboard:StoryboardPlan|null;timeline:{aspect_ratio:string;output_resolution?:string;clips:{id:string;asset_id:string;duration:number;subtitle:string}[]};poster:{width:number;height:number;layers:unknown[]}|null;sources:{episode_timelines?:Record<string,{clips:{id:string;subtitle:string}[]}>;script_origin:string;assets:{asset:{id:string;name:string}}[];contexts:RevisionContext[];library_versions:LibraryVersionRef[];jobs:RevisionJobSource[]}}}
 interface Receipt {id:string;branch:Branch;revision?:Detail}
 interface Basis {project_version:number;media_version:number;branch:Branch|null}
 interface Capture {label:string;expected_project_version:number;expected_media_version:number;expected_branch_version:number;expected_head_revision_id:string}
@@ -72,5 +84,5 @@ function RevisionEditor({project,space,branch,choose,disabled,onDirtyChange,onRe
 
 function RevisionContent({detail}:{detail:Detail}){
  const {t}=useI18n(),m=detail.manifest
- return <div className="drama-document"><h4>{t('固定剧本')}</h4>{m.script?<><p>{m.script.title} · {m.script.logline}</p>{m.script.scenes.map((scene,i)=><section className="drama-scene" key={scene.id??i}><h5>{scene.heading}</h5><p>{scene.action}</p>{scene.dialogue.map((line,j)=><p key={j}><strong>{line.character}</strong> · {line.text}</p>)}</section>)}</>:<p>{t('保存时尚无剧本。')}</p>}<h4>{t('固定镜头计划')}</h4>{m.storyboard?.shots.map(shot=><section className="storyboard-shot" key={shot.id}><p>{shot.description} · {shot.duration_seconds}s</p><DirectorDirection shot={shot}/></section>)}<h4>{t('固定剪辑')}</h4><p>{m.timeline.aspect_ratio} · {m.timeline.output_resolution}</p>{(m.timeline.clips??[]).map(clip=><section className="storyboard-shot" key={clip.id}><p>{m.sources.assets.find(a=>a.asset.id===clip.asset_id)?.asset.name} · {clip.duration}s</p>{clip.subtitle&&<p>{clip.subtitle}</p>}</section>)}{m.poster&&<p>{t('固定海报：{width} × {height}，{layers} 层',{width:m.poster.width,height:m.poster.height,layers:m.poster.layers.length})}</p>}</div>
+ return <div className="drama-document"><ParamSnapshot jobs={m.sources?.jobs ?? []} /><h4>{t('固定剧本')}</h4>{m.script?<><p>{m.script.title} · {m.script.logline}</p>{m.script.scenes.map((scene,i)=><section className="drama-scene" key={scene.id??i}><h5>{scene.heading}</h5><p>{scene.action}</p>{scene.dialogue.map((line,j)=><p key={j}><strong>{line.character}</strong> · {line.text}</p>)}</section>)}</>:<p>{t('保存时尚无剧本。')}</p>}<h4>{t('固定镜头计划')}</h4>{m.storyboard?.shots.map(shot=><section className="storyboard-shot" key={shot.id}><p>{shot.description} · {shot.duration_seconds}s</p><DirectorDirection shot={shot}/></section>)}<h4>{t('固定剪辑')}</h4><p>{m.timeline.aspect_ratio} · {m.timeline.output_resolution}</p>{(m.timeline.clips??[]).map(clip=><section className="storyboard-shot" key={clip.id}><p>{m.sources.assets.find(a=>a.asset.id===clip.asset_id)?.asset.name} · {clip.duration}s</p>{clip.subtitle&&<p>{clip.subtitle}</p>}</section>)}{m.poster&&<p>{t('固定海报：{width} × {height}，{layers} 层',{width:m.poster.width,height:m.poster.height,layers:m.poster.layers.length})}</p>}</div>
 }

@@ -1,0 +1,12 @@
+.param-snapshot { margin-top: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-soft); }
+.param-snapshot > summary { cursor: pointer; padding: var(--space-3) var(--space-4); font-size: var(--text-sm); font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+.param-snapshot ul { list-style: none; margin: 0; padding: 0 var(--space-4) var(--space-4); display: grid; gap: var(--space-4); }
+.param-snapshot li { border-top: 1px solid var(--border); padding-top: var(--space-3); }
+.param-snapshot-head { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: baseline; font-size: var(--text-xs); color: var(--ink-muted); }
+.param-snapshot-head strong { color: var(--ink); font-size: var(--text-sm); }
+.param-snapshot-prompt { margin: var(--space-2) 0 0; font-size: var(--text-sm); line-height: 1.8; overflow-wrap: anywhere; }
+.param-snapshot-context { margin: var(--space-2) 0 0; font-size: var(--text-xs); color: var(--ink-muted); line-height: 1.7; }
+.param-snapshot dl { margin: var(--space-2) 0 0; display: grid; gap: 4px; }
+.param-snapshot dl > div { display: flex; gap: var(--space-3); font-size: var(--text-2xs); }
+.param-snapshot dt { color: var(--ink-muted); flex-shrink: 0; }
+.param-snapshot dd { margin: 0; overflow-wrap: anywhere; }

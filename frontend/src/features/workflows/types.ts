@@ -1,3 +1,4 @@
+import type {WorkflowRunStatus} from '../../jobStatus'
 export type Kind='text'|'template'|'variable'|'llm'|'asset'|'image'|'speech'|'video'|'review'|'output'
 export interface Step {id:string;kind:Kind;label:string;x:number;y:number;text?:string;variable_name?:string;asset_id?:string;asset_kind?:string;model_config_id?:string;model_config_version?:number;voice?:string;ratio?:string}
 export interface Wire {source:string;target:string;input:string}
@@ -6,7 +7,7 @@ export interface Graph {variables?:Variable[];nodes:Step[];edges:Wire[];viewport
 export interface Summary {id:string;name:string;version:number;head_revision_id:string}
 export interface Revision {id:string;number:number;sha256:string;graph:Graph;created_at:string;created_by:string}
 export interface Detail extends Summary {revision:Revision;revision_count:number}
-export interface Run {inputs?:Record<string,string>;from_run_id?:string;restart_node_id?:string;id:string;workflow_id:string;revision_id:string;status:string;version:number;created_at:string;graph:Graph;nodes:Record<string,{node_id:string;status:string;job_id?:string;reused_from_run_id?:string;error_code?:string;result:{text?:string;variable_name?:string;asset_id?:string;asset_kind?:string}}>}
+export interface Run {inputs?:Record<string,string>;from_run_id?:string;restart_node_id?:string;id:string;workflow_id:string;revision_id:string;status:WorkflowRunStatus;version:number;created_at:string;graph:Graph;nodes:Record<string,{node_id:string;status:string;job_id?:string;reused_from_run_id?:string;error_code?:string;result:{text?:string;variable_name?:string;asset_id?:string;asset_kind?:string}}>}
 export interface Asset {id:string;kind:string;name:string;file_url:string}
 export const labels:Record<Kind,string>={text:'描述与文案',template:'文案模板',variable:'运行变量',llm:'文本模型',asset:'项目素材',image:'图像生成',speech:'配音生成',video:'视频生成',review:'人工选择',output:'输出素材'}
 export const states:Record<string,string>={queued:'等待执行',running:'正在执行',waiting_review:'等待人工选择',succeeded:'已完成',failed:'执行失败',cancelled:'已停止',unknown:'结果待核对'}

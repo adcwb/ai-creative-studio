@@ -83,5 +83,12 @@ const messages: Record<string, string> = {
   '上游可能已接收本次请求，重试前请先核对记录。': 'The upstream may already have accepted this request. Check the record before retrying.',
   '操作未能完成': 'The action could not be completed',
   '诊断编号': 'Diagnostic ids',
+  '生成参数快照': 'Generation parameter snapshot',
+  '{n} 个镜头': '{n} shots',
+  '参考图': 'Reference images',
+  '首帧': 'First frame',
+  '尾帧': 'Last frame',
+  '运动参考': 'Motion reference',
+  '固定库版本': 'Pinned library versions',
 }
 export default messages
