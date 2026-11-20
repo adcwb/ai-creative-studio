@@ -30,6 +30,7 @@
 .studio-dialog-content .model-editor-error {margin:16px 24px 0;flex-shrink:0}
 .studio-dialog-content .studio-alert {flex-shrink:0}
 .studio-confirm .studio-dialog-body p {margin:0;line-height:1.8}
+.detail-body > .notice,.detail-body > .error {margin-top:18px}
 @media(max-width:760px){
  .studio-dialog-header,.studio-dialog-body {padding:16px}
  .studio-dialog-header .studio-dialog-close {min-width:44px;min-height:44px}

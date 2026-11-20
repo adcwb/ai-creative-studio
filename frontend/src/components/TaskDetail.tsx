@@ -1,29 +1,23 @@
 import {usePolling} from '../hooks/usePolling'
 import { useI18n } from '../i18n'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { baseURL, errorMessage, request, type Catalog, type Task } from '../api'
 import { resultImageAlt, resultOriginLabel, resultProviderLabel, taskStatusLabel } from '../providerPresentation'
 import { Icon } from './Icon'
 import { TaskMetadata } from './TaskList'
 import { ContinueImage } from '../features/images/ContinueImage'
 import {DownloadImage, ImageViewer} from './ImageResult'
+import {StudioDialog} from '../ui/StudioDialog'
 
 export function TaskDetail({id, space, catalog, saved, saving, busy, actionError, notice, onClose, onUpdate, onSave, onEdit, onResume, onSavePrompt}: {
   id: string; space: string; catalog: Catalog | null; saved: boolean; saving: string | null; busy: boolean; actionError: string; notice: string
   onSavePrompt?: (task: Task) => void; onClose: () => void; onUpdate: (task: Task) => void; onSave: (task: Task) => void; onEdit: (task: Task) => void; onResume: (task: Task) => Promise<void>
 }) {
   const { t, formatDate } = useI18n()
-  const dialogRef = useRef<HTMLDialogElement>(null)
   const [task, setTask] = useState<Task | null>(null)
   const [error, setError] = useState('')
   const [revision, setRevision] = useState(0)
   const [viewing, setViewing] = useState(false)
-  useEffect(() => {
-    const dialog = dialogRef.current
-    const previousFocus = document.activeElement as HTMLElement | null
-    dialog?.showModal()
-    return () => {dialog?.close(); previousFocus?.focus()}
-  }, [])
   usePolling(async signal => {
     try {
       const result = await request<Task>(`/tasks/${encodeURIComponent(id)}?${new URLSearchParams({space_id: space})}`, {signal})
@@ -36,16 +30,8 @@ export function TaskDetail({id, space, catalog, saved, saving, busy, actionError
     }
   }, 1500, `${space}:${id}:${revision}`)
 
-  return <dialog ref={dialogRef} className="detail-dialog" aria-labelledby="detail-title" onCancel={event => {event.preventDefault(); onClose()}} onKeyDown={event => {
-    if (event.key !== 'Tab') return
-    const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')]
-    const first = controls[0]
-    const last = controls.at(-1)
-    if (!first) {event.preventDefault(); return}
-    if (event.shiftKey && (document.activeElement === first || document.activeElement === event.currentTarget)) {event.preventDefault(); last?.focus()}
-    else if (!event.shiftKey && (document.activeElement === last || document.activeElement === event.currentTarget)) {event.preventDefault(); first.focus()}
-  }}>
-    <div className="dialog-header"><div><span className="eyebrow">CREATION DETAILS</span><h2 id="detail-title">{t("任务详情")}</h2></div><button type="button" className="icon-button" aria-label={t("关闭详情")} onClick={onClose} autoFocus><Icon name="close" /></button></div>
+  return <StudioDialog title={t("任务详情")} onClose={onClose} closeLabel={t("关闭详情")} width={820} className="detail-dialog-content">
+    <div className="studio-dialog-body detail-body">
     {error && <div className="error" role="alert">{t("无法读取任务详情：")}{t(error)} <button onClick={() => setRevision(value => value + 1)}>{t("重新加载详情")}</button></div>}
     {!task && !error && <div className="loading-block" role="status">{t("正在加载任务详情…")}</div>}
     {task && <>
@@ -62,5 +48,6 @@ export function TaskDetail({id, space, catalog, saved, saving, busy, actionError
       <div className="dialog-actions"><span>{task.provider === 'mock-svg' ? t("模拟流程演示") : t("来源按任务记录保留")}{t("· 结果持久化保存")}</span>{task.status === 'succeeded' && <button type="button" className="primary" disabled={saved || saving !== null} onClick={() => onSave(task)}>{saved ? <><Icon name="check" />{t("已保存")}</> : saving === task.id ? t("保存中…") : t("保存到素材库")}</button>}{task.status === 'failed' && task.upstream_id && <button type="button" disabled={busy} onClick={() => {void onResume(task).then(() => setRevision(value => value + 1))}}>{t("继续查询原任务")}</button>}{task.status === 'failed' && <button type="button" className="primary" disabled={busy} onClick={() => onEdit(task)}><Icon name="refresh" />{t("编辑后重试")}</button>}</div>
       {viewing && <ImageViewer task={task} onClose={() => setViewing(false)}/>}
     </>}
-  </dialog>
+    </div>
+  </StudioDialog>
 }
