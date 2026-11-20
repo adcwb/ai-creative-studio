@@ -5,6 +5,7 @@ import {Icon} from '../../components/Icon'
 import {useI18n} from '../../i18n'
 import {UsePromptDialog} from './UsePromptDialog'
 import {PromptEditor} from './PromptEditor'
+import {StudioDialog} from '../../ui/StudioDialog'
 import {readPending, type PendingPrompt, type PromptPage, type PromptResult, type PromptVersion} from './types'
 import './prompts.css'
 
@@ -28,9 +29,7 @@ export function PromptLibrary({space, actor, readOnly, catalog, draft, disabled,
   const [pending, setPending] = useState(() => readPending(space, actor))
   const [using, setUsing] = useState<{item: PromptResult; version: PromptVersion} | null>(null)
   const [history, setHistory] = useState<{item: PromptResult; versions: PromptVersion[]; next: string} | null>(null)
-  const historyDialog = useRef<HTMLDialogElement>(null)
-  const historyActive = Boolean(history)
-  useEffect(() => {if (!historyActive) return; const previous = document.activeElement as HTMLElement | null; const current = historyDialog.current; current?.showModal(); return () => {current?.close(); if (previous?.isConnected) previous.focus()}}, [historyActive])
+  const historyTrigger = useRef<HTMLElement | null>(null)
   useEffect(() => {function updated() {setCursor(''); setRevision(value => value + 1)}; window.addEventListener('studio-prompts-updated', updated); return () => window.removeEventListener('studio-prompts-updated', updated)}, [])
   const query = new URLSearchParams({space_id: space}).toString()
   useEffect(() => {
@@ -62,6 +61,7 @@ export function PromptLibrary({space, actor, readOnly, catalog, draft, disabled,
     } catch (reason) {setError(errorMessage(reason, t('提示词操作未确认，请刷新列表核对后重试。')))} finally {setBusy(false)}
   }
   async function showHistory(item: PromptResult, after = '') {
+    if (!after) historyTrigger.current = document.activeElement as HTMLElement | null
     setError(''); setBusy(true)
     try {const value = await request<PromptPage<PromptVersion>>(`/prompt-templates/${item.template.id}/versions?${query}&cursor=${encodeURIComponent(after)}`); setHistory(previous => ({item, versions: after && previous ? [...previous.versions, ...value.items] : value.items, next: value.next_cursor}))} catch (reason) {setError(errorMessage(reason, t('提示词历史读取失败，请重试。')))} finally {setBusy(false)}
   }
@@ -91,6 +91,6 @@ export function PromptLibrary({space, actor, readOnly, catalog, draft, disabled,
     </>}
     {using && <UsePromptDialog space={space} item={using.item} version={using.version} onClose={() => setUsing(null)} onApply={value => {onChoose(value); setUsing(null); setNotice(t('已填入固定版本，可继续修改。点击创建图像后才会调用模型。'))}} />}
     {editor && <PromptEditor space={space} actor={actor} initial={editor.initial} seed={editor.seed} catalog={catalog} recovery={editor.recovery} onSaved={() => {setEditor(null); setPending(null); setTab('mine'); refresh(); setNotice(t('提示词已保存，没有发起模型调用。'))}} onClose={() => {setEditor(null); setPending(readPending(space, actor))}} />}
-    {history && <dialog ref={historyDialog} className="detail-dialog" aria-labelledby="prompt-history-title" onCancel={() => setHistory(null)}><div className="dialog-header"><h2 id="prompt-history-title">{t('版本记录')} · {history.item.template.name}</h2><button className="icon-button" aria-label={t('关闭版本记录')} onClick={() => setHistory(null)}><Icon name="close" /></button></div><p className="composer-help">{t('历史正文保持不变。选用只预填；另存副本不会覆盖当前版本。')}</p><div className="prompt-history">{history.versions.map(version => <article key={version.id}><strong>{t('版本 {number}', {number: version.number})} · {formatDate(version.created_at)}</strong><p>{version.body}</p><small>{version.notes}</small><div className="prompt-card-actions"><button disabled={disabled || busy || history.item.template.status !== 'active'} onClick={() => {void choose(history.item, version)}}>{t('选用此版本')}</button>{!readOnly && <><button disabled={busy || Boolean(pending) || history.item.template.status !== 'active'} onClick={() => {const initial = {...history.item, version}; setHistory(null); openEditor(initial)}}>{t('以此版本继续编辑')}</button><button disabled={busy || Boolean(pending)} onClick={() => {void mutate(history.item, 'copy', version)}}>{t('另存为新提示词')}</button></>}</div></article>)}</div>{history.next && <button disabled={busy} onClick={() => {void showHistory(history.item, history.next)}}>{t('加载更多版本')}</button>}</dialog>}
+    {history && <StudioDialog title={`${t('版本记录')} · ${history.item.template.name}`} onClose={() => setHistory(null)} closeLabel={t('关闭版本记录')} width={720} returnFocusTo={historyTrigger.current}><div className="studio-dialog-body"><p className="composer-help">{t('历史正文保持不变。选用只预填；另存副本不会覆盖当前版本。')}</p><div className="prompt-history">{history.versions.map(version => <article key={version.id}><strong>{t('版本 {number}', {number: version.number})} · {formatDate(version.created_at)}</strong><p>{version.body}</p><small>{version.notes}</small><div className="prompt-card-actions"><button disabled={disabled || busy || history.item.template.status !== 'active'} onClick={() => {void choose(history.item, version)}}>{t('选用此版本')}</button>{!readOnly && <><button disabled={busy || Boolean(pending) || history.item.template.status !== 'active'} onClick={() => {const initial = {...history.item, version}; setHistory(null); openEditor(initial)}}>{t('以此版本继续编辑')}</button><button disabled={busy || Boolean(pending)} onClick={() => {void mutate(history.item, 'copy', version)}}>{t('另存为新提示词')}</button></>}</div></article>)}</div>{history.next && <button disabled={busy} onClick={() => {void showHistory(history.item, history.next)}}>{t('加载更多版本')}</button>}</div></StudioDialog>}
   </>
 }

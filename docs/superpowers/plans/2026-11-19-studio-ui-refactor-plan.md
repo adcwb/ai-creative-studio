@@ -8,10 +8,10 @@
 
 - [x] **S1 主题单源**：单一色板、暗房/工作室双主题、旧偏好迁移（2026-11-19 完成）
 - [x] **S2 壳层骨架**：三栏插槽、吸顶操作栏、底部推进条、共享壳断点收敛（2026-11-19 完成）
-- [ ] **S3 原子封装层**：11 个 Studio\* 组件、图标补齐、清除 `.ant-*` 覆盖与 `!important`
+- [x] **S3 原子封装层**：11 个 Studio\* 组件、图标统一、清除 `.ant-*` 覆盖与 `!important`
   - [x] S3-1 原子层 9 个组件 + `.ant-*` / `.adm-*` 覆盖清零 + `!important` 收敛（2026-11-20 完成）
   - [x] S3-2a 任务详情收敛到共享弹层 + 新增可运行弹层门禁 + `--radius` 令牌（2026-11-20 完成）
-  - [ ] S3-2b 提示词三处弹层收敛、图标混用核查
+  - [x] S3-2b 提示词三处弹层收敛、图标混用清零与门禁（2026-11-20 完成）
 - [ ] **S4 门面三页**：项目列表、创作工作台首页、登录
 - [ ] **S5 长内容底座**：虚拟滚动选型实测、大纲、滚动联动、页内搜索、URL 位置
 - [ ] **S6 剧本页样板**：分片编辑、memo 化、双栏对白、登场人物横条
@@ -277,3 +277,58 @@ CSS 体积从 90.47 kB 降到 **89.42 kB**（gzip 16.90 → 16.66），因为删
 ### 本轮未运行
 
 `e2e` 与 `e2e-gateway` 中任务详情的既有用例、Go 矩阵。新增门禁覆盖了壳契约，但**不覆盖任务详情内部的业务断言**——那些仍需 CI 的真实后端套件确认。后端零改动。
+
+---
+
+## S3-2b 变更说明
+
+### 提示词三处弹层
+
+`ProjectPromptPicker`、`UsePromptDialog`、`PromptLibrary` 的版本记录全部收敛到 `StudioDialog`，各自的 `showModal` 副作用与焦点还原代码删除。`UsePromptDialog` 保留 `active` 标志用于异步守卫，只去掉弹层部分；`busy` 交给 `StudioDialog` 的 busy 属性，加载中不可关闭的语义不变。标题副行「配方名 · 版本 N」移入正文。`prompt-editor` 类透传到 `.studio-dialog-content`，既有排版规则继续生效。
+
+至此原生 `<dialog>` 只剩 `ImageResult` 的原图查看器一处，且是既有规格明文保留的自持范围。**弹层实现从三套收敛为一套。**
+
+### 门禁抓到的真实缺陷：焦点归还
+
+版本记录按钮在请求期间 `disabled={busy}`，浏览器会把焦点从禁用按钮上摘掉，等弹层挂载时 `document.activeElement` 已经是 body——关闭后焦点回不到触发按钮。**这在原生 dialog 时代就已存在**，不是重构引入的，但此前没有断言覆盖。
+
+修法是给 `StudioDialog` 增加可选的 `returnFocusTo`：异步打开的调用方显式传入触发元素。`PromptLibrary` 在 `showHistory` 入口、置 busy 之前捕获当前焦点并存入 ref。同步打开的调用方不受影响，仍走自动捕获。
+
+### 图标混用清零
+
+用浏览器实测而非推断：在三个代表性路由上枚举 `svg:not(.icon)`，发现两处外来图标——`anticon-down`（Select 下拉箭头）与 `anticon-ellipsis`（Tabs 溢出按钮）。
+
+`Icon` 集补两个**确有用途**的图标：`chevron` 与 `more`，仍为 24×24 视图框、1.6 线宽、`currentColor`。`StudioSelect` 传 `suffixIcon`，`ModelManagementPanel` 的 Tabs 传 `moreIcon`。未按「补到 40 个」的原稿凭空造图标——没有消费者的图标只是负担。
+
+三处直接用 antd `Alert` 的地方改用 `StudioError`，`showIcon` 关闭，避免错误态再引入 `anticon`；`StudioError` 补上 `role="alert"`，保持原调用点显式传入的语义。
+
+新增 `e2e-routing/icon-set.spec.ts` 作为长期门禁：三个路由 × 两个设备，断言外来 SVG 列表为空。今后任何人新增 antd 控件而忘记替换内置图标，这条会立刻红。
+
+### 新增可运行门禁
+
+`e2e-routing/prompt-dialogs.spec.ts` 用 `page.route` 只桩掉提示词三个读接口，路由、会话、壳层全部走真实假上游，不改动共享夹具。覆盖版本记录与变量预览两个弹层的壳契约，桌面 Modal 与手机 Popup 两条路径。
+
+---
+
+## S3-2b 验证证据
+
+| 检查 | 结果 |
+| --- | --- |
+| `npx tsc -b` | 通过 |
+| `npx eslint . --max-warnings 0` | 通过，零警告 |
+| `npx vitest run src` | 31 文件 / 109 用例全通过 |
+| `node scripts/i18n_check.cjs` | 通过，3437 条文案 |
+| `npx vite build` | 成功 |
+| routing 提示词弹层门禁 · 桌面 + 手机 | 4 个全通过 |
+| routing 任务详情弹层门禁 · 桌面 + 手机 | 2 个全通过 |
+| routing 图标唯一性门禁 · 3 路由 × 2 设备 | 6 个全通过 |
+
+主包 638.52 kB，CSS 91.12 kB。
+
+### 本轮未运行
+
+`e2e-gateway/prompts.spec.ts` 中提示词的业务断言、其余需真实后端的套件、Go 矩阵。新增门禁覆盖壳契约与图标唯一性，**不覆盖提示词的业务流程**。后端零改动。
+
+### 一处已知不一致
+
+`AuthGate` 的密码可见性切换仍是组件内联 SVG，未走 `Icon`。它在登录页，不在本步三个门禁路由内，留给 S4 登录页改造一并处理。

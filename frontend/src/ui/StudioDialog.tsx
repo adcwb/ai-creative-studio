@@ -7,8 +7,8 @@ import {useMobile} from './useMobile'
 const MobileSheet = lazy(() => import('./MobileSheet'))
 const Layer = createContext(1000)
 
-export function StudioDialog({title, children, onClose, busy = false, className = '', width = 760, closeLabel, initialFocus = 'input'}: {
-  title: string; children: ReactNode; onClose: () => void; busy?: boolean; className?: string; width?: number; closeLabel?: string; initialFocus?: 'input' | 'cancel'
+export function StudioDialog({title, children, onClose, busy = false, className = '', width = 760, closeLabel, initialFocus = 'input', returnFocusTo}: {
+  title: string; children: ReactNode; onClose: () => void; busy?: boolean; className?: string; width?: number; closeLabel?: string; initialFocus?: 'input' | 'cancel'; returnFocusTo?: HTMLElement | null
 }) {
   const {t} = useI18n()
   const viewportMobile = useMobile()
@@ -19,7 +19,9 @@ export function StudioDialog({title, children, onClose, busy = false, className 
   const [anchor, setAnchor] = useState<HTMLSpanElement | null>(null)
   const body = useRef<HTMLDivElement>(null)
   const interacted = useRef(false)
-  const previousFocus = useRef(document.activeElement as HTMLElement | null)
+  // An async opener may disable its own trigger while loading, which blurs it
+  // before this mounts. Callers in that situation pass the trigger explicitly.
+  const previousFocus = useRef(returnFocusTo ?? (document.activeElement as HTMLElement | null))
   useEffect(() => {
     const previous = previousFocus.current
     const {scrollX, scrollY} = window

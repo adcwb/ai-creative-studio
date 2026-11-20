@@ -14,6 +14,7 @@ export function StudioError({message, code, details, action, className}: {
   return <Alert
     className={`studio-error${className ? ` ${className}` : ''}`}
     type="error"
+    role="alert"
     showIcon={false}
     title={message}
     description={(code || details || action) ? <div className="studio-error-detail">

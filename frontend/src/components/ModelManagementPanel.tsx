@@ -1,5 +1,7 @@
-import {Alert, Button, Checkbox, ConfigProvider, Input, Tabs} from 'antd'
+import {Button, Checkbox, ConfigProvider, Input, Tabs} from 'antd'
 import {StudioSelect} from '../ui/StudioSelect'
+import {StudioError} from '../ui/StudioError'
+import {Icon} from './Icon'
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react'
 import { ConfirmDialog } from './ConfirmDialog'
 import {StudioDialog} from '../ui/StudioDialog'
@@ -96,7 +98,7 @@ models:(<div id="model-panel-models" hidden={tab !== 'models'} className="panel 
 
     {error && !gateway && !model && <p className="error" role="alert">{error} <Button htmlType="button" disabled={busy} onClick={() => setRevision(value => value + 1)}>{t('重新读取')}</Button></p>}
     {notice && <p className="notice" role="status">{notice}</p>}
-    {!report ? <p role="status">{t('正在读取模型配置…')}</p> : <><Tabs className="studio-model-tabs" classNames={{item:'studio-tab-item'}} activeKey={tab} onChange={value => setTab(value as typeof tab)} items={([['bindings', '功能绑定'], ['gateways', 'AI 网关'], ['models', '网关模型']] as const).map(([key, name]) => ({key, label:t(name), forceRender:true, children:panels?.[key]}))} /></>}
+    {!report ? <p role="status">{t('正在读取模型配置…')}</p> : <><Tabs className="studio-model-tabs" classNames={{item:'studio-tab-item'}} moreIcon={<Icon name="more" />} activeKey={tab} onChange={value => setTab(value as typeof tab)} items={([['bindings', '功能绑定'], ['gateways', 'AI 网关'], ['models', '网关模型']] as const).map(([key, name]) => ({key, label:t(name), forceRender:true, children:panels?.[key]}))} /></>}
     {discardEditor && <ConfirmDialog title={t('放弃未保存的修改？')} message={t('关闭后，本次修改将不会保存。')} confirmLabel={t('放弃修改')} onConfirm={() => closeEditor(discardEditor, true)} onCancel={() => setDiscardEditor(null)} />}
   </section>
 }
@@ -141,7 +143,7 @@ function GatewayModelsTable({models, report, busy, onEdit}: {models: GatewayMode
 function ModelEditorDialog({title, busy, error, onClose, children}: {title: string; busy: boolean; error: string; onClose: () => void; children: ReactNode}) {
   const {t} = useI18n()
   return <StudioDialog title={title} busy={busy} onClose={onClose} closeLabel={t('关闭编辑')}>
-    {error && <Alert className="model-editor-error" type="error" showIcon title={error} role="alert" />}
+    {error && <StudioError className="model-editor-error" message={error} />}
     {children}
   </StudioDialog>
 }
@@ -175,7 +177,7 @@ function GatewayModelForm({value, gateways, busy, onDirty, onCancel, onSave}: {v
   useEffect(() => {onDirty('model-form', dirty); return () => onDirty('model-form', false)}, [dirty, onDirty])
   const [validationError, setValidationError] = useState('')
   function submit() {if (!draft.gateway_id) {setValidationError(t('选择网关'));return}; setValidationError('');void onSave({...draft, pending: false})}
-  return <ConfigProvider componentDisabled={busy}><form className="model-editor-form" onSubmit={event => {event.preventDefault(); submit()}}><fieldset disabled={busy}><div className="model-editor-body">{validationError && <Alert type="error" title={validationError} role="alert" />}<div className="model-editor-grid">
+  return <ConfigProvider componentDisabled={busy}><form className="model-editor-form" onSubmit={event => {event.preventDefault(); submit()}}><fieldset disabled={busy}><div className="model-editor-body">{validationError && <StudioError message={validationError} />}<div className="model-editor-grid">
     <label>{t('所属网关')}<StudioSelect aria-label={t('所属网关')} required disabled={busy || !!value.id} value={draft.gateway_id} onChange={event => setDraft({...draft, gateway_id: event})}><option value="">{t('选择网关')}</option>{gateways.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</StudioSelect></label>
     <label>{t('模型显示名称')}<Input className="studio-input" required maxLength={80} value={draft.name} onChange={event => setDraft({...draft, name: event.target.value})} /></label>
     <label>{t('上游模型 ID')}<Input className="studio-input" required maxLength={200} placeholder="vendor/model-name" value={draft.model} onChange={event => setDraft({...draft, model: event.target.value})} /></label>
