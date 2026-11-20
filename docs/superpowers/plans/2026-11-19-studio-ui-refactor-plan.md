@@ -477,3 +477,42 @@ CSS 体积从 90.47 kB 降到 **89.42 kB**（gzip 16.90 → 16.66），因为删
 ### 本轮未运行
 
 `e2e-gateway` 的图像可用性、大媒体、创作流程等套件需真实 Go 后端；consumer 其余 6 个用例本轮未跑；Go 矩阵未跑。**三栏分支的完整网关验收仍需 CI 确认。** 后端零改动。
+---
+
+## S10 验收执行记录
+
+### 已执行并通过
+
+| 检查 | 范围 |
+| --- | --- |
+| `npx tsc -b` | 全量，零错误 |
+| `npx eslint . --max-warnings 0` | 全量，零警告 |
+| `npx vitest run src` | 35 文件 / 119 用例 |
+| `node scripts/i18n_check.cjs` | 3499 条文案 |
+| `npx vite build` | 全量产物 |
+| routing 套件 | 主题对比度双主题、断点扫描、弹层壳、提示词弹层、图标唯一性、项目列表、创作布局三宽度、剧本阅读与分片、100 场长内容、素材三态、分类错误 |
+| consumer 套件 | 网关对比度双主题 × 双设备、图像提示词可见性、缺模型错误 |
+
+### 静态计数
+
+`.ant-*` 选择器 0；`.adm-*` 选择器 0；`!important` 1（无障碍重置，刻意保留）；渲染 `<svg>` 的文件 1（Icon.tsx）；装饰性英文眉题 0；CSS 硬编码色值 6（全部为内容色：视频黑底、3D 舞台渐变、社交预览、原图查看器遮罩）。
+
+旧三态写法：`page-empty` 21、`loading-block` 8、裸 `className="error"` 134，起点分别为 22、10、141。剩余多为字段级校验与局部提示，需逐页判断是否该收敛，不是机械替换。
+
+### 长内容实测
+
+100 场 / 2000 对白合成剧本：大纲挂载 11 行、DOM 7121 节点、可交互 4319ms。由 `script-long.spec.ts` 打印，测量环境为本会话 Linux 虚拟机 + Chromium headless，非生产硬件。
+
+### 未执行
+
+`e2e`（14 spec）、`e2e-auth`（5）、`e2e-gateway`（24）、`e2e-quotes`（1）四套需真实 Go 后端；`gofmt`／`go vet`／三组 race／file × postgres 双存储矩阵。本环境无 Go 工具链，`backend/bin/server.exe` 为 Windows 二进制。**本机通过不等于完整 CI 矩阵通过。**
+
+### 未解的具体问题
+
+**running 任务详情弹层**：把详情接口单独桩成 running 会与列表接口的 succeeded 矛盾，导致工作区在 active/idle 间翻转、弹层反复重挂载。两个接口一致打桩后弹层仍不出现——`ImageWorkspace` 的渲染门槛是 `active && detailId`，`active` 的来源尚未追清。阶段语义由 `StudioProgress.test.tsx` 覆盖，弹层集成待查。
+
+**素材库搜索无结果**：在假上游下填入不存在的关键词并提交后未到达 no-results 态，未定位。共享空态本身已由 `asset-states.spec.ts` 的空响应与分类失败两条覆盖。
+
+### 未完成的交付物
+
+改造前后对比缺「前」：现有历史截图摄于 2026-10-23，早于 antd 迁移，不能代表基线。严谨对比需回到 `fce862b` 构建一份，本环境未做。
