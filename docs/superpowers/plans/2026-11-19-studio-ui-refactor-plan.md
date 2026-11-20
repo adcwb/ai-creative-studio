@@ -562,3 +562,25 @@ CSS 体积从 90.47 kB 降到 **89.42 kB**（gzip 16.90 → 16.66），因为删
 因此触发条件与「语言切换与主题切换交替多次」有关，而非单次切换。下一步应从 `I18nProvider` 的 `requestedLocale` / `revision` 状态机与 `setActiveLocale(locale)` 的渲染期写入入手，配合完整循环取证，而不是再用简化探针。
 
 **状态：回归未修复，重构仍不可判定为可交付。**
+
+---
+
+## 回归已修复（2026-11-20 深夜）
+
+### 根因
+
+插桩 `I18nProvider` 拿到完整时间线后定位。真实用例里，点击 English 触发 `setLocale('en')` → effect 以 `req=en rev=2` 启动，但 **`loadLocale('en')` 的动态 import 提交从未在重载前落地**——词典块加载耗时超过用例后续动作与 `page.reload()` 的间隔，提交与重载赛跑，提交输了。账号键停留在上一轮的 `zh-CN`。
+
+证实方式：在重载前加 2.5 秒等待，`[i18n commit] en` 出现、用例通过；不加则不出现。加 `localStorage.setItem` 追踪钩子时它会通过、不加时失败——那不是根因，只是 instrumentation 改变了时序（海森堡），先前据此下的两个结论都作废。
+
+### 修复
+
+持久化从「提交时」移到「选择时」：`setLocale` 在被调用的那一刻同步写 `localStorage`，词典加载的 `.then` 不再负责持久化。语义也由此变对——存储键记录的是**用户意图**，不是「词典已加载」这一完成事件；加载慢或失败都不应丢失用户的选择，重载后自然会重试加载（代码本就如此设计）。
+
+顺带保留提交路径上的两处加固：提交时同步写一次 `document.documentElement.lang`（挂载顺序允许外层 provider 的 lang effect 后运行，而 state 未变化的 locale 不会重跑 `[locale]` effect，提交才是权威时刻）；初次恢复的 effect 不再回写存储。
+
+### 验证
+
+`e2e-auth/appearance.spec.ts` 全部 12 个用例（桌面 + 手机）在真实 Go 后端上通过——含登录画廊轮播、双语、reduced-motion、账号隔离、退出清理、首次语言继承、存储被拒。此前该文件里「个人主题与语言按账号持久化」是失败的。另通过：tsc、eslint、119 单测、i18n、vite build。
+
+`e2e` / `e2e-gateway` / `e2e-quotes` 其余 spec 尚未跑，仍属 CI 范围。

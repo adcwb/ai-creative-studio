@@ -21,7 +21,8 @@ export function I18nProvider({children, storageKey = 'studio.locale'}: {children
     void loadLocale(requestedLocale).then(() => {
       if (cancelled) return
       setActiveLocale(requestedLocale); updateLocale(requestedLocale); setReady(true); setLoading(false)
-      try {localStorage.setItem(storageKey, requestedLocale); setLocaleSaved(true)} catch {setLocaleSaved(false)}
+      document.documentElement.lang = requestedLocale
+      setLocaleSaved(true)
     }).catch(() => {if (!cancelled) {setLoading(false); setFailed(true)}})
     return () => {cancelled = true}
   }, [requestedLocale, storageKey, revision])
@@ -35,7 +36,13 @@ export function I18nProvider({children, storageKey = 'studio.locale'}: {children
     setActiveLocale(parentLocaleRef.current)
     document.documentElement.lang = parentLocaleRef.current
   }, [])
-  function setLocale(value: Locale) {setLoading(!isLocaleLoaded(value)); setFailed(false); requestLocale(value); setRevision(previous => previous + 1)}
+  function setLocale(value: Locale) {
+    // Persist the choice at request time, not when the dictionary finishes
+    // loading. The stored key is the user's intent: a slow or failed chunk
+    // load must not lose it, and a reload racing the commit used to.
+    try {localStorage.setItem(storageKey, value); setLocaleSaved(true)} catch {setLocaleSaved(false)}
+    setLoading(!isLocaleLoaded(value)); setFailed(false); requestLocale(value); setRevision(previous => previous + 1)
+  }
   return <LocaleContext.Provider value={{locale, requestedLocale, setLocale, localeSaved}}>
     {ready && children}
     {(loading || failed) && <div className="locale-feedback" lang="en" role={failed ? 'alert' : 'status'}>
