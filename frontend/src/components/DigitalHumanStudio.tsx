@@ -122,7 +122,7 @@ export function DigitalHumanStudio({project, space, disabled, onDirtyChange}: {p
     void execute()
   }
   return <section className="panel digital-human-studio">
-    <div className="section-heading"><div><span className="eyebrow">DIGITAL HUMAN</span><h2>{t('数字人口播')}</h2></div><span>{t('单人 · 固定机位 · 使用已授权配音')}</span></div>
+    <div className="section-heading"><div><h2>{t('数字人口播')}</h2></div><span>{t('单人 · 固定机位 · 使用已授权配音')}</span></div>
     <p className="drama-help">{t('上传已授权形象，准备配音，再生成口播视频。照片驱动补充人物运动；视频改口型保留原动作。成片带有AI生成标识。')}</p>
     <p className="drama-source">{t('素材仅做格式、尺寸和时长检查；人脸数量、清晰度、遮挡及生成效果需要人工检查。')}</p>
     {readError && <p role="alert" className="error">{readError}</p>}

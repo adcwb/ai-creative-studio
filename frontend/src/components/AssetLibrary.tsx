@@ -39,7 +39,7 @@ export function AssetLibrary({space, catalog, total, onCreate, onDetail}: {space
 
   const kinds = catalog ? [...new Set(catalog.templates.map(template => template.kind))] : []
   return <section className="panel library" aria-labelledby="library-title">
-    <div className="section-heading"><div><span className="eyebrow">COLLECT YOUR IDEAS</span><h2 id="library-title">{t("我的素材")}</h2></div><span>{t("当前空间 · 已保存 {count} 件",{count:total})}</span></div>
+    <div className="section-heading"><div><h2 id="library-title">{t("我的素材")}</h2></div><span>{t("当前空间 · 已保存 {count} 件",{count:total})}</span></div>
     <form className="library-filters" onSubmit={event => {event.preventDefault(); setRevision(value => value + 1)}} role="search" aria-label={t("查找已保存素材")}>
       <div className="search-field"><label htmlFor="asset-search">{t("搜索素材")}</label><div className="input-with-icon"><Icon name="search" /><input type="search" id="asset-search" value={search} onChange={event => setSearch(event.target.value)} placeholder={t("按画面描述搜索")} maxLength={200} aria-describedby={invalid ? 'search-error' : undefined} aria-invalid={invalid} /></div></div>
       <div><label htmlFor="asset-kind">{t("素材类型")}</label><select id="asset-kind" value={kind} onChange={event => setKind(event.target.value)}><option value="">{t("全部类型")}</option>{kinds.map(value => <option key={value} value={value}>{t(kindLabels[value])}</option>)}</select></div>
