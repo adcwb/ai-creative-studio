@@ -8,6 +8,7 @@ import { TaskMetadata } from './TaskList'
 import { ContinueImage } from '../features/images/ContinueImage'
 import {DownloadImage, ImageViewer} from './ImageResult'
 import {StudioDialog} from '../ui/StudioDialog'
+import {StudioProgress} from '../ui/StudioProgress'
 
 export function TaskDetail({id, space, catalog, saved, saving, busy, actionError, notice, onClose, onUpdate, onSave, onEdit, onResume, onSavePrompt}: {
   id: string; space: string; catalog: Catalog | null; saved: boolean; saving: string | null; busy: boolean; actionError: string; notice: string
@@ -40,7 +41,7 @@ export function TaskDetail({id, space, catalog, saved, saving, busy, actionError
       <div className="detail-information" data-provider={task.provider}><span className={`status ${task.status}`}><span />{taskStatusLabel(task)}</span><h3>{t("画面描述")}</h3><p className="detail-prompt">{task.prompt}</p><TaskMetadata task={task} catalog={catalog} />
  {task.prompt_source && <p className="prompt-source-note">{t("来源提示词版本")} <code>{task.prompt_source.version_id}</code> · {t(task.prompt_source.edited ? "已修改后生成" : "按保存版本生成")}</p>}
  {task.status === "succeeded" && onSavePrompt && <button type="button" onClick={() => onSavePrompt(task)}>{t("将此描述存为提示词")}</button>}
-        {(task.status === 'queued' || task.status === 'running') && <div className="progress-block"><progress aria-label={t("详情任务进度")} value={task.progress} max="100" /><span>{t("任务进度 {progress}% · 自动更新",{progress:task.progress})}</span></div>}
+        {(task.status === 'queued' || task.status === 'running') && <StudioProgress progress={task.progress} status={task.status} label={t("详情任务进度")} />}
         {task.error && <p className="error task-error">{t(task.error)}</p>}
         <dl><div><dt>{t("任务编号")}</dt><dd><code>{task.id}</code></dd></div><div><dt>{t("创建时间")}</dt><dd>{formatDate(task.created_at)}</dd></div><div><dt>{t("图像提供方")}</dt><dd>{resultProviderLabel(task)}</dd></div>{task.model && <div><dt>{t("模型")}</dt><dd>{task.model}</dd></div>}{task.result_mime && <div><dt>{t("结果格式")}</dt><dd>{task.result_mime}</dd></div>}{task.result_width && task.result_height && <div><dt>{t("实际尺寸")}</dt><dd>{task.result_width} × {task.result_height} px</dd></div>}{task.error_code && <div><dt>{t("失败代码")}</dt><dd><code>{task.error_code}</code></dd></div>}{task.retry_of && <div><dt>{t("原任务编号")}</dt><dd><code>{task.retry_of}</code></dd></div>}</dl>
       </div></div>

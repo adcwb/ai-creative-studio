@@ -35,3 +35,21 @@
   .user-workspace .studio-input, .user-workspace .studio-select-input { font-size: 16px; }
   .studio-empty { padding: var(--space-6) var(--space-4); }
 }
+
+/* Three real stages on the brand rail. The API reports 0/35/100, never a
+   percentage of model work, so no numeric percentage is shown. */
+.studio-progress ol { list-style: none; display: flex; gap: var(--space-3); margin: 0; padding: 0; }
+.studio-progress li { flex: 1; display: grid; gap: 6px; font-size: var(--text-2xs); color: var(--ink-muted); }
+.studio-progress-rail { display: block; height: 2px; border-radius: var(--radius-pill); background: var(--border); }
+.studio-progress li[data-state=done] .studio-progress-rail { background: var(--success-text); }
+.studio-progress li[data-state=active] { color: var(--ink); }
+.studio-progress li[data-state=active] .studio-progress-rail { background: var(--rail); }
+.studio-progress li[data-state=failed] { color: var(--error-text); }
+.studio-progress li[data-state=failed] .studio-progress-rail { background: var(--error-text); }
+.studio-progress p { margin: var(--space-2) 0 0; font-size: var(--text-2xs); color: var(--ink-muted); }
+
+.studio-error-next { margin: 0; line-height: 1.7; }
+.studio-error-message { margin: 0; color: var(--ink-muted); font-size: var(--text-xs); line-height: 1.7; }
+.studio-error-billing { margin: 0; color: var(--warning-text); font-size: var(--text-xs); }
+.studio-error-ids summary { cursor: pointer; font-size: var(--text-2xs); color: var(--ink-muted); }
+.studio-error-ids code { display: block; margin-top: 4px; font-size: var(--text-2xs); overflow-wrap: anywhere; }

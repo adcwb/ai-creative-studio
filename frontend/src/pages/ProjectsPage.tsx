@@ -24,7 +24,7 @@ export function ProjectsPage() {
   const {t} = useI18n()
   const [projects, setProjects] = useState<DramaProject[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [error, setError] = useState<unknown>(null)
   const [revision, setRevision] = useState(0)
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState('recent')
@@ -32,8 +32,8 @@ export function ProjectsPage() {
     if(seriesView)return
     const controller = new AbortController()
     void request<DramaProject[]>(`/projects?${new URLSearchParams({space_id: space!.id})}`, {signal: controller.signal}).then(result => {
-      if (!controller.signal.aborted) {setProjects(result.filter(p => (!p.kind || p.kind === 'drama')&&!p.series_episode_id)); setError(''); setLoading(false)}
-    }).catch(reason => {if (!controller.signal.aborted) {setError(errorMessage(reason, t('项目列表读取失败'))); setLoading(false)}})
+      if (!controller.signal.aborted) {setProjects(result.filter(p => (!p.kind || p.kind === 'drama')&&!p.series_episode_id)); setError(null); setLoading(false)}
+    }).catch(reason => {if (!controller.signal.aborted) {setError(reason); setLoading(false)}})
     return () => controller.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [space?.id, revision,seriesView])
@@ -57,7 +57,7 @@ export function ProjectsPage() {
     </StickyActionBar>
     {seriesView?<SeriesList/>:<>
     {loading && <div className="project-grid" aria-busy="true">{[0,1,2,3].map(index => <StudioSkeleton key={index} shape="card" rows={3} className="project-card-skeleton" />)}</div>}
-    {error && <StudioError message={error} action={<StudioButton onClick={reload}>{t('重新加载项目列表')}</StudioButton>} />}
+    {error && <StudioError error={error} message={errorMessage(error, t('项目列表读取失败'))} action={<StudioButton onClick={reload}>{t('重新加载项目列表')}</StudioButton>} />}
     {!loading && !error && !projects.length && <StudioEmpty icon="script" title={t('还没有短剧项目')} description={t('给故事起个名字，保存第一份简报。')} action={<Link className="button-link" to="/projects/new/brief">{t('新建短剧项目')}</Link>} />}
     {!loading && !error && projects.length > 0 && !visible.length && <StudioEmpty kind="no-results" icon="search" title={t('没有匹配的项目')} description={t('换个关键词，或清除筛选查看全部项目。')} action={<StudioButton onClick={() => setQuery('')}>{t('清除筛选')}</StudioButton>} />}
     <div className="project-grid">{visible.map(project => <ProjectCard key={project.id} project={project} />)}</div>

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { translate } from '../../i18n'
 import { localizedError } from '../../api'
-import { generationLabels } from '../../drama'
 import { DramaScriptEditor } from '../../components/DramaScriptEditor'
 import { ProjectHistory } from '../../components/ProjectHistory'
 import { Icon } from '../../components/Icon'
@@ -10,6 +9,7 @@ import { RuntimeModelPicker } from '../../components/RuntimeModelPicker'
 import { NextStepDock } from '../../ui/NextStepDock'
 import { StudioWorkbench } from '../../ui/StudioWorkbench'
 import { StickyActionBar } from '../../ui/StickyActionBar'
+import { StudioProgress } from '../../ui/StudioProgress'
 import { ReadingOutline, type OutlineEntry } from '../../reading/ReadingOutline'
 import { SceneNavigator } from '../../reading/SceneNavigator'
 import { FindInPage } from '../../reading/FindInPage'
@@ -98,7 +98,7 @@ export function ProjectScript({state}: {state: ProjectEditorState}) {
         <button type="button" className="primary" disabled={blocked} onClick={generate}>{translate('确认重新生成')}</button>
       </div>}
       {generation && <div className="drama-generation-state">
-        {active && <div className="progress-block"><span>{translate(generationLabels[generation.status])}</span><progress aria-label={translate('剧本生成进度')} value={generation.progress} max="100" /></div>}
+        {active && <StudioProgress progress={generation.progress} status={generation.status === 'failed' ? 'failed' : generation.status === 'succeeded' ? 'succeeded' : generation.status === 'running' ? 'running' : 'queued'} label={translate('剧本生成进度')} />}
         {generation.status === 'failed' && <div className="error" role="alert">
           <p>{translate('本次未能生成完整剧本，当前内容已保留。')}</p>
           <details><summary>{translate('查看详情')}</summary><p>{localizedError(generation.error, generation.error_code)}</p>{generation.error_code && <code>{generation.error_code}</code>}</details>

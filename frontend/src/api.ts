@@ -26,8 +26,19 @@ export interface Catalog {
 }
 export const kindLabels: Record<Kind, string> = {poster: "创意海报", portrait: "肖像概念", general: "通用图像"}
 export const baseURL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '')
+// The backend error envelope carries nine fields. The client used to keep four
+// and drop the classification, the suggested next step and both correlation ids,
+// which is why every failure read as a raw English code.
+export interface ErrorDiagnostic {
+  category?: string
+  suggestion?: string
+  requestId?: string
+  correlationId?: string
+  causeKnown?: boolean
+  upstream?: {http_status?: number; error_code?: string; request_id?: string}
+}
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number, readonly code?: string, readonly field?: string) {
+  constructor(message: string, readonly status: number, readonly code?: string, readonly field?: string, readonly diagnostic: ErrorDiagnostic = {}) {
     super(message)
     this.name = 'ApiError'
   }
@@ -47,8 +58,12 @@ export async function request<T>(path: string, init?: RequestInit & {timeoutMs?:
 	const response = await fetch(`${baseURL}/api/v1${path}`, {...options, headers, credentials: 'include', signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout})
   if (!response.ok) {
     if (response.status === 401 && !path.startsWith('/auth/') && typeof window !== 'undefined') window.dispatchEvent(new Event('studio-session-expired'))
-    const body = await response.json().catch(() => null) as {error?: {message?: string; code?: string; field?: string}} | null
-    throw new ApiError(localizedError(body?.error?.message, body?.error?.code ?? String(response.status)), response.status, body?.error?.code, body?.error?.field)
+    const body = await response.json().catch(() => null) as {error?: {message?: string; code?: string; field?: string; category?: string; suggestion?: string; request_id?: string; correlation_id?: string; cause_known?: boolean; upstream?: ErrorDiagnostic['upstream']}} | null
+    const detail = body?.error
+    throw new ApiError(localizedError(detail?.message, detail?.code ?? String(response.status)), response.status, detail?.code, detail?.field, {
+      category: detail?.category, suggestion: detail?.suggestion, requestId: detail?.request_id,
+      correlationId: detail?.correlation_id, causeKnown: detail?.cause_known, upstream: detail?.upstream,
+    })
   }
   const result = await response.json() as T
   if (!['GET', 'HEAD', 'OPTIONS'].includes((init?.method ?? 'GET').toUpperCase()) && /^\/(ai-gateways|gateway-models|model-features|model-config|model-configs|model-bindings|system-config)([/?]|$)/.test(path)) runtimeCatalogCache.clear()
