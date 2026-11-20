@@ -46,7 +46,7 @@ export function RuntimeModelPicker({space, capability, value, onChange, preview,
       <option value="" disabled={!!binding}>{t(binding || requireGateway ? '请选择此功能的模型' : '未选择组织模型')}</option>
       {options.filter(model => !value?.model.gateway_id || model.gateway_id === value.model.gateway_id).map(model => <option key={model.id} value={model.id}>{model.name ?? model.provider} / {model.model}{model.is_default ? ` · ${t('组织默认')}` : ''}{!model.available ? ` · ${t('暂不可执行')}` : ''}</option>)}
     </StudioSelect></label>
-    <Button htmlType="button" onClick={() => {if (compact) setExpanded(true); onChange(null); refresh()}}>{t('刷新模型目录')}</Button>
+    <Button className="runtime-picker-action" htmlType="button" onClick={() => {if (compact) setExpanded(true); onChange(null); refresh()}}>{t('刷新模型目录')}</Button>
     {options.length === 0 && <p>{t('此能力尚无启用的组织模型。')}</p>}
     {value?.model.reason_code && <p role="status">{t(readinessNames[value.model.reason_code] ?? value.model.reason_code)}</p>}
     {(error || stale) && <p role="alert">{t('模型目录已失效，请刷新并重新确认。')}</p>}

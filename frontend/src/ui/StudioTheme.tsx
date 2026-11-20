@@ -5,10 +5,12 @@ import {useLayoutEffect, type ReactNode} from 'react'
 import {useI18n} from '../i18n'
 import {defaultTheme, rememberAppearance, type Theme} from '../preferences'
 import {applyTheme, colorSchemes, palettes} from './palettes'
+import {useMobile} from './useMobile'
 import './studio-ui.css'
 
 export function StudioTheme({children, appearance = defaultTheme}: {children: ReactNode; appearance?: Theme}) {
   const {locale} = useI18n()
+  const mobile = useMobile()
   const color = palettes[appearance]
   // The same palette drives antd tokens and the CSS custom properties, so the
   // two can never disagree. Cleanup restores the previous appearance, which is
@@ -30,17 +32,20 @@ export function StudioTheme({children, appearance = defaultTheme}: {children: Re
       colorBorder:color.controlBorder, colorBorderSecondary:color.border, colorFillAlter:color.surfaceSoft,
       colorLink:color.link,
       fontFamily:'"PingFang SC", "Microsoft YaHei", system-ui, sans-serif', fontSize:14,
-      borderRadius:8, controlHeight:40, controlOutlineWidth:2, wireframe:false,
+      borderRadius:8, controlHeight:mobile ? 44 : 40, controlOutlineWidth:2, wireframe:false,
     },
     components: {
       // Hover darkens instead of lightening: lightening the dark-theme primary
       // drops white label contrast below the 4.5:1 gate.
-      Button: {primaryColor:color.onPrimary,defaultBg:color.surface,defaultColor:color.ink,defaultBorderColor:color.controlBorder},
+      Button: {primaryColor:color.onPrimary,defaultBg:color.surface,defaultColor:color.ink,defaultBorderColor:color.controlBorder,controlHeightSM:30,contentFontSizeSM:12},
       Input: {colorBgContainer:color.surfaceInput},
       Select: {colorBgContainer:color.surfaceInput,optionSelectedBg:color.surfaceSoft,optionSelectedColor:color.ink},
-      Tabs: {itemSelectedColor:color.link,itemHoverColor:color.link,inkBarColor:color.rail},
+      Tabs: {itemSelectedColor:color.link,itemHoverColor:color.link,inkBarColor:color.rail,horizontalMargin:'0 0 20px 0',horizontalItemGutter:mobile ? 22 : 32},
+      Checkbox: {controlInteractiveSize:14},
       Tag: {colorSuccess:color.successText,colorSuccessBg:color.successBg,colorSuccessBorder:color.successText,defaultBg:color.surfaceSoft,defaultColor:color.ink},
-      Table: {headerBg:color.surfaceSoft,headerColor:color.inkMuted,rowHoverBg:color.surfaceSoft,borderColor:color.border},
+      // On narrow screens the gateway table becomes a stacked grid, so cell
+      // padding and rules are removed here rather than by overriding .ant-*.
+      Table: {headerBg:color.surfaceSoft,headerColor:color.inkMuted,rowHoverBg:color.surfaceSoft,borderColor:mobile ? 'transparent' : color.border,colorBgContainer:color.surface,cellPaddingBlock:mobile ? 0 : 16,cellPaddingInline:mobile ? 0 : 16},
       Modal: {headerBg:color.surface,contentBg:color.surface,titleColor:color.ink},
       Card: {colorBgContainer:color.surface},
       Collapse: {headerBg:color.surfaceSoft,contentBg:color.surface},

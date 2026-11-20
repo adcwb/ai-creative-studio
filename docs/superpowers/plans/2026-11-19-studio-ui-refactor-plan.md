@@ -9,6 +9,8 @@
 - [x] **S1 主题单源**：单一色板、暗房/工作室双主题、旧偏好迁移（2026-11-19 完成）
 - [x] **S2 壳层骨架**：三栏插槽、吸顶操作栏、底部推进条、共享壳断点收敛（2026-11-19 完成）
 - [ ] **S3 原子封装层**：11 个 Studio\* 组件、图标补齐、清除 `.ant-*` 覆盖与 `!important`
+  - [x] S3-1 原子层 9 个组件 + `.ant-*` / `.adm-*` 覆盖清零 + `!important` 收敛（2026-11-20 完成）
+  - [ ] S3-2 5 处原生 `<dialog>` 收敛、图标补齐、`--radius` 几何令牌
 - [ ] **S4 门面三页**：项目列表、创作工作台首页、登录
 - [ ] **S5 长内容底座**：虚拟滚动选型实测、大纲、滚动联动、页内搜索、URL 位置
 - [ ] **S6 剧本页样板**：分片编辑、memo 化、双栏对白、登场人物横条
@@ -171,3 +173,64 @@ routing 其余 spec、mobile 设备的对比度门禁、四套需真实后端的
 ## S2 已知遗留
 
 `StudioWorkbench` 目前只有剧本页的推进条在用，三栏骨架本体等 S6 接入剧本页时才获得真实页面验证。`--radius`（Avatar3DStudio 兜底 12px）仍未定义，与 34 处 `.ant-*` 覆盖、6 处 `!important`、5 处原生 `<dialog>` 一并留给 S3。
+
+---
+
+## S3-1 变更说明
+
+### 原子封装层
+
+新增 9 个组件，与既有 `StudioSelect`、`StudioDialog` 合成 11 个原子入口：`StudioButton`（四档变体映射到库类型）、`StudioCard`、`StudioTag`、`StudioField`、`StudioInput` / `StudioTextArea`、`StudioEmpty`（无数据 / 无结果 / 无权限三态）、`StudioSkeleton`（文本 / 卡片 / 媒体三型）、`StudioError`。样式集中在 `ui/atoms.css`，只用令牌。
+
+两处与方案原稿的偏差，理由如下。`StudioCard` 保持业务 `section.panel` 而非 antd Card：60 个调用点依赖 `.panel` 的布局契约，换底会连带重写这些页面的间距，属于 S4 之后的迁移范围。`StudioProgress` 推迟到 S7：它的价值在于修正 `progress` 的阶段语义，提前建一个无人使用的组件只是空壳。
+
+### .ant-* 与 .adm-* 覆盖清零
+
+34 处 `.ant-*` 与 1 处 `.adm-*` 全部消除，分三条路径：
+
+**组件 token**（随视口切换，由 `useMobile()` 驱动 ConfigProvider）：移动端 `controlHeight` 44 取代全局 `.ant-btn{min-height:44px}`；`Table` 的 `cellPaddingBlock/Inline` 移动端置 0、`borderColor` 置透明，取代原先带 `!important` 的单元格压制；`Tabs.horizontalMargin` 取代 nav 下边距覆盖，`horizontalItemGutter` 取代相邻 tab 间距；`Checkbox.controlInteractiveSize` 14 取代直接改 input 宽高（原写法会缩小透明点击层，新写法只缩视觉框，命中区反而更正确）；`Button.controlHeightSM/contentFontSizeSM` 承载小号按钮尺寸。
+
+**语义 DOM API**：antd 6 的 `classNames` 让我们把自己的类名挂到内部节点上——`Modal.container`、`Select.input`、`Tabs.item`，以及 antd-mobile `Popup.maskClassName`。因此覆盖内部节点不再需要写库类名。
+
+**业务选择器**：根节点样式改用组件自带的业务类（`composer-submit`、`prompt-optimize-button`、`runtime-picker-action`、`studio-dialog-close`、`studio-checkbox`、`studio-alert`、`studio-textarea`）；表格移动端堆叠改用 `.studio-gateway-table table / thead / tbody / tbody > tr > td` 这类**元素选择器**；最后一格的分隔线移到自己的 `.gateway-actions` 上，从而完全避开与库选择器的特异性竞争。与库默认值竞争的少数规则统一加 `.user-workspace` 前缀，由特异性而非源码顺序决胜。
+
+顺带删掉 `studio-ui.css` 里 `.user-workspace{--adm-*}` 那一整块——它是 S1 之后残留的**第二份色源**，与 `palettes.ts` 的注入重复。
+
+### !important 收敛
+
+6 处减到 1 处。网关单元格的两处由 Table token 取代；`.step-number` 的 `!important` 本无竞争对象，直接去掉并按方案改为等宽数字（该元素在创作区已被隐藏，视觉无变化）；`.delivery-preparation article` 与 `.prompt-checkbox` 的 `display` 改为提升特异性（后者加 `.prompt-fields` 前缀）。
+
+**保留的唯一例外**是 `prefers-reduced-motion` 重置：`*, *::before, *::after { animation: none !important; ... }`。去掉 `!important` 会让组件与库动画重新胜出，等于牺牲无障碍去满足一条风格约束。已在 CSS 里写明这是刻意的例外。
+
+### 测试
+
+新增 `src/ui/atoms.test.tsx`（7 个用例）：变体到库类型的映射、危险态、徽标语义、空状态三态、字段把 hint/error 接到 `aria-describedby` 并置 `aria-invalid`、面板保留 `.panel` 契约、错误面渲染稳定码与操作、骨架屏比例与输入错误态透传。对 antd 做最小替身，断言的是封装层的映射与无障碍接线。
+
+`Icon.tsx` 导出 `IconName` 类型，供原子层约束图标名。
+
+---
+
+## S3-1 验证证据
+
+| 检查 | 结果 |
+| --- | --- |
+| `npx tsc -b` | 通过 |
+| `npx eslint . --max-warnings 0` | 通过，零警告 |
+| `npx vitest run src` | 31 文件 / 109 用例全通过 |
+| `node scripts/i18n_check.cjs` | 通过，3437 条文案 |
+| `npx vite build` | 成功，2159 模块 |
+| consumer 网关对比度 · dark/light × 桌面/手机 | 4 个全通过 |
+| routing 对比度与几何门禁 · desktop · dark | 通过 |
+| routing 对比度与几何门禁 · desktop · light | 通过 |
+| routing 断点与溢出扫描 | 通过 |
+| routing workbench 吸附 · desktop | 通过 |
+
+静态计数：CSS 中 `.ant-*` 选择器 0、`.adm-*` 选择器 0、`!important` 1（无障碍重置）。
+
+CSS 体积从 90.47 kB 降到 **89.42 kB**（gzip 16.90 → 16.66），因为删掉了重复色源与冗余覆盖；主包 638.99 kB（gzip 213.32），比 S2 增加 0.34 kB。
+
+截图自检：手机端暗色网关列表确认堆叠栅格正确——名称/厂商/地址纵向排列，状态徽标与模型数同行，操作区上方有分隔线，按钮换行且均 ≥44px，单元格无残留内边距与边框。
+
+### 本轮未运行
+
+四套需真实 Go 后端的 E2E 中除 consumer 外的三套、routing 其余 spec、Go vet 与三组 race、file × postgres 矩阵。后端零改动。**本机通过不等于完整 CI 矩阵通过。**

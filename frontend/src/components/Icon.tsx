@@ -1,4 +1,4 @@
-type IconName = 'download' | 'clapper' | 'person' | 'videoPerson' | 'conversation' | 'cube' | 'folder' | 'layers' | 'publish' | 'spark' | 'grid' | 'image' | 'arrow' | 'close' | 'search' | 'check' | 'refresh' | 'poster' | 'portrait' | 'general' | 'script' | 'users' | 'settings' | 'wallet' | 'menu'
+export type IconName = 'download' | 'clapper' | 'person' | 'videoPerson' | 'conversation' | 'cube' | 'folder' | 'layers' | 'publish' | 'spark' | 'grid' | 'image' | 'arrow' | 'close' | 'search' | 'check' | 'refresh' | 'poster' | 'portrait' | 'general' | 'script' | 'users' | 'settings' | 'wallet' | 'menu'
 
 const paths: Record<IconName, string> = {
   download: 'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5',
