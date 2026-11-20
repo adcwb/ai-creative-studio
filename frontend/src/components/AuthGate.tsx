@@ -4,6 +4,7 @@ import { LanguageButtons } from './LanguagePicker'
 import { ApiError, errorMessage, request, setCSRFToken, type Space } from '../api'
 import { UserPreferences } from './UserPreferences'
 import { AuthBrand } from './AuthBrand'
+import { Icon } from './Icon'
 import './auth.css'
 
 export interface Session { deployment_admin?: boolean; mode: 'demo' | 'secure'; authenticated: boolean; registration_enabled: boolean; sso_available: boolean; user?: {id: string; email: string}; csrf_token?: string; spaces?: Space[] }
@@ -65,7 +66,7 @@ export function AuthGate({children}: {children: (session: Session, logout: () =>
               <div className="auth-password">
                 <input id="auth-password" name="password" type={showPassword ? 'text' : 'password'} autoComplete={register ? 'new-password' : 'current-password'} placeholder={register ? t('设置你的登录密码') : t('输入你的密码')} required minLength={register ? 12 : undefined} maxLength={128} aria-invalid={!!error && errorField === 'password' || undefined} aria-describedby={[register ? 'auth-password-help' : '', error ? 'auth-error' : ''].filter(Boolean).join(' ') || undefined} value={password} onChange={event => setPassword(event.target.value)} />
                 <button className="auth-password-toggle" type="button" aria-label={t('显示密码')} aria-pressed={showPassword} aria-controls="auth-password" onClick={() => setShowPassword(value => !value)}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />{showPassword && <path d="m3 3 18 18" />}</svg>
+                  <Icon name={showPassword ? 'eyeOff' : 'eye'} />
                 </button>
               </div>
               {register && <p id="auth-password-help" className="auth-help">{t('密码至少12字节，最多128字节。请使用独立的长密码。')}</p>}

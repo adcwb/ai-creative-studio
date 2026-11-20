@@ -1,4 +1,4 @@
-export type IconName = 'download' | 'clapper' | 'person' | 'videoPerson' | 'conversation' | 'cube' | 'folder' | 'layers' | 'publish' | 'spark' | 'grid' | 'image' | 'arrow' | 'close' | 'search' | 'check' | 'refresh' | 'poster' | 'portrait' | 'general' | 'script' | 'chevron' | 'more' | 'users' | 'settings' | 'wallet' | 'menu'
+export type IconName = 'download' | 'clapper' | 'person' | 'videoPerson' | 'conversation' | 'cube' | 'folder' | 'layers' | 'publish' | 'spark' | 'grid' | 'image' | 'arrow' | 'close' | 'search' | 'check' | 'refresh' | 'poster' | 'portrait' | 'general' | 'script' | 'chevron' | 'more' | 'eye' | 'eyeOff' | 'users' | 'settings' | 'wallet' | 'menu'
 
 const paths: Record<IconName, string> = {
   download: 'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5',
@@ -28,6 +28,8 @@ const paths: Record<IconName, string> = {
   script: 'M6 3h12v18H6zM9 7h6M9 11h6M9 15h4',
   chevron: 'm6 9 6 6 6-6',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
+  eye: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
+  eyeOff: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM3 3l18 18',
 }
 
 export function Icon({name, className = ''}: {name: IconName; className?: string}) {
