@@ -3,14 +3,13 @@ import {useI18n} from '../i18n'
 import {Icon} from '../components/Icon'
 import {usePreferences} from '../components/UserPreferences'
 import {StudioDialog} from './StudioDialog'
-import {useMobile} from './useMobile'
+import {useViewportAtMost} from './useMobile'
 import './workbench.css'
 
 // The shared three-column reading/production skeleton: outline on the left,
 // canvas in the middle, inspector on the right. Pages fill the slots; none of
 // them re-implement panel collapsing, sticky bars or the narrow-screen drawers.
-// Desktop keeps both side panels; at the shell's 760px breakpoint they move into
-// StudioDialog so there is still only one overlay implementation in the product.
+// On narrower screens, move the side panels into dialogs to leave room for the canvas.
 export function StudioWorkbench({outline, inspector, toolbar, nextStep, children, outlineTitle, inspectorTitle, measure = false}: {
   children: ReactNode
   outline?: ReactNode
@@ -22,13 +21,13 @@ export function StudioWorkbench({outline, inspector, toolbar, nextStep, children
   measure?: boolean
 }) {
   const {t} = useI18n()
-  const mobile = useMobile()
+  const compact = useViewportAtMost(1200)
   const {panels, setPanels} = usePreferences()
   const [requested, setRequested] = useState<'outline' | 'inspector' | null>(null)
   // Leaving the narrow viewport closes the drawer instead of leaving stale state.
-  const drawer = mobile ? requested : null
+  const drawer = compact ? requested : null
   const track = (present: boolean, collapsed: boolean, width: string) => present ? (collapsed ? 'var(--workbench-rail)' : width) : null
-  const columns = mobile ? 'minmax(0, 1fr)' : [
+  const columns = compact ? 'minmax(0, 1fr)' : [
     track(Boolean(outline), panels.outline, 'var(--workbench-outline)'),
     'minmax(0, 1fr)',
     track(Boolean(inspector), panels.inspector, 'var(--workbench-inspector)'),
@@ -44,9 +43,9 @@ export function StudioWorkbench({outline, inspector, toolbar, nextStep, children
     </aside>
   }
   return <div className="studio-workbench" style={{'--workbench-columns': columns} as CSSProperties} data-measure={measure || undefined}>
-    {!mobile && outline && panel('outline', outlineTitle, outline, 'layers')}
+    {!compact && outline && panel('outline', outlineTitle, outline, 'layers')}
     <div className="studio-workbench-main">
-      {mobile && (outline || inspector) && <div className="studio-workbench-switcher" role="group" aria-label={t('工作区面板')}>
+      {compact && (outline || inspector) && <div className="studio-workbench-switcher" role="group" aria-label={t('工作区面板')}>
         {outline && <button type="button" onClick={() => setRequested('outline')}><Icon name="layers" /><span>{outlineTitle}</span></button>}
         {inspector && <button type="button" onClick={() => setRequested('inspector')}><Icon name="settings" /><span>{inspectorTitle}</span></button>}
       </div>}
@@ -54,7 +53,7 @@ export function StudioWorkbench({outline, inspector, toolbar, nextStep, children
       <div className="studio-workbench-canvas">{children}</div>
       {nextStep}
     </div>
-    {!mobile && inspector && panel('inspector', inspectorTitle, inspector, 'settings')}
+    {!compact && inspector && panel('inspector', inspectorTitle, inspector, 'settings')}
     {drawer && <StudioDialog title={drawer === 'outline' ? outlineTitle : inspectorTitle} onClose={() => setRequested(null)} initialFocus="cancel"><div className="studio-workbench-drawer-body">{drawer === 'outline' ? outline : inspector}</div></StudioDialog>}
   </div>
 }

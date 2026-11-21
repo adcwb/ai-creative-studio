@@ -164,7 +164,7 @@
 
 /* Reading scale for script prose. The interface baseline stays 14px; only the
    content being read grows, per the readability contract. */
-.drama-script-intro p, .drama-action, .drama-dialogue p { font-size: var(--text-lg); line-height: 1.8; }
+.drama-script-intro p, .drama-action, .drama-dialogue p { font-size: var(--text-lg); line-height: 1.8; overflow-wrap: anywhere; }
 .drama-script input, .drama-script textarea { font-size: var(--text-md); }
 .drama-scene > h3 { font-size: var(--text-xl); }
 

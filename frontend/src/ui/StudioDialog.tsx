@@ -27,6 +27,19 @@ export function StudioDialog({title, children, onClose, busy = false, className 
     const {scrollX, scrollY} = window
     return () => {previous?.focus({preventScroll:true}); window.scrollTo({left:scrollX,top:scrollY,behavior:'instant'})}
   }, [])
+  useEffect(() => {
+    if (!mobile) return
+    function closeAfterFocusLoss(event: KeyboardEvent) {
+      if (event.key !== 'Escape' || event.defaultPrevented || event.target !== document.body) return
+      const dialogs = [...document.querySelectorAll('.studio-mobile-sheet > [role="dialog"]')]
+      const dialog = body.current?.closest('[role="dialog"]')
+      if (!dialog || dialog !== dialogs.at(-1)) return
+      event.preventDefault()
+      if (!busy) onClose()
+    }
+    document.addEventListener('keydown', closeAfterFocusLoss)
+    return () => document.removeEventListener('keydown', closeAfterFocusLoss)
+  }, [mobile, busy, onClose])
   const focusContent = useCallback(() => {
     // An opening animation may finish after the user has already chosen a field.
     if (interacted.current) return

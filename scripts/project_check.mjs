@@ -102,7 +102,7 @@ try {
         await page.locator(`.project-steps a[href="/projects/${project.id}/script"]`).click()
         await expect(page).toHaveURL(`${origin}/projects/${project.id}/script`)
       } else {
-        await expect(page.locator('.page-empty')).toContainText('还没有短剧项目')
+        await expect(page.getByRole('heading', {name: '还没有短剧项目', exact: true})).toBeVisible()
         await page.locator('.projects-page > .page-heading').getByRole('link', {name: '新建短剧项目', exact: true}).click()
         await expect(page.getByLabel('项目名称')).toBeVisible()
       }

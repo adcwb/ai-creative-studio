@@ -46,13 +46,17 @@ test('image and creative tasks queue without costs or a model worker', async ({p
  await expect(picker).toHaveCount(1)
  await picker.getByRole('button',{name:'刷新模型目录',exact:true}).click()
  await selectOption(picker.getByRole('combobox',{name:'模型选择',exact:true}), model.id)
- await tools.getByLabel('创作或修改要求',{exact:true}).fill('Synthetic quoted shot')
+ const prompt = tools.getByLabel('创作或修改要求',{exact:true})
+ await prompt.fill('Synthetic quoted shot')
+ await prompt.blur()
  const generate = tools.getByRole('button',{name:'生成候选',exact:true})
  await expect(picker.getByRole('button',{name:'获取当前请求报价（不调用模型）',exact:true})).toHaveCount(0)
- const mediaAccepted = page.waitForResponse(r=>r.url().includes('/creative-jobs?')&&r.request().method()==='POST')
  await expect(generate).toBeEnabled()
- await generate.click()
- const mediaResponse = await mediaAccepted
+ await generate.evaluate(button=>button.scrollIntoView({block:'center'}))
+ const [mediaResponse] = await Promise.all([
+  page.waitForResponse(r=>r.url().includes('/creative-jobs?')&&r.request().method()==='POST'),
+  generate.click(),
+ ])
  expect(mediaResponse.status()).toBe(202)
  expect(mediaResponse.request().postDataJSON()).toMatchObject({kind:'image',prompt:'Synthetic quoted shot',expected_provider:'gateway-images',expected_model:'synthetic-quote-image'})
  expect((await mediaResponse.json()).status).toBe('queued')
