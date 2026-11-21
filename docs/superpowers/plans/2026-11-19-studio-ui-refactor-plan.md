@@ -584,3 +584,50 @@ CSS 体积从 90.47 kB 降到 **89.42 kB**（gzip 16.90 → 16.66），因为删
 `e2e-auth/appearance.spec.ts` 全部 12 个用例（桌面 + 手机）在真实 Go 后端上通过——含登录画廊轮播、双语、reduced-motion、账号隔离、退出清理、首次语言继承、存储被拒。此前该文件里「个人主题与语言按账号持久化」是失败的。另通过：tsc、eslint、119 单测、i18n、vite build。
 
 `e2e` / `e2e-gateway` / `e2e-quotes` 其余 spec 尚未跑，仍属 CI 范围。
+
+---
+
+## e2e 主套件实跑结果（真实 Go 后端，desktop）
+
+| spec | 结果 |
+| --- | --- |
+| structure | 2 通过 |
+| project | 6 通过 |
+| i18n + studio | 4 通过 |
+| creative + storyboard | 7 通过 |
+| series + iteration | 9 通过 |
+| social-consent + douyin-handoff + tiktok-photo | 12 通过 |
+| alignment | 3 通过 / 1 失败 |
+| media + iteration10 | 失败 1（media:19），其余未跑完 |
+
+### 本轮由此发现并修复的两个回归
+
+**剧本分片藏掉了非激活场的对白控件**。`structure.spec.ts` 重排后断言的角色下拉不存在。修法：只分片昂贵的 textarea，角色下拉每场都保留——100 场有 2000 条对白但说话人只有几个，下拉不是开销来源。同时把开放编辑器的跟随从「位置」改为「场次身份」，并在重排时跟随被移动的那一场。
+
+**项目列表同时渲染了骨架网格与真实网格**，`.project-grid` 匹配到 2 个元素，打断 strict-mode 定位器。真实网格改为仅在加载结束后渲染。素材列表本来就是互斥的。
+
+### 两条失败的归属
+
+`alignment.spec.ts:22`：**已判定为既有失败**。把 `frontend/src` 与 `frontend/e2e` 一起切回基线 `fce862b` 后跑同一 spec，同一条用例、同一处 `.project-page` 等待失败。不是本次重构引入。
+
+`media.spec.ts:19`：**归属未定**。等待 `成片预览` 标签失败；基线尝试中后端记录了 `task_error`，指向环境或后端侧，但该次基线运行未跑完，不足以下结论。
+
+### 未跑
+
+mobile 设备的全部 e2e、`e2e-gateway` 24 个 spec、`e2e-quotes`、Go vet 与三组 race、file × postgres 矩阵。
+
+---
+
+## CI 核查与一处真实补强
+
+### 核查结论：现有矩阵相当完整，没有编造缺口
+
+逐项核对后确认：`browser-tests` 覆盖 e2e / routing / auth × desktop / mobile；**consumer 套件已覆盖**，由 `scripts/ci_browser_tests.sh` 在 routing 之后追跑；**quotes 套件也已覆盖**，由 `durable-smoke` 的 `postgres_browser_check.py --quote-fixture` 驱动（先前 grep 复数 `quotes` 未命中，是因为 flag 写作单数 `--quote-fixture`）。另有 go-race 三分组 × 双存储、integrations、gateway、container、windows-native、verify、docker。
+
+### 补上的真实盲区
+
+`scripts/i18n_check.cjs` 只检查 `t()` / `translate()` 的**字面量首参**。本次新增的 `errorPresentation.ts` 与 `jobStatus.ts` 把中文放在查表映射里、以 `translate(变量)` 取值，因此那批文案**完全不在静态门禁覆盖内**——我当时是手工补的英文，没有任何东西阻止今后漂移。
+
+新增 `src/translationCoverage.test.ts` 三个用例堵上：八个错误分类的标题与下一步、三套状态集的全部标签、以及运行时阶段文案，逐条断言英文态下不含中文。它跑在 `npm test` 里，CI 已有的 quality job 直接生效，不需要改共享脚本。
+
+这是本次唯一有据可依的 CI 改动。其余「完善」在没有具体缺口证据前不做。
