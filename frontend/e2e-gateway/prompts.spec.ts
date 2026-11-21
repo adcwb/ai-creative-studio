@@ -277,10 +277,15 @@ test('reference recipes preserve ordered versions and actual project gateway par
   await page.getByRole('dialog', {name: '选择项目提示词', exact: true}).getByRole('button').filter({hasText: privateName}).click()
   const use = page.getByRole('dialog', {name: '应用项目配方', exact: true})
   await use.getByRole('button', {name: '预览完整提示词', exact: true}).click()
-  const applied = page.waitForResponse(r => r.url().includes('/prompt-applications?') && r.request().method() === 'POST')
+  const apply = use.getByRole('button', {name: '应用到项目制作', exact: true})
+  await expect(apply).toBeEnabled()
+  await expect(apply).toBeInViewport()
   await page.screenshot({path: test.info().outputPath('studio-reference-dialog.png')})
-  await use.getByRole('button', {name: '应用到项目制作', exact: true}).click()
-  expect((await applied).status()).toBe(201)
+  const [applied] = await Promise.all([
+    page.waitForResponse(r => r.url().includes('/prompt-applications?') && r.request().method() === 'POST'),
+    apply.click(),
+  ])
+  expect(applied.status()).toBe(201)
   await expect(use).toBeHidden()
   await expectControlValue(board.getByLabel('项目图像比例', {exact: true}), '4:5')
   await expectControlValue(board.getByLabel('项目图像风格', {exact: true}), 'illustration')
