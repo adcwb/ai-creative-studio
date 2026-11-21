@@ -280,10 +280,10 @@ test('reference recipes preserve ordered versions and actual project gateway par
   const apply = use.getByRole('button', {name: '应用到项目制作', exact: true})
   await expect(apply).toBeEnabled()
   await expect(apply).toBeInViewport()
-  await page.screenshot({path: test.info().outputPath('studio-reference-dialog.png')})
+  await use.screenshot({path: test.info().outputPath('studio-reference-dialog.png')})
   const [applied] = await Promise.all([
     page.waitForResponse(r => r.url().includes('/prompt-applications?') && r.request().method() === 'POST'),
-    apply.click(),
+    apply.press('Enter'),
   ])
   expect(applied.status()).toBe(201)
   await expect(use).toBeHidden()
