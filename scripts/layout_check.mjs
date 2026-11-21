@@ -95,6 +95,7 @@ try {
     { name: 'desktop-1440', width: 1440, height: 1100 },
     { name: 'desktop-1920', width: 1920, height: 1080 },
     { name: 'desktop-short', width: 1280, height: 640 },
+    { name: 'stacked-1100', width: 1100, height: 900 },
     { name: 'stacked-1040', width: 1040, height: 900 },
     { name: 'mobile-390', width: 390, height: 844, mobile: true },
   ]
@@ -137,6 +138,7 @@ try {
         }
         return {
           controls: rect('.creation-controls'), composer: rect('.composer'), results: rect('.results'),
+          templates: rect('.creation-controls > .templates'), parameters: rect('.creation-params'),
           viewport: innerWidth, documentWidth: document.documentElement.scrollWidth,
           clippedPrompts: [...document.querySelectorAll('.task-prompt')].filter(node => node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1).map(node => ({text: node.textContent, clamp: getComputedStyle(node).webkitLineClamp, height: node.clientHeight, lineHeight: parseFloat(getComputedStyle(node).lineHeight)})),
         }
@@ -155,7 +157,12 @@ try {
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
         await detail.getByRole('button', {name: '关闭详情'}).click()
       }
-      if (viewport.width > 1150) {
+      if (viewport.width >= 1400) {
+        expect(Math.abs(geometry.templates.top - geometry.results.top), `${state}/${viewport.name} template column top`).toBeLessThanOrEqual(1)
+        expect(Math.abs(geometry.parameters.top - geometry.results.top), `${state}/${viewport.name} parameter column top`).toBeLessThanOrEqual(1)
+        expect(geometry.templates.right, `${state}/${viewport.name} templates overlap results`).toBeLessThanOrEqual(geometry.results.left)
+        expect(geometry.results.right, `${state}/${viewport.name} results overlap parameters`).toBeLessThanOrEqual(geometry.parameters.left)
+      } else if (viewport.width > 1150) {
         expect(Math.abs(geometry.controls.top - geometry.results.top), `${state}/${viewport.name} column tops`).toBeLessThanOrEqual(1)
         expect(geometry.controls.right, `${state}/${viewport.name} column overlap`).toBeLessThanOrEqual(geometry.results.left)
       } else {

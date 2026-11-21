@@ -245,7 +245,7 @@
   .project-filters .studio-input, .project-filters .studio-select { flex: 1 1 140px; width: auto; }
 }
 
-/* Creation workspace. Below 1400px it keeps the proven two-column flow:
+/* The creation workspace uses two columns between 1150px and 1400px:
    parameters and templates left, results right. At 1400px and up the same DOM
    becomes three columns -- templates, preview, parameters -- by dissolving the
    controls wrapper with display:contents, so no descendant selector elsewhere
@@ -253,7 +253,7 @@
 .creation-params { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 .image-page .creation-controls { grid-column: 1; grid-row: 1; }
 .image-page .results { grid-column: 2; grid-row: 1; }
-@media (max-width: 1050px) {
+@media (max-width: 1150px) {
   .image-page .creation-controls, .image-page .results { grid-column: 1; grid-row: auto; }
 }
 @media (min-width: 1400px) {
