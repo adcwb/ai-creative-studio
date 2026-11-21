@@ -60,7 +60,7 @@ export function ProjectsPage() {
     {error && <StudioError error={error} message={errorMessage(error, t('项目列表读取失败'))} action={<StudioButton onClick={reload}>{t('重新加载项目列表')}</StudioButton>} />}
     {!loading && !error && !projects.length && <StudioEmpty icon="script" title={t('还没有短剧项目')} description={t('给故事起个名字，保存第一份简报。')} action={<Link className="button-link" to="/projects/new/brief">{t('新建短剧项目')}</Link>} />}
     {!loading && !error && projects.length > 0 && !visible.length && <StudioEmpty kind="no-results" icon="search" title={t('没有匹配的项目')} description={t('换个关键词，或清除筛选查看全部项目。')} action={<StudioButton onClick={() => setQuery('')}>{t('清除筛选')}</StudioButton>} />}
-    <div className="project-grid">{visible.map(project => <ProjectCard key={project.id} project={project} />)}</div>
+    {!loading && <div className="project-grid">{visible.map(project => <ProjectCard key={project.id} project={project} />)}</div>}
   </>}
   </div>
 }
