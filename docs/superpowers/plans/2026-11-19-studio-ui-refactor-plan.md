@@ -631,3 +631,35 @@ mobile 设备的全部 e2e、`e2e-gateway` 24 个 spec、`e2e-quotes`、Go vet �
 新增 `src/translationCoverage.test.ts` 三个用例堵上：八个错误分类的标题与下一步、三套状态集的全部标签、以及运行时阶段文案，逐条断言英文态下不含中文。它跑在 `npm test` 里，CI 已有的 quality job 直接生效，不需要改共享脚本。
 
 这是本次唯一有据可依的 CI 改动。其余「完善」在没有具体缺口证据前不做。
+
+---
+
+## e2e 主套件 mobile 实跑结果（真实 Go 后端）
+
+| spec | 结果 |
+| --- | --- |
+| structure + project | 8 通过 |
+| i18n + studio + creative | 7 通过 |
+| storyboard + series | 7 通过 |
+| social-consent + douyin-handoff + tiktok-photo | 12 通过 |
+| iteration10 | 2 通过 |
+| iteration + alignment | alignment:22 失败，其余未取到计数 |
+| media | media:19 失败 |
+
+移动端合计 36 个用例通过。两条失败与桌面端**完全一致**——同样的 spec、同样的行号，不是设备相关问题。
+
+### 两条失败的最终状态
+
+`alignment.spec.ts:22`：已用基线对照判定为**既有失败**。桌面与手机同样表现。
+
+`media.spec.ts:19`：**归属仍未定**。两次基线对照实验均因挂载文件系统过慢而超时未跑完；期间后端记录 `task_error`，指向环境或后端侧，但证据不足以定论。**不再继续该实验**——两次超时都曾导致还原步骤未执行、工作树停在基线，我都及时检查并还原了，但这个做法在当前环境下风险高于收益。
+
+### 合并前必须知道的事
+
+本次重构在真实后端上验证到的范围：e2e 桌面 43 + 移动 36、auth 双设备 12、routing 与 consumer 子集、122 单测、tsc、eslint、i18n、build。
+
+**未验证**：`e2e-gateway` 24 个 spec、`quotes` 套件、Go vet 与三组 race、file × postgres 双存储矩阵。这些在 CI 里存在且会被执行，但本地从未跑过。
+
+**已知红灯**：上述两条 e2e 失败。其中一条确认为既有，另一条归属未定。合并即意味着把这条未定项一并带入 master，CI 会给出最终判定。
+
+三态收敛（21 page-empty / 8 loading-block / 134 裸 error）本轮仍未做。
